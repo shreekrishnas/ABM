@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ABM Intelligence Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--paper:#F3F5F7;--card:#FFFFFF;--ink:#13223A;--muted:#56657A;--line:#D5DCE4;--soft:#E8EDF2;
+--data:#2F6FDB;--research:#7A3FD6;--people:#0F8A6A;--outreach:#C0620A;--learning:#B4235A;
+--ok:#13795B;--no:#B42318;--hold:#A8630F;
+--sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#0E1521;--card:#152033;--ink:#E7ECF3;--muted:#9AA7B8;--line:#26344A;--soft:#1B2940;
+--data:#6EA8FF;--research:#B794F6;--people:#4CC99A;--outreach:#F0A04B;--learning:#F27BA5;--ok:#4CC99A;--no:#F28B82;--hold:#E0A44A}}
+:root[data-theme="dark"]{--paper:#0E1521;--card:#152033;--ink:#E7ECF3;--muted:#9AA7B8;--line:#26344A;--soft:#1B2940;
+--data:#6EA8FF;--research:#B794F6;--people:#4CC99A;--outreach:#F0A04B;--learning:#F27BA5;--ok:#4CC99A;--no:#F28B82;--hold:#E0A44A}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55}
+.wrap{max-width:1160px;margin:0 auto;padding:40px 24px 64px}
+h1{font-size:clamp(34px,5vw,58px);line-height:1.02;letter-spacing:-.025em;margin:0 0 14px;font-weight:600}
+h2{font-size:26px;letter-spacing:-.01em;margin:0 0 6px;font-weight:600}
+h3{font-size:17px;margin:0 0 4px;font-weight:600}
+p{margin:0 0 12px;max-width:72ch}
+.lead{font-size:18px;color:var(--muted);max-width:66ch}
+code{font-family:var(--mono);font-size:.84em}
+.muted{color:var(--muted)}
+section{margin-top:60px}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--data);outline-offset:2px;border-radius:4px}
+.principle{display:inline-block;margin:0 0 16px;font-weight:600;font-size:14px;padding:5px 12px;border-radius:999px;background:var(--ink);color:var(--paper)}
+.stats{display:flex;flex-wrap:wrap;gap:30px;margin:26px 0 0}
+.stats div{font-size:14px;color:var(--muted)}.stats b{display:block;font-size:30px;color:var(--ink);font-weight:600;line-height:1.1}
+
+/* transit map */
+.map{margin-top:36px;overflow-x:auto;padding:6px 0}
+.line{display:grid;grid-template-columns:repeat(13,minmax(82px,1fr));min-width:1080px}
+.stn{position:relative;background:none;border:0;padding:0 3px;text-align:center}
+.stn:before{content:"";position:absolute;top:22px;left:0;right:0;height:6px;background:var(--c)}
+.stn:first-child:before{left:50%}.stn:last-child:before{right:50%}
+.stn.fade{opacity:.25}
+.dot{position:relative;width:26px;height:26px;border-radius:50%;background:var(--card);border:5px solid var(--c);margin:12px auto 10px;transition:transform .15s}
+.stn[aria-pressed="true"] .dot{background:var(--c);transform:scale(1.28);box-shadow:0 0 0 5px var(--paper),0 0 0 7px var(--c)}
+.stn:hover .dot{transform:scale(1.15)}
+.stn .num{display:block;font-size:12px;color:var(--muted)}
+.stn .nm{display:block;font-weight:600;font-size:14px;line-height:1.25}
+.new{display:inline-block;margin-top:5px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.loops{display:flex;flex-wrap:wrap;gap:8px 22px;margin:12px 0 0;font-size:13px;color:var(--muted)}
+.loops b{color:var(--ink);font-weight:600}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0;align-items:center}
+.flabel{font-size:13px;color:var(--muted);margin-right:4px;min-width:70px}
+.fb{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px}
+.fb[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.kt{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;color:var(--muted)}
+.kt.gate{color:var(--ink);border-color:var(--ink)}
+.kt .g{font-size:11px}
+
+/* stage panel */
+.panel{display:grid;grid-template-columns:310px minmax(0,1fr);gap:28px;margin-top:22px;background:var(--card);border:1px solid var(--line);border-top:5px solid var(--c);border-radius:16px;padding:28px}
+.meta dt{font-size:13px;color:var(--muted);margin-top:13px}.meta dd{margin:2px 0 0;font-size:15px}
+.cat{font-size:13px;font-weight:600;color:var(--c);text-transform:capitalize}
+.stagehead{font-size:32px;font-weight:600;letter-spacing:-.02em;line-height:1.08;margin:2px 0 10px}
+.rule{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--soft);font-size:14px}
+.rule b{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.rail{position:relative;list-style:none;margin:0;padding:0 0 0 44px}
+.rail:before{content:"";position:absolute;left:15px;top:18px;bottom:18px;width:3px;background:var(--line);border-radius:2px}
+.st{position:relative;margin:0 0 10px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.st.dim{opacity:.28}
+.st .n{position:absolute;left:-44px;top:10px;width:33px;height:33px;border-radius:50%;background:var(--card);border:3px solid var(--c);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.st>button{display:flex;width:100%;justify-content:space-between;gap:12px;align-items:flex-start;background:none;border:0;padding:12px 14px;text-align:left}
+.st .ttl{font-weight:600}.st .sub{font-size:14px;color:var(--muted)}
+.body{display:none;padding:0 14px 14px;border-top:1px solid var(--line)}
+.st.open .body{display:block}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 14px;margin-top:12px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.nextbar{display:flex;justify-content:space-between;margin-top:16px;gap:10px}
+.btn{border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:10px;font-size:14px}
+.btn:hover{border-color:var(--ink)}
+
+/* reference blocks */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:18px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.box h3{display:flex;align-items:center;gap:8px}
+.box p{font-size:14px;margin:6px 0 0}
+.chipline{display:inline-block;width:12px;height:12px;border-radius:50%}
+.tw{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:660px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:13px}
+tr:last-child td{border-bottom:0}
+.out{font-weight:600}
+.meter{height:14px;border-radius:7px;background:var(--soft);position:relative;overflow:hidden;margin:12px 0 6px}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:7px;transition:width .3s}
+.meter .th{position:absolute;top:0;bottom:0;width:2px;background:var(--no)}
+.big{font-size:40px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.changes{margin-top:18px;display:grid;gap:10px}
+.chg{display:grid;grid-template-columns:120px minmax(0,1fr);gap:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:15px}
+.chg .k{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+footer{margin-top:64px;font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:20px}
+@media (max-width:840px){.panel{grid-template-columns:1fr;padding:20px}.chg{grid-template-columns:1fr;gap:4px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="principle">Verify before drafting</span>
+  <h1>ABM Intelligence Pipeline</h1>
+  <p class="lead">Thirteen stages take raw account data to evidence-based outreach and a sales handoff. Every fact keeps a status and a source, research stops when it can no longer change a decision, and nothing is drafted until identity and evidence pass the readiness gate.</p>
+  <div class="stats" id="stats"></div>
+</header>
+
+<nav class="map" aria-label="Pipeline stages"><div class="line" id="line"></div></nav>
+<div class="loops">
+  <span><b>Loop 1</b> 10 &rarr; 6: weak evidence gets one targeted re-research pass</span>
+  <span><b>Loop 2</b> 7 &rarr; 6: a contradiction reopens its question once</span>
+  <span><b>Refresh</b> watchlist &rarr; 5 when the re-check date arrives</span>
+</div>
+
+<div class="filters" id="cats" role="group" aria-label="Filter by category"></div>
+<div class="filters" id="kinds" role="group" aria-label="Highlight step type" style="margin-top:10px"></div>
+
+<main>
+<div class="panel" id="panel"></div>
+
+<section>
+  <h2>Readiness outcomes</h2>
+  <p class="muted">Stage 10 gives every selected person exactly one outcome. Checked in this order, so the first rule that matches wins.</p>
+  <div class="tw"><table id="outcomes"></table></div>
+</section>
+
+<section>
+  <h2>Field status</h2>
+  <p class="muted">Every important field and fact carries one of six statuses, so uncertainty stays visible all the way to the draft.</p>
+  <div class="grid2" id="statuses"></div>
+</section>
+
+<section>
+  <h2>Gates</h2>
+  <p class="muted">Every check that can stop a record. A blocked item is logged with a reason and goes to a watchlist, the review queue, or suppression, never silently dropped.</p>
+  <div class="tw"><table id="gates"></table></div>
+</section>
+
+<section>
+  <h2>Replies and engagement</h2>
+  <p class="muted">Each reply is classified and routed. Engagement only counts from people we actually contacted.</p>
+  <div class="grid2" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)">
+    <div class="tw" style="margin-top:0"><table id="replies" style="min-width:420px"></table></div>
+    <div class="box">
+      <h3>Engagement score</h3>
+      <p>Open 10, site visit 30, reply 50, each fading with a 14-day half-life. Handoff at 70, or at once on a positive reply.</p>
+      <div class="big" id="engOut" style="margin-top:14px">0</div>
+      <div class="meter"><i id="engBar" style="width:0"></i><span class="th" style="left:70%"></span></div>
+      <div class="row">
+        <button class="btn" data-pts="10">Opened +10</button>
+        <button class="btn" data-pts="30">Visited +30</button>
+        <button class="btn" data-pts="50">Replied +50</button>
+        <button class="btn" id="reset">Reset</button>
+      </div>
+      <p id="engMsg" style="margin-top:12px" aria-live="polite">Below 70: the sequence continues.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>LLM gateway</h2>
+  <p class="muted">Every model call goes through one gateway that routes the task to a tier and charges the account's budget. Models never decide on their own whether to send.</p>
+  <div class="tw"><table id="llm"></table></div>
+</section>
+
+<section>
+  <h2>What changed from your 12-stage flow</h2>
+  <p class="muted">Your stages are kept as they were. These are the gaps filled and the additions.</p>
+  <div class="changes" id="changes"></div>
+</section>
+</main>
+
+<footer>Code: <code>pipeline.yaml</code> holds every threshold on this page. Stages live in <code>abm_pipeline/stages.py</code> (functions <code>s01_data_input</code> to <code>s13_sales_handoff</code>), checks in <code>gates.py</code>, model calls in <code>llm.py</code>, external systems in <code>adapters.py</code>, and the database in <code>schema.sql</code>. External services and models are mocks for now.</footer>
+</div>
+
+<script>
+const CAT = {data:"Data",research:"Research",people:"People",outreach:"Outreach",learning:"Learning"};
+const KIND = {plain:["Step","–"],gate:["Gate","◆"],llm:["LLM","✦"],store:["Store","▪"],evidence:["Evidence","●"],event:["Trigger","↻"]};
+const C = c => `var(--${c})`;
+const STAGES = [{"n": 1, "id": "data_input", "fn": "s01_data_input", "name": "Data Input", "cat": "data", "trig": "manual: CSV, CRM export, form, API", "emits": "records.received", "purpose": "Accept uploaded or connected data without assuming any of it is correct.", "input": "CSV, CRM export, form, API, or manual records", "output": "Raw account and contact records", "rule": "Nothing is trusted yet. Every field starts as unknown and keeps its source.", "steps": [{"id": "receive_record", "k": "store", "t": "Receive and tag", "w": "Stores every account, contact, and field with the file or system it came from.", "i": "One row per account with contacts", "o": "Account, people, and a field state per field, all unknown", "f": "A row that cannot be read is reported, not guessed"}], "isNew": false}, {"n": 2, "id": "clean_normalize", "fn": "s02_clean_normalize", "name": "Clean & Normalize", "cat": "data", "trig": "records.received", "emits": "records.cleaned", "purpose": "Fix obvious data problems before spending money on research or enrichment.", "input": "Raw records", "output": "One canonical account and person record each", "rule": "Duplicates and malformed fields are fixed or flagged before anything else runs.", "steps": [{"id": "normalize_account", "k": "plain", "t": "Normalize the company", "w": "Domain lowercased and stripped of https, www, and paths; legal suffixes removed from the name.", "i": "https://www.Northwind-Analytics.example/", "o": "northwind-analytics.example", "f": "A row without a usable domain is reported"}, {"id": "dedupe_accounts", "k": "gate", "t": "Merge duplicate accounts", "w": "Two rows with the same domain become one; contacts move to the kept record.", "i": "All accounts in the batch", "o": "Unique accounts", "f": "The duplicate is marked merged, never deleted"}, {"id": "standardize_person", "k": "plain", "t": "Standardize people", "w": "Titles standardized (Hd of Data becomes Head of Data); missing fields marked unknown.", "i": "Contact fields", "o": "Clean titles and explicit gaps", "f": "Unrecognized titles are kept as written"}, {"id": "validate_email_format", "k": "gate", "t": "Check email and phone format", "w": "Malformed emails and phones are marked invalid.", "i": "sam@@northwind-analytics.example", "o": "invalid", "f": "An invalid email is never used for outreach"}, {"id": "dedupe_people", "k": "gate", "t": "Merge duplicate people", "w": "Same email or same name within an account becomes one person.", "i": "People per account", "o": "Unique people", "f": "The duplicate is marked merged"}], "isNew": false}, {"n": 3, "id": "identity_verification", "fn": "s03_identity_verification", "name": "Identity Verification", "cat": "data", "trig": "records.cleaned", "emits": "identity.checked", "isNew": false, "purpose": "Check that email, company, title, phone, and LinkedIn belong to the same current person.", "input": "Clean records", "output": "Field statuses and an identity confidence per person", "rule": "Conflicting fields get one focused re-check; if still conflicting, a person decides.", "steps": [{"id": "freshness_check", "k": "gate", "t": "Freshness check", "w": "A title older than 120 days is marked stale before anything is trusted.", "i": "Title and its date", "o": "Fresh or stale", "f": "Stale fields are re-checked in the next step"}, {"id": "current_role_check", "k": "gate", "t": "Current role via data provider", "w": "The provider confirms title and employer. LinkedIn is never scraped.", "i": "Name and company domain", "o": "Title and company: verified, conflicting, or unknown", "f": "A different employer means a likely job change"}, {"id": "focused_recheck", "k": "gate", "t": "One focused re-check", "w": "A second, independent source is asked once.", "i": "Conflicting field", "o": "Resolved or still conflicting", "f": "Still conflicting goes to the review queue"}, {"id": "email_domain_match", "k": "gate", "t": "Email matches company", "w": "The email domain must match the company domain.", "i": "asha@northwind-analytics.example", "o": "probable, or conflicting for a personal address", "f": "Conflicting blocks drafting"}, {"id": "phone_country_check", "k": "gate", "t": "Phone matches country", "w": "The country code must match the company's country.", "i": "+91 number, company in IN", "o": "probable or conflicting", "f": "A conflict is logged; phone is optional"}, {"id": "linkedin_match", "k": "gate", "t": "LinkedIn profile match", "w": "A provided profile URL is matched against the provider record.", "i": "Profile URL", "o": "probable or unknown", "f": "Unconfirmed profiles are not used"}, {"id": "identity_confidence", "k": "plain", "t": "Identity confidence", "w": "Share of email, title, and company that are verified or probable.", "i": "Three core field statuses", "o": "0 to 1 per person", "f": "Any conflict sends the person to human review"}]}, {"n": 4, "id": "fit_priority", "fn": "s04_fit_priority", "name": "Fit & Priority", "cat": "research", "trig": "identity.checked", "emits": "account.prioritized", "purpose": "Decide which accounts deserve research, without confusing fit with certainty.", "input": "Firmographics and identity results", "output": "Fit score, data confidence, research priority", "rule": "Excluded or low-fit accounts stop here. High fit with weak data moves on to targeted research.", "steps": [{"id": "exclusions", "k": "gate", "t": "Exclusions", "w": "Customers and competitors stop immediately.", "i": "Domain", "o": "Continue or stop", "f": "Stopped accounts are marked disqualified"}, {"id": "company_fit", "k": "plain", "t": "Company fit", "w": "Industry 40, size 30, region 30 points against the ICP.", "i": "Industry, employees, country", "o": "Fit 0 to 100", "f": "Missing fields score zero"}, {"id": "data_confidence", "k": "plain", "t": "Data confidence", "w": "How much of what we know is verified, kept separate from fit.", "i": "Field statuses", "o": "0 to 1", "f": "Low confidence raises research priority"}, {"id": "fit_floor", "k": "gate", "t": "Fit floor", "w": "Fit under 40 stops here.", "i": "Fit score", "o": "Continue or stop", "f": "Stopped accounts spend nothing more"}, {"id": "research_priority", "k": "gate", "t": "Research priority", "w": "High at 70 or more, otherwise medium.", "i": "Fit and confidence", "o": "Priority", "f": "None"}], "isNew": false}, {"n": 5, "id": "research_plan", "fn": "s05_research_plan", "name": "Research Plan", "cat": "research", "trig": "account.prioritized, or a watchlist re-check", "emits": "research.planned", "purpose": "Turn gaps into a short list of questions that change a decision.", "input": "Fit result and what is already known", "output": "Research plan with questions, skipped items, and a stop rule", "rule": "If an answer would not change a decision, or is already known and fresh, it is not researched.", "steps": [{"id": "refresh_trigger", "k": "event", "t": "Refresh from the watchlist", "w": "When a re-check date arrives, the account comes back here with its loop counters reset.", "i": "Watchlist entry", "o": "Account re-planned", "f": "Only due entries are processed"}, {"id": "known_vs_unknown", "k": "plain", "t": "Known versus unknown", "w": "Lists facts that are already usable and fresh.", "i": "Evidence and statuses", "o": "Known fresh facts", "f": "None"}, {"id": "questions", "k": "plain", "t": "Pick questions", "w": "Trigger, owner function, negative evidence, tooling, size; at most 6.", "i": "Question templates", "o": "Question list", "f": "Budget caps the list"}, {"id": "stop_rule", "k": "gate", "t": "Stop rule", "w": "Drops questions that change nothing (like culture) or are already answered.", "i": "Questions", "o": "Final plan and skipped list", "f": "Skipped questions are recorded with a reason"}], "isNew": false}, {"n": 6, "id": "account_research", "fn": "s06_account_research", "name": "Account Research", "cat": "research", "trig": "research.planned", "emits": "research.done", "purpose": "Collect source-backed evidence, cheapest strong sources first.", "input": "Research plan", "output": "Facts and negative evidence, each with source and date", "rule": "One main pass and at most one targeted follow-up for unanswered high-importance questions.", "steps": [{"id": "fetch_main", "k": "plain", "t": "Main pass", "w": "Search, press, careers, and leadership pages per question. No negative news counts as an answer.", "i": "Questions", "o": "Raw pages", "f": "A question with no sources stays unanswered"}, {"id": "extract_evidence", "k": "llm", "t": "Extract evidence", "w": "Cheap-tier model turns pages into evidence items, extracting rather than inferring.", "i": "Page text", "o": "Evidence items", "f": "Budget reached stops the stage and asks a person"}, {"id": "evidence_gate", "k": "gate", "t": "Evidence gate", "w": "A fact needs a source URL, source type, and date.", "i": "Evidence items", "o": "Stored or dropped", "f": "Dropped items are logged with the reason"}, {"id": "targeted_followup", "k": "gate", "t": "Targeted follow-up", "w": "One extra pass for unanswered high-importance questions only.", "i": "Unanswered questions", "o": "More evidence or nothing", "f": "After one follow-up, stop"}, {"id": "fetch_followup", "k": "plain", "t": "Follow-up and reopen passes", "w": "Also used by loop 1 (readiness) and loop 2 (contradictions).", "i": "Specific questions", "o": "Evidence", "f": "Capped by pipeline.yaml"}], "isNew": false}, {"n": 7, "id": "account_twin", "fn": "s07_account_twin", "name": "Evidence & Account Twin", "cat": "research", "trig": "research.done", "emits": "twin.updated", "purpose": "Keep one living view of the account, separating facts from inference.", "input": "New evidence and the previous twin", "output": "Versioned twin: facts, inferences, contradictions, negatives, what changed, unknowns", "rule": "A contradiction lowers confidence and reopens its question once.", "steps": [{"id": "fact_status", "k": "plain", "t": "Assign statuses", "w": "Official source or two independent sources means verified; one source probable; too old stale.", "i": "Evidence by key", "o": "Status per fact", "f": "None"}, {"id": "contradiction", "k": "gate", "t": "Detect contradictions", "w": "Two sources disagreeing on a value reopens that question once.", "i": "Facts with values", "o": "Reopen or continue", "f": "Still unresolved after the reopen goes to a person"}, {"id": "resolve_contradiction", "k": "gate", "t": "Resolve by source strength", "w": "An official source wins; other values are kept but superseded.", "i": "Conflicting facts", "o": "One verified value", "f": "No official source means human review"}, {"id": "infer", "k": "llm", "t": "Infer, labeled as inference", "w": "Inferences must list the facts they rest on and are never used as claims.", "i": "Usable facts", "o": "Inferences", "f": "An inference without a basis is rejected"}, {"id": "save_twin", "k": "store", "t": "Save a new version", "w": "Records what changed since the last version and what is still unknown.", "i": "Statuses and inferences", "o": "Twin version", "f": "None"}], "isNew": false}, {"n": 8, "id": "buying_group", "fn": "s08_buying_group", "name": "Buying Group Discovery", "cat": "people", "trig": "twin.updated", "emits": "buying_group.mapped", "purpose": "Find people by the problem the account has, not by generic seniority.", "input": "Twin and known people", "output": "Buying-group map and selected members", "rule": "If ownership is unclear, research the function before guessing a contact.", "steps": [{"id": "affected_function", "k": "plain", "t": "Affected function", "w": "Takes the function that owns the problem from the twin.", "i": "Twin owner fact", "o": "Function, or unclear", "f": "Unclear means no new contacts are guessed"}, {"id": "map_roles", "k": "llm", "t": "Map buying roles", "w": "Titles become decision maker, champion, influencer, budget owner, or unknown.", "i": "Titles", "o": "Roles", "f": "Unclear titles stay unknown"}, {"id": "discover_by_function", "k": "plain", "t": "Discover missing roles", "w": "Searches the provider within the owning function for a missing decision maker or champion.", "i": "Function and missing roles", "o": "New candidates, verified by the provider", "f": "Skipped when the function is unknown"}, {"id": "select_members", "k": "store", "t": "Select members", "w": "Decision makers and champions with no identity conflict and no invalid email.", "i": "People with roles", "o": "Selected list and missing roles", "f": "Nobody selected leads to watch or review"}], "isNew": false}, {"n": 9, "id": "contact_enrichment", "fn": "s09_contact_enrichment", "name": "Contact Enrichment", "cat": "people", "trig": "buying_group.mapped", "emits": "contacts.ready", "purpose": "Fill only the missing data, and only for selected people.", "input": "Selected members", "output": "Outreach-ready contacts", "rule": "Paid enrichment runs only for required missing fields, within budget.", "steps": [{"id": "skip_paid_lookup", "k": "plain", "t": "Skip when present", "w": "No paid call when the email already exists.", "i": "Selected person", "o": "No charge", "f": "None"}, {"id": "paid_lookup", "k": "plain", "t": "Paid lookup", "w": "$0.10 per lookup, charged to the account's ledger.", "i": "Name and domain", "o": "Email, probable", "f": "Budget reached skips the lookup"}, {"id": "mailbox_verification", "k": "gate", "t": "Mailbox verification", "w": "The address must be deliverable.", "i": "Email", "o": "verified or invalid", "f": "Invalid is never contacted"}, {"id": "suppression_check", "k": "gate", "t": "Suppression", "w": "Opted-out people and domains are removed from selection.", "i": "Email", "o": "Continue or deselect", "f": "Deselected people are logged"}, {"id": "lawful_basis", "k": "gate", "t": "Lawful basis", "w": "Records the basis for the company's region (CAN-SPAM, UK B2B, India DPDP).", "i": "Company country", "o": "Basis recorded", "f": "No basis blocks sending; confirm with counsel"}], "isNew": false}, {"n": 10, "id": "readiness_gate", "fn": "s10_readiness_gate", "name": "Readiness Gate", "cat": "outreach", "trig": "contacts.ready", "emits": "readiness.decided", "purpose": "Stop weak intelligence from turning into outbound messages.", "input": "Twin and enriched contacts", "output": "One outcome per person: ready, targeted re-research, watch, human review, or disqualified", "rule": "Drafting starts only for people who meet the identity and evidence minimums.", "steps": [{"id": "evidence_quality", "k": "gate", "t": "Evidence quality", "w": "Needs 1 verified or 2 usable trigger signals from the last 90 days.", "i": "Trigger facts", "o": "Strong or weak", "f": "Weak evidence uses loop 1 once, then watch"}, {"id": "negative_evidence", "k": "gate", "t": "Negative evidence", "w": "Layoffs or a freeze mean watch for 90 days; acquired or bankrupt means disqualified.", "i": "Recent negatives", "o": "Watch, disqualify, or continue", "f": "None"}, {"id": "decide", "k": "gate", "t": "Decide per person", "w": "Identity verified or probable, decision maker or champion, lawful basis recorded.", "i": "Person and account", "o": "Outcome with reasons", "f": "Watch and review items are queued with dates and reasons"}], "isNew": false}, {"n": 11, "id": "draft_review", "fn": "s11_draft_review", "name": "Draft & Review", "cat": "outreach", "trig": "readiness.decided (ready only)", "emits": "draft.approved", "purpose": "Draft from the strongest relevant facts, then have a person approve.", "input": "Ready person and usable facts", "output": "Approved draft with cited evidence", "rule": "Unsupported claims, fake personalization, and uncertain facts never reach a send.", "steps": [{"id": "choose_evidence", "k": "evidence", "t": "Choose the evidence", "w": "Leads with the strongest fresh trigger fact; inferences never stated as fact.", "i": "Usable facts", "o": "Lead fact and angle", "f": "No usable fact means no draft"}, {"id": "fact_guardrail", "k": "gate", "t": "Fact guardrail", "w": "Every claim must cite a verified or probable, fresh fact.", "i": "Draft claims", "o": "Pass or regenerate", "f": "Three failures go to human review"}, {"id": "compliance", "k": "gate", "t": "Compliance", "w": "Unsubscribe line and sender details must be present.", "i": "Draft body", "o": "Pass or block", "f": "Blocked drafts are not reviewed"}, {"id": "human_review", "k": "gate", "t": "Human approval", "w": "A reviewer sees the draft next to its evidence and approves, edits, or rejects.", "i": "Draft and evidence", "o": "approved or rejected", "f": "Rejected drafts are never sent"}], "isNew": false}, {"n": 12, "id": "send_measure_learn", "fn": "s12_send_measure_learn", "name": "Send, Measure & Learn", "cat": "learning", "trig": "draft.approved, email.opened, site.visited, email.replied, email.bounced", "emits": "account.engaged", "purpose": "Send safely, measure what happens, and feed it back into the account.", "input": "Approved drafts and engagement events", "output": "Updated person states, twin, learning signals, engagement score", "rule": "Future research and messaging start from what changed, not from zero.", "steps": [{"id": "bounce_breaker", "k": "gate", "t": "Bounce breaker", "w": "Hard bounces over 2% pause all sending.", "i": "Recent sends", "o": "Continue or pause", "f": "A person reviews before resuming"}, {"id": "pre_send_checks", "k": "gate", "t": "Pre-send checks", "w": "Suppression, lawful basis, daily cap of 40, and person not paused.", "i": "Draft and person", "o": "Cleared or held", "f": "Held sends wait"}, {"id": "send_once", "k": "plain", "t": "Send once", "w": "The draft id is the idempotency key, so a retry cannot send twice.", "i": "Cleared draft", "o": "delivered or duplicate_skipped", "f": "Provider errors retry with backoff"}, {"id": "bounce", "k": "gate", "t": "Handle bounces", "w": "A hard bounce marks the email invalid and suppresses it.", "i": "Bounce event", "o": "Invalid and suppressed", "f": "None"}, {"id": "attribution_check", "k": "gate", "t": "Attribution check", "w": "Engagement from someone never contacted scores nothing and is kept as evidence.", "i": "Event", "o": "Scored or evidence only", "f": "None"}, {"id": "measure", "k": "evidence", "t": "Measure", "w": "Open 10, visit 30, reply 50 points.", "i": "Engagement event", "o": "Activity with points", "f": "None"}, {"id": "classify_reply", "k": "llm", "t": "Classify the reply", "w": "Positive, objection, not now, unsubscribe, wrong person, or out of office.", "i": "Reply text", "o": "Reply class", "f": "Unclear replies default to objection for a person to read"}, {"id": "route_reply", "k": "store", "t": "Route the reply", "w": "Each class has a fixed route: handoff, twin, watchlist, suppression, or re-map.", "i": "Reply class", "o": "Updated records and learning signal", "f": "None"}, {"id": "engagement_score", "k": "plain", "t": "Engagement score", "w": "Points fade with a 14-day half-life; 70 or a positive reply hands off.", "i": "Activities", "o": "Score", "f": "None"}], "isNew": false}, {"n": 13, "id": "sales_handoff", "fn": "s13_sales_handoff", "name": "Sales Handoff", "cat": "learning", "isNew": true, "trig": "account.engaged, deal.closed", "emits": "handoff.done", "purpose": "Give a rep a short, fact-checked briefing at the moment the account engages, then learn from the outcome.", "input": "Engaged account and its twin", "output": "Alert to the owner, paused automation, outcome record", "rule": "The briefing contains only usable facts, and weights change only after enough closed deals.", "steps": [{"id": "briefing", "k": "llm", "t": "Write the briefing", "w": "Why now, the strongest facts, what is still unknown, and who engaged.", "i": "Twin and engagement", "o": "One-page briefing", "f": "None"}, {"id": "briefing_guardrail", "k": "gate", "t": "Briefing guardrail", "w": "Every statement cites a usable fact.", "i": "Briefing claims", "o": "Pass or block", "f": "Blocked briefings go to human review"}, {"id": "alert_owner", "k": "plain", "t": "Alert the owner", "w": "Slack or email to the account owner.", "i": "Briefing", "o": "Alert delivered", "f": "Retried on failure"}, {"id": "pause_sequences", "k": "gate", "t": "Pause automation", "w": "All automated outreach to the account stops; the rep owns it now.", "i": "Account people", "o": "Paused", "f": "None"}, {"id": "ack_sla", "k": "gate", "t": "Acknowledgment deadline", "w": "Escalates to a manager if not acknowledged in 24 hours.", "i": "Alert time", "o": "Due time", "f": "Escalation"}, {"id": "record_outcome", "k": "store", "t": "Record the outcome", "w": "Won or lost, with the fact types known at close.", "i": "Rep input", "o": "Learning signal", "f": "A missing reason is allowed but flagged"}, {"id": "retune_weights", "k": "gate", "t": "Retune only with enough data", "w": "Scoring weights change only after about 200 closed deals and a baseline test.", "i": "Closed deals", "o": "Keep or propose new weights", "f": "Current weights stay"}]}];
+const OUTCOMES = [
+ ["disqualified","Negative evidence such as acquired, bankruptcy, or signed a competitor","Stops. No outreach."],
+ ["watch","Layoffs or a hiring freeze in the last 90 days","Watchlist, re-check in 90 days"],
+ ["targeted_re_research","Evidence too weak and the follow-up pass is unused","One more research pass on the missing question, then decide again"],
+ ["watch","Evidence still too weak after the follow-up","Watchlist, re-check in 30 days"],
+ ["human_review","Identity not verified or probable, or no lawful basis, or no usable person because of conflicts","Review queue with the reason"],
+ ["ready","Identity verified or probable, decision maker or champion, and 1 verified or 2 usable trigger signals from the last 90 days","Drafting is allowed"]];
+const STATUSES = [
+ ["verified","var(--ok)","Confirmed by an official source, two independent sources, a data provider, or a mailbox check."],
+ ["probable","var(--people)","One credible source and nothing against it. Usable in a draft."],
+ ["conflicting","var(--no)","Sources disagree. Gets one focused re-check, then a person."],
+ ["stale","var(--hold)","Older than its freshness limit: email 180, title 120, company facts 180, trigger signals 90 days."],
+ ["invalid","var(--no)","Proven wrong: malformed, hard bounce, or wrong format."],
+ ["unknown","var(--muted)","Not yet checked, or nothing found."]];
+const GATES = [
+ ["Duplicates","2","Same domain or same person twice","Merged into one record"],
+ ["Format","2","Malformed email or phone","Field marked invalid"],
+ ["Freshness","3","Title or fact older than its limit","Marked stale, re-checked"],
+ ["Identity conflict","3","Email, company, or title disagree after 1 re-check","Human review"],
+ ["Exclusions and fit floor","4","Customer, competitor, or fit under 40","Stops at stage 4"],
+ ["Stop rule","5","Question would not change a decision, or is already known and fresh","Not researched"],
+ ["Evidence gate","6","Fact without source, source type, and date","Dropped"],
+ ["Contradiction","7","Two sources disagree on a fact","Reopened once, official source wins, else human"],
+ ["Ownership unclear","8","Owner function unknown","No guessed contacts"],
+ ["Paid lookup","9","Field already present, or budget reached","No paid call"],
+ ["Mailbox, suppression, lawful basis","9","Undeliverable, opted out, or no basis for the region","Person not contacted"],
+ ["Readiness","10","See readiness outcomes","Only ready moves to drafting"],
+ ["Fact guardrail","11","Claim citing anything but a usable fact; inferences never stated as fact","Regenerated up to 3 times, then human"],
+ ["Human approval","11","Reviewer rejects","Not sent"],
+ ["Pre-send","12","Suppressed, no basis, over 40 a day, or person paused","Held"],
+ ["Bounce breaker","12","Hard bounces over 2%","All sending paused"],
+ ["Attribution","12","Engagement from someone never contacted","Kept as evidence, no points"],
+ ["Budget","All","Over $1.00 per account in LLM calls and paid lookups","Stage stops, human review"],
+ ["Retune","13","Fewer than 200 closed deals","Weights unchanged"]];
+const REPLIES = [["positive","Hand off to sales now"],["not_now","Pause, watchlist for 60 days"],["objection","Logged to the account twin"],
+ ["wrong_person","Pause, title marked stale, re-map buying group"],["unsubscribe","Suppress and pause"],["out_of_office","Ignored"]];
+const LLM = [["Extract evidence","6","cheap","Pages to evidence items","Evidence gate"],["Infer","7","cheap","Inferences naming their facts","Must cite 1 or more facts"],
+ ["Map roles","8","cheap","Title to buying role","Unknown if unclear"],["Draft","11","strong","Message and claims","Fact guardrail, human approval"],
+ ["Classify reply","12","cheap","One of six reply classes","Routes fixed in pipeline.yaml"],["Briefing","13","cheap","Why now, facts, unknowns","Fact guardrail"]];
+const CHANGES = [
+ ["Gap fixed","Stage 13 Sales Handoff: a positive reply or engagement of 70 alerts the owner with a fact-checked briefing, pauses automation, and escalates after 24 hours."],
+ ["Gap fixed","Send safety inside stage 12: suppression, lawful basis, daily cap of 40, bounce breaker at 2%, and send-once keys."],
+ ["Gap fixed","Stage 11 keeps a human approval step after the automatic fact guardrail."],
+ ["Gap fixed","Readiness rules have numbers: identity verified or probable, a decision maker or champion, and 1 verified or 2 usable trigger signals from the last 90 days."],
+ ["Gap fixed","One status set everywhere: verified, probable, conflicting, stale, invalid, unknown."],
+ ["Gap fixed","Loop caps: 1 identity re-check, 1 research follow-up, 1 contradiction reopen."],
+ ["Gap fixed","Current role is checked through a data provider. LinkedIn profiles are matched, never scraped."],
+ ["Added","Freshness limits per field, so old facts turn stale on their own."],
+ ["Added","Negative evidence rules: layoffs or a freeze lead to watch for 90 days; acquired or bankrupt leads to disqualified."],
+ ["Added","Finding no negative news counts as an answer, so it does not use up the research follow-up."],
+ ["Added","Reply classes with fixed routes, and an attribution check so uncontacted people cannot trigger a handoff."],
+ ["Added","A cost ledger for LLM calls and paid lookups, capped at $1.00 per account."],
+ ["Added","A watchlist with re-check dates that sends accounts back to stage 5, skipping questions already answered."],
+ ["Added","One human review queue, where every item has a reason."]];
+
+let S = {i:9, open:null, cat:"all", kind:"all"};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ktag = k => `<span class="kt${k==="gate"?" gate":""}"><span class="g" aria-hidden="true">${KIND[k][1]}</span>${KIND[k][0]}</span>`;
+const vis = s => S.cat==="all" || s.cat===S.cat;
+
+function stats(){
+  const n = STAGES.reduce((a,s)=>a+s.steps.length,0), g = STAGES.reduce((a,s)=>a+s.steps.filter(x=>x.k==="gate").length,0);
+  $("stats").innerHTML = [[STAGES.length,"stages"],[n,"steps"],[g,"gate steps"],[5,"readiness outcomes"],[3,"capped loops"]].map(([v,l])=>`<div><b>${v}</b>${l}</div>`).join("");
+}
+function map(){
+  $("line").innerHTML = STAGES.map((s,i)=>`<button class="stn${vis(s)?"":" fade"}" style="--c:${C(s.cat)}" aria-pressed="${S.i===i}" data-i="${i}">
+   <span class="dot"></span><span class="num">${s.n}</span><span class="nm">${s.name}</span>${s.isNew?`<span class="new">new</span>`:""}</button>`).join("");
+  $("line").querySelectorAll(".stn").forEach(b=>b.onclick=()=>{S.i=+b.dataset.i;S.open=null;render()});
+}
+function filters(){
+  $("cats").innerHTML = `<span class="flabel">Category</span>` + [["all","All stages"],...Object.entries(CAT)].map(([k,l])=>
+    `<button class="fb" aria-pressed="${S.cat===k}" data-c="${k}">${k!=="all"?`<span class="sw" style="background:${C(k)}"></span>`:""}${l}</button>`).join("");
+  $("cats").querySelectorAll(".fb").forEach(b=>b.onclick=()=>{S.cat=b.dataset.c;if(S.cat!=="all"&&!vis(STAGES[S.i])){S.i=STAGES.findIndex(vis);S.open=null}render()});
+  $("kinds").innerHTML = `<span class="flabel">Step type</span>` + [["all","All steps"],...Object.entries(KIND).map(([k,v])=>[k,v[1]+" "+v[0]])].map(([k,l])=>
+    `<button class="fb" aria-pressed="${S.kind===k}" data-k="${k}">${l}</button>`).join("");
+  $("kinds").querySelectorAll(".fb").forEach(b=>b.onclick=()=>{S.kind=b.dataset.k;render()});
+}
+function panel(){
+  const s = STAGES[S.i];
+  const rail = s.steps.map((x,i)=>`<li class="st${S.open===i?" open":""}${S.kind!=="all"&&S.kind!==x.k?" dim":""}">
+    <span class="n">${i+1}</span>
+    <button aria-expanded="${S.open===i}" data-i="${i}"><span><span class="ttl">${esc(x.t)}</span><br><span class="sub">${esc(x.w)}</span></span>${ktag(x.k)}</button>
+    <div class="body"><dl class="kv"><dt>Input</dt><dd>${esc(x.i)}</dd><dt>Output</dt><dd>${esc(x.o)}</dd><dt>If it fails</dt><dd>${esc(x.f)}</dd>
+    <dt>Step id</dt><dd><code>${s.id}.${x.id}</code></dd></dl></div></li>`).join("");
+  const vi = STAGES.map((x,j)=>j).filter(j=>vis(STAGES[j])), pos = vi.indexOf(S.i);
+  const prev = vi[pos-1], next = vi[pos+1];
+  $("panel").style.setProperty("--c", C(s.cat));
+  $("panel").innerHTML = `<div class="meta"><div class="cat">${CAT[s.cat]} &middot; stage ${s.n} of 13</div><div class="stagehead">${s.name}</div><p>${esc(s.purpose)}</p>
+    <dl><dt>Starts when</dt><dd><code>${esc(s.trig)}</code></dd><dt>Emits</dt><dd><code>${esc(s.emits)}</code></dd>
+    <dt>Input</dt><dd>${esc(s.input)}</dd><dt>Output</dt><dd>${esc(s.output)}</dd><dt>Code</dt><dd><code>stages.py &rsaquo; ${s.fn}</code></dd></dl>
+    <div class="rule"><b>Control rule</b>${esc(s.rule)}</div></div>
+    <div><ol class="rail" style="--c:${C(s.cat)}">${rail}</ol>
+    <div class="nextbar"><button class="btn" id="prev" ${prev===undefined?"hidden":""}>&larr; ${prev!==undefined?STAGES[prev].name:""}</button>
+    <button class="btn" id="next" ${next===undefined?"hidden":""}>${next!==undefined?STAGES[next].name:""} &rarr;</button></div></div>`;
+  $("panel").querySelectorAll(".st>button").forEach(b=>b.onclick=()=>{const i=+b.dataset.i;S.open=S.open===i?null:i;panel()});
+  if(prev!==undefined) $("prev").onclick=()=>{S.i=prev;S.open=null;render()};
+  if(next!==undefined) $("next").onclick=()=>{S.i=next;S.open=null;render()};
+}
+function statics(){
+  $("outcomes").innerHTML = `<tr><th>Order</th><th>Outcome</th><th>When</th><th>What happens</th></tr>` +
+    OUTCOMES.map((r,i)=>`<tr><td>${i+1}</td><td class="out"><code>${r[0]}</code></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("");
+  $("statuses").innerHTML = STATUSES.map(s=>`<div class="box"><h3><span class="chipline" style="background:${s[1]}"></span><code>${s[0]}</code></h3><p>${s[2]}</p></div>`).join("");
+  $("gates").innerHTML = `<tr><th>Gate</th><th>Stage</th><th>Blocks</th><th>Then</th></tr>` + GATES.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join("");
+  $("replies").innerHTML = `<tr><th>Reply class</th><th>Route</th></tr>` + REPLIES.map(r=>`<tr><td><code>${r[0]}</code></td><td>${r[1]}</td></tr>`).join("");
+  $("llm").innerHTML = `<tr><th>Task</th><th>Stage</th><th>Tier</th><th>Produces</th><th>Checked by</th></tr>` + LLM.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td><code>${r[2]}</code></td><td>${r[3]}</td><td>${r[4]}</td></tr>`).join("") +
+    `<tr><td colspan="5" class="muted">Budget $1.00 per account, shared with paid lookups. Models set by ABM_MODEL_CHEAP and ABM_MODEL_STRONG.</td></tr>`;
+  $("changes").innerHTML = CHANGES.map(c=>`<div class="chg"><span class="k">${c[0]}</span><span>${c[1]}</span></div>`).join("");
+  let e = 0; const draw=()=>{$("engOut").textContent=e;$("engBar").style.width=Math.min(100,e)+"%";$("engMsg").textContent=e>=70?"70 or more: the account goes to sales.":"Below 70: the sequence continues."};
+  document.querySelectorAll("[data-pts]").forEach(b=>b.onclick=()=>{e=Math.min(100,e+ +b.dataset.pts);draw()});
+  $("reset").onclick=()=>{e=0;draw()};
+}
+function render(){map();filters();panel()}
+stats();render();statics();
+</script>
+</body>
+</html>

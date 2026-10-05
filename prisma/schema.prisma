@@ -1,0 +1,654 @@
+// ABM Intelligence Platform — database schema.
+// The built-in CRM is the system of record: accounts, contacts, opportunities,
+// tasks, notes. Pipeline state, evidence and engagement hang off those records.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum FieldStatus {
+  verified
+  probable
+  conflicting
+  stale
+  invalid
+  unknown
+}
+
+enum Relationship {
+  prospect
+  customer
+  competitor
+  partner
+}
+
+enum Tier {
+  T1
+  T2
+  T3
+}
+
+enum BuyingStage {
+  UNAWARE
+  AWARE
+  ENGAGED
+  MQA
+  OPPORTUNITY
+  CUSTOMER
+  WATCH
+  DISQUALIFIED
+  RECYCLED
+}
+
+enum Priority {
+  high
+  medium
+  low
+}
+
+enum BuyingRole {
+  decision_maker
+  champion
+  influencer
+  budget_owner
+  unknown
+}
+
+enum ContactState {
+  new
+  selected
+  ready
+  in_sequence
+  paused
+  replied
+  handed_off
+  suppressed
+  do_not_contact
+}
+
+enum ReadinessOutcome {
+  ready
+  targeted_re_research
+  watch
+  human_review
+  disqualified
+}
+
+enum DraftStatus {
+  pending_review
+  approved
+  rejected
+  blocked
+  sent
+}
+
+enum MessageStatus {
+  queued
+  delivered
+  bounced
+  duplicate_skipped
+  failed
+}
+
+enum ReplyClass {
+  positive
+  objection
+  not_now
+  unsubscribe
+  wrong_person
+  out_of_office
+  needs_human
+}
+
+enum Channel {
+  email
+  linkedin
+  call
+  task
+}
+
+enum EnrollmentStatus {
+  active
+  paused
+  completed
+  stopped
+}
+
+enum SignalType {
+  email_open
+  email_click
+  email_reply
+  site_visit
+  pricing_visit
+  intent_surge
+  job_change
+  event_attended
+  content_download
+}
+
+enum ReviewType {
+  identity_conflict
+  contradiction
+  draft_approval
+  guardrail_failed
+  budget_exceeded
+  no_usable_person
+  lawful_basis_missing
+  briefing_blocked
+  needs_human_reply
+  bounce_breaker
+  other
+}
+
+enum ReviewStatus {
+  open
+  resolved
+  dismissed
+}
+
+enum WatchStatus {
+  waiting
+  due
+  processed
+  cancelled
+}
+
+enum OppStage {
+  discovery
+  qualification
+  proposal
+  negotiation
+  won
+  lost
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+  cancelled
+}
+
+enum EventOutcome {
+  pass
+  block
+  info
+  error
+}
+
+enum LedgerKind {
+  llm
+  lookup
+  verification
+}
+
+enum UserRole {
+  admin
+  marketer
+  rep
+  reviewer
+}
+
+// ───────────────────────────── CRM core ─────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole @default(rep)
+  createdAt DateTime @default(now())
+
+  ownedAccounts Account[]     @relation("AccountOwner")
+  opportunities Opportunity[]
+  tasks         Task[]        @relation("TaskAssignee")
+  notes         Note[]
+  handoffs      Handoff[]
+}
+
+model Account {
+  id           String       @id @default(cuid())
+  name         String
+  domain       String?      @unique
+  industry     String?
+  employees    Int?
+  country      String?      // ISO-3166 alpha-2
+  revenueUsd   BigInt?
+  technologies String[]     @default([])
+  relationship Relationship @default(prospect)
+  doNotContact Boolean      @default(false)
+  source       String       @default("manual")
+
+  tier             Tier?
+  stage            BuyingStage @default(UNAWARE)
+  fitScore         Int?
+  dataConfidence   Float?
+  researchPriority Priority?
+  intentScore      Float       @default(0)
+  engagementScore  Float       @default(0)
+  scoredAt         DateTime?
+
+  // Pipeline cursor: last completed stage (0 = nothing yet) and loop counters.
+  pipelineStage    Int       @default(0)
+  pipelineStatus   String    @default("idle") // idle | running | blocked | done | error
+  followupUsed     Boolean   @default(false)
+  reopenUsed       Boolean   @default(false)
+  disqualifyReason String?
+  lastRunAt        DateTime?
+
+  ownerId      String?
+  owner        User?    @relation("AccountOwner", fields: [ownerId], references: [id])
+  mergedIntoId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contacts      Contact[]
+  fieldStates   FieldState[]
+  evidence      Evidence[]
+  twins         TwinVersion[]
+  plans         ResearchPlan[]
+  signals       Signal[]
+  opportunities Opportunity[]
+  tasks         Task[]
+  notes         Note[]
+  events        PipelineEvent[]
+  reviewItems   ReviewItem[]
+  watchlist     WatchlistEntry[]
+  ledger        LedgerEntry[]
+  handoffs      Handoff[]
+
+  @@index([stage])
+  @@index([tier])
+  @@index([ownerId])
+  @@index([mergedIntoId])
+}
+
+model Contact {
+  id              String       @id @default(cuid())
+  accountId       String
+  account         Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  firstName       String?
+  lastName        String?
+  fullName        String
+  email           String?
+  phone           String?
+  linkedinUrl     String?
+  title           String?
+  titleNormalized String?
+  function        String?      // data, finance, security, engineering, marketing, sales, operations, it, hr, executive
+  seniority       String?      // c_level, vp, director, manager, ic
+  buyingRole      BuyingRole   @default(unknown)
+  identityConfidence Float?
+  state           ContactState @default(new)
+  readiness       ReadinessOutcome?
+  readinessReasons String[]    @default([])
+  lawfulBasis     String?
+  country         String?
+  source          String       @default("manual")
+  mergedIntoId    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  fieldStates FieldState[]
+  drafts      Draft[]
+  messages    Message[]
+  replies     Reply[]
+  signals     Signal[]
+  enrollments Enrollment[]
+  tasks       Task[]
+  notes       Note[]
+  reviewItems ReviewItem[]
+
+  @@index([accountId])
+  @@index([email])
+  @@index([state])
+}
+
+model Opportunity {
+  id         String    @id @default(cuid())
+  accountId  String
+  account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name       String
+  amountUsd  Int       @default(0)
+  stage      OppStage  @default(discovery)
+  source     String    @default("abm") // abm | inbound | outbound | partner
+  closeDate  DateTime?
+  closedAt   DateTime?
+  lostReason String?
+  factTypesAtClose String[] @default([])
+  ownerId    String?
+  owner      User?     @relation(fields: [ownerId], references: [id])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([accountId])
+  @@index([stage])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  body        String?
+  channel     Channel    @default(task)
+  status      TaskStatus @default(todo)
+  dueAt       DateTime?
+  accountId   String?
+  account     Account?   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact?   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  origin      String     @default("manual") // manual | sequence | reply | handoff
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  @@index([status, dueAt])
+  @@index([accountId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  body      String
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────────── Verification & evidence ─────────────────────────────
+
+/// Status of one field on an account or contact (title, email, industry ...).
+model FieldState {
+  id        String      @id @default(cuid())
+  accountId String?
+  account   Account?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId String?
+  contact   Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  field     String
+  value     String?
+  status    FieldStatus @default(unknown)
+  source    String?
+  observedAt DateTime?  // when the source says the value was true
+  checkedAt DateTime    @default(now())
+  recheckUsed Boolean   @default(false)
+
+  @@unique([accountId, field])
+  @@unique([contactId, field])
+}
+
+model Evidence {
+  id           String      @id @default(cuid())
+  accountId    String
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  key          String      // question key: trigger, owner_function, negative, tooling, size ...
+  claim        String      // human-readable fact
+  value        String?     // normalized value for contradiction checks
+  sourceUrl    String
+  sourceType   String      // official | press | news | careers | provider | review_site | mock
+  publishedAt  DateTime
+  isNegative   Boolean     @default(false)
+  negativeKind String?     // layoffs | hiring_freeze | acquired | bankrupt | competitor_signed
+  status       FieldStatus @default(probable)
+  supersededById String?
+  pass         String      @default("main") // main | followup | reopen | refresh
+  createdAt    DateTime    @default(now())
+
+  @@index([accountId, key])
+}
+
+model TwinVersion {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  version   Int
+  /// { facts[], inferences[], contradictions[], negatives[], changed[], unknowns[] }
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, version])
+}
+
+model ResearchPlan {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  questions Json     // [{ key, question, importance }]
+  skipped   Json     // [{ key, reason }]
+  reason    String   // initial | refresh | intent_surge
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+// ───────────────────────────── Engagement ─────────────────────────────
+
+model Signal {
+  id         String     @id @default(cuid())
+  accountId  String
+  account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  type       SignalType
+  points     Float
+  /// true when the person was contacted by us (counts toward person-level handoff).
+  attributed Boolean    @default(false)
+  anonymous  Boolean    @default(false)
+  source     String     // tracking | intent_provider | email_provider | crm | manual
+  detail     String?
+  occurredAt DateTime   @default(now())
+
+  @@index([accountId, occurredAt])
+}
+
+model Sequence {
+  id        String   @id @default(cuid())
+  name      String
+  tier      Tier?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  steps       SequenceStep[]
+  enrollments Enrollment[]
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  order      Int
+  channel    Channel
+  dayOffset  Int
+  instruction String  // what the step should do (angle / follow-up type)
+
+  @@unique([sequenceId, order])
+}
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  contactId   String
+  contact     Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sequenceId  String
+  sequence    Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  currentStep Int              @default(1)
+  status      EnrollmentStatus @default(active)
+  nextDueAt   DateTime?
+  pausedReason String?
+  createdAt   DateTime         @default(now())
+
+  @@unique([contactId, sequenceId])
+  @@index([status, nextDueAt])
+}
+
+model Draft {
+  id         String      @id @default(cuid())
+  contactId  String
+  contact    Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  stepOrder  Int         @default(1)
+  subject    String
+  body       String
+  angle      String?     // trigger key used as the lead
+  /// [{ text, factIds[] }]
+  claims     Json
+  leadEvidenceId String?
+  status     DraftStatus @default(pending_review)
+  guardrailAttempts Int  @default(0)
+  blockReason String?
+  reviewerNote String?
+  reviewedAt DateTime?
+  createdAt  DateTime    @default(now())
+
+  message Message?
+
+  @@index([status])
+}
+
+model Message {
+  id        String        @id @default(cuid())
+  draftId   String        @unique // idempotency key: a draft is sent at most once
+  draft     Draft         @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  mailbox   String
+  status    MessageStatus @default(queued)
+  providerId String?
+  sentAt    DateTime?
+  bouncedAt DateTime?
+  bounceType String?      // hard | soft
+
+  replies Reply[]
+
+  @@index([sentAt])
+}
+
+model Reply {
+  id         String      @id @default(cuid())
+  messageId  String?
+  message    Message?    @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  contactId  String
+  contact    Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  body       String
+  class      ReplyClass
+  route      String
+  receivedAt DateTime    @default(now())
+}
+
+model Suppression {
+  id        String   @id @default(cuid())
+  /// lowercase email, `@domain`, or `sha256:<hash>` for erased people
+  value     String   @unique
+  reason    String   // unsubscribe | hard_bounce | erasure | manual | complaint
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────────── Operations ─────────────────────────────
+
+model PipelineEvent {
+  id        String       @id @default(cuid())
+  accountId String?
+  account   Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId String?
+  stage     Int
+  step      String       // e.g. "fit_tier.exclusions"
+  outcome   EventOutcome
+  reason    String?
+  data      Json?
+  runId     String?
+  createdAt DateTime     @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([stage, outcome])
+  @@index([runId])
+}
+
+model ReviewItem {
+  id         String       @id @default(cuid())
+  type       ReviewType
+  status     ReviewStatus @default(open)
+  reason     String
+  stage      Int
+  accountId  String?
+  account    Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  draftId    String?
+  payload    Json?
+  dueAt      DateTime?
+  resolution String?
+  resolvedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@index([status, type])
+}
+
+model WatchlistEntry {
+  id        String      @id @default(cuid())
+  accountId String
+  account   Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  reason    String
+  recheckAt DateTime
+  status    WatchStatus @default(waiting)
+  createdAt DateTime    @default(now())
+
+  @@index([status, recheckAt])
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  accountId   String
+  account     Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind        LedgerKind
+  amountMicros Int       // millionths of a dollar, avoids float drift
+  description String
+  stage       Int
+  createdAt   DateTime   @default(now())
+
+  @@index([accountId])
+}
+
+model Handoff {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ownerId        String?
+  owner          User?     @relation(fields: [ownerId], references: [id])
+  trigger        String    // positive_reply | mqa_threshold | manual
+  /// { whyNow, facts[{text,factId}], unknowns[], engaged[{name,title,signals}] }
+  briefing       Json
+  blocked        Boolean   @default(false)
+  alertedAt      DateTime?
+  ackDueAt       DateTime?
+  acknowledgedAt DateTime?
+  escalatedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([acknowledgedAt])
+}
+
+model Mailbox {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  dailyCap  Int      @default(40)
+  active    Boolean  @default(true)
+  warmedUp  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ImportBatch {
+  id        String   @id @default(cuid())
+  filename  String
+  source    String   // csv | api | form | manual
+  rows      Int
+  accepted  Int
+  rejected  Int
+  errors    Json
+  createdAt DateTime @default(now())
+}
