@@ -11,10 +11,11 @@ export function OppMover({ id, stage }: { id: string; stage: string }) {
   const [pending, start] = useTransition();
   const [value, setValue] = useState(stage);
   return (
-    <div className="relative mt-2">
+    <div className="relative mt-2 min-w-0">
       <select
         aria-label="Move stage"
-        className="glass-select h-8 py-0 text-xs"
+        className="glass-select text-xs"
+        style={{ height: 32, paddingTop: 0, paddingBottom: 0, fontSize: "0.75rem" }}
         value={value}
         disabled={pending}
         onChange={(e) => {

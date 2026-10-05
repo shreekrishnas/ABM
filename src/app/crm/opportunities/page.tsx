@@ -63,14 +63,14 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
           {COLUMNS.map((col) => {
             const items = opps.filter((o) => o.stage === col.id);
             return (
-              <div key={col.id} className="rounded-2xl p-2.5" style={{ background: "var(--surface-track)" }}>
+              <div key={col.id} className="min-w-0 rounded-2xl p-2.5" style={{ background: "var(--surface-track)" }}>
                 <div className="mb-2.5 flex items-center justify-between px-1.5">
                   <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--text-primary)" }}><span className="h-2 w-2 rounded-full" style={{ background: col.color }} />{col.label}</span>
                   <span className="muted tnum text-xs">{items.length} · {money(items.reduce((a, o) => a + o.amountUsd, 0))}</span>
                 </div>
                 <div className="grid gap-2">
                   {items.map((o) => (
-                    <div key={o.id} className="glass-card rounded-2xl p-3" style={{ borderRadius: "1rem" }}>
+                    <div key={o.id} className="glass-card min-w-0 overflow-hidden rounded-2xl p-3" style={{ borderRadius: "1rem" }}>
                       <div className="flex items-start gap-2">
                         <Avatar name={o.account.name} id={o.account.id} size={26} />
                         <div className="min-w-0 flex-1">
@@ -78,7 +78,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
                           <Link href={`/accounts/${o.accountId}?tab=crm`} className="muted block truncate text-xs hover:underline">{o.account.name}</Link>
                         </div>
                       </div>
-                      <div className="mt-2 flex items-center justify-between">
+                      <div className="mt-2 flex items-center justify-between gap-2">
                         <span className="display-num tnum text-lg">{money(o.amountUsd)}</span>
                         <Badge color={o.source === "abm" ? "#7C3AED" : "#64748B"}>{o.source}</Badge>
                       </div>
