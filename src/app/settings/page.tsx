@@ -1,8 +1,12 @@
 import { CONFIG } from "@/lib/config";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { ActionButton } from "@/components/client";
+import { seedDemoAction } from "../actions";
 
 export const metadata = { title: "Settings" };
+// Seeding a hosted database can take a while.
+export const maxDuration = 300;
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -16,8 +20,16 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 export default async function SettingsPage() {
   const [users, suppressions] = await Promise.all([db.user.findMany({ orderBy: { name: "asc" } }), db.suppression.count()]);
   const mode = process.env.ADAPTER_MODE ?? "mock";
+  const accounts = await db.account.count();
+  const seedAllowed = process.env.ALLOW_SEED === "true";
   return (
     <div className="page-enter">
+      {seedAllowed && (
+        <Card title="Demo data" sub={accounts ? `${accounts} accounts in the database` : "The database is empty"} className="mb-5"
+          action={<ActionButton action={seedDemoAction} className="btn btn-brand" confirm={accounts ? "This wipes ALL data and reloads the sample workspace. Continue?" : undefined}>Load sample data</ActionButton>}>
+          <p className="secondary text-sm">Runs 24 sample accounts through the real pipeline (mock external services). Takes up to a minute. Remove the <code className="mono">ALLOW_SEED</code> variable in Vercel afterwards so nobody can wipe the data.</p>
+        </Card>
+      )}
       <PageHeader eyebrow="Configuration" title="Settings" sub={<>Every threshold lives in <code className="mono">src/lib/config.ts</code>. This page is read-only for now; editable settings with an audit history are on the roadmap.</>} />
       <div className="grid gap-5 xl:grid-cols-3">
         <Card title="Integrations" sub="External systems sit behind adapters">

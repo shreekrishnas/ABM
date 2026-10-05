@@ -258,3 +258,13 @@ export async function importCsvAction(_: ActionState, fd: FormData): Promise<Act
   refresh("/accounts", "/import", "/pipeline");
   return { ok: res.accepted > 0, message: `${res.accepted} rows accepted, ${res.rejected} rejected across ${res.accountIds.length} accounts${fd.get("run") === "on" ? " — pipeline run complete" : ""}` };
 }
+
+// ── Demo data (hosted environments) ──
+
+export async function seedDemoAction(): Promise<ActionState> {
+  if (process.env.ALLOW_SEED !== "true") return { ok: false, message: "Seeding is disabled (set ALLOW_SEED=true to enable)" };
+  const { seedDemo } = await import("@/lib/seed");
+  const counts = await seedDemo(() => undefined);
+  refresh("/accounts", "/pipeline", "/review", "/outreach", "/signals", "/handoffs", "/crm/contacts", "/crm/opportunities", "/crm/tasks", "/analytics", "/settings");
+  return { ok: true, message: `Sample data loaded: ${counts.accounts} accounts, ${counts.contacts} contacts, ${counts.evidence} facts, ${counts.reviews} review items` };
+}
