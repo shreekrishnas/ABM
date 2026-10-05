@@ -54,6 +54,19 @@ src/app/api/v1/             REST API
 docs/                       PLAN.md, DESIGN-reference.md, pipeline-v1.html (original flow)
 ```
 
+## Weekly CSV imports
+
+`/import` accepts a CSV built from the predefined template (download it on the page;
+columns are defined in `src/lib/import/fields.ts`). Upload as often as you like:
+
+- Companies match on **Domain**; people match on **Email**, then name within the company.
+- Newer non-blank values update the record; blank cells never erase data.
+- Only changed fields lose their verified status and are re-checked.
+- Columns outside the template are ignored and listed; invalid rows are rejected with row number and reason.
+- New and changed accounts are queued and run through the pipeline automatically, in small
+  batches (no file-size or timeout limit). Unchanged accounts are skipped — no repeat spend.
+- GDPR-erased people are never re-imported.
+
 ## REST API (`/api/v1`)
 
 Set `ABM_API_KEY` to require `Authorization: Bearer <key>` (required before deploying).
@@ -64,7 +77,8 @@ Set `ABM_API_KEY` to require `Authorization: Bearer <key>` (required before depl
 | POST | `/accounts` | `{ rows: IngestRow[], run?: boolean }` import and optionally run |
 | GET | `/accounts/:id` | Account with contacts, field states, latest twin, opportunities |
 | GET | `/contacts?accountId=` | List contacts |
-| POST | `/import` | Raw `text/csv` body |
+| POST | `/import` | Raw `text/csv` body (same template rules; then call `/tick` to process) |
+| GET | `/health` | Public: database connected yes/no |
 | POST | `/pipeline/run` | `{ accountIds, fromStage? }` |
 | POST | `/signals` | Tracking/intent/email webhook — `{ domain \| accountId, type, contactEmail?, detail? }` |
 | POST | `/replies` | Inbox webhook — `{ fromEmail, body }` → classified and routed |

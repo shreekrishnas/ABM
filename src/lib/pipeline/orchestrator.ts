@@ -37,7 +37,7 @@ const LOCK_TTL_MS = 10 * 60_000;
 async function acquireLock(accountId: string, now: Date): Promise<boolean> {
   const r = await db.account.updateMany({
     where: { id: accountId, mergedIntoId: null, OR: [{ pipelineStatus: { not: "running" } }, { lastRunAt: { lt: new Date(now.getTime() - LOCK_TTL_MS) } }] },
-    data: { pipelineStatus: "running", lastRunAt: now },
+    data: { pipelineStatus: "running", lastRunAt: now, queuedFromStage: null },
   });
   return r.count === 1;
 }
@@ -146,13 +146,55 @@ export async function processIntent(ctx: RunContext = newContext()) {
   return results;
 }
 
+/**
+ * Work through accounts queued by imports, within a time budget so it fits a
+ * serverless request. Call repeatedly until `remaining` is 0. Accounts sales
+ * already owns (opportunity / customer) are updated but not re-run.
+ */
+export async function processQueue(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext } = {}) {
+  const ctx = opts.ctx ?? newContext();
+  const deadline = Date.now() + (opts.budgetMs ?? 40_000);
+  const where = { pipelineStatus: "queued", mergedIntoId: null, ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
+  const results: RunResult[] = [];
+  while (Date.now() < deadline && results.length < (opts.max ?? 500)) {
+    const next = await db.account.findFirst({ where, orderBy: { updatedAt: "asc" } });
+    if (!next) break;
+    if (["CUSTOMER", "OPPORTUNITY"].includes(next.stage)) {
+      await db.account.update({ where: { id: next.id }, data: { pipelineStatus: "done", queuedFromStage: null } });
+      await logEvent(ctx, { accountId: next.id, stage: 1, step: "data_input.queue", outcome: "info", reason: `Updated by import; not re-run because the account is ${next.stage.toLowerCase()} (sales owns it)` });
+      results.push({ accountId: next.id, status: "skipped", reachedStage: next.pipelineStage, reason: "Owned by sales", runId: ctx.runId });
+      continue;
+    }
+    const r = await runAccount(next.id, { fromStage: next.queuedFromStage ?? 2, ctx });
+    if (r.status === "skipped" && r.reason === "Already running") {
+      // Another worker has it; don't spin on the same account.
+      await db.account.updateMany({ where: { id: next.id, pipelineStatus: "queued" }, data: { updatedAt: new Date() } });
+    }
+    results.push(r);
+  }
+  const remaining = await db.account.count({ where });
+  if (opts.batchId) {
+    const batch = await db.importBatch.findUnique({ where: { id: opts.batchId } });
+    if (batch) {
+      await db.importBatch.update({
+        where: { id: batch.id },
+        data: { processed: Math.max(0, batch.toProcess - remaining), ...(remaining === 0 && batch.status === "processing" ? { status: "done", finishedAt: new Date() } : {}) },
+      });
+    }
+  } else if (remaining === 0) {
+    await db.importBatch.updateMany({ where: { status: "processing" }, data: { status: "done", finishedAt: new Date() } });
+  }
+  return { processed: results.length, remaining, results };
+}
+
 /** The scheduler's job: what a cron would run every few minutes. */
 export async function tick(ctx: RunContext = newContext()) {
+  const queue = await processQueue({ ctx, budgetMs: 30_000 });
   const sequences = await tickSequences(ctx);
   const sent = await sendApproved(ctx);
   const watch = await processWatchlist(ctx);
   const escalated = await escalateOverdue(ctx);
-  return { sequences, sent, watchlist: watch.length, escalated };
+  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated };
 }
 
 export async function budgetSummary(account: Account) {

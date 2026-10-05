@@ -140,8 +140,9 @@ a { color: inherit; text-decoration: none; }
 [data-theme="dark"] .sidebar-item:hover { background: rgba(255, 255, 255, 0.06); color: #cbd5e1; }
 [data-theme="dark"] .sidebar-item.active { background: rgba(99, 102, 241, 0.22); color: #a5b4fc; box-shadow: none; }
 .sidebar-item .count { position: absolute; top: 5px; right: 4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9999px; font-size: 0.62rem; font-weight: 700; display: grid; place-items: center; color: #fff; background: #ef4444; box-shadow: 0 0 0 2px var(--surface-base); }
-.sidebar-item::after { content: attr(data-label); position: absolute; left: calc(100% + 10px); top: 50%; transform: translate(-4px, -50%); white-space: nowrap; font-size: 0.75rem; font-weight: 600; color: #fff; background: #0f172a; padding: 0.35rem 0.6rem; border-radius: 0.5rem; opacity: 0; pointer-events: none; transition: opacity 140ms, transform 140ms; z-index: 50; }
-.sidebar-item:hover::after, .sidebar-item:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+.sidebar-tooltip { position: fixed; z-index: 1000; transform: translateY(-50%); white-space: nowrap; font-size: 0.75rem; font-weight: 600; color: #fff; background: #0f172a; padding: 0.4rem 0.65rem; border-radius: 0.5rem; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25); pointer-events: none; animation: tipIn 140ms ease-out both; }
+[data-theme="dark"] .sidebar-tooltip { background: #e2e8f0; color: #0f172a; }
+@keyframes tipIn { from { opacity: 0; transform: translate(-4px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
 
 /* ── Surfaces ── */
 .glass-card, .glass-card-static {
@@ -290,7 +291,7 @@ table.data td.strong { color: var(--text-primary); font-weight: 600; }
   .sidebar { width: 100%; flex-direction: row; justify-content: flex-start; padding: 0.4rem 0.6rem; border-right: 0; border-top: 1px solid var(--border-subtle); overflow-x: auto; gap: 0.2rem; }
   .sidebar .logo-mark, .sidebar-sep { display: none; }
   .sidebar-item { flex-shrink: 0; width: 44px; height: 44px; }
-  .sidebar-item::after { display: none; }
+  .sidebar-tooltip { display: none; }
   .topbar { padding: 0 1rem; }
   .app-main { padding: 1rem 1rem 2rem; }
   .hide-sm { display: none !important; }

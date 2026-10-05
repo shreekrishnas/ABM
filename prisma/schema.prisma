@@ -241,6 +241,9 @@ model Account {
   reopenUsed       Boolean   @default(false)
   disqualifyReason String?
   lastRunAt        DateTime?
+  // Set by imports: the account changed and waits for an automatic pipeline run.
+  queuedFromStage   Int?
+  lastImportBatchId String?
 
   ownerId      String?
   owner        User?    @relation("AccountOwner", fields: [ownerId], references: [id])
@@ -267,6 +270,7 @@ model Account {
   @@index([tier])
   @@index([ownerId])
   @@index([mergedIntoId])
+  @@index([pipelineStatus])
 }
 
 model Contact {
@@ -646,9 +650,16 @@ model ImportBatch {
   id        String   @id @default(cuid())
   filename  String
   source    String   // csv | api | form | manual
+  status    String   @default("done") // uploading | processing | done | failed
   rows      Int
   accepted  Int
   rejected  Int
-  errors    Json
+  errors    Json     // [{ row, error }] (capped)
+  /// { accountsCreated, accountsUpdated, accountsUnchanged, contactsCreated, contactsUpdated, contactsUnchanged, skippedErased }
+  stats     Json     @default("{}")
+  ignoredColumns String[] @default([])
+  toProcess Int      @default(0)
+  processed Int      @default(0)
   createdAt DateTime @default(now())
+  finishedAt DateTime?
 }

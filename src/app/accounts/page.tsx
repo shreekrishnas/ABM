@@ -50,7 +50,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
               <ActionForm action={createAccountAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="name">Company name</label><input id="name" name="name" required className="glass-input" placeholder="Northwind Analytics" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="field-label" htmlFor="domain">Domain</label><input id="domain" name="domain" className="glass-input" placeholder="northwind.com" /></div>
+                  <div><label className="field-label" htmlFor="domain">Domain</label><input id="domain" name="domain" required className="glass-input" placeholder="northwind.com" /></div>
                   <div><label className="field-label" htmlFor="industry">Industry</label><input id="industry" name="industry" className="glass-input" placeholder="analytics" /></div>
                   <div><label className="field-label" htmlFor="employees">Employees</label><input id="employees" name="employees" className="glass-input" inputMode="numeric" placeholder="850" /></div>
                   <div><label className="field-label" htmlFor="country">Country (ISO)</label><input id="country" name="country" className="glass-input" placeholder="US" maxLength={2} /></div>

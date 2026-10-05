@@ -5,11 +5,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import Papa from "papaparse";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { ingestRows } from "@/lib/pipeline/ingest";
-import { runAccount, runBatch, tick, processIntent } from "@/lib/pipeline/orchestrator";
+import { finishBatch, importChunk, ingestRows, startBatch, type BatchStats } from "@/lib/pipeline/ingest";
+import { analyzeHeaders } from "@/lib/import/fields";
+import { runAccount, runBatch, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
@@ -245,18 +245,40 @@ export async function eraseContactAction(contactId: string): Promise<ActionState
 
 // ── Import ──
 
-export async function importCsvAction(_: ActionState, fd: FormData): Promise<ActionState> {
-  const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choose a CSV file" };
-  if (file.size > 5 * 1024 * 1024) return { ok: false, message: "File is larger than 5 MB" };
-  const text = await file.text();
-  const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-  if (parsed.data.length === 0) return { ok: false, message: "No rows found" };
-  if (parsed.data.length > 5000) return { ok: false, message: "Max 5,000 rows per import" };
-  const res = await ingestRows(parsed.data, { source: "csv", filename: file.name });
-  if (fd.get("run") === "on") await runBatch(res.accountIds);
-  refresh("/accounts", "/import", "/pipeline");
-  return { ok: res.accepted > 0, message: `${res.accepted} rows accepted, ${res.rejected} rejected across ${res.accountIds.length} accounts${fd.get("run") === "on" ? " — pipeline run complete" : ""}` };
+// Upload flow (driven by the import page):
+//   startImportAction → importChunkAction × N (250 rows each) → finishImportAction
+//   → processImportAction repeatedly until nothing is left in the queue.
+// Chunking keeps every request small and inside serverless time limits, so a
+// weekly file of any size goes through.
+
+const CHUNK_MAX = 500;
+
+export async function startImportAction(input: { filename: string; rows: number; headers: string[] }): Promise<{ ok: true; batchId: string } | { ok: false; message: string }> {
+  const p = z.object({ filename: z.string().min(1).max(200), rows: z.number().int().min(1).max(100_000), headers: z.array(z.string().max(200)).max(200) }).safeParse(input);
+  if (!p.success) return { ok: false, message: "Invalid file" };
+  const analysis = analyzeHeaders(p.data.headers);
+  if (analysis.missingRequired.length) return { ok: false, message: `Missing required column(s): ${analysis.missingRequired.map((f) => f.label).join(", ")}` };
+  const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates] });
+  return { ok: true, batchId: batch.id };
+}
+
+export async function importChunkAction(batchId: string, headers: string[], rows: Record<string, string>[], rowOffset: number) {
+  if (!Array.isArray(rows) || rows.length > CHUNK_MAX) return { ok: false as const, message: `Chunks are limited to ${CHUNK_MAX} rows` };
+  const { mapping } = analyzeHeaders(headers);
+  const res = await importChunk(batchId, rows, rowOffset, mapping);
+  return { ok: true as const, accepted: res.accepted, rejected: res.rejected, errors: res.errors.slice(0, 50) };
+}
+
+export async function finishImportAction(batchId: string) {
+  const b = await finishBatch(batchId);
+  refresh("/import", "/accounts");
+  return { toProcess: b.toProcess, stats: b.stats as unknown as BatchStats };
+}
+
+export async function processImportAction(batchId?: string) {
+  const r = await processQueue({ batchId, budgetMs: 35_000 });
+  refresh("/import", "/accounts", "/pipeline", "/review");
+  return { processed: r.processed, remaining: r.remaining };
 }
 
 // ── Demo data (hosted environments) ──

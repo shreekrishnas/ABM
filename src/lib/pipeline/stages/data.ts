@@ -170,6 +170,12 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     const fields = await contactFields(c.id);
     const statuses: Record<string, FieldStatus> = {};
 
+    // Re-runs (weekly imports) only re-check people whose data is new or changed.
+    const core = [fields.email?.status, fields.title?.status, fields.company?.status];
+    if (c.identityConfidence != null && !core.includes("unknown") && !(fields.title?.observedAt && isStale(fields.title.observedAt, "title", ctx.now))) {
+      continue;
+    }
+
     // Freshness: a title older than its limit is stale before anything is trusted.
     const titleObserved = fields.title?.observedAt ?? null;
     if (c.titleNormalized && isStale(titleObserved, "title", ctx.now)) {

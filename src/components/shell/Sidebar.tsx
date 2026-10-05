@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles,
@@ -33,8 +35,29 @@ const GROUPS: Item[][] = [
   ],
 ];
 
+type Tip = { label: string; top: number; left: number } | null;
+
+// The rail scrolls and the glass shell clips overflow, so a CSS ::after label
+// gets hidden behind the content area. Render the label in a portal on <body>.
+function SidebarTooltip({ tip }: { tip: Tip }) {
+  if (!tip || typeof document === "undefined") return null;
+  return createPortal(
+    <div role="tooltip" className="sidebar-tooltip" style={{ top: tip.top, left: tip.left }}>
+      {tip.label}
+    </div>,
+    document.body,
+  );
+}
+
 export function Sidebar({ counts }: { counts: Counts }) {
   const path = usePathname();
+  const [tip, setTip] = useState<Tip>(null);
+  const show = (label: string) => (e: React.SyntheticEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2, left: r.right + 12 });
+  };
+  const hide = () => setTip(null);
+  useEffect(() => setTip(null), [path]);
   const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
   return (
     <nav className="sidebar" aria-label="Main">
@@ -48,7 +71,7 @@ export function Sidebar({ counts }: { counts: Counts }) {
             const Icon = it.icon;
             const n = it.count ? counts[it.count] : 0;
             return (
-              <Link key={it.href} href={it.href} className={`sidebar-item${isActive(it.href) ? " active" : ""}`} data-label={it.label} aria-label={it.label} aria-current={isActive(it.href) ? "page" : undefined}>
+              <Link key={it.href} href={it.href} className={`sidebar-item${isActive(it.href) ? " active" : ""}`} aria-label={it.label} onMouseEnter={show(it.label)} onMouseLeave={hide} onFocus={show(it.label)} onBlur={hide} onClick={hide} aria-current={isActive(it.href) ? "page" : undefined}>
                 <Icon size={20} strokeWidth={2} />
                 {n > 0 && <span className="count tnum">{n > 99 ? "99+" : n}</span>}
               </Link>
@@ -56,6 +79,7 @@ export function Sidebar({ counts }: { counts: Counts }) {
           })}
         </div>
       ))}
+      <SidebarTooltip tip={tip} />
     </nav>
   );
 }

@@ -1,60 +1,72 @@
-import { FileSpreadsheet } from "lucide-react";
+import { Download } from "lucide-react";
 import { db } from "@/lib/db";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ImportWizard } from "@/components/import-wizard";
+import { ActionButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader, ago } from "@/components/ui";
-import { importCsvAction } from "../actions";
+import { processImportAction } from "../actions";
 
 export const metadata = { title: "Import" };
+// Each upload step is a short request; processing steps can take a while.
+export const maxDuration = 300;
 
-const SAMPLE = `company,domain,industry,employees,country,name,email,title,phone
-Northwind Analytics,northwind-analytics.com,analytics,850,US,Asha Mehta,asha.mehta@northwind-analytics.com,VP Data,+1 415 555 0134
-Helios Fintech,https://www.heliosfintech.io/,fintech,1200,UK,Daniel Okafor,daniel.okafor@heliosfintech.io,Hd of Data Platform,`;
+type Stats = Partial<Record<"accountsCreated" | "accountsUpdated" | "accountsUnchanged" | "contactsCreated" | "contactsUpdated" | "contactsUnchanged" | "skippedErased", number>>;
 
 export default async function ImportPage() {
-  const batches = await db.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
+  const [batches, queued] = await Promise.all([
+    db.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 25 }),
+    db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
+  ]);
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Stage 1 · Data input" title="Import accounts & contacts" sub="Upload a CSV from any source. Headers are matched loosely (Company Name, Work Email, Job Title…). Nothing is trusted: every field starts as unknown and keeps the file as its source." />
-      <div className="grid gap-5 xl:grid-cols-5">
-        <Card title="Upload CSV" className="xl:col-span-3">
-          <ActionForm action={importCsvAction} className="grid gap-4">
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl px-6 py-10 text-center" style={{ border: "1.5px dashed var(--border-default)", background: "var(--surface-card-header)" }}>
-              <FileSpreadsheet size={28} style={{ color: "var(--accent-section)" }} />
-              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Choose a .csv file</span>
-              <span className="muted text-xs">Up to 5 MB / 5,000 rows</span>
-              <input type="file" name="file" accept=".csv,text/csv" required className="mt-2 text-xs secondary" />
-            </label>
-            <label className="flex items-center gap-2 text-sm secondary"><input type="checkbox" name="run" defaultChecked className="h-4 w-4 accent-indigo-500" /> Run the pipeline on imported accounts right away</label>
-            <div className="flex justify-end"><SubmitButton className="btn btn-brand">Import</SubmitButton></div>
-          </ActionForm>
+      <PageHeader
+        eyebrow="Stage 1 · Data input"
+        title="Import companies & prospects"
+        sub="Upload a CSV whenever you have new data — weekly, twice a week, any time. Only the template columns are accepted. Existing companies and people are updated (never duplicated), and everything new or changed runs through the pipeline automatically."
+        actions={<a href="/import/template" className="btn btn-secondary"><Download size={15} /> Download template</a>}
+      />
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card title="Upload" className="xl:col-span-2">
+          <ImportWizard />
         </Card>
-        <Card title="Accepted columns" className="xl:col-span-2">
-          <ul className="grid gap-1.5 text-sm secondary">
-            <li><b style={{ color: "var(--text-primary)" }}>company</b> (required) · domain / website · industry · employees (or a range like 200-500) · country</li>
-            <li><b style={{ color: "var(--text-primary)" }}>name</b> · email · title · phone · linkedin · title date</li>
+        <Card title="How re-uploads work">
+          <ul className="grid gap-2.5 text-sm secondary">
+            <li><b style={{ color: "var(--text-primary)" }}>Matching.</b> Companies match on Domain; people match on Email, then on name within the company.</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Updating.</b> Newer non-blank values replace old ones. Blank cells never erase anything.</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Re-checking.</b> Only changed fields lose their verified status (e.g. a new job title is re-verified before any email).</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Automatic.</b> New and changed accounts run through the pipeline right after upload. Unchanged ones are skipped — no repeated spend.</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Strict.</b> Columns outside the template are ignored and listed. Rows with invalid values are rejected with the row number and reason.</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Safe.</b> People erased under GDPR are never re-imported; unsubscribed people stay suppressed.</li>
           </ul>
-          <div className="micro mb-1.5 mt-4">Example</div>
-          <pre className="mono overflow-x-auto rounded-xl p-3 text-[0.7rem] leading-relaxed secondary" style={{ background: "var(--surface-card-header)" }}>{SAMPLE}</pre>
-          <p className="muted mt-3 text-xs">Same domain in two files becomes one account. Existing values are never overwritten, only gaps filled.</p>
+          {queued > 0 && (
+            <div className="mt-4 rounded-xl px-3 py-3 text-sm" style={{ background: "var(--surface-card-header)" }}>
+              <div className="mb-2 secondary"><b style={{ color: "var(--text-primary)" }}>{queued}</b> account{queued === 1 ? "" : "s"} waiting to be processed.</div>
+              <ActionButton action={async () => { "use server"; const r = await processImportAction(); return { ok: true, message: `Processed ${r.processed}; ${r.remaining} remaining` }; }} className="btn btn-primary btn-sm">Process now</ActionButton>
+            </div>
+          )}
         </Card>
       </div>
+
       <Card title="Import history" pad={false} className="mt-5">
-        {batches.length === 0 ? <Empty title="No imports yet" /> : (
+        {batches.length === 0 ? <Empty title="No imports yet" sub="Download the template, fill it in, and upload it above." /> : (
           <div className="table-wrap">
             <table className="data">
-              <thead><tr><th>File</th><th>Source</th><th>Rows</th><th>Accepted</th><th>Rejected</th><th>First error</th><th>When</th></tr></thead>
+              <thead><tr><th>File</th><th>Status</th><th>Rows</th><th>Saved</th><th>Rejected</th><th>Accounts new / updated / same</th><th>Contacts new / updated / same</th><th>Ignored columns</th><th>When</th></tr></thead>
               <tbody>
                 {batches.map((b) => {
+                  const s = b.stats as Stats;
                   const errs = b.errors as { row: number; error: string }[];
                   return (
                     <tr key={b.id}>
-                      <td className="strong mono">{b.filename}</td>
-                      <td>{b.source}</td>
+                      <td className="strong mono">{b.filename}<div className="muted max-w-[260px] truncate text-[0.7rem] font-normal" title={errs.map((e) => `Row ${e.row}: ${e.error}`).slice(0, 10).join("\n")}>{errs[0] ? `Row ${errs[0].row}: ${errs[0].error}` : ""}</div></td>
+                      <td><Badge color={b.status === "done" ? "#059669" : b.status === "processing" ? "#0EA5E9" : b.status === "failed" ? "#DC2626" : "#B45309"}>{b.status === "processing" ? `processing ${b.processed}/${b.toProcess}` : b.status}</Badge></td>
                       <td className="tnum">{b.rows}</td>
-                      <td className="tnum"><Badge color="#059669">{b.accepted}</Badge></td>
+                      <td className="tnum">{b.accepted}</td>
                       <td className="tnum">{b.rejected ? <Badge color="#DC2626">{b.rejected}</Badge> : 0}</td>
-                      <td className="max-w-[280px] truncate text-xs">{errs[0] ? `Row ${errs[0].row}: ${errs[0].error}` : "—"}</td>
-                      <td className="muted text-xs">{ago(b.createdAt)}</td>
+                      <td className="tnum">{s.accountsCreated ?? 0} / {s.accountsUpdated ?? 0} / {s.accountsUnchanged ?? 0}</td>
+                      <td className="tnum">{s.contactsCreated ?? 0} / {s.contactsUpdated ?? 0} / {s.contactsUnchanged ?? 0}</td>
+                      <td className="max-w-[180px] truncate text-xs" title={b.ignoredColumns.join(", ")}>{b.ignoredColumns.length ? b.ignoredColumns.join(", ") : "—"}</td>
+                      <td className="muted whitespace-nowrap text-xs">{ago(b.createdAt)}</td>
                     </tr>
                   );
                 })}
