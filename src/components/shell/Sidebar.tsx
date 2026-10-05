@@ -1,0 +1,61 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles,
+} from "lucide-react";
+
+type Item = { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; count?: keyof Counts };
+type Counts = { review: number; handoffs: number; tasks: number };
+
+const GROUPS: Item[][] = [
+  [
+    { href: "/", label: "Overview", icon: LayoutDashboard },
+    { href: "/accounts", label: "Target accounts", icon: Building2 },
+    { href: "/pipeline", label: "Pipeline", icon: Workflow },
+    { href: "/review", label: "Review queue", icon: ClipboardCheck, count: "review" },
+  ],
+  [
+    { href: "/outreach", label: "Outreach", icon: Send },
+    { href: "/signals", label: "Signals", icon: Radar },
+    { href: "/handoffs", label: "Sales handoffs", icon: Handshake, count: "handoffs" },
+  ],
+  [
+    { href: "/crm/contacts", label: "CRM · Contacts", icon: Users },
+    { href: "/crm/opportunities", label: "CRM · Opportunities", icon: BadgeDollarSign },
+    { href: "/crm/tasks", label: "CRM · Tasks", icon: ListTodo, count: "tasks" },
+  ],
+  [
+    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/import", label: "Import data", icon: Upload },
+    { href: "/settings", label: "Settings", icon: Settings2 },
+  ],
+];
+
+export function Sidebar({ counts }: { counts: Counts }) {
+  const path = usePathname();
+  const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
+  return (
+    <nav className="sidebar" aria-label="Main">
+      <Link href="/" className="logo-mark" aria-label="ABM Intelligence home">
+        <Sparkles size={20} strokeWidth={2.2} />
+      </Link>
+      {GROUPS.map((g, i) => (
+        <div key={i} className="contents">
+          {i > 0 && <div className="sidebar-sep" />}
+          {g.map((it) => {
+            const Icon = it.icon;
+            const n = it.count ? counts[it.count] : 0;
+            return (
+              <Link key={it.href} href={it.href} className={`sidebar-item${isActive(it.href) ? " active" : ""}`} data-label={it.label} aria-label={it.label} aria-current={isActive(it.href) ? "page" : undefined}>
+                <Icon size={20} strokeWidth={2} />
+                {n > 0 && <span className="count tnum">{n > 99 ? "99+" : n}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+}
