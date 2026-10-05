@@ -5,6 +5,21 @@ import { useFormStatus } from "react-dom";
 import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 import type { ActionState } from "@/app/actions";
 
+/** Show a toast from anywhere; rendered by <ToastHost /> in the root layout so it survives re-renders. */
+export function toast(state: ActionState) {
+  if (state) window.dispatchEvent(new CustomEvent("abm:toast", { detail: state }));
+}
+
+export function ToastHost() {
+  const [state, setState] = useState<ActionState>(null);
+  useEffect(() => {
+    const on = (e: Event) => setState({ ...(e as CustomEvent<NonNullable<ActionState>>).detail });
+    window.addEventListener("abm:toast", on);
+    return () => window.removeEventListener("abm:toast", on);
+  }, []);
+  return <Toast state={state} onClose={() => setState(null)} />;
+}
+
 function Toast({ state, onClose }: { state: ActionState; onClose: () => void }) {
   useEffect(() => {
     if (!state) return;
@@ -24,7 +39,6 @@ function Toast({ state, onClose }: { state: ActionState; onClose: () => void }) 
 /** Button that runs a bound server action and shows the result as a toast. */
 export function ActionButton({ action, children, className = "btn btn-secondary", confirm, title, disabled }: { action: () => Promise<ActionState>; children: ReactNode; className?: string; confirm?: string; title?: string; disabled?: boolean }) {
   const [pending, start] = useTransition();
-  const [state, setState] = useState<ActionState>(null);
   return (
     <>
       <button
@@ -33,25 +47,29 @@ export function ActionButton({ action, children, className = "btn btn-secondary"
         title={title}
         onClick={() => {
           if (confirm && !window.confirm(confirm)) return;
-          start(async () => setState(await action()));
+          start(async () => toast(await action()));
         }}
       >
         {pending ? <Loader2 size={15} className="spin" /> : null}
         {children}
       </button>
-      <Toast state={state} onClose={() => setState(null)} />
     </>
   );
 }
 
 /** Form wired to a server action with useActionState; shows the result as a toast. */
 export function ActionForm({ action, children, className, resetOnSuccess = true }: { action: (s: ActionState, fd: FormData) => Promise<ActionState>; children: ReactNode; className?: string; resetOnSuccess?: boolean }) {
-  const [state, formAction] = useActionState(action, null);
-  const [shown, setShown] = useState<ActionState>(null);
+  // Toast as soon as the action resolves: the form itself may unmount in the
+  // same render (e.g. an approved draft leaves the queue).
+  const [state, formAction] = useActionState(async (s: ActionState, fd: FormData) => {
+    const r = await action(s, fd);
+    toast(r);
+    return r;
+  }, null);
   const [key, setKey] = useState(0);
   useEffect(() => {
     if (!state) return;
-    setShown(state);
+    if (state.ok) window.dispatchEvent(new Event("abm:form-success"));
     if (state.ok && resetOnSuccess) setKey((k) => k + 1);
   }, [state, resetOnSuccess]);
   return (
@@ -59,7 +77,6 @@ export function ActionForm({ action, children, className, resetOnSuccess = true 
       <form key={key} action={formAction} className={className}>
         {children}
       </form>
-      <Toast state={shown} onClose={() => setShown(null)} />
     </>
   );
 }
@@ -83,13 +100,19 @@ function PendingAware({ children }: { children: (pending: boolean) => ReactNode 
 }
 
 /** Glass modal opened by a trigger button. */
-export function Modal({ trigger, title, eyebrow, children, triggerClass = "btn btn-primary" }: { trigger: ReactNode; title: string; eyebrow?: string; children: (close: () => void) => ReactNode; triggerClass?: string }) {
+export function Modal({ trigger, title, eyebrow, children, triggerClass = "btn btn-primary" }: { trigger: ReactNode; title: string; eyebrow?: string; children: ReactNode; triggerClass?: string }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // A successful ActionForm inside the modal closes it.
+    const onSuccess = () => setOpen(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("abm:form-success", onSuccess);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("abm:form-success", onSuccess);
+    };
   }, [open]);
   return (
     <>
@@ -104,7 +127,7 @@ export function Modal({ trigger, title, eyebrow, children, triggerClass = "btn b
               </div>
               <button className="btn btn-icon" onClick={() => setOpen(false)} aria-label="Close"><X size={18} /></button>
             </div>
-            {children(() => setOpen(false))}
+            {children}
           </div>
         </div>
       )}

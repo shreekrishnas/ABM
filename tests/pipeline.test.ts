@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ingestRows } from "@/lib/pipeline/ingest";
 import { processWatchlist, runAccount } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
-import { recordBounce, recordReply, recordSignal, sendApproved } from "@/lib/pipeline/stages/engagement";
+import { recordBounce, recordOutcome, recordReply, recordSignal, sendApproved } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
 import { setAdapters } from "@/lib/adapters";
 import { createMockAdapters } from "@/lib/adapters/mock";
@@ -224,5 +224,20 @@ describe("engagement", () => {
     expect(await db.contact.findUnique({ where: { id: c.id } })).toBeNull();
     expect(await db.suppression.count({ where: { value: `sha256:${sha256(c.email!)}` } })).toBe(1);
     expect(await db.suppression.count({ where: { value: c.email!.toLowerCase() } })).toBe(0);
+  });
+
+  it("winning a deal withdraws unsent drafts; approved drafts for customers are never sent", async () => {
+    const id = await account("strong-tau.com");
+    await runAccount(id);
+    const [first] = await db.draft.findMany({ where: { status: "pending_review" } });
+    await db.draft.update({ where: { id: first.id }, data: { status: "approved" } });
+    const opp = await db.opportunity.create({ data: { accountId: id, name: "Tau", amountUsd: 1000, stage: "negotiation" } });
+    await recordOutcome(opp.id, "won");
+    expect(await db.draft.count({ where: { status: { in: ["pending_review", "approved"] } } })).toBe(0);
+    expect(await db.reviewItem.count({ where: { type: "draft_approval", status: "open" } })).toBe(0);
+    // Even if something re-approves a draft, the pre-send check holds it.
+    await db.draft.update({ where: { id: first.id }, data: { status: "approved" } });
+    const r = await sendApproved(newContext());
+    expect(r.sent).toBe(0);
   });
 });

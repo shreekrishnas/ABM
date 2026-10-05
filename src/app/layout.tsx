@@ -6,6 +6,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { db } from "@/lib/db";
+import { ToastHost } from "@/components/client";
 
 export const metadata: Metadata = {
   title: { default: "ABM Intelligence", template: "%s · ABM Intelligence" },
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </div>
         </div>
+        <ToastHost />
       </body>
     </html>
   );

@@ -76,7 +76,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <section className="glass-card-static card-pad xl:col-span-2" style={{ borderTop: `4px solid ${CAT_COLOR[stage.cat]}` }}>
-          <div className="text-xs font-semibold capitalize" style={{ color: CAT_COLOR[stage.cat] }}>{stage.cat} · stage {stage.n} of 13</div>
+          <div className="text-xs font-semibold" style={{ color: CAT_COLOR[stage.cat] }}>{stage.cat.charAt(0).toUpperCase() + stage.cat.slice(1)} · stage {stage.n} of 13</div>
           <h2 className="mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{stage.name}</h2>
           <p className="secondary mt-2 text-sm">{doc.purpose}</p>
           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">

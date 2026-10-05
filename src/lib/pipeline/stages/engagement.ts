@@ -12,6 +12,15 @@ import { draftForContact, usableFacts } from "./outreach";
 
 const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
+/** Stop all automated outreach for an account: pause sequences, withdraw unsent drafts. */
+export async function stopAccountAutomation(accountId: string, reason: string, now = new Date()) {
+  const contacts = await db.contact.findMany({ where: { accountId }, select: { id: true } });
+  const ids = contacts.map((c) => c.id);
+  await db.enrollment.updateMany({ where: { contactId: { in: ids }, status: "active" }, data: { status: "paused", pausedReason: reason } });
+  await db.draft.updateMany({ where: { contactId: { in: ids }, status: { in: ["pending_review", "approved"] }, message: null }, data: { status: "rejected", reviewerNote: `Withdrawn — ${reason}` } });
+  await db.reviewItem.updateMany({ where: { accountId, type: "draft_approval", status: "open" }, data: { status: "dismissed", resolution: reason, resolvedAt: now } });
+}
+
 // ───────────────────────── Sending ─────────────────────────
 
 export async function breakerState(now = new Date()) {
@@ -48,13 +57,16 @@ export async function sendApproved(ctx: RunContext = newContext()) {
     const box = await pickMailbox(ctx.now);
     const globalSent = await db.message.count({ where: { sentAt: { gte: startOfDay(ctx.now) } } });
     const enrollment = await db.enrollment.findFirst({ where: { contactId: c.id, status: "active" } });
+    // Account state can change after approval (deal opened, customer, do-not-contact).
+    const acc = c.account;
+    const accountBlocked = acc.doNotContact || acc.relationship !== "prospect" || ["OPPORTUNITY", "CUSTOMER", "DISQUALIFIED"].includes(acc.stage);
     const gate = preSendGate({
       suppressed: (await isSuppressed(c.email)) || c.state === "suppressed",
       lawfulBasis: c.lawfulBasis,
       mailboxSentToday: box?.sent ?? Infinity,
       mailboxCap: box?.cap ?? 0,
       globalSentToday: globalSent,
-      contactPaused: !enrollment || ["paused", "handed_off", "replied", "do_not_contact"].includes(c.state),
+      contactPaused: accountBlocked || !enrollment || ["paused", "handed_off", "replied", "do_not_contact"].includes(c.state),
       breakerTripped: !breaker.pass,
     });
     await logEvent(ctx, { accountId: c.accountId, contactId: c.id, stage: S, step: "sequence_send.pre_send_checks", outcome: gate.pass ? "pass" : "block", reason: gate.reason });
@@ -296,11 +308,8 @@ export async function s13Handoff(account: Account, trigger: "positive_reply" | "
   await logEvent(ctx, { accountId: account.id, stage: S, step: "handoff.alert_owner", outcome: "pass", reason: `Alerted ${owner?.name ?? "unassigned queue"} (${trigger.replace("_", " ")})` });
 
   // Automation stops for the whole account; the rep owns it now.
-  const contacts = await db.contact.findMany({ where: { accountId: account.id }, select: { id: true } });
-  await db.enrollment.updateMany({ where: { contactId: { in: contacts.map((c) => c.id) }, status: "active" }, data: { status: "paused", pausedReason: "handed off to sales" } });
+  await stopAccountAutomation(account.id, "account handed off to sales", ctx.now);
   await db.contact.updateMany({ where: { accountId: account.id, state: { in: ["ready", "in_sequence", "replied", "selected"] } }, data: { state: "handed_off" } });
-  await db.draft.updateMany({ where: { contactId: { in: contacts.map((c) => c.id) }, status: { in: ["pending_review", "approved"] } }, data: { status: "rejected", reviewerNote: "Withdrawn — account handed off to sales" } });
-  await db.reviewItem.updateMany({ where: { accountId: account.id, type: "draft_approval", status: "open" }, data: { status: "dismissed", resolution: "Account handed off", resolvedAt: ctx.now } });
   await db.account.update({ where: { id: account.id }, data: { stage: account.stage === "OPPORTUNITY" ? "OPPORTUNITY" : "MQA", pipelineStage: 13, pipelineStatus: "done" } });
   await logEvent(ctx, { accountId: account.id, stage: S, step: "handoff.pause_sequences", outcome: "pass", reason: "All automated outreach paused" });
   return handoff;
@@ -331,8 +340,10 @@ export async function recordOutcome(opportunityId: string, outcome: "won" | "los
   });
   if (outcome === "won") {
     await db.account.update({ where: { id: opp.accountId }, data: { relationship: "customer", stage: "CUSTOMER" } });
+    await stopAccountAutomation(opp.accountId, "deal won — now a customer", ctx.now);
   } else {
     await db.account.update({ where: { id: opp.accountId }, data: { stage: "RECYCLED" } });
+    await stopAccountAutomation(opp.accountId, "deal lost — cooling down on the watchlist", ctx.now);
     await addToWatchlist(opp.accountId, `Closed-lost${lostReason ? `: ${lostReason}` : ""}`, CONFIG.watch.lostDealDays, ctx.now);
   }
   const closed = await db.opportunity.count({ where: { stage: { in: ["won", "lost"] } } });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Linkedin, Mail, MessageSquareReply, Phone, Send, Timer } from "lucide-react";
+import { Mail, MessageSquareReply, Phone, Send, Timer, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { breakerState } from "@/lib/pipeline/stages/engagement";

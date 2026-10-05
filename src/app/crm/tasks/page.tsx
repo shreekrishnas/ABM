@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Circle, Linkedin, ListTodo, Phone, Plus, Timer } from "lucide-react";
+import { CheckCircle2, Circle, ListTodo, Phone, Plus, Timer, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader, ago, cx, date } from "@/components/ui";
@@ -29,7 +29,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         sub="Rep work in one list: LinkedIn and call steps from sequences, referral asks from replies, and anything added by hand."
         actions={
           <Modal trigger={<><Plus size={16} /> New task</>} title="Create a task" eyebrow="CRM" triggerClass="btn btn-brand">
-            {() => (
               <ActionForm action={createTaskAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="tt">Title</label><input id="tt" name="title" required className="glass-input" /></div>
                 <div><label className="field-label" htmlFor="tb">Details</label><textarea id="tb" name="body" className="glass-textarea" /></div>
@@ -40,7 +39,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                 </div>
                 <div className="flex justify-end"><SubmitButton>Create task</SubmitButton></div>
               </ActionForm>
-            )}
           </Modal>
         }
       />

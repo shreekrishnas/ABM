@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { ingestRows } from "@/lib/pipeline/ingest";
 import { runAccount, runBatch, tick, processIntent } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
-import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved } from "@/lib/pipeline/stages/engagement";
+import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
 
 export type ActionState = { ok: boolean; message: string } | null;
@@ -64,7 +64,11 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
   if (!p.success) return { ok: false, message: p.error.issues[0]?.message ?? "Invalid input" };
   const d = await db.draft.findUnique({ where: { id: p.data.draftId } });
   if (!d || d.status !== "pending_review") return { ok: false, message: "Draft is no longer pending" };
-  const edited = d.body !== p.data.body || d.subject !== p.data.subject;
+  // Browsers submit textarea line breaks as CRLF; compare normalized text.
+  const norm = (t: string) => t.replace(/\r\n?/g, "\n").trim();
+  p.data.body = norm(p.data.body);
+  p.data.subject = norm(p.data.subject);
+  const edited = norm(d.body) !== p.data.body || norm(d.subject) !== p.data.subject;
   if (edited && p.data.decision === "approve") {
     // Edited drafts must still carry the compliance footer.
     const { complianceGate } = await import("@/lib/pipeline/gates");
@@ -171,6 +175,7 @@ export async function updateAccountAction(_: ActionState, fd: FormData): Promise
       ...(p.data.relationship === "customer" ? { stage: "CUSTOMER" } : {}),
     },
   });
+  if (p.data.relationship !== "prospect" || p.data.doNotContact) await stopAccountAutomation(p.data.id, p.data.doNotContact ? "marked do-not-contact" : `relationship changed to ${p.data.relationship}`);
   refresh(`/accounts/${p.data.id}`, "/accounts");
   return { ok: true, message: "Saved" };
 }
@@ -196,8 +201,7 @@ export async function createOpportunityAction(_: ActionState, fd: FormData): Pro
   await db.opportunity.create({ data: { ...p.data, closeDate: p.data.closeDate ? new Date(p.data.closeDate) : null, ownerId: a.ownerId, source: a.pipelineStage > 0 ? "abm" : "outbound" } });
   // An open deal means sales owns the account: stop automation.
   await db.account.update({ where: { id: a.id }, data: { stage: "OPPORTUNITY" } });
-  const contacts = await db.contact.findMany({ where: { accountId: a.id }, select: { id: true } });
-  await db.enrollment.updateMany({ where: { contactId: { in: contacts.map((c) => c.id) }, status: "active" }, data: { status: "paused", pausedReason: "opportunity opened" } });
+  await stopAccountAutomation(a.id, "opportunity opened");
   refresh("/crm/opportunities", `/accounts/${a.id}`);
   return { ok: true, message: "Opportunity created; automated outreach paused" };
 }

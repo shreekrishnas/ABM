@@ -31,7 +31,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         sub={`${total} people across all accounts. New contacts start unverified and go through identity checks on the next pipeline run.`}
         actions={
           <Modal trigger={<><Plus size={16} /> New contact</>} title="Add a contact" eyebrow="CRM" triggerClass="btn btn-brand">
-            {() => (
               <ActionForm action={createContactAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="ca">Account</label><select id="ca" name="accountId" required className="glass-select" defaultValue=""><option value="" disabled>Choose an account</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
                 <div><label className="field-label" htmlFor="cn">Full name</label><input id="cn" name="fullName" required className="glass-input" /></div>
@@ -43,7 +42,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div className="flex justify-end"><SubmitButton>Add contact</SubmitButton></div>
               </ActionForm>
-            )}
           </Modal>
         }
       />
