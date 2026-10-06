@@ -222,6 +222,15 @@ model Account {
   country      String? // ISO-3166 alpha-2
   revenueUsd   BigInt?
   technologies String[]     @default([])
+  /// Company LinkedIn page (normalized) — second matching key after domain.
+  linkedinUrl  String?
+  /// Normalized name (legal suffixes and punctuation removed) — third matching key.
+  nameKey      String?
+  city         String?
+  /// Products, capabilities, markets (import column "Keywords", ; separated).
+  keywords     String[]     @default([])
+  /// Import column "Company Notes" (team notes live in Note).
+  companyNotes String?
   relationship Relationship @default(prospect)
   doNotContact Boolean      @default(false)
   source       String       @default("manual")
@@ -277,6 +286,8 @@ model Account {
 
   @@index([stage])
   @@index([tier])
+  @@index([linkedinUrl])
+  @@index([nameKey])
   @@index([ownerId])
   @@index([mergedIntoId])
   @@index([pipelineStatus])
@@ -295,6 +306,11 @@ model Contact {
   title              String?
   titleNormalized    String?
   function           String? // data, finance, security, engineering, marketing, sales, operations, it, hr, executive
+  /// As given in the import (the inferred function above is used for buying roles).
+  department         String?
+  location           String?
+  /// Import column "Notes" (team notes live in Note).
+  personNotes        String?
   seniority          String? // c_level, vp, director, manager, ic
   buyingRole         BuyingRole        @default(unknown)
   identityConfidence Float?
@@ -317,9 +333,11 @@ model Contact {
   tasks       Task[]
   notes       Note[]
   reviewItems ReviewItem[]
+  journeys    Journey[]
 
   @@index([accountId])
   @@index([email])
+  @@index([linkedinUrl])
   @@index([state])
 }
 
@@ -719,19 +737,117 @@ model Mailbox {
 }
 
 model ImportBatch {
-  id             String    @id @default(cuid())
+  id             String         @id @default(cuid())
   filename       String
   source         String // csv | api | form | manual
-  status         String    @default("done") // uploading | processing | done | failed
+  status         String         @default("done") // uploading | processing | done | failed
   rows           Int
   accepted       Int
   rejected       Int
   errors         Json // [{ row, error }] (capped)
   /// { accountsCreated, accountsUpdated, accountsUnchanged, contactsCreated, contactsUpdated, contactsUnchanged, skippedErased }
-  stats          Json      @default("{}")
-  ignoredColumns String[]  @default([])
-  toProcess      Int       @default(0)
-  processed      Int       @default(0)
-  createdAt      DateTime  @default(now())
+  stats          Json           @default("{}")
+  ignoredColumns String[]       @default([])
+  /// Import-level selections applied to every valid row.
+  campaignId     String?
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  senderId       String?
+  sender         SenderProfile? @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  /// header → field key, as mapped in the wizard
+  mapping        Json?
+  toProcess      Int            @default(0)
+  processed      Int            @default(0)
+  createdAt      DateTime       @default(now())
   finishedAt     DateTime?
+}
+
+// ───────────────────────────── People journeys ─────────────────────────────
+// A company and a person are stored once. Each sender profile has its own journey
+// under the same person (unique per person + campaign + sender), so Sender 1
+// activity never overwrites Sender 2 activity.
+
+enum JourneyStage {
+  not_contacted
+  connection_sent
+  connection_accepted
+  follow_up_sent
+  replied_neutral
+  details_requested
+  details_shared
+  interested
+  nurture
+  referred
+  not_interested
+  disqualified
+  call_scheduled
+  demo_scheduled
+  opportunity
+  closed_won
+  closed_lost
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  journeys Journey[]
+  imports  ImportBatch[]
+}
+
+model SenderProfile {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  linkedinUrl String?
+  email       String?
+  notes       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  journeys Journey[]
+  imports  ImportBatch[]
+}
+
+model Journey {
+  id               String        @id @default(cuid())
+  contactId        String
+  contact          Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  campaignId       String
+  campaign         Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  senderId         String
+  sender           SenderProfile @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  stage            JourneyStage  @default(not_contacted)
+  followUpCount    Int           @default(0)
+  /// Every inbound message counts; the meaning sets the stage.
+  replyCount       Int           @default(0)
+  lastEngagementAt DateTime?
+  lastEngagement   String?
+  stageReason      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  events JourneyEvent[]
+
+  @@unique([contactId, campaignId, senderId])
+  @@index([campaignId, senderId])
+  @@index([stage])
+}
+
+model JourneyEvent {
+  id         String        @id @default(cuid())
+  journeyId  String
+  journey    Journey       @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  /// connection_sent | connection_accepted | follow_up_sent | reply | details_shared | call_scheduled | demo_scheduled | call_logged | stage_set | note | imported
+  type       String
+  fromStage  JourneyStage?
+  toStage    JourneyStage?
+  detail     String?
+  /// csv | manual | bulk | agent | system
+  source     String        @default("manual")
+  occurredAt DateTime      @default(now())
+  createdAt  DateTime      @default(now())
+
+  @@index([journeyId, occurredAt])
 }

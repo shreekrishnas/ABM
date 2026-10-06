@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { finishBatch, importChunk, ingestRows, startBatch, type BatchStats } from "@/lib/pipeline/ingest";
-import { analyzeHeaders } from "@/lib/import/fields";
+import { analyzeMapping } from "@/lib/import/fields";
 import { runAccount, runBatch, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
@@ -254,20 +254,96 @@ export async function eraseContactAction(contactId: string): Promise<ActionState
 
 const CHUNK_MAX = 500;
 
-export async function startImportAction(input: { filename: string; rows: number; headers: string[] }): Promise<{ ok: true; batchId: string } | { ok: false; message: string }> {
-  const p = z.object({ filename: z.string().min(1).max(200), rows: z.number().int().min(1).max(100_000), headers: z.array(z.string().max(200)).max(200) }).safeParse(input);
-  if (!p.success) return { ok: false, message: "Invalid file" };
-  const analysis = analyzeHeaders(p.data.headers);
-  if (analysis.missingRequired.length) return { ok: false, message: `Missing required column(s): ${analysis.missingRequired.map((f) => f.label).join(", ")}` };
-  const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates] });
+export async function startImportAction(input: { filename: string; rows: number; headers: string[]; mapping: Record<string, string>; campaignId: string; senderId: string }): Promise<{ ok: true; batchId: string } | { ok: false; message: string }> {
+  const p = z.object({
+    filename: z.string().min(1).max(200), rows: z.number().int().min(1).max(100_000), headers: z.array(z.string().max(200)).max(200),
+    mapping: z.record(z.string(), z.string()), campaignId: z.string().min(1, "Choose a campaign"), senderId: z.string().min(1, "Choose a sender profile"),
+  }).safeParse(input);
+  if (!p.success) return { ok: false, message: p.error.issues[0]?.message ?? "Invalid file" };
+  const analysis = analyzeMapping(p.data.headers, p.data.mapping);
+  if (analysis.missingRequired.length) return { ok: false, message: `Map the required field(s): ${analysis.missingRequired.map((f) => f.label).join(", ")}` };
+  const [campaign, sender] = await Promise.all([db.campaign.findUnique({ where: { id: p.data.campaignId } }), db.senderProfile.findUnique({ where: { id: p.data.senderId } })]);
+  if (!campaign || !sender) return { ok: false, message: "Campaign or sender profile not found" };
+  const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates], campaignId: campaign.id, senderId: sender.id, mapping: analysis.mapping });
   return { ok: true, batchId: batch.id };
 }
 
-export async function importChunkAction(batchId: string, headers: string[], rows: Record<string, string>[], rowOffset: number) {
+export async function importChunkAction(batchId: string, rows: Record<string, string>[], rowOffset: number) {
   if (!Array.isArray(rows) || rows.length > CHUNK_MAX) return { ok: false as const, message: `Chunks are limited to ${CHUNK_MAX} rows` };
-  const { mapping } = analyzeHeaders(headers);
-  const res = await importChunk(batchId, rows, rowOffset, mapping);
+  const res = await importChunk(batchId, rows, rowOffset);
   return { ok: true as const, accepted: res.accepted, rejected: res.rejected, errors: res.errors.slice(0, 50) };
+}
+
+/** Preview: which companies, people and sender journeys already exist (nothing is written). */
+export async function previewMatchesAction(input: {
+  companies: { domain: string | null; companyLinkedin: string | null; nameKey: string }[];
+  people: { linkedinUrl: string | null; email: string | null; fullName: string; company: number }[];
+  campaignId: string;
+  senderId: string;
+}) {
+  const companies = input.companies.slice(0, 5000);
+  const people = input.people.slice(0, 5000);
+  const domains = companies.map((c) => c.domain).filter(Boolean) as string[];
+  const cLinks = companies.map((c) => c.companyLinkedin).filter(Boolean) as string[];
+  const keys = companies.map((c) => c.nameKey);
+  const found = await db.account.findMany({
+    where: { mergedIntoId: null, OR: [{ domain: { in: domains } }, { linkedinUrl: { in: cLinks } }, { nameKey: { in: keys } }] },
+    select: { id: true, domain: true, linkedinUrl: true, nameKey: true },
+  });
+  const companyIds = companies.map((c) => {
+    const hit = (c.domain && found.find((f) => f.domain === c.domain)) || (c.companyLinkedin && found.find((f) => f.linkedinUrl === c.companyLinkedin)) || found.find((f) => f.nameKey === c.nameKey && (!c.domain || !f.domain || f.domain === c.domain));
+    return hit ? hit.id : null;
+  });
+  const pLinks = people.map((x) => x.linkedinUrl).filter(Boolean) as string[];
+  const emails = people.map((x) => x.email).filter(Boolean) as string[];
+  const names = people.map((x) => x.fullName);
+  const contacts = await db.contact.findMany({
+    where: { mergedIntoId: null, OR: [{ linkedinUrl: { in: pLinks } }, { email: { in: emails } }, { fullName: { in: names, mode: "insensitive" }, accountId: { in: companyIds.filter(Boolean) as string[] } }] },
+    select: { id: true, linkedinUrl: true, email: true, fullName: true, accountId: true, journeys: { where: { campaignId: input.campaignId, senderId: input.senderId }, select: { id: true } } },
+  });
+  let peopleExisting = 0;
+  let journeysExisting = 0;
+  for (const x of people) {
+    const accountId = companyIds[x.company];
+    const hit =
+      (x.linkedinUrl && contacts.find((c) => c.linkedinUrl === x.linkedinUrl)) ||
+      (x.email && contacts.find((c) => c.email?.toLowerCase() === x.email)) ||
+      (accountId && contacts.find((c) => c.accountId === accountId && c.fullName.toLowerCase() === x.fullName.toLowerCase()));
+    if (hit) {
+      peopleExisting++;
+      if (hit.journeys.length) journeysExisting++;
+    }
+  }
+  const companiesExisting = companyIds.filter(Boolean).length;
+  return { companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
+}
+
+export async function createCampaignAction(name: string, description?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {
+  const p = z.object({ name: z.string().trim().min(2, "Name is too short").max(120), description: z.string().max(500).optional() }).safeParse({ name, description });
+  if (!p.success) return { ok: false, message: p.error.issues[0].message };
+  const existing = await db.campaign.findUnique({ where: { name: p.data.name } });
+  const c = existing ?? (await db.campaign.create({ data: { name: p.data.name, description: p.data.description } }));
+  refresh("/import", "/people", "/settings");
+  return { ok: true, id: c.id, name: c.name };
+}
+
+export async function createSenderAction(name: string, linkedinUrl?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {
+  const p = z.object({ name: z.string().trim().min(2, "Name is too short").max(120), linkedinUrl: z.string().max(300).optional() }).safeParse({ name, linkedinUrl });
+  if (!p.success) return { ok: false, message: p.error.issues[0].message };
+  const existing = await db.senderProfile.findUnique({ where: { name: p.data.name } });
+  const s = existing ?? (await db.senderProfile.create({ data: { name: p.data.name, linkedinUrl: p.data.linkedinUrl || null } }));
+  refresh("/import", "/people", "/settings");
+  return { ok: true, id: s.id, name: s.name };
+}
+
+export async function createCampaignFormAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const r = await createCampaignAction(str(fd, "name") ?? "", str(fd, "description"));
+  return r.ok ? { ok: true, message: `Campaign "${r.name}" ready` } : { ok: false, message: r.message };
+}
+
+export async function createSenderFormAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const r = await createSenderAction(str(fd, "name") ?? "", str(fd, "linkedinUrl"));
+  return r.ok ? { ok: true, message: `Sender profile "${r.name}" ready` } : { ok: false, message: r.message };
 }
 
 export async function finishImportAction(batchId: string) {
@@ -322,4 +398,162 @@ export async function generateInsightsAction(): Promise<ActionState> {
   const i = await generateInsights();
   refresh("/brain");
   return { ok: true, message: `New summary (${i.model}): ${i.headline}` };
+}
+
+// ── People journeys ──
+
+const ACTIVITY_TYPES = ["connection_sent", "connection_accepted", "follow_up_sent", "details_shared", "call_scheduled", "demo_scheduled", "call_logged", "note"] as const;
+const journeyKeys = z.object({ contactId: z.string().min(1), campaignId: z.string().min(1, "Choose a campaign"), senderId: z.string().min(1, "Choose a sender profile") });
+
+function activityAt(fd: FormData) {
+  const d = str(fd, "date");
+  const at = d ? new Date(d) : new Date();
+  return Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 86_400_000 ? null : at;
+}
+
+async function refreshPerson(contactId: string) {
+  const c = await db.contact.findUnique({ where: { id: contactId }, select: { accountId: true } });
+  refresh("/people", `/people/${contactId}`, c ? `/accounts/${c.accountId}` : "/accounts");
+}
+
+/** Single manual update: refreshes stage, last engagement, journey and next action together. */
+export async function logActivityAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const k = journeyKeys.safeParse({ contactId: str(fd, "contactId"), campaignId: str(fd, "campaignId"), senderId: str(fd, "senderId") });
+  if (!k.success) return { ok: false, message: k.error.issues[0].message };
+  const type = str(fd, "type");
+  if (!type || !(ACTIVITY_TYPES as readonly string[]).includes(type)) return { ok: false, message: "Choose an activity" };
+  const at = activityAt(fd);
+  if (!at) return { ok: false, message: "Date must be a valid date, not in the future" };
+  const text = str(fd, "detail");
+  if (type === "note" && !text) return { ok: false, message: "Write the note" };
+  const { ensureJourney, recordActivities } = await import("@/lib/journey/service");
+  const { journey } = await ensureJourney(k.data.contactId, k.data.campaignId, k.data.senderId);
+  const activity = (type === "note" ? { type, at, text: text! } : { type, at, detail: text }) as import("@/lib/journey/engine").Activity;
+  const r = await recordActivities(journey.id, [activity], "manual");
+  await refreshPerson(k.data.contactId);
+  const { stageLabel } = await import("@/lib/journey/stages");
+  return { ok: true, message: `Saved — stage: ${stageLabel(r.journey.stage, r.journey.followUpCount)}` };
+}
+
+export async function setStageAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const k = journeyKeys.safeParse({ contactId: str(fd, "contactId"), campaignId: str(fd, "campaignId"), senderId: str(fd, "senderId") });
+  if (!k.success) return { ok: false, message: k.error.issues[0].message };
+  const { parseStage, STAGE_INFO } = await import("@/lib/journey/stages");
+  const stage = parseStage(str(fd, "stage"));
+  if (!stage) return { ok: false, message: "Choose a stage" };
+  const { ensureJourney, recordActivities } = await import("@/lib/journey/service");
+  const { journey } = await ensureJourney(k.data.contactId, k.data.campaignId, k.data.senderId);
+  await recordActivities(journey.id, [{ type: "stage_set", at: new Date(), stage, detail: str(fd, "reason") }], "manual");
+  await refreshPerson(k.data.contactId);
+  return { ok: true, message: `Stage set to ${STAGE_INFO[stage].label}` };
+}
+
+/** Bulk update for the selected people within one campaign + sender. */
+export async function bulkUpdateAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const ids = fd.getAll("contactIds").filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 1000);
+  const campaignId = str(fd, "campaignId");
+  const senderId = str(fd, "senderId");
+  const action = str(fd, "action");
+  if (!ids.length) return { ok: false, message: "Select at least one person" };
+  if (!campaignId || !senderId) return { ok: false, message: "Filter by one campaign and one sender profile first — bulk updates change that sender's journeys only" };
+  if (!action) return { ok: false, message: "Choose an action" };
+  const at = activityAt(fd);
+  if (!at) return { ok: false, message: "Date must be a valid date, not in the future" };
+  const { parseStage } = await import("@/lib/journey/stages");
+  const { ensureJourney, recordActivities } = await import("@/lib/journey/service");
+  type A = import("@/lib/journey/engine").Activity;
+  let activity: A;
+  if (action.startsWith("stage:")) {
+    const stage = parseStage(action.slice(6));
+    if (!stage) return { ok: false, message: "Unknown stage" };
+    activity = { type: "stage_set", at, stage, detail: "Bulk update" };
+  } else if ((["connection_sent", "connection_accepted", "follow_up_sent", "details_shared"] as const).includes(action as "details_shared")) {
+    activity = { type: action, at } as A;
+  } else return { ok: false, message: "Unknown action" };
+  let n = 0;
+  for (const contactId of ids) {
+    const { journey } = await ensureJourney(contactId, campaignId, senderId);
+    await recordActivities(journey.id, [activity], "bulk");
+    n++;
+  }
+  refresh("/people");
+  return { ok: true, message: `Updated ${n} ${n === 1 ? "person" : "people"}` };
+}
+
+/** Agent-assisted: suggest the reply's meaning, stage and next action. Nothing is saved. */
+export async function suggestReplyAction(contactId: string, campaignId: string, senderId: string, text: string) {
+  if (!text.trim()) return { ok: false as const, message: "Paste the reply first" };
+  const c = await db.contact.findUnique({ where: { id: contactId }, include: { account: true, journeys: { where: { campaignId, senderId } } } });
+  if (!c) return { ok: false as const, message: "Person not found" };
+  const { suggestReplyMeaning } = await import("@/lib/journey/service");
+  const s = await suggestReplyMeaning(text.slice(0, 4000), { company: c.account.name, title: c.titleNormalized ?? c.title, stage: c.journeys[0]?.stage ?? "not_contacted" });
+  return { ok: true as const, ...s };
+}
+
+/** The person confirms (or changes) the suggested stage; the reply is counted and saved. */
+export async function confirmReplyAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const k = journeyKeys.safeParse({ contactId: str(fd, "contactId"), campaignId: str(fd, "campaignId"), senderId: str(fd, "senderId") });
+  if (!k.success) return { ok: false, message: k.error.issues[0].message };
+  const text = str(fd, "text");
+  if (!text) return { ok: false, message: "Paste the reply" };
+  const { parseStage, STAGE_INFO } = await import("@/lib/journey/stages");
+  const meaning = parseStage(str(fd, "stage"));
+  if (!meaning) return { ok: false, message: "Choose the stage this reply means" };
+  const at = activityAt(fd);
+  if (!at) return { ok: false, message: "Date must be a valid date, not in the future" };
+  const { ensureJourney, recordActivities } = await import("@/lib/journey/service");
+  const { journey } = await ensureJourney(k.data.contactId, k.data.campaignId, k.data.senderId);
+  const r = await recordActivities(journey.id, [{ type: "reply", at, text: text.slice(0, 4000), meaning }], str(fd, "suggestedBy") ? "agent" : "manual", str(fd, "suggestedBy") ? `meaning confirmed (suggested by ${str(fd, "suggestedBy")})` : undefined);
+  await refreshPerson(k.data.contactId);
+  return { ok: true, message: `Reply saved (${r.journey.replyCount} so far) — stage: ${STAGE_INFO[r.journey.stage as keyof typeof STAGE_INFO].label}` };
+}
+
+export async function updatePersonAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const id = str(fd, "id");
+  if (!id) return { ok: false, message: "Missing person" };
+  const c = await db.contact.findUnique({ where: { id } });
+  if (!c) return { ok: false, message: "Person not found" };
+  const { isValidEmail, normalizeEmail, normalizeLinkedin, normalizePhone, standardizeTitle, inferFunction, inferSeniority } = await import("@/lib/pipeline/normalize");
+  const { setContactField } = await import("@/lib/pipeline/fields");
+  const firstName = str(fd, "firstName");
+  if (!firstName) return { ok: false, message: "First name is required" };
+  const lastName = str(fd, "lastName") ?? null;
+  const email = str(fd, "email") ? normalizeEmail(str(fd, "email")!) : null;
+  if (email && !isValidEmail(email)) return { ok: false, message: "Email is not valid" };
+  const phone = str(fd, "phone") ? normalizePhone(str(fd, "phone")!) : null;
+  if (str(fd, "phone") && !phone) return { ok: false, message: "Phone is not valid (include the country code)" };
+  const linkedinUrl = str(fd, "linkedinUrl") ? normalizeLinkedin(str(fd, "linkedinUrl")!) : null;
+  if (str(fd, "linkedinUrl") && !linkedinUrl) return { ok: false, message: "LinkedIn URL must be a profile URL (linkedin.com/in/…)" };
+  if (linkedinUrl && linkedinUrl !== c.linkedinUrl && (await db.contact.findFirst({ where: { linkedinUrl, id: { not: id }, mergedIntoId: null } }))) return { ok: false, message: "Another person already has this LinkedIn URL" };
+  const title = str(fd, "title") ?? null;
+  const titleNorm = standardizeTitle(title);
+  const changed: [string, string | null][] = [];
+  if (email !== c.email) changed.push(["email", email]);
+  if (phone !== c.phone) changed.push(["phone", phone]);
+  if (title !== c.title) changed.push(["title", title]);
+  if (linkedinUrl !== c.linkedinUrl) changed.push(["linkedin", linkedinUrl]);
+  await db.contact.update({
+    where: { id },
+    data: {
+      firstName, lastName, fullName: [firstName, lastName].filter(Boolean).join(" "), email, phone, linkedinUrl, title, titleNormalized: titleNorm,
+      ...(title !== c.title ? { function: inferFunction(titleNorm), seniority: inferSeniority(titleNorm), buyingRole: "unknown" as const } : {}),
+      department: str(fd, "department") ?? null, location: str(fd, "location") ?? null, personNotes: str(fd, "personNotes") ?? null,
+      ...(changed.length ? { identityConfidence: null, readiness: null, readinessReasons: [] } : {}),
+    },
+  });
+  // Edited identity fields are re-verified before any outreach.
+  for (const [field, value] of changed) await setContactField(id, field, { value, status: "unknown", source: "manual" });
+  await refreshPerson(id);
+  return { ok: true, message: "Saved" };
+}
+
+export async function deletePersonAction(id: string): Promise<ActionState> {
+  const c = await db.contact.findUnique({ where: { id } });
+  if (!c) return { ok: false, message: "Person not found" };
+  await db.reviewItem.deleteMany({ where: { contactId: id } });
+  await db.pipelineEvent.updateMany({ where: { contactId: id }, data: { contactId: null } });
+  await db.$transaction([db.reply.deleteMany({ where: { contactId: id } }), db.message.deleteMany({ where: { contactId: id } }), db.contact.delete({ where: { id } })]);
+  await db.pipelineEvent.create({ data: { accountId: c.accountId, stage: 0, step: "people.deleted", outcome: "info", reason: `${c.fullName} deleted by a user` } });
+  refresh("/people", `/accounts/${c.accountId}`);
+  return { ok: true, message: `${c.fullName} deleted` };
 }

@@ -3,6 +3,8 @@
 // contradictions, weak evidence, bounces) shows up in seeded data.
 
 import { rulePlan, ruleBrief, ruleCheckClaims, ruleInsights } from "@/lib/brain/rules";
+import { classifyReplyRules } from "@/lib/journey/engine";
+import { STAGE_INFO } from "@/lib/journey/stages";
 import type { BrainStats, BriefInput, ClaimToCheck, PlanResearchInput } from "@/lib/brain/types";
 import type {
   Adapters,
@@ -244,6 +246,11 @@ class MockLLM implements LLM {
 
   insights(stats: BrainStats) {
     return Promise.resolve(ruleInsights(stats));
+  }
+
+  classifyJourneyReply(text: string) {
+    const r = classifyReplyRules(text);
+    return Promise.resolve({ stage: r.stage, reason: r.reason, nextAction: STAGE_INFO[r.stage].next });
   }
 
   async extractEvidence(pages: ResearchPage[], key: string): Promise<ExtractedEvidence[]> {

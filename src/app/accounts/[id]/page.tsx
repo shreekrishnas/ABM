@@ -59,7 +59,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
   return (
     <div className="page-enter">
-      <Link href="/accounts" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Accounts</Link>
+      <Link href="/accounts" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Companies</Link>
 
       <div className="glass-card-static card-pad mb-5 overflow-hidden" style={{ background: `linear-gradient(155deg, rgba(99,102,241,0.08), var(--surface-card) 55%)` }}>
         <div className="flex flex-wrap items-start justify-between gap-5">
@@ -76,10 +76,13 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 {a.domain ? <a href={`https://${a.domain}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">{a.domain}<ExternalLink size={11} /></a> : <span>no domain</span>}
                 <span>{a.industry ?? "industry unknown"}</span>
                 <span>{a.employees ? `${a.employees.toLocaleString()} employees` : "size unknown"}</span>
-                <span>{a.country ?? "—"}</span>
+                <span>{[a.city, a.country].filter(Boolean).join(", ") || "—"}</span>
+                {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">LinkedIn<ExternalLink size={11} /></a>}
                 <span>owner: {a.owner?.name ?? "unassigned"}</span>
                 {a.technologies.length > 0 && <span>stack: {a.technologies.join(", ")}</span>}
               </div>
+              {a.keywords.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{a.keywords.slice(0, 12).map((k) => <Badge key={k} color="#64748B">{k}</Badge>)}</div>}
+              {a.companyNotes && <div className="secondary mt-2 text-xs">{a.companyNotes}</div>}
               {a.disqualifyReason && <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#B45309" }}><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
               {a.watchlist[0] && <div className="mt-2 text-xs secondary">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
             </div>
@@ -247,7 +250,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       {tab === "brain" && <BrainTab accountId={a.id} twin={twin} />}
 
       {tab === "people" && (
-        <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment.">
+        <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment." action={<Link href={`/people?q=${encodeURIComponent(a.name)}`} className="btn btn-secondary btn-sm">Journeys in People</Link>}>
           {a.contacts.length === 0 ? <Empty icon={<Users size={20} />} title="No contacts" /> : (
             <div className="table-wrap">
               <table className="data">

@@ -3,8 +3,8 @@ import { CONFIG } from "@/lib/config";
 import { seller } from "@/lib/seller";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { ActionButton } from "@/components/client";
-import { seedDemoAction } from "../actions";
+import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
+import { createCampaignFormAction, createSenderFormAction, seedDemoAction } from "../actions";
 import { serviceStatus } from "@/lib/adapters";
 
 export const metadata = { title: "Settings" };
@@ -21,7 +21,12 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 }
 
 export default async function SettingsPage() {
-  const [users, suppressions] = await Promise.all([db.user.findMany({ orderBy: { name: "asc" } }), db.suppression.count()]);
+  const [users, suppressions, campaigns, senders] = await Promise.all([
+    db.user.findMany({ orderBy: { name: "asc" } }),
+    db.suppression.count(),
+    db.campaign.findMany({ orderBy: { createdAt: "desc" }, include: { _count: { select: { journeys: true } } } }),
+    db.senderProfile.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { journeys: true } } } }),
+  ]);
   const services = serviceStatus();
   const sp = seller();
   const accounts = await db.account.count();
@@ -35,6 +40,22 @@ export default async function SettingsPage() {
         </Card>
       )}
       <PageHeader eyebrow="Configuration" title="Settings" sub={<>Every threshold lives in <code className="mono">src/lib/config.ts</code>. This page is read-only for now; editable settings with an audit history are on the roadmap.</>} />
+      <div className="mb-5 grid gap-5 md:grid-cols-2">
+        <Card title="ABM campaigns & segments" sub="Chosen at import; a filter on People">
+          {campaigns.length === 0 ? <p className="muted text-xs">None yet.</p> : campaigns.map((c) => <Row key={c.id} k={c.name} v={`${c._count.journeys} journeys`} />)}
+          <ActionForm action={createCampaignFormAction} className="mt-3 flex gap-2">
+            <input name="name" className="glass-input" placeholder="e.g. Polymer 3D Printing" required aria-label="Campaign name" />
+            <SubmitButton className="btn btn-primary btn-sm">Add</SubmitButton>
+          </ActionForm>
+        </Card>
+        <Card title="LinkedIn sender profiles" sub="Each sender keeps its own journey per person">
+          {senders.length === 0 ? <p className="muted text-xs">None yet.</p> : senders.map((x) => <Row key={x.id} k={x.name} v={`${x._count.journeys} journeys`} />)}
+          <ActionForm action={createSenderFormAction} className="mt-3 flex gap-2">
+            <input name="name" className="glass-input" placeholder="e.g. Sender 1 — Priya" required aria-label="Sender profile name" />
+            <SubmitButton className="btn btn-primary btn-sm">Add</SubmitButton>
+          </ActionForm>
+        </Card>
+      </div>
       <div className="grid gap-5 xl:grid-cols-3">
         <Card title="Integrations" sub="Each service goes live once its API key is set in Vercel">
           {services.map((x) => (

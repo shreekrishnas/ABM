@@ -14,7 +14,8 @@ type Counts = { review: number; handoffs: number; tasks: number };
 const GROUPS: Item[][] = [
   [
     { href: "/", label: "Overview", icon: LayoutDashboard },
-    { href: "/accounts", label: "Target accounts", icon: Building2 },
+    { href: "/accounts", label: "Companies", icon: Building2 },
+    { href: "/people", label: "People", icon: Users },
     { href: "/brain", label: "AI Brain", icon: BrainCircuit },
     { href: "/pipeline", label: "Pipeline", icon: Workflow },
     { href: "/review", label: "Review queue", icon: ClipboardCheck, count: "review" },
@@ -25,13 +26,12 @@ const GROUPS: Item[][] = [
     { href: "/handoffs", label: "Sales handoffs", icon: Handshake, count: "handoffs" },
   ],
   [
-    { href: "/crm/contacts", label: "CRM · Contacts", icon: Users },
     { href: "/crm/opportunities", label: "CRM · Opportunities", icon: BadgeDollarSign },
     { href: "/crm/tasks", label: "CRM · Tasks", icon: ListTodo, count: "tasks" },
   ],
   [
     { href: "/analytics", label: "Analytics", icon: BarChart3 },
-    { href: "/import", label: "Import data", icon: Upload },
+    { href: "/import", label: "Import Companies & People", icon: Upload },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ],
 ];

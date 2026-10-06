@@ -58,7 +58,7 @@ export default async function Overview() {
       />
 
       <div className="stagger grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <Kpi label="Target accounts" value={target} icon={<Target size={16} />} meta={`${byStage.DISQUALIFIED ?? 0} disqualified · ${byStage.WATCH ?? 0} watching`} />
+        <Kpi label="Target companies" value={target} icon={<Target size={16} />} meta={`${byStage.DISQUALIFIED ?? 0} disqualified · ${byStage.WATCH ?? 0} watching`} />
         <Kpi label="MQAs" value={byStage.MQA ?? 0} accent="#7C3AED" icon={<Flame size={16} />} meta={`${byStage.ENGAGED ?? 0} engaged, warming up`} />
         <Kpi label="Pipeline influenced" value={money(openOpps._sum.amountUsd ?? 0)} accent="#4F46E5" icon={<CircleDollarSign size={16} />} meta={`${openOpps._count} open · ${money(wonOpps._sum.amountUsd ?? 0)} won`} />
         <Kpi label="Reply rate" value={`${replyRate}%`} accent="#0EA5E9" icon={<MessageSquareReply size={16} />} meta={`${positive} positive of ${replies} replies`} />

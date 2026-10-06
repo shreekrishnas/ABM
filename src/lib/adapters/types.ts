@@ -1,3 +1,4 @@
+import type { Stage } from "@/lib/journey/stages";
 import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "@/lib/brain/types";
 
 // Interfaces for every external system. Stages depend on these, never on a vendor.
@@ -137,6 +138,8 @@ export interface LLM {
   accountBrief(input: BriefInput): Promise<AccountBriefData>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
+  /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
+  classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
 }
 
 export interface EmailSender {

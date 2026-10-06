@@ -50,6 +50,42 @@ const PEOPLE: [string, string][] = [
 
 const DIAL: Record<string, string> = { IN: "+91 98765 43210", AE: "+971 4 123 4567", SA: "+966 11 234 5678", QA: "+974 4412 3456", MY: "+60 3 1234 5678", US: "+1 415 555 0134", JP: "+81 3 1234 5678" };
 
+const KEYWORDS: Record<string, string> = {
+  beverages: "Bottling; Distributor network; Cold chain", fmcg: "Packaged foods; Rural distribution; Modern trade", manufacturing: "Auto components; Vendor base; Plants",
+  "quick commerce": "Dark stores; Seller onboarding", ecommerce: "Marketplace; Seller onboarding", fintech: "Lending; Co-lending; KYC", nbfc: "Gold loans; Branch network; KYC",
+};
+const CITY: Record<string, string> = { IN: "Mumbai", AE: "Dubai", SA: "Riyadh", US: "Austin", GB: "London", SG: "Singapore", MY: "Kuala Lumpur" };
+
+/** Varied LinkedIn journeys so every stage shows up in the sample data. */
+async function seedJourneys(campaignId: string, sender1: string, sender2: string) {
+  const { recordActivities } = await import("@/lib/journey/service");
+  const { classifyReplyRules } = await import("@/lib/journey/engine");
+  type A = import("@/lib/journey/engine").Activity;
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000);
+  const reply = (n: number, text: string): A => ({ type: "reply", at: day(n), text, meaning: classifyReplyRules(text).stage });
+  const patterns: A[][] = [
+    [],
+    [{ type: "connection_sent", at: day(9) }],
+    [{ type: "connection_sent", at: day(16) }, { type: "connection_accepted", at: day(13) }],
+    [{ type: "connection_sent", at: day(20) }, { type: "connection_accepted", at: day(18) }, { type: "follow_up_sent", at: day(12) }],
+    [{ type: "connection_sent", at: day(30) }, { type: "connection_accepted", at: day(27) }, { type: "follow_up_sent", at: day(20) }, { type: "follow_up_sent", at: day(8) }],
+    [{ type: "connection_sent", at: day(14) }, { type: "connection_accepted", at: day(12) }, reply(10, "Hi, nice to connect.")],
+    [{ type: "connection_sent", at: day(18) }, { type: "connection_accepted", at: day(16) }, { type: "follow_up_sent", at: day(12) }, reply(9, "Please share more details."), { type: "details_shared", at: day(7) }],
+    [{ type: "connection_sent", at: day(25) }, { type: "connection_accepted", at: day(22) }, reply(15, "Please share more details."), { type: "details_shared", at: day(14) }, reply(6, "Yes, we are interested. Can we set up a call?"), { type: "call_scheduled", at: day(4) }],
+    [{ type: "connection_sent", at: day(21) }, { type: "connection_accepted", at: day(19) }, { type: "follow_up_sent", at: day(14) }, reply(11, "I will check and inform you.")],
+    [{ type: "connection_sent", at: day(28) }, { type: "connection_accepted", at: day(25) }, reply(20, "We do not have a current requirement.")],
+    [{ type: "connection_sent", at: day(19) }, { type: "connection_accepted", at: day(17) }, reply(13, "Please contact our production head, Mr. Kulkarni.")],
+    [{ type: "connection_sent", at: day(15) }, reply(12, "I no longer work there.")],
+    [{ type: "connection_sent", at: day(40) }, { type: "connection_accepted", at: day(37) }, reply(30, "Yes, we are interested."), { type: "call_scheduled", at: day(26) }, { type: "demo_scheduled", at: day(18) }, { type: "stage_set", at: day(10), stage: "opportunity", detail: "Pilot scoped for two regions" }],
+  ];
+  const journeys = await db.journey.findMany({ where: { campaignId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  for (const [i, j] of journeys.entries()) {
+    const shift = j.senderId === sender2 ? 3 : 0; // Sender 2 is earlier in its outreach
+    const p = patterns[(i * 5 + shift) % patterns.length];
+    if (j.senderId === sender1 || j.senderId === sender2) if (p.length) await recordActivities(j.id, p, "csv", "Sample LinkedIn activity");
+  }
+}
+
 /** Wipes the database and seeds a demo workspace through the real pipeline. */
 export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   log("Resetting data…");
@@ -58,6 +94,7 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
     db.signal.deleteMany(), db.handoff.deleteMany(), db.reviewItem.deleteMany(), db.watchlistEntry.deleteMany(), db.ledgerEntry.deleteMany(),
     db.pipelineEvent.deleteMany(), db.researchQuery.deleteMany(), db.accountBrief.deleteMany(), db.brainInsight.deleteMany(), db.evidence.deleteMany(), db.twinVersion.deleteMany(), db.researchPlan.deleteMany(), db.fieldState.deleteMany(),
     db.task.deleteMany(), db.note.deleteMany(), db.opportunity.deleteMany(), db.contact.deleteMany(), db.account.deleteMany(),
+    db.journeyEvent.deleteMany(), db.journey.deleteMany(), db.campaign.deleteMany(), db.senderProfile.deleteMany(),
     db.suppression.deleteMany(), db.mailbox.deleteMany(), db.importBatch.deleteMany(), db.user.deleteMany(),
   ]);
 
@@ -88,11 +125,12 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   }
 
   log("Ingesting accounts…");
-  const rows = ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
+  const rows: Record<string, unknown>[] = ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
     const people = PEOPLE.filter((_, j) => (i + j) % 2 === 0 || j < 2).slice(0, 3 + (i % 3));
     return people.map(([name, title], j) => ({
       company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees, country, "Tech Stack": tech || undefined,
-      contactName: name, title,
+      contactName: name, title, "Person LinkedIn URL": `https://www.linkedin.com/in/${name.toLowerCase().replace(/[^a-z]+/g, "-")}-${i}`,
+      Keywords: j === 0 ? KEYWORDS[industry] : undefined, City: j === 0 ? CITY[country] : undefined,
       email: j === 2 && i % 7 === 0 ? `${name.split(" ")[0].toLowerCase()}@gmail.com` : `${name.toLowerCase().replace(" ", ".")}@${domain}`,
       phone: j === 0 ? DIAL[country] : undefined,
       titleObservedAt: j === 1 && i % 4 === 0 ? new Date(Date.now() - 200 * 86_400_000).toISOString() : undefined,
@@ -101,8 +139,15 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   // A malformed row and an exact duplicate to exercise the gates.
   rows.push({ company: "Sahyadri Beverages", domain: "sahyadribev.in", industry: "beverages", employees: 6500, country: "IN", "Tech Stack": undefined, contactName: "Asha Mehta", title: "Head of Master Data", email: "asha.mehta@sahyadribev.in", phone: undefined, titleObservedAt: undefined });
   rows.push({ company: "", domain: "nowhere", industry: "", employees: 0, country: "", "Tech Stack": undefined, contactName: "", title: "", email: "sam@@broken", phone: undefined, titleObservedAt: undefined });
-  const batch = await ingestRows(rows, { source: "csv", filename: "q4-target-accounts.csv" });
+  const campaign = await db.campaign.create({ data: { name: "Q4 Distributor Onboarding", description: "FMCG, beverages and manufacturing with large partner networks" } });
+  await db.campaign.create({ data: { name: "Vendor Master Clean-up", description: "Procurement-led vendor onboarding" } });
+  const sender1 = await db.senderProfile.create({ data: { name: "Sender 1 — Priya", linkedinUrl: "https://www.linkedin.com/in/priya-sample" } });
+  const sender2 = await db.senderProfile.create({ data: { name: "Sender 2 — Karan", linkedinUrl: "https://www.linkedin.com/in/karan-sample" } });
+  const batch = await ingestRows(rows, { source: "csv", filename: "q4-target-accounts.csv", campaignId: campaign.id, senderId: sender1.id });
   log(`  ${batch.accepted} rows accepted, ${batch.rejected} rejected`);
+  // The same list for a second sender reuses every company and person.
+  await ingestRows(rows.slice(0, 18), { source: "csv", filename: "q4-sender2.csv", campaignId: campaign.id, senderId: sender2.id });
+  await seedJourneys(campaign.id, sender1.id, sender2.id);
 
   // CRM relationships that exclusions must respect.
   const byDomain = async (d: string) => db.account.findUniqueOrThrow({ where: { domain: d } });
@@ -162,6 +207,9 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   await db.task.create({ data: { title: "Prep QBR deck for Ganga Dairy", accountId: (await byDomain("gangadairy.in")).id, assigneeId: arjun.id, dueAt: ago(-3), origin: "manual" } });
   await db.task.create({ data: { title: "Send Mosaic the security questionnaire", accountId: mosaic.id, assigneeId: maya.id, dueAt: ago(1), origin: "manual", status: "in_progress" } });
   void jess;
+
+  // The seed runs the pipeline directly, so close its import batches here.
+  await db.importBatch.updateMany({ where: { status: { in: ["processing", "uploading"] } }, data: { status: "done", finishedAt: new Date() } });
 
   log("Brain: summarising what works…");
   await generateInsights(ctx);

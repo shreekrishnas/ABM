@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { BuyingStage, Prisma, Tier } from "@prisma/client";
-import { Building2, Plus, Search } from "lucide-react";
+import { Building2, Plus, Search, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { STAGES } from "@/lib/config";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Meter, PageHeader, STAGE_STYLE, StageBadge, TierBadge, ago, cx } from "@/components/ui";
 import { createAccountAction } from "../actions";
 
-export const metadata = { title: "Target accounts" };
+export const metadata = { title: "Companies" };
 
 const SORTS = { engagement: "Engagement", fit: "Fit", intent: "Intent", recent: "Recently updated", name: "Name" } as const;
 
@@ -42,15 +42,17 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="CRM · Accounts"
-        title="Target accounts"
-        sub="Every account in the CRM with its tier, buying stage, fit, intent and engagement. Click an account for its evidence twin, buying group and full audit trail."
+        eyebrow="Company master"
+        title="Companies"
+        sub="Every target company with its tier, buying stage, fit, intent and engagement. One record per company — all channel activity returns here."
         actions={
-          <Modal trigger={<><Plus size={16} /> New account</>} title="Add an account" eyebrow="CRM" triggerClass="btn btn-brand">
+          <div className="flex flex-wrap gap-2">
+          <Link href="/import" className="btn btn-secondary"><Upload size={15} /> Import Companies &amp; People</Link>
+          <Modal trigger={<><Plus size={16} /> New company</>} title="Add a company" eyebrow="Companies" triggerClass="btn btn-brand">
               <ActionForm action={createAccountAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="name">Company name</label><input id="name" name="name" required className="glass-input" placeholder="Northwind Analytics" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="field-label" htmlFor="domain">Domain</label><input id="domain" name="domain" required className="glass-input" placeholder="northwind.com" /></div>
+                  <div><label className="field-label" htmlFor="domain">Website</label><input id="domain" name="domain" className="glass-input" placeholder="northwind.com" /></div>
                   <div><label className="field-label" htmlFor="industry">Industry</label><input id="industry" name="industry" className="glass-input" placeholder="analytics" /></div>
                   <div><label className="field-label" htmlFor="employees">Employees</label><input id="employees" name="employees" className="glass-input" inputMode="numeric" placeholder="850" /></div>
                   <div><label className="field-label" htmlFor="country">Country (ISO)</label><input id="country" name="country" className="glass-input" placeholder="US" maxLength={2} /></div>
@@ -62,6 +64,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                 <div className="mt-1 flex justify-end"><SubmitButton>Create account</SubmitButton></div>
               </ActionForm>
           </Modal>
+          </div>
         }
       />
 

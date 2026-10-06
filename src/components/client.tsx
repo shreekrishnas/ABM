@@ -42,6 +42,7 @@ export function ActionButton({ action, children, className = "btn btn-secondary"
   return (
     <>
       <button
+        type="button"
         className={className}
         disabled={pending || disabled}
         title={title}
@@ -132,5 +133,20 @@ export function Modal({ trigger, title, eyebrow, children, triggerClass = "btn b
         </div>
       )}
     </>
+  );
+}
+
+/** Header checkbox that ticks every `name` checkbox in the same form. */
+export function SelectAll({ name, label = "Select all" }: { name: string; label?: string }) {
+  return (
+    <input
+      type="checkbox"
+      aria-label={label}
+      className="h-4 w-4 accent-indigo-500"
+      onChange={(e) => {
+        const form = e.currentTarget.form;
+        form?.querySelectorAll<HTMLInputElement>(`input[type=checkbox][name="${name}"]`).forEach((c) => (c.checked = e.currentTarget.checked));
+      }}
+    />
   );
 }

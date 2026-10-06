@@ -226,6 +226,7 @@ table.data tr:last-child td { border-bottom: 0; }
 table.data tbody tr { transition: background 120ms; }
 table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 table.data td.strong { color: var(--text-primary); font-weight: 600; }
+table.data.compact th, table.data.compact td { padding: 0.6rem 0.55rem; }
 
 /* ── Tabs ── */
 .tabs { display: flex; gap: 0.25rem; border-bottom: 1.5px solid var(--border-subtle); overflow-x: auto; scrollbar-width: none; }

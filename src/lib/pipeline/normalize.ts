@@ -145,6 +145,18 @@ export function normalizeLinkedin(url?: string | null): string | null {
   return m ? `https://www.linkedin.com/in/${m[1]}` : null;
 }
 
+/** Company page URL → https://www.linkedin.com/company/<slug> (null if not a company page). */
+export function normalizeCompanyLinkedin(url?: string | null): string | null {
+  if (!url) return null;
+  const m = url.trim().toLowerCase().match(/linkedin\.com\/(company|school|showcase)\/([a-z0-9-_%.]+)/);
+  return m ? `https://www.linkedin.com/company/${m[2].replace(/\/$/, "")}` : null;
+}
+
+/** Matching key for company names: legal suffixes, punctuation and case removed. */
+export function companyNameKey(name: string): string {
+  return normalizeCompanyName(name).toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 export function normalizeCountry(input?: string | null): string | null {
   if (!input) return null;
   const s = input.trim().toUpperCase();

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function CrmIndex() {
-  redirect("/crm/contacts");
+  redirect("/people");
 }

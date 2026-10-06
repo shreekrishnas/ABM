@@ -30,22 +30,26 @@ describe("template validation", () => {
     const a = analyzeHeaders(["Company Name", "Website", "Work Email", "Internal Notes", "Favourite colour"]);
     expect(Object.values(a.mapping).sort()).toEqual(["company", "domain", "email"]);
     expect(a.ignored).toEqual(["Internal Notes", "Favourite colour"]);
-    expect(analyzeHeaders(["Company", "Email"]).missingRequired.map((f) => f.key)).toEqual(["domain"]);
+    // Website is recommended, not required; people need a first (or full) name.
+    expect(analyzeHeaders(["Company", "Email"]).missingRequired.map((f) => f.key)).toEqual(["firstName"]);
+    expect(analyzeHeaders(["Company"]).missingRequired).toEqual([]);
+    expect(analyzeHeaders(["Website"]).missingRequired.map((f) => f.key)).toEqual(["company"]);
   });
 
   it("rejects rows with invalid values and explains why", () => {
-    const { mapping } = analyzeHeaders(["Company", "Domain", "Email", "Employees", "Country", "Phone"]);
+    const { mapping } = analyzeHeaders(["Company", "Domain", "Email", "Employees", "Country", "Phone", "First Name"]);
     const bad = validateRow({ Company: "X", Domain: "not a domain", Email: "a@@b", Employees: "lots", Country: "Narnia", Phone: "12" }, mapping);
     expect(bad.ok).toBe(false);
     if (!bad.ok) {
-      expect(bad.error).toMatch(/Domain/);
+      expect(bad.error).toMatch(/Company Website/);
       expect(bad.error).toMatch(/Email/);
-      expect(bad.error).toMatch(/Employees/);
+      expect(bad.error).toMatch(/Employee Size/);
       expect(bad.error).toMatch(/Country/);
       expect(bad.error).toMatch(/Phone/);
+      expect(bad.error).toMatch(/First Name is required/);
     }
-    const good = validateRow({ Company: "X", Domain: "x.com", Email: "A@X.com", Employees: "200-400", Country: "india", Phone: "+91 98765 43210" }, mapping);
-    expect(good.ok && good.row).toMatchObject({ domain: "x.com", email: "a@x.com", employees: 300, country: "IN", phone: "+919876543210" });
+    const good = validateRow({ Company: "X", Domain: "x.com", Email: "A@X.com", Employees: "200-400", Country: "india", Phone: "+91 98765 43210", "First Name": "Ana" }, mapping);
+    expect(good.ok && good.row).toMatchObject({ domain: "x.com", employees: 300, country: "IN", person: { email: "a@x.com", phone: "+919876543210", firstName: "Ana" } });
   });
 });
 

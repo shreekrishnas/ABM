@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { Moon, Search, Sun } from "lucide-react";
 
 const TITLES: [string, string, string][] = [
-  ["/accounts", "Target accounts", "Every account, its tier, stage and score"],
+  ["/accounts", "Companies", "Company master: tier, stage, fit and intent"],
+  ["/people", "People", "People master and sender journeys"],
   ["/brain", "AI Brain", "Plans, connects, checks and learns"],
   ["/pipeline", "Pipeline", "Thirteen stages, every gate logged"],
   ["/review", "Review queue", "Everything waiting on a person"],
@@ -14,7 +15,7 @@ const TITLES: [string, string, string][] = [
   ["/handoffs", "Sales handoffs", "Accounts ready for a rep"],
   ["/crm", "CRM", "System of record"],
   ["/analytics", "Analytics", "What the program is producing"],
-  ["/import", "Import", "Bring accounts and contacts in"],
+  ["/import", "Import Companies & People", "One CSV, linked records, sender journeys"],
   ["/settings", "Settings", "Thresholds and policies"],
 ];
 

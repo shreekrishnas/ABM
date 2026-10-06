@@ -10,6 +10,7 @@ import { fetchJson } from "./http";
 import { inferFunction } from "@/lib/pipeline/normalize";
 import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
+import { JOURNEY_STAGES, STAGE_INFO } from "@/lib/journey/stages";
 
 const FUNCTIONS = ["data", "it", "procurement", "finance", "sales", "operations", "compliance", "security", "engineering", "marketing", "hr", "executive"] as const;
 const NEGATIVE = ["layoffs", "hiring_freeze", "acquired", "bankrupt", "competitor_signed"] as const;
@@ -235,6 +236,17 @@ export class OpenRouterLLM implements LLM {
       `${BRAIN(seller().name)} Review the performance numbers and say what is working, what is not, and what to change. Only draw a conclusion from a group with at least ${stats.minSample} examples; otherwise say there is not enough data. Each item's evidence must quote the numbers it rests on.`,
       `STATS:\n${JSON.stringify(stats)}\n\nReturn {"headline":"...","working":[{"text":"...","evidence":"..."}],"notWorking":[{"text":"...","evidence":"..."}],"recommendations":[{"area":"research|messaging|targeting|process","text":"..."}]}`,
       900,
+    );
+  }
+
+  async classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }) {
+    const stages = JOURNEY_STAGES.map((k) => `${k} = ${STAGE_INFO[k].label}: ${STAGE_INFO[k].useWhen}`).join("\n");
+    const schema = z.object({ stage: z.enum(JOURNEY_STAGES), reason: z.string().max(200), nextAction: z.string().max(200) });
+    return this.json(
+      schema,
+      `You classify a prospect's reply to ${seller().name}'s LinkedIn or email outreach. The reply's MEANING sets the stage. Choose exactly one stage:\n${stages}\nExamples: "Hi, nice to connect" → replied_neutral; "Please share more details" → details_requested; "Yes, we are interested" → interested; "I will check and inform you" → nurture; "We do not have a current requirement" → not_interested; "Please contact our production head" → referred; "I no longer work there" → disqualified. When unsure, choose replied_neutral.`,
+      `Prospect: ${context.title ?? "unknown title"} at ${context.company}. Current stage: ${context.stage}.\nReply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"stage":"<stage key>","reason":"<one short sentence>","nextAction":"<the next step for the sender>"}`,
+      150,
     );
   }
 }
