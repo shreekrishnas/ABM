@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
+import { seller } from "@/lib/seller";
+import { classifyTrigger } from "@/lib/seller/fit";
 import { HBars, VBars } from "@/components/charts";
 import { Card, Kpi, PageHeader, money } from "@/components/ui";
 
@@ -17,28 +19,25 @@ export default async function AnalyticsPage() {
     db.opportunity.count({ where: { stage: { in: ["won", "lost"] } } }),
   ]);
 
-  // Leading indicator: reply rate by the angle (lead trigger) the draft used.
+  // Leading indicator: reply rate by the angle (Manch trigger type) the draft led with.
+  const sp = seller();
   const leadClaim = new Map(evidence.map((e) => [e.id, e.claim]));
-  const angle = (leadId: string | null) => {
-    const c = leadId ? leadClaim.get(leadId) : null;
-    if (!c) return "other";
-    if (/series|raised|funding/i.test(c)) return "Funding";
-    if (/hiring/i.test(c)) return "Hiring";
-    if (/chief|appointed|new/i.test(c)) return "Leadership change";
-    if (/launch/i.test(c)) return "Product launch";
-    if (/migration|warehouse/i.test(c)) return "Migration";
-    return "Other";
+  const angle = (d: { angle: string | null; leadEvidenceId: string | null }) => {
+    const byKey = d.angle ? sp.triggers.find((t) => t.key === d.angle) : undefined;
+    if (byKey) return byKey.label;
+    const c = d.leadEvidenceId ? leadClaim.get(d.leadEvidenceId) : null;
+    return (c && classifyTrigger(c, sp)?.label) || "Other";
   };
   const angleStats = new Map<string, { sent: number; replied: number; positive: number }>();
   for (const m of messages) {
-    const k = angle(m.draft.leadEvidenceId);
+    const k = angle(m.draft);
     const s = angleStats.get(k) ?? { sent: 0, replied: 0, positive: 0 };
     s.sent++;
     angleStats.set(k, s);
   }
   for (const r of replies) {
     if (!r.message || r.class === "out_of_office") continue;
-    const k = angle(r.message.draft.leadEvidenceId);
+    const k = angle(r.message.draft);
     const s = angleStats.get(k) ?? { sent: 0, replied: 0, positive: 0 };
     s.replied++;
     if (r.class === "positive") s.positive++;

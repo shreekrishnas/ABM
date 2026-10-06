@@ -69,6 +69,19 @@ export async function charge(accountId: string, tier: Tier | null, kind: LedgerK
   await db.ledgerEntry.create({ data: { accountId, kind, amountMicros: toMicros(usd), description, stage } });
 }
 
+/** Record a cost already incurred (e.g. a search that just ran). Never throws on the cap. */
+export async function recordCost(accountId: string, kind: LedgerKind, usd: number, description: string, stage: number) {
+  if (usd <= 0) return;
+  await db.ledgerEntry.create({ data: { accountId, kind, amountMicros: toMicros(usd), description, stage } });
+}
+
+/** Throws BudgetExceeded if `usd` more would pass the tier cap. */
+export async function ensureBudget(accountId: string, tier: Tier | null, usd: number) {
+  const cap = budgetFor(tier);
+  const spent = await spentUsd(accountId);
+  if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);
+}
+
 export async function openReview(r: {
   type: ReviewType;
   reason: string;

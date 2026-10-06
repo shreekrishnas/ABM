@@ -2,6 +2,8 @@
 // tests are stable and every pipeline branch (layoffs, acquisitions, job changes,
 // contradictions, weak evidence, bounces) shows up in seeded data.
 
+import { rulePlan, ruleBrief, ruleCheckClaims, ruleInsights } from "@/lib/brain/rules";
+import type { BrainStats, BriefInput, ClaimToCheck, PlanResearchInput } from "@/lib/brain/types";
 import type {
   Adapters,
   BriefingInput,
@@ -18,6 +20,7 @@ import type {
   ResearchPage,
   ResearchPass,
   ResearchSource,
+  SearchHint,
 } from "./types";
 import { inferFunction } from "@/lib/pipeline/normalize";
 import { seller } from "@/lib/seller";
@@ -155,7 +158,17 @@ const TRIGGERS = [
 ];
 
 class MockResearch implements ResearchSource {
-  async search(domain: string, companyName: string, key: string, pass: ResearchPass): Promise<ResearchPage[]> {
+  engines() {
+    return ["mock"];
+  }
+
+  async search(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
+    const pages = (await this.pages(domain, companyName, key, pass)).map((p) => ({ ...p, engine: "mock" }));
+    hint.onAttempt?.({ engine: "mock", results: pages.length });
+    return pages;
+  }
+
+  private async pages(domain: string, companyName: string, key: string, pass: ResearchPass): Promise<ResearchPage[]> {
     const sc = scenarioFor(domain);
     const h = hash(domain);
     const pages: ResearchPage[] = [];
@@ -215,6 +228,24 @@ class MockResearch implements ResearchSource {
 const NEGATIVE_KINDS: Record<string, string> = { layoffs: "layoffs", acquired: "acquired", bankrupt: "bankrupt", freeze: "hiring_freeze" };
 
 class MockLLM implements LLM {
+  readonly model = "mock";
+
+  planResearch(input: PlanResearchInput) {
+    return Promise.resolve(rulePlan(input));
+  }
+
+  accountBrief(input: BriefInput) {
+    return Promise.resolve(ruleBrief(input));
+  }
+
+  checkClaims(claims: ClaimToCheck[]) {
+    return Promise.resolve(ruleCheckClaims(claims));
+  }
+
+  insights(stats: BrainStats) {
+    return Promise.resolve(ruleInsights(stats));
+  }
+
   async extractEvidence(pages: ResearchPage[], key: string): Promise<ExtractedEvidence[]> {
     if (key === "negative" && pages.length === 0) return [];
     return pages.map((p) => {
@@ -277,6 +308,8 @@ class MockLLM implements LLM {
       lines.push(text);
       claims.push({ text, factIds: [support.id] });
     }
+    // The brain's angle for this person, asked as a question (a hypothesis, not a fact).
+    if (input.angle && input.stepOrder === 1) lines.push("", `Is ${input.angle.pain.split(" — ")[0].replace(/^./, (c) => c.toLowerCase())} something your team is dealing with?`);
     // Approved seller collateral (about the seller, not the prospect).
     lines.push("", input.stepOrder === 1 ? `${input.seller.pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${input.seller.pitch}`);
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");

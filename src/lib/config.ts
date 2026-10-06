@@ -93,6 +93,21 @@ export const CONFIG = {
     mailboxVerify: 0.005,
     llmCheap: 0.002,
     llmStrong: 0.03,
+    /** Brain synthesis (account brief, research plan) — a few thousand tokens on gpt-4o-mini. */
+    llmBrain: 0.004,
+    /** Approximate cost of one web search per engine (paid tiers). */
+    search: { exa: 0.01, tavily: 0.008, serp: 0.015, mock: 0 } as Record<string, number>,
+  },
+
+  brain: {
+    /** A question already searched for an account within this window is served from cache. */
+    searchCacheDays: 7,
+    /** Below this many examples a rate is not treated as a finding. */
+    minSample: 10,
+    /** Regenerate the "what works" summary when the latest is older than this. */
+    insightEveryDays: 7,
+    /** How many learnings are passed to the draft writer as style advice. */
+    learningsInDrafts: 3,
   },
 
   approval: {

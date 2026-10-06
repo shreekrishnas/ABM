@@ -6,6 +6,7 @@ import { Moon, Search, Sun } from "lucide-react";
 
 const TITLES: [string, string, string][] = [
   ["/accounts", "Target accounts", "Every account, its tier, stage and score"],
+  ["/brain", "AI Brain", "Plans, connects, checks and learns"],
   ["/pipeline", "Pipeline", "Thirteen stages, every gate logged"],
   ["/review", "Review queue", "Everything waiting on a person"],
   ["/outreach", "Outreach", "Sequences, drafts and sends"],

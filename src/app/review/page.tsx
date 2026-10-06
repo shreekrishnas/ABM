@@ -91,11 +91,22 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                       </div>
                     </ActionForm>
                     <div className="lg:col-span-2">
+                      {(draft.useCase || draft.painPoint) && (
+                        <div className="mb-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
+                          <div className="micro mb-1">Brain angle for this person</div>
+                          <div className="secondary">{draft.useCase?.replace(/_/g, " ")}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</div>
+                        </div>
+                      )}
                       <div className="micro mb-2">Claims and the evidence they cite</div>
                       <ul className="grid gap-2.5">
                         {(draft.claims as { text: string; factIds: string[] }[]).map((c, i) => (
                           <li key={i} className="rounded-xl px-3 py-2.5 text-xs" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
                             <div className="secondary">“{c.text}”</div>
+                            {Array.isArray(draft.claimCheck) && (draft.claimCheck as { supported: boolean; reason: string }[])[i] && (
+                              <div className="mt-1 font-semibold" style={{ color: (draft.claimCheck as { supported: boolean }[])[i].supported ? "#059669" : "#DC2626" }}>
+                                {(draft.claimCheck as { supported: boolean }[])[i].supported ? "✓ Checked: the source says this" : "✕ Checker: not supported"} <span className="muted font-normal">— {(draft.claimCheck as { reason: string }[])[i].reason}</span>
+                              </div>
+                            )}
                             {c.factIds.map((id) => {
                               const e = evById.get(id);
                               return e ? (
@@ -108,7 +119,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                           </li>
                         ))}
                       </ul>
-                      <p className="muted mt-3 text-xs">Guardrail passed on attempt {draft.guardrailAttempts}. Edits must keep the unsubscribe line and sender address.</p>
+                      <p className="muted mt-3 text-xs">Guardrail passed on attempt {draft.guardrailAttempts}{draft.claimCheck == null ? " · claim checker was unavailable, so read each claim against its source" : ""}. Edits must keep the unsubscribe line and sender address.</p>
                     </div>
                   </div>
                 )}

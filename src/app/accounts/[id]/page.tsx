@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
-import { AlertTriangle, ArrowLeft, ExternalLink, FileText, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BrainCircuit, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG, STAGES } from "@/lib/config";
 import { seller } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
-import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
+import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
-import { addNoteAction, manualHandoffAction, runAccountAction, updateAccountAction } from "../../actions";
+import { addNoteAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
+import { latestBrief } from "@/lib/brain/strategist";
+import { BrainTab, VERDICT_COLOR } from "./brain-tab";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -37,12 +39,17 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     );
   }
 
-  const [ledger, events, signals, users] = await Promise.all([
+  const [ledger, events, signals, users, brief, flagged, engines] = await Promise.all([
     db.ledgerEntry.aggregate({ where: { accountId: id }, _sum: { amountMicros: true } }),
     tab === "pipeline" ? db.pipelineEvent.findMany({ where: { accountId: id }, orderBy: { createdAt: "desc" }, take: 300 }) : Promise.resolve([]),
     tab === "activity" || tab === "overview" ? db.signal.findMany({ where: { accountId: id }, orderBy: { occurredAt: "desc" }, take: 60, include: { contact: true } }) : Promise.resolve([]),
     db.user.findMany({ orderBy: { name: "asc" } }),
+    latestBrief(id),
+    db.evidence.findMany({ where: { accountId: id, flagged: true }, orderBy: { createdAt: "desc" } }),
+    db.evidence.findMany({ where: { accountId: id }, select: { id: true, engine: true } }),
   ]);
+  const engineOf = new Map(engines.map((e) => [e.id, e.engine]));
+  const flaggedIds = new Set(flagged.map((f) => f.id));
   const spent = (ledger._sum.amountMicros ?? 0) / 1_000_000;
   const sp = seller();
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
@@ -104,6 +111,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         active={tab}
         tabs={[
           { id: "overview", label: "Evidence twin" },
+          { id: "brain", label: "AI brain" },
           { id: "people", label: "Buying group", count: a.contacts.length },
           { id: "outreach", label: "Drafts", count: drafts.length },
           { id: "activity", label: "Activity & notes", count: a._count.signals + a.notes.length },
@@ -118,22 +126,46 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             <Card title="Facts" sub={twin ? `Twin v${a.twins[0].version} · ${date(a.twins[0].createdAt)} · every fact keeps a status and a source` : undefined}>
               {!twin || twin.facts.length === 0 ? <Empty icon={<FileText size={20} />} title="No evidence yet" sub="Run the pipeline to research this account." /> : (
                 <ul className="grid gap-2.5">
-                  {twin.facts.map((f) => (
+                  {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
                     <li key={f.id} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <span className="text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
-                        <FieldBadge status={f.status as FieldStatus} />
+                        <span className="flex items-center gap-1.5">
+                          <FieldBadge status={f.status as FieldStatus} />
+                          <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Teach the brain">
+                            <ActionForm action={flagFactAction} className="grid gap-3">
+                              <input type="hidden" name="evidenceId" value={f.id} />
+                              <p className="secondary text-sm">&ldquo;{f.claim}&rdquo;</p>
+                              <p className="muted text-xs">It stops being used at once, unsent drafts that cite it are withdrawn, and it counts against the engine that found it.</p>
+                              <textarea name="reason" className="glass-textarea" placeholder="What is wrong? e.g. different company with a similar name, outdated, misread" required />
+                              <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Mark wrong</SubmitButton></div>
+                            </ActionForm>
+                          </Modal>
+                        </span>
                       </div>
                       <div className="mono muted mt-1.5 flex flex-wrap gap-x-3">
                         <span className="micro" style={{ letterSpacing: "0.06em" }}>{f.key.replace("_", " ")}</span>
                         <a href={f.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.sourceType} · {new URL(f.sourceUrl).hostname}</a>
                         <span>{date(f.publishedAt)}</span>
+                        {engineOf.get(f.id) && <span>via {engineOf.get(f.id)}</span>}
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
             </Card>
+            {flagged.length > 0 && (
+              <Card title="Marked wrong" sub="Never used in drafts; kept so the same source isn't picked up again">
+                <ul className="grid gap-2">
+                  {flagged.map((f) => (
+                    <li key={f.id} className="flex flex-wrap items-start justify-between gap-2 text-sm">
+                      <span className="muted line-through">{f.claim}</span>
+                      <span className="flex items-center gap-2"><span className="muted text-xs">{f.flagReason}</span><ActionButton action={unflagFactAction.bind(null, f.id)} className="btn btn-ghost btn-sm">Restore</ActionButton></span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
             {twin && twin.inferences.length > 0 && (
               <Card title="Inferences" sub="Labelled as inference — never stated as fact in a draft">
                 <ul className="grid gap-2">
@@ -145,6 +177,14 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             )}
           </div>
           <div className="grid content-start gap-5">
+            {brief && (
+              <Card title={<span className="inline-flex items-center gap-2"><BrainCircuit size={16} style={{ color: "#7C3AED" }} /> Brain verdict</span>} action={<Link href={`/accounts/${a.id}?tab=brain`} className="btn btn-secondary btn-sm">Open</Link>}>
+                <Badge color={VERDICT_COLOR[brief.verdict]} dot>{brief.verdict}</Badge>
+                <p className="secondary mt-2 text-sm">{brief.verdictWhy}</p>
+                {brief.painPoints[0] && <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Top pain:</b> {brief.painPoints[0].pain}</p>}
+                <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Next:</b> {brief.nextBestAction}</p>
+              </Card>
+            )}
             <Card title={`Why fit ${a.fitScore ?? "—"} for ${sp.name}`} sub={a.useCase ? `Lead with: ${sp.useCases.find((u) => u.key === a.useCase)?.name ?? a.useCase}` : "Scored against the seller profile"}>
               {a.fitReasons.length === 0 ? <span className="muted text-xs">Run the pipeline to score this account.</span> : (
                 <ul className="grid gap-3">
@@ -204,6 +244,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {tab === "brain" && <BrainTab accountId={a.id} twin={twin} />}
+
       {tab === "people" && (
         <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment.">
           {a.contacts.length === 0 ? <Empty icon={<Users size={20} />} title="No contacts" /> : (
@@ -241,7 +283,22 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         <div className="grid gap-4">
           {drafts.length === 0 ? <Card><Empty icon={<FileText size={20} />} title="No drafts yet" sub="Drafts appear once a person passes the readiness gate." /></Card> : drafts.map((d) => (
             <Card key={d.id} title={d.subject} sub={`${d.contact.fullName} · step ${d.stepOrder} · ${ago(d.createdAt)}`} action={<Badge color={d.status === "sent" ? "#059669" : d.status === "approved" ? "#0EA5E9" : d.status === "pending_review" ? "#8B5CF6" : "#DC2626"}>{d.status.replace("_", " ")}</Badge>}>
+              {(d.painPoint || d.useCase) && (
+                <div className="mb-3 rounded-xl px-3 py-2 text-xs secondary" style={{ background: "var(--surface-card-header)" }}>
+                  <b style={{ color: "var(--text-primary)" }}>Angle:</b> {d.useCase ? (sp.useCases.find((u) => u.key === d.useCase)?.name ?? d.useCase) : "—"}{d.painPoint ? ` · ${d.painPoint}` : ""}
+                </div>
+              )}
               <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed secondary">{d.body || d.blockReason}</pre>
+              {Array.isArray(d.claimCheck) && (
+                <ul className="mt-3 grid gap-1">
+                  {(d.claimCheck as { text: string; supported: boolean; reason: string }[]).map((c, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-xs" style={{ color: c.supported ? "#059669" : "#DC2626" }}>
+                      {c.supported ? <CheckCircle2 size={13} className="mt-0.5 shrink-0" /> : <XCircle size={13} className="mt-0.5 shrink-0" />}
+                      <span><span className="secondary">{c.text}</span> <span className="muted">— {c.reason}</span></span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {d.reviewerNote && <div className="muted mt-3 text-xs">Reviewer: {d.reviewerNote}</div>}
             </Card>
           ))}

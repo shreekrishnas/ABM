@@ -6,6 +6,7 @@ import { ingestRows } from "@/lib/pipeline/ingest";
 import { runBatch } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { createMockAdapters } from "@/lib/adapters/mock";
+import { generateInsights } from "@/lib/brain/insights";
 import { recordReply, recordSignal, sendApproved, recordOutcome } from "@/lib/pipeline/stages/engagement";
 
 // Fictional prospects shaped like Manch's ICP (names, domains and facts are made up).
@@ -55,7 +56,7 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   await db.$transaction([
     db.reply.deleteMany(), db.message.deleteMany(), db.draft.deleteMany(), db.enrollment.deleteMany(), db.sequenceStep.deleteMany(), db.sequence.deleteMany(),
     db.signal.deleteMany(), db.handoff.deleteMany(), db.reviewItem.deleteMany(), db.watchlistEntry.deleteMany(), db.ledgerEntry.deleteMany(),
-    db.pipelineEvent.deleteMany(), db.evidence.deleteMany(), db.twinVersion.deleteMany(), db.researchPlan.deleteMany(), db.fieldState.deleteMany(),
+    db.pipelineEvent.deleteMany(), db.researchQuery.deleteMany(), db.accountBrief.deleteMany(), db.brainInsight.deleteMany(), db.evidence.deleteMany(), db.twinVersion.deleteMany(), db.researchPlan.deleteMany(), db.fieldState.deleteMany(),
     db.task.deleteMany(), db.note.deleteMany(), db.opportunity.deleteMany(), db.contact.deleteMany(), db.account.deleteMany(),
     db.suppression.deleteMany(), db.mailbox.deleteMany(), db.importBatch.deleteMany(), db.user.deleteMany(),
   ]);
@@ -161,6 +162,9 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   await db.task.create({ data: { title: "Prep QBR deck for Ganga Dairy", accountId: (await byDomain("gangadairy.in")).id, assigneeId: arjun.id, dueAt: ago(-3), origin: "manual" } });
   await db.task.create({ data: { title: "Send Mosaic the security questionnaire", accountId: mosaic.id, assigneeId: maya.id, dueAt: ago(1), origin: "manual", status: "in_progress" } });
   void jess;
+
+  log("Brain: summarising what works…");
+  await generateInsights(ctx);
 
   const counts = {
     accounts: await db.account.count({ where: { mergedIntoId: null } }),

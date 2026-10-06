@@ -1,7 +1,7 @@
 // Live web research: Exa, Tavily and SerpAPI (Google). Queries are built from the
 // seller's research questions.
 
-import type { ResearchPage, ResearchPass, ResearchSource } from "../types";
+import type { ResearchPage, ResearchPass, ResearchSource, SearchHint } from "../types";
 import { fetchJson, parseLooseDate } from "./http";
 
 const DAY = 86_400_000;
@@ -112,10 +112,15 @@ export class WebResearch implements ResearchSource {
     return this.serp(q, news, domain);
   }
 
-  async search(domain: string, companyName: string, key: string, pass: ResearchPass): Promise<ResearchPage[]> {
-    const { q, days, news } = queryFor(key, companyName);
+  async search(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
+    const base = queryFor(key, companyName);
+    const q = hint.query?.trim() || base.q;
+    const { days, news } = base;
+    // The brain's choice goes first; otherwise main/refresh prefer Exa and follow-up/reopen
+    // prefer a different engine so the second source is independent.
     const preferred: Engine[] = pass === "main" || pass === "refresh" ? ["exa", "tavily", "serp"] : ["serp", "tavily", "exa"];
-    const order = preferred.filter((e) => this.keys[e]);
+    const chosen = (["exa", "tavily", "serp"] as Engine[]).find((e) => e === hint.engine);
+    const order = (chosen ? [chosen, ...preferred.filter((e) => e !== chosen)] : preferred).filter((e) => this.keys[e]);
     const name = companyName.toLowerCase().split(/\s+/)[0];
     let lastError: unknown = null;
     for (const engine of order) {
@@ -124,11 +129,14 @@ export class WebResearch implements ResearchSource {
         pages = await this.run(engine, q, days, news, domain);
       } catch (e) {
         lastError = e; // quota or outage on one engine — try the next
+        hint.onAttempt?.({ engine, results: 0, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
         continue;
       }
-      // Keep only pages that actually mention the company.
+      // Keep only pages that actually mention the company. Stop at the first engine
+      // with usable results: no paying a second engine to repeat the same answer.
       const relevant = pages.filter((p) => `${p.title} ${p.text}`.toLowerCase().includes(name) || (domain && p.url.includes(domain)));
-      if (relevant.length) return relevant.slice(0, 5);
+      hint.onAttempt?.({ engine, results: relevant.length });
+      if (relevant.length) return relevant.slice(0, 5).map((p) => ({ ...p, engine }));
     }
     if (lastError && order.length) throw lastError;
     return [];

@@ -1,3 +1,5 @@
+import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "@/lib/brain/types";
+
 // Interfaces for every external system. Stages depend on these, never on a vendor.
 // Swap the mock implementations for real ones in adapters/index.ts.
 
@@ -41,6 +43,8 @@ export interface ResearchPage {
   publishedAt: Date;
   title: string;
   text: string;
+  /** Engine that returned the page (exa | tavily | serp | mock). */
+  engine?: string;
 }
 
 export type ResearchPass = "main" | "followup" | "reopen" | "refresh";
@@ -48,7 +52,17 @@ export type ResearchPass = "main" | "followup" | "reopen" | "refresh";
 export interface ResearchSource {
   /** True for real web search; the evidence gate then refuses mock evidence. */
   readonly live?: boolean;
-  search(domain: string, companyName: string, questionKey: string, pass: ResearchPass): Promise<ResearchPage[]>;
+  /** Engines this source can use, so the brain can route questions between them. */
+  engines(): string[];
+  /** The brain may give a tailored query and a preferred engine. */
+  search(domain: string, companyName: string, questionKey: string, pass: ResearchPass, hint?: SearchHint): Promise<ResearchPage[]>;
+}
+
+export interface SearchHint {
+  query?: string;
+  engine?: string;
+  /** Called for every engine actually queried (each one costs credits). */
+  onAttempt?: (a: { engine: string; results: number; error?: string }) => void;
 }
 
 export interface ExtractedEvidence {
@@ -60,6 +74,8 @@ export interface ExtractedEvidence {
   publishedAt: Date;
   isNegative: boolean;
   negativeKind: string | null;
+  /** Set when this page confirms a fact we already hold (independent corroboration). */
+  sameAsFactId?: string | null;
 }
 
 export interface Inference {
@@ -77,6 +93,10 @@ export interface DraftInput {
   sender: { name: string; company: string; address: string };
   /** Approved seller collateral for this account's use case (not a claim about the prospect). */
   seller: { name: string; pitch: string; cta: string; useCase: string | null };
+  /** The brain's angle for this person (from the account brief). */
+  angle?: { pain: string; capability: string; persona: string; whyNow: string | null; proofPoint: string | null } | null;
+  /** What has worked before, from the learning loop (advice, not facts). */
+  learnings?: string[];
 }
 
 export interface DraftOutput {
@@ -104,12 +124,19 @@ export interface BriefingOutput {
 export type ModelTier = "cheap" | "strong";
 
 export interface LLM {
-  extractEvidence(pages: ResearchPage[], questionKey: string): Promise<ExtractedEvidence[]>;
+  /** "mock" or the model id — recorded on everything the brain produces. */
+  readonly model: string;
+  extractEvidence(pages: ResearchPage[], questionKey: string, known?: { id: string; claim: string }[]): Promise<ExtractedEvidence[]>;
   infer(facts: { id: string; key: string; claim: string }[]): Promise<Inference[]>;
   mapRole(title: string | null, ownerFunction: string | null, contactFunction: string | null): Promise<"decision_maker" | "champion" | "influencer" | "budget_owner" | "unknown">;
   draft(input: DraftInput, attempt: number): Promise<DraftOutput>;
   classifyReply(text: string): Promise<"positive" | "objection" | "not_now" | "unsubscribe" | "wrong_person" | "out_of_office" | "needs_human">;
   briefing(input: BriefingInput): Promise<BriefingOutput>;
+  // ── The brain ──
+  planResearch(input: PlanResearchInput): Promise<PlanResearchOutput>;
+  accountBrief(input: BriefInput): Promise<AccountBriefData>;
+  checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
+  insights(stats: BrainStats): Promise<InsightSummary>;
 }
 
 export interface EmailSender {

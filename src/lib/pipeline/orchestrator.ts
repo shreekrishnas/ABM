@@ -10,6 +10,7 @@ import { s05ResearchPlan, s06AccountResearch, s07AccountTwin } from "./stages/re
 import { s08BuyingGroup, s09Enrichment } from "./stages/people";
 import { s10Readiness, s11DraftReview } from "./stages/outreach";
 import { escalateOverdue, recomputeAccount, sendApproved, tickSequences } from "./stages/engagement";
+import { maybeGenerateInsights } from "@/lib/brain/insights";
 
 type StageFn = (a: Account, ctx: RunContext) => Promise<Account>;
 
@@ -194,7 +195,8 @@ export async function tick(ctx: RunContext = newContext()) {
   const sent = await sendApproved(ctx);
   const watch = await processWatchlist(ctx);
   const escalated = await escalateOverdue(ctx);
-  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated };
+  const insights = await maybeGenerateInsights(ctx);
+  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights };
 }
 
 export async function budgetSummary(account: Account) {
