@@ -8,7 +8,7 @@
 import { isValidEmail, normalizeCountry, normalizeDomain, normalizeEmail, normalizeLinkedin, normalizePhone } from "@/lib/pipeline/normalize";
 
 export type FieldKey =
-  | "company" | "domain" | "industry" | "employees" | "country"
+  | "company" | "domain" | "industry" | "employees" | "country" | "technologies"
   | "contactName" | "email" | "title" | "phone" | "linkedinUrl" | "titleObservedAt";
 
 export interface ImportField {
@@ -27,6 +27,7 @@ export const IMPORT_FIELDS: ImportField[] = [
   { key: "industry", label: "Industry", group: "Company", required: false, aliases: ["industry", "sector", "vertical"], example: "analytics", help: "Free text, e.g. saas, fintech" },
   { key: "employees", label: "Employees", group: "Company", required: false, aliases: ["employees", "employee count", "headcount", "company size", "size"], example: "850", help: "Number or range like 200-500" },
   { key: "country", label: "Country", group: "Company", required: false, aliases: ["country", "hq country", "company country"], example: "US", help: "2-letter code (US, GB, IN) or country name" },
+  { key: "technologies", label: "Tech Stack", group: "Company", required: false, aliases: ["tech stack", "technologies", "technology", "tech", "software used", "erp", "systems used"], example: "SAP S/4HANA; Informatica", help: "ERP, MDM and workflow tools, separated by ; — used in the fit score" },
   { key: "contactName", label: "Contact Name", group: "Contact", required: false, aliases: ["contact name", "name", "full name", "contact", "person", "prospect", "prospect name"], example: "Asha Mehta", help: "Leave blank for company-only rows" },
   { key: "email", label: "Email", group: "Contact", required: false, aliases: ["email", "work email", "email address", "contact email", "business email"], example: "asha.mehta@northwind-analytics.com", help: "Work email" },
   { key: "title", label: "Job Title", group: "Contact", required: false, aliases: ["job title", "title", "position", "role", "designation"], example: "VP Data", help: "Current title" },
@@ -74,6 +75,7 @@ export interface CleanRow {
   industry: string | null;
   employees: number | null;
   country: string | null;
+  technologies: string[] | null;
   contactName: string | null;
   email: string | null;
   title: string | null;
@@ -141,13 +143,18 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
     if (Number.isNaN(d.getTime()) || d.getTime() > Date.now() + 86_400_000) errors.push(`Title Date "${v.titleObservedAt}" is not a valid past date`);
     else titleObservedAt = d;
   }
+  let technologies: string[] | null = null;
+  if (v.technologies) {
+    technologies = [...new Set(v.technologies.split(/[;|,]/).map((t) => t.trim()).filter(Boolean))].slice(0, 30);
+    if (technologies.some((t) => t.length > 60)) errors.push("Tech Stack entries must be under 60 characters each (separate tools with ;)");
+  }
   if ((v.title || v.phone || v.linkedinUrl) && !v.contactName && !v.email) errors.push("Contact details need a Contact Name or Email");
 
   if (errors.length) return { ok: false, error: errors.join("; ") };
   return {
     ok: true,
     row: {
-      company: v.company!, domain: domain!, industry: v.industry?.toLowerCase() ?? null, employees, country,
+      company: v.company!, domain: domain!, industry: v.industry?.toLowerCase() ?? null, employees, country, technologies,
       contactName: v.contactName ?? null, email, title: v.title ?? null, phone, linkedinUrl, titleObservedAt,
     },
   };
@@ -155,6 +162,6 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
 
 export function templateCsv(): string {
   const header = IMPORT_FIELDS.map((f) => f.label).join(",");
-  const example = IMPORT_FIELDS.map((f) => (f.example.includes(",") ? `"${f.example}"` : f.example)).join(",");
+  const example = IMPORT_FIELDS.map((f) => (/[,;]/.test(f.example) ? `"${f.example}"` : f.example)).join(",");
   return `${header}\n${example}\n`;
 }

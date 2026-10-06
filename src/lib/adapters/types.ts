@@ -73,6 +73,8 @@ export interface DraftInput {
   instruction: string;
   facts: { id: string; key: string; claim: string }[];
   sender: { name: string; company: string; address: string };
+  /** Approved seller collateral for this account's use case (not a claim about the prospect). */
+  seller: { name: string; pitch: string; cta: string; useCase: string | null };
 }
 
 export interface DraftOutput {

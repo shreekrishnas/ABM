@@ -171,7 +171,8 @@ export async function updateAccountAction(_: ActionState, fd: FormData): Promise
     where: { id: p.data.id },
     data: {
       relationship: p.data.relationship, ownerId: p.data.ownerId ?? null, doNotContact: p.data.doNotContact,
-      ...(p.data.tier && p.data.tier !== "auto" ? { tier: p.data.tier } : {}),
+      // A hand-picked tier is locked; "automatic" lets the fit score decide again.
+      ...(p.data.tier && p.data.tier !== "auto" ? { tier: p.data.tier, tierLocked: true } : { tierLocked: false }),
       ...(p.data.relationship === "customer" ? { stage: "CUSTOMER" } : {}),
     },
   });

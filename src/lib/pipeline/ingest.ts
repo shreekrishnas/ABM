@@ -51,7 +51,7 @@ async function upsertRow(r: CleanRow, source: string, batchId: string): Promise<
   if (account?.mergedIntoId) account = await db.account.findUnique({ where: { id: account.mergedIntoId } });
   let accountOutcome: AccountOutcome = "unchanged";
   if (!account) {
-    account = await db.account.create({ data: { name: r.company, domain: r.domain, industry: r.industry, employees: r.employees, country: r.country, source } });
+    account = await db.account.create({ data: { name: r.company, domain: r.domain, industry: r.industry, employees: r.employees, country: r.country, technologies: r.technologies ?? [], source } });
     accountOutcome = "created";
     for (const [field, value] of [["domain", r.domain], ["industry", r.industry], ["employees", r.employees?.toString() ?? null], ["country", r.country]] as const) {
       if (value) await setAccountField(account.id, field, { value, status: "unknown", source });
@@ -61,13 +61,16 @@ async function upsertRow(r: CleanRow, source: string, batchId: string): Promise<
     if (r.industry && r.industry !== account.industry) data.industry = r.industry;
     if (r.employees != null && r.employees !== account.employees) data.employees = r.employees;
     if (r.country && r.country !== account.country) data.country = r.country;
+    // Tech stack accumulates across uploads (new tools are added, none removed).
+    const newTech = (r.technologies ?? []).filter((t) => !account!.technologies.some((x) => x.toLowerCase() === t.toLowerCase()));
+    if (newTech.length) data.technologies = [...account.technologies, ...newTech];
     const changed = Object.keys(data);
     if (changed.length) {
       account = await db.account.update({ where: { id: account.id }, data });
       accountOutcome = "updated";
-      for (const f of changed as ("industry" | "employees" | "country")[]) {
-        await setAccountField(account.id, f, { value: account[f]?.toString() ?? null, status: "unknown", source });
-        changes.push(f);
+      for (const f of changed as ("industry" | "employees" | "country" | "technologies")[]) {
+        if (f !== "technologies") await setAccountField(account.id, f, { value: account[f]?.toString() ?? null, status: "unknown", source });
+        changes.push(f === "technologies" ? `tech stack +${newTech.join(", ")}` : f);
       }
     }
   }

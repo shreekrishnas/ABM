@@ -4,6 +4,7 @@ import type { FieldStatus } from "@prisma/client";
 import { AlertTriangle, ArrowLeft, ExternalLink, FileText, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG, STAGES } from "@/lib/config";
+import { seller } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
@@ -43,6 +44,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     db.user.findMany({ orderBy: { name: "asc" } }),
   ]);
   const spent = (ledger._sum.amountMicros ?? 0) / 1_000_000;
+  const sp = seller();
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
   const stageName = STAGES.find((s) => s.n === a.pipelineStage)?.name ?? "Not started";
@@ -69,6 +71,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <span>{a.employees ? `${a.employees.toLocaleString()} employees` : "size unknown"}</span>
                 <span>{a.country ?? "—"}</span>
                 <span>owner: {a.owner?.name ?? "unassigned"}</span>
+                {a.technologies.length > 0 && <span>stack: {a.technologies.join(", ")}</span>}
               </div>
               {a.disqualifyReason && <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#B45309" }}><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
               {a.watchlist[0] && <div className="mt-2 text-xs secondary">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
@@ -142,6 +145,25 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             )}
           </div>
           <div className="grid content-start gap-5">
+            <Card title={`Why fit ${a.fitScore ?? "—"} for ${sp.name}`} sub={a.useCase ? `Lead with: ${sp.useCases.find((u) => u.key === a.useCase)?.name ?? a.useCase}` : "Scored against the seller profile"}>
+              {a.fitReasons.length === 0 ? <span className="muted text-xs">Run the pipeline to score this account.</span> : (
+                <ul className="grid gap-3">
+                  {a.fitReasons.map((r) => {
+                    const m = r.match(/^([^:]+): (unknown|(\d+)\/(\d+)) — (.*)$/);
+                    if (!m) return <li key={r} className="text-xs secondary">{r}</li>;
+                    const [, label, , got, max, why] = m;
+                    return (
+                      <li key={r}>
+                        <div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span><span className="tnum muted">{got ? `${got}/${max}` : "unknown"}</span></div>
+                        {got && <Meter value={Number(got)} max={Number(max)} color={Number(got) / Number(max) >= 0.7 ? "#10B981" : Number(got) / Number(max) >= 0.4 ? "#F59E0B" : "#EF4444"} />}
+                        <div className="muted mt-1 text-[0.72rem]">{why}</div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {a.useCase && <p className="secondary mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--surface-card-header)" }}>{sp.useCases.find((u) => u.key === a.useCase)?.pains}</p>}
+            </Card>
             <Card title="Unknowns & risks">
               <div className="grid gap-3 text-sm">
                 <div>
@@ -288,7 +310,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <select id="owner" name="ownerId" defaultValue={a.ownerId ?? ""} className="glass-select"><option value="">Unassigned</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}</select>
               </div>
               <div><label className="field-label" htmlFor="tier">Tier override</label>
-                <select id="tier" name="tier" defaultValue={a.tier ?? "auto"} className="glass-select"><option value="auto">Automatic from fit</option><option value="T1">T1 · 1:1</option><option value="T2">T2 · 1:few</option><option value="T3">T3 · 1:many</option></select>
+                <select id="tier" name="tier" defaultValue={a.tierLocked && a.tier ? a.tier : "auto"} className="glass-select"><option value="auto">Automatic from fit</option><option value="T1">T1 · 1:1</option><option value="T2">T2 · 1:few</option><option value="T3">T3 · 1:many</option></select>
               </div>
               <label className="flex items-center gap-2 text-sm secondary"><input type="checkbox" name="doNotContact" defaultChecked={a.doNotContact} className="h-4 w-4 accent-indigo-500" /> Do not contact (owner request)</label>
               <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Save</SubmitButton></div>

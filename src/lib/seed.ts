@@ -7,41 +7,46 @@ import { runBatch } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { recordReply, recordSignal, sendApproved, recordOutcome } from "@/lib/pipeline/stages/engagement";
 
-const ACCOUNTS: [string, string, string, number, string][] = [
-  ["Northwind Analytics", "northwind-analytics.com", "analytics", 850, "US"],
-  ["Helios Fintech", "heliosfintech.io", "fintech", 1200, "GB"],
-  ["Lumen Health", "lumenhealth.com", "healthtech", 640, "US"],
-  ["Quanta Logistics", "quantalogistics.com", "logistics", 2300, "DE"],
-  ["Brightpath Software", "brightpath.dev", "software", 420, "IN"],
-  ["Cobalt Commerce", "cobaltcommerce.com", "ecommerce", 980, "NL"],
-  ["Vertex Data Labs", "vertexdatalabs.ai", "analytics", 310, "US"],
-  ["Orbital Payments", "orbitalpay.com", "fintech", 1750, "SG"],
-  ["Pinecrest SaaS", "pinecrest.io", "saas", 560, "CA"],
-  ["Meridian Insights", "meridianinsights.com", "analytics", 270, "AU"],
-  ["Atlas Freight", "atlasfreight.co", "logistics", 3900, "US"],
-  ["Nimbus Cloudworks", "nimbuscloud.io", "software", 1500, "IE"],
-  ["Saffron Retail", "saffronretail.in", "ecommerce", 720, "IN"],
-  ["Granite Security", "granitesec.com", "software", 890, "FR"],
-  ["Tidewater Bank", "tidewaterbank.com", "banking", 12000, "US"],
-  ["Kestrel Robotics", "kestrelrobotics.com", "manufacturing", 150, "JP"],
-  ["Evergreen Telehealth", "evergreentelehealth.com", "healthtech", 410, "GB"],
-  ["Polaris Supply", "polarissupply.com", "logistics", 1100, "NL"],
-  ["Redwood Analytics", "redwoodanalytics.io", "analytics", 1900, "US"],
-  ["Summit Ledger", "summitledger.com", "fintech", 380, "DE"],
-  ["Halcyon Apps", "halcyonapps.com", "saas", 230, "US"],
-  ["Ironclad Systems", "ironcladsys.com", "software", 2600, "GB"],
-  ["Mosaic Marketplace", "mosaicmarket.com", "ecommerce", 1300, "US"],
-  ["Beacon Biotech", "beaconbio.com", "biotech", 600, "US"],
+// Fictional prospects shaped like Manch's ICP (names, domains and facts are made up).
+const ACCOUNTS: [string, string, string, number, string, string][] = [
+  ["Sahyadri Beverages", "sahyadribev.in", "beverages", 6500, "IN", "SAP ECC; Excel vendor forms"],
+  ["Kaveri Foods", "kaverifoods.com", "fmcg", 4200, "IN", "SAP S/4HANA"],
+  ["Trident Auto Components", "tridentauto.in", "auto components manufacturing", 3100, "IN", "Oracle EBS"],
+  ["Zippy Basket", "zippybasket.in", "quick commerce", 2800, "IN", "Microsoft Dynamics 365; Power Apps"],
+  ["Lakshmi Finserv", "lakshmifinserv.in", "nbfc lending", 1900, "IN", "Finacle; manual KYC"],
+  ["Meridian Pharma Distributors", "meridianpharma.in", "pharmaceutical distribution", 1400, "IN", "SAP ECC"],
+  ["Coastal Cement", "coastalcement.in", "cement", 2600, "IN", "SAP S/4HANA; Informatica"],
+  ["Desert Rose Foods", "desertrosefoods.ae", "food and beverage", 1800, "AE", "Oracle NetSuite"],
+  ["Najd Trading Company", "najdtrading.sa", "retail", 3500, "SA", "SAP ECC"],
+  ["SwiftMove Logistics", "swiftmove.in", "logistics", 5200, "IN", "Oracle EBS; Appian"],
+  ["Urban Threads", "urbanthreads.in", "apparel retail", 900, "IN", "Tally"],
+  ["Bharat Paints", "bharatpaints.in", "paints", 1200, "IN", "SAP ECC"],
+  ["Gulf Telecom Distribution", "gulftelecomdist.com", "telecom", 700, "QA", ""],
+  ["Pioneer Electricals", "pioneerelectricals.in", "electrical equipment", 650, "IN", "Microsoft Dynamics 365"],
+  ["Northstar Insurance", "northstarinsure.in", "insurance", 2200, "IN", "Pega"],
+  ["Shakti Steel", "shaktisteel.in", "steel", 8000, "IN", "SAP S/4HANA; SAP MDG"],
+  ["FreshCart Online", "freshcart.co", "ecommerce", 450, "IN", ""],
+  ["Lotus Healthcare", "lotushealthcare.my", "healthcare", 1100, "MY", "SAP Business One"],
+  ["Peak Mobility", "peakmobility.in", "mobility", 1600, "IN", "Power Apps"],
+  ["Kestrel Robotics", "kestrelrobotics.com", "robotics research", 150, "JP", ""],
+  ["Verity MDM", "verity-mdm.com", "software", 400, "US", ""],
+  ["Ganga Dairy", "gangadairy.in", "fmcg dairy", 3000, "IN", "SAP ECC"],
+  ["Mosaic Marketplace", "mosaicmarket.in", "ecommerce marketplace", 1300, "IN", "Oracle EBS"],
+  ["Helios Fintech", "heliosfintech.in", "fintech", 1200, "IN", "Microsoft Dynamics 365"],
+  ["Brightpath Consumer", "brightpathconsumer.in", "fmcg personal care", 900, "IN", "SAP S/4HANA"],
 ];
 
+// Titles shaped like Manch's buying group (one with an abbreviation to exercise normalization).
 const PEOPLE: [string, string][] = [
-  ["Asha Mehta", "VP Data"],
-  ["Daniel Okafor", "Hd of Data Platform"],
-  ["Lena Fischer", "Director of Engineering"],
-  ["Ravi Kumar", "Sr. Data Engineer"],
+  ["Asha Mehta", "Head of Master Data"],
+  ["Daniel DSouza", "Hd of Procurement"],
+  ["Lena Fischer", "SAP CoE Lead"],
+  ["Ravi Kumar", "Sr. Vendor Management Executive"],
   ["Chloe Martin", "CFO"],
-  ["Sam Wright", "Head of Security"],
+  ["Sam Wright", "Head of Distribution"],
 ];
+
+const DIAL: Record<string, string> = { IN: "+91 98765 43210", AE: "+971 4 123 4567", SA: "+966 11 234 5678", QA: "+974 4412 3456", MY: "+60 3 1234 5678", US: "+1 415 555 0134", JP: "+81 3 1234 5678" };
 
 /** Wipes the database and seeds a demo workspace through the real pipeline. */
 export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
@@ -81,19 +86,19 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   }
 
   log("Ingesting accounts…");
-  const rows = ACCOUNTS.flatMap(([company, domain, industry, employees, country], i) => {
+  const rows = ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
     const people = PEOPLE.filter((_, j) => (i + j) % 2 === 0 || j < 2).slice(0, 3 + (i % 3));
     return people.map(([name, title], j) => ({
-      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees, country,
+      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees, country, "Tech Stack": tech || undefined,
       contactName: name, title,
       email: j === 2 && i % 7 === 0 ? `${name.split(" ")[0].toLowerCase()}@gmail.com` : `${name.toLowerCase().replace(" ", ".")}@${domain}`,
-      phone: j === 0 ? (country === "IN" ? "+91 98765 43210" : country === "GB" ? "+44 20 7946 0958" : "+1 415 555 0134") : undefined,
+      phone: j === 0 ? DIAL[country] : undefined,
       titleObservedAt: j === 1 && i % 4 === 0 ? new Date(Date.now() - 200 * 86_400_000).toISOString() : undefined,
     }));
   });
   // A malformed row and an exact duplicate to exercise the gates.
-  rows.push({ company: "Northwind Analytics", domain: "northwind-analytics.com", industry: "analytics", employees: 850, country: "US", contactName: "Asha Mehta", title: "VP Data", email: "asha.mehta@northwind-analytics.com", phone: undefined, titleObservedAt: undefined });
-  rows.push({ company: "", domain: "nowhere", industry: "", employees: 0, country: "", contactName: "", title: "", email: "sam@@broken", phone: undefined, titleObservedAt: undefined });
+  rows.push({ company: "Sahyadri Beverages", domain: "sahyadribev.in", industry: "beverages", employees: 6500, country: "IN", "Tech Stack": undefined, contactName: "Asha Mehta", title: "Head of Master Data", email: "asha.mehta@sahyadribev.in", phone: undefined, titleObservedAt: undefined });
+  rows.push({ company: "", domain: "nowhere", industry: "", employees: 0, country: "", "Tech Stack": undefined, contactName: "", title: "", email: "sam@@broken", phone: undefined, titleObservedAt: undefined });
   const batch = await ingestRows(rows, { source: "csv", filename: "q4-target-accounts.csv" });
   log(`  ${batch.accepted} rows accepted, ${batch.rejected} rejected`);
 
@@ -102,9 +107,9 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   const owners = [maya.id, arjun.id];
   const all = await db.account.findMany({ orderBy: { createdAt: "asc" } });
   for (const [i, a] of all.entries()) await db.account.update({ where: { id: a.id }, data: { ownerId: owners[i % 2] } });
-  await db.account.update({ where: { id: (await byDomain("tidewaterbank.com")).id }, data: { relationship: "customer" } });
-  await db.account.update({ where: { id: (await byDomain("ironcladsys.com")).id }, data: { relationship: "competitor" } });
-  const mosaic = await byDomain("mosaicmarket.com");
+  await db.account.update({ where: { id: (await byDomain("gangadairy.in")).id }, data: { relationship: "customer" } });
+  await db.account.update({ where: { id: (await byDomain("verity-mdm.com")).id }, data: { relationship: "competitor" } });
+  const mosaic = await byDomain("mosaicmarket.in");
   await db.opportunity.create({ data: { accountId: mosaic.id, name: "Mosaic — Platform", amountUsd: 85000, stage: "proposal", source: "inbound", ownerId: maya.id } });
 
   log("Running pipeline…");
@@ -142,17 +147,17 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   if (engaged[0]) {
     const opp = await db.opportunity.create({ data: { accountId: engaged[0].id, name: `${engaged[0].name} — Pilot`, amountUsd: 42000, stage: "negotiation", source: "abm", ownerId: engaged[0].ownerId, closeDate: ago(-21) } });
     await db.account.update({ where: { id: engaged[0].id }, data: { stage: "OPPORTUNITY" } });
-    await db.note.create({ data: { accountId: engaged[0].id, authorId: engaged[0].ownerId, body: "Discovery call went well. Champion wants a pilot on their analytics warehouse." } });
+    await db.note.create({ data: { accountId: engaged[0].id, authorId: engaged[0].ownerId, body: "Discovery call went well. Champion wants a pilot on distributor onboarding for two regions before the S/4HANA cut-over." } });
     void opp;
   }
-  const helios = await byDomain("heliosfintech.io");
+  const helios = await byDomain("heliosfintech.in");
   const lost = await db.opportunity.create({ data: { accountId: helios.id, name: "Helios — Expansion", amountUsd: 60000, stage: "proposal", source: "abm", ownerId: arjun.id } });
-  await recordOutcome(lost.id, "lost", "Chose to build in-house", ctx);
-  const brightpath = await byDomain("brightpath.dev");
+  await recordOutcome(lost.id, "lost", "Chose to build on Power Apps in-house", ctx);
+  const brightpath = await byDomain("brightpathconsumer.in");
   const won = await db.opportunity.create({ data: { accountId: brightpath.id, name: "Brightpath — Team plan", amountUsd: 36000, stage: "negotiation", source: "abm", ownerId: maya.id } });
   await recordOutcome(won.id, "won", undefined, ctx);
-  await db.task.create({ data: { title: "Prep QBR deck for Tidewater Bank", accountId: (await byDomain("tidewaterbank.com")).id, assigneeId: arjun.id, dueAt: ago(-3), origin: "manual" } });
-  await db.task.create({ data: { title: "Send Mosaic security questionnaire", accountId: mosaic.id, assigneeId: maya.id, dueAt: ago(1), origin: "manual", status: "in_progress" } });
+  await db.task.create({ data: { title: "Prep QBR deck for Ganga Dairy", accountId: (await byDomain("gangadairy.in")).id, assigneeId: arjun.id, dueAt: ago(-3), origin: "manual" } });
+  await db.task.create({ data: { title: "Send Mosaic the security questionnaire", accountId: mosaic.id, assigneeId: maya.id, dueAt: ago(1), origin: "manual", status: "in_progress" } });
   void jess;
 
   const counts = {

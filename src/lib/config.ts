@@ -2,12 +2,8 @@
 // Change values here; stages and gates read nothing hard-coded.
 
 export const CONFIG = {
-  icp: {
-    industries: ["software", "saas", "fintech", "analytics", "healthtech"],
-    employees: { min: 300, max: 2500 },
-    countries: ["US", "GB", "DE", "NL", "CA", "IE", "IN"],
-    weights: { industry: 40, size: 30, region: 30 },
-  },
+  // Ideal customer profile, personas, triggers and messaging live in the seller
+  // profile (src/lib/seller). This file only holds pipeline mechanics.
 
   fit: {
     floor: 40,
@@ -34,14 +30,7 @@ export const CONFIG = {
 
   research: {
     maxQuestions: 6,
-    templates: [
-      { key: "trigger", question: "What changed recently that creates a reason to talk (funding, launch, hiring, leadership change)?", importance: "high" },
-      { key: "owner_function", question: "Which function owns the problem we solve?", importance: "high" },
-      { key: "negative", question: "Any layoffs, hiring freeze, acquisition or bankruptcy in the last 90 days?", importance: "high" },
-      { key: "tooling", question: "What tools do they use today in our category?", importance: "medium" },
-      { key: "size", question: "How large is the team that would use the product?", importance: "medium" },
-      { key: "culture", question: "What is the company culture like?", importance: "low" },
-    ],
+    // Questions come from the active seller profile (seller().researchQuestions).
     // Questions whose answer never changes a decision.
     neverChangesDecision: ["culture"],
   },
@@ -120,15 +109,18 @@ export const CONFIG = {
     AU: "Spam Act inferred consent (conspicuous publication)",
     SG: "PDPA business contact exemption",
     EU: "GDPR Art. 6(1)(f) legitimate interest — LIA on file",
+    // Manch's GCC and SE Asia markets — B2B outreach bases to confirm with counsel.
+    AE: "UAE PDPL (Federal Decree-Law 45/2021) — B2B legitimate business contact, opt-out honoured (confirm with counsel)",
+    SA: "Saudi PDPL — B2B legitimate interest, opt-out honoured (confirm with counsel)",
+    QA: "Qatar PDPPL (Law 13/2016) — B2B legitimate purpose, opt-out honoured (confirm with counsel)",
+    BH: "Bahrain PDPL (Law 30/2018) — B2B legitimate interest (confirm with counsel)",
+    OM: "Oman PDPL (Royal Decree 6/2022) — B2B legitimate interest (confirm with counsel)",
+    MY: "Malaysia PDPA 2010 — business contact, opt-out honoured (confirm with counsel)",
+    ID: "Indonesia PDP Law 27/2022 — legitimate interest (confirm with counsel)",
+    PH: "Philippines Data Privacy Act 2012 — legitimate interest (confirm with counsel)",
   } as Record<string, string>,
 
   euCountries: ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO"],
-
-  sender: {
-    name: "ABM Team",
-    company: "Your Company",
-    address: "100 Market St, San Francisco, CA",
-  },
 
   // Domains treated as personal email providers (identity conflict for B2B).
   personalDomains: ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "proton.me", "protonmail.com", "aol.com"],

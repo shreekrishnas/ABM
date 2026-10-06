@@ -60,13 +60,15 @@ export function standardizeTitle(input?: string | null): string | null {
 
 const FUNCTION_RULES: [RegExp, string][] = [
   [/\b(ciso|security|infosec)\b/i, "security"],
-  [/\b(cdo|data|analytics|bi|machine learning|ml|ai)\b/i, "data"],
-  [/\b(cfo|finance|financial|controller|accounting|fp&a)\b/i, "finance"],
+  [/\b(compliance|risk|kyc|audit|regulatory|company secretary)\b/i, "compliance"],
+  [/\b(master data|mdm|data governance|cdo|data|analytics|bi|machine learning|ml|ai)\b/i, "data"],
+  [/\b(cpo|procurement|purchase|purchasing|sourcing|vendor|supplier|p2p)\b/i, "procurement"],
+  [/\b(cfo|finance|financial|controller|accounting|accounts payable|fp&a|treasury)\b/i, "finance"],
+  [/\b(sap|erp|cio|it|information technology|infrastructure|systems|digital|enterprise architect)\b/i, "it"],
   [/\b(cto|engineering|developer|software|platform|devops|architect)\b/i, "engineering"],
-  [/\b(cio|it|information technology|infrastructure|systems)\b/i, "it"],
+  [/\b(distribution|distributor|channel|trade marketing|sales operations|sales ops|cro|sales|revenue|key accounts|business development)\b/i, "sales"],
   [/\b(cmo|marketing|growth|demand|brand)\b/i, "marketing"],
-  [/\b(cro|sales|revenue|account executive|business development)\b/i, "sales"],
-  [/\b(coo|operations|supply chain|logistics)\b/i, "operations"],
+  [/\b(coo|operations|supply chain|logistics|shared services|gbs|process excellence)\b/i, "operations"],
   [/\b(hr|people|talent|recruit)\b/i, "hr"],
   [/\b(ceo|founder|president|owner|managing director)\b/i, "executive"],
 ];
@@ -116,7 +118,7 @@ export function normalizePhone(phone?: string | null): string | null {
 }
 
 const DIAL_CODES: Record<string, string> = {
-  "1": "US", "44": "GB", "91": "IN", "49": "DE", "33": "FR", "31": "NL", "61": "AU", "65": "SG", "353": "IE", "34": "ES", "39": "IT", "46": "SE",
+  "1": "US", "44": "GB", "91": "IN", "971": "AE", "966": "SA", "974": "QA", "968": "OM", "965": "KW", "973": "BH", "60": "MY", "62": "ID", "63": "PH", "81": "JP", "49": "DE", "33": "FR", "31": "NL", "61": "AU", "65": "SG", "353": "IE", "34": "ES", "39": "IT", "46": "SE",
 };
 
 export function phoneCountry(phone?: string | null): string | null {

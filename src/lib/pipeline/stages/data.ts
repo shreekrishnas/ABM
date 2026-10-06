@@ -20,6 +20,8 @@ import {
 import { exclusionGate, fitFloorGate, emailDomainStatus, isStale, phoneCountryStatus } from "../gates";
 import { dataConfidence, identityConfidence, researchPriority, scoreFit, tierFor } from "../scoring";
 import { charge, logEvent, openReview, StopRun, type RunContext } from "../context";
+import { seller } from "@/lib/seller";
+import { pickUseCase } from "@/lib/seller/fit";
 import { contactFields, setAccountField, setContactField } from "../fields";
 
 // ───────────────────────── Stage 2 ─────────────────────────
@@ -127,10 +129,15 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
 
   const fit = scoreFit(account);
   const floor = fitFloorGate(fit.fit);
-  await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.company_fit", outcome: "info", reason: `Fit ${fit.fit ?? "n/a"} (coverage ${Math.round(fit.coverage * 100)}%)`, data: fit.breakdown });
+  const useCase = pickUseCase(account.industry, null, seller());
+  await logEvent(ctx, {
+    accountId: account.id, stage: S, step: "fit_tier.company_fit", outcome: "info",
+    reason: `Fit ${fit.fit ?? "n/a"} for ${seller().name} (coverage ${Math.round(fit.coverage * 100)}%)${useCase ? ` · lead use case: ${useCase.replace(/_/g, " ")}` : ""}`,
+    data: { components: fit.components.map((c) => ({ key: c.key, points: c.points, max: c.max, reason: c.reason })) },
+  });
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.fit_floor", outcome: floor.pass ? "pass" : "block", reason: floor.reason });
   if (!floor.pass) {
-    await db.account.update({ where: { id: account.id }, data: { fitScore: fit.fit, stage: "DISQUALIFIED", disqualifyReason: floor.reason } });
+    await db.account.update({ where: { id: account.id }, data: { fitScore: fit.fit, fitReasons: fit.reasons, useCase, stage: "DISQUALIFIED", disqualifyReason: floor.reason } });
     throw new StopRun(floor.reason);
   }
 
@@ -143,7 +150,8 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   const confidence = dataConfidence(states.map((s) => s.status), fit.coverage);
   const intent = await ctx.adapters.intent.intent(account.domain ?? account.name);
   const fitValue = fit.fit ?? 50; // unknown firmographics: neutral fit, low confidence carries the gap
-  const tier = account.tier ?? tierFor(fitValue);
+  // Tier follows the fit score (so weekly data updates can move it) unless set by hand.
+  const tier = account.tierLocked && account.tier ? account.tier : tierFor(fitValue);
   const pr = researchPriority(fitValue, confidence, intent.score);
 
   if (intent.score > 0) {
@@ -155,7 +163,7 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
 
   account = await db.account.update({
     where: { id: account.id },
-    data: { fitScore: fit.fit, dataConfidence: confidence, tier, intentScore: intent.score, researchPriority: pr.priority, scoredAt: ctx.now },
+    data: { fitScore: fit.fit, fitReasons: fit.reasons, useCase, dataConfidence: confidence, tier, intentScore: intent.score, researchPriority: pr.priority, scoredAt: ctx.now },
   });
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.research_priority", outcome: "pass", reason: `${tier} · priority ${pr.priority} (score ${pr.score}, confidence ${confidence}, intent ${intent.score})` });
   return account;

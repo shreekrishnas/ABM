@@ -226,8 +226,14 @@ model Account {
   source       String       @default("manual")
 
   tier             Tier?
+  /// true when a person set the tier by hand; otherwise it follows the fit score.
+  tierLocked       Boolean     @default(false)
   stage            BuyingStage @default(UNAWARE)
   fitScore         Int?
+  /// Plain-language reasons behind fitScore, one per component (seller-aware).
+  fitReasons       String[]    @default([])
+  /// The seller use case to lead with (e.g. distributor_onboarding).
+  useCase          String?
   dataConfidence   Float?
   researchPriority Priority?
   intentScore      Float       @default(0)

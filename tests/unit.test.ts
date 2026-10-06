@@ -6,6 +6,8 @@ import {
   findContradictions, isStale, lawfulBasisFor, preSendGate, resolveContradiction,
 } from "@/lib/pipeline/gates";
 import { CONFIG } from "@/lib/config";
+import { seller } from "@/lib/seller";
+import { classifyTrigger, matchPersona, pickUseCase } from "@/lib/seller/fit";
 
 const NOW = new Date("2026-10-01T00:00:00Z");
 const ago = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
@@ -41,15 +43,22 @@ describe("normalize", () => {
 });
 
 describe("scoring", () => {
-  it("scores fit on known fields only — unknown is not bad fit", () => {
-    const full = scoreFit({ industry: "analytics", employees: 800, country: "US" });
-    expect(full.fit).toBe(100);
-    const partial = scoreFit({ industry: "analytics", employees: null, country: null });
-    expect(partial.fit).toBe(100);
-    expect(partial.coverage).toBeCloseTo(1 / 3);
+  it("scores fit against the seller profile on known fields only", () => {
+    const full = scoreFit({ industry: "fmcg", employees: 4000, country: "IN", technologies: ["SAP S/4HANA"] });
+    expect(full.fit).toBeGreaterThanOrEqual(90);
+    expect(full.useCases).toContain("distributor_onboarding");
+    const partial = scoreFit({ industry: "beverages", employees: null, country: null });
+    expect(partial.fit).toBe(100); // industry + partner network known, both full
+    expect(partial.coverage).toBeCloseTo(2 / 5);
     expect(scoreFit({}).fit).toBeNull();
-    expect(scoreFit({ industry: "mining", employees: 800, country: "US" }).fit).toBe(60);
+    // Outside Manch's verticals and small → below the fit floor.
+    expect(scoreFit({ industry: "robotics research", employees: 150, country: "JP" }).fit!).toBeLessThan(40);
+    // Same company in a secondary market scores lower than in India.
+    expect(scoreFit({ industry: "fmcg", employees: 4000, country: "AE" }).fit!).toBeLessThan(scoreFit({ industry: "fmcg", employees: 4000, country: "IN" }).fit!);
+    // Every component explains itself.
+    expect(full.reasons.every((r) => / — /.test(r))).toBe(true);
   });
+
   it("tiers and priority", () => {
     expect(tierFor(85)).toBe("T1");
     expect(tierFor(65)).toBe("T2");
@@ -150,7 +159,7 @@ describe("gates", () => {
     expect(factGuardrail([{ text: "x", factIds: ["f3"] }], facts, NOW).pass).toBe(false);
   });
   it("compliance, lawful basis, pre-send and bounce breaker", () => {
-    expect(complianceGate(`Hi\n${CONFIG.sender.address}\nReply unsubscribe`).pass).toBe(true);
+    expect(complianceGate(`Hi\n${seller().sender.address}\nReply unsubscribe`).pass).toBe(true);
     expect(complianceGate("Hi").pass).toBe(false);
     expect(lawfulBasisFor("DE")).toBe(CONFIG.lawfulBasis.EU);
     expect(lawfulBasisFor("US")).toContain("CAN-SPAM");
@@ -164,3 +173,24 @@ describe("gates", () => {
     expect(bounceBreaker(100, 2).pass).toBe(true);
   });
 });
+
+describe("seller intelligence (Manch)", () => {
+  const sp = seller();
+  it("maps titles to Manch buying roles", () => {
+    expect(matchPersona("Head of Master Data Governance", sp)?.role).toBe("champion");
+    expect(matchPersona("Chief Procurement Officer", sp)?.role).toBe("decision_maker");
+    expect(matchPersona("CIO", sp)?.role).toBe("decision_maker");
+    expect(matchPersona("SAP CoE Lead", sp)?.role).toBe("champion");
+    expect(matchPersona("Head of Compliance", sp)?.role).toBe("influencer");
+    expect(matchPersona("Financial Controller", sp)?.role).toBe("budget_owner");
+    expect(matchPersona("Graphic Designer", sp)).toBeNull();
+  });
+  it("classifies buying triggers and picks the use case to lead with", () => {
+    expect(classifyTrigger("Kaveri Foods announced its SAP S/4HANA migration programme", sp)?.key).toBe("erp_migration");
+    expect(classifyTrigger("plans to add 3,000 distributors to expand rural reach", sp)?.key).toBe("channel_expansion");
+    expect(pickUseCase("quick commerce", "workforce_scale", sp)).toBe("gig_onboarding");
+    expect(pickUseCase("fmcg", null, sp)).toBe("distributor_onboarding");
+    expect(pickUseCase("nbfc", "compliance_mandate", sp)).toBe("regulated_kyc");
+  });
+});
+

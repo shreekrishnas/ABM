@@ -7,6 +7,7 @@ import type { ResearchPass } from "@/lib/adapters/types";
 import { evidenceGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
 import { dataConfidence } from "../scoring";
 import { BudgetExceeded, charge, logEvent, openReview, type RunContext } from "../context";
+import { seller } from "@/lib/seller";
 
 export interface PlannedQuestion {
   key: string;
@@ -35,7 +36,7 @@ export async function s05ResearchPlan(account: Account, ctx: RunContext, reason:
   const questions: PlannedQuestion[] = [];
   const skipped: { key: string; reason: string }[] = [];
 
-  for (const t of CONFIG.research.templates) {
+  for (const t of seller().researchQuestions) {
     if ((CONFIG.research.neverChangesDecision as readonly string[]).includes(t.key)) {
       skipped.push({ key: t.key, reason: "Answer would not change a decision" });
     } else if (knownFresh.has(t.key) && t.key !== "negative") {
@@ -119,7 +120,7 @@ export async function s06AccountResearch(account: Account, ctx: RunContext, opts
 // ───────────────────────── Stage 7 ─────────────────────────
 
 // Keys whose evidence describes one value; differing values are a contradiction.
-const SINGLE_VALUE_KEYS = ["size", "owner_function"];
+const SINGLE_VALUE_KEYS = ["partner_network", "owner_function"];
 
 export interface TwinSnapshot {
   facts: { id: string; key: string; claim: string; status: FieldStatus; sourceUrl: string; sourceType: string; publishedAt: string }[];

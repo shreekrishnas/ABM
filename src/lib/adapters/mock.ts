@@ -20,6 +20,8 @@ import type {
   ResearchSource,
 } from "./types";
 import { inferFunction } from "@/lib/pipeline/normalize";
+import { seller } from "@/lib/seller";
+import { matchPersona } from "@/lib/seller/fit";
 
 export function hash(s: string): number {
   let h = 5381;
@@ -58,24 +60,28 @@ function personScenario(fullName: string, domain: string): "ok" | "job_change" |
 // Titles the provider "knows" for discovered people, keyed by function.
 const DISCOVERY: Record<string, { first: string; last: string; title: string }[]> = {
   data: [
-    { first: "Priya", last: "Raman", title: "VP Data & Analytics" },
-    { first: "Marco", last: "Silva", title: "Head of Data Platform" },
+    { first: "Priya", last: "Raman", title: "Chief Digital Officer" },
+    { first: "Marco", last: "Silva", title: "Head of Master Data Governance" },
   ],
-  engineering: [
-    { first: "Elena", last: "Kovacs", title: "VP Engineering" },
-    { first: "Tom", last: "Becker", title: "Director of Platform Engineering" },
+  it: [
+    { first: "Rahul", last: "Menon", title: "CIO" },
+    { first: "Tom", last: "Becker", title: "SAP CoE Lead" },
   ],
-  security: [
-    { first: "Aisha", last: "Bello", title: "CISO" },
-    { first: "Liam", last: "Ortiz", title: "Head of Security Operations" },
+  procurement: [
+    { first: "Kavita", last: "Iyer", title: "Chief Procurement Officer" },
+    { first: "Owen", last: "Hughes", title: "Head of Vendor Management" },
   ],
   finance: [
     { first: "Grace", last: "Lin", title: "CFO" },
-    { first: "Owen", last: "Hughes", title: "Director of FP&A" },
+    { first: "Arvind", last: "Rao", title: "Head of Shared Services" },
   ],
-  marketing: [
-    { first: "Sofia", last: "Moreau", title: "VP Marketing" },
-    { first: "Dev", last: "Patel", title: "Head of Demand Generation" },
+  sales: [
+    { first: "Sofia", last: "Fernandes", title: "Head of Distribution" },
+    { first: "Dev", last: "Patel", title: "Sales Operations Manager" },
+  ],
+  security: [
+    { first: "Aisha", last: "Bello", title: "CISO" },
+    { first: "Liam", last: "Ortiz", title: "Head of Compliance" },
   ],
 };
 
@@ -112,7 +118,7 @@ class MockProvider implements DataProvider {
   }
 
   async findByFunction(domain: string, fn: string, limit: number): Promise<ProviderPerson[]> {
-    const list = DISCOVERY[fn] ?? DISCOVERY.engineering;
+    const list = DISCOVERY[fn] ?? DISCOVERY.it;
     return list.slice(0, limit).map((p) => ({
       fullName: `${p.first} ${p.last}`,
       title: p.title,
@@ -140,11 +146,12 @@ class MockMailbox implements MailboxVerifier {
 }
 
 const TRIGGERS = [
-  { claim: "raised a Series C to expand its data platform", value: "series_c" },
-  { claim: "is hiring 12 data engineers across two regions", value: "hiring_data" },
-  { claim: "appointed a new Chief Data Officer", value: "new_cdo" },
-  { claim: "launched a real-time analytics product line", value: "launch_analytics" },
-  { claim: "announced migration to a cloud data warehouse", value: "cloud_migration" },
+  { claim: "announced its SAP S/4HANA migration programme", value: "s4hana_migration" },
+  { claim: "plans to add 3,000 distributors to expand rural reach", value: "distributor_expansion" },
+  { claim: "is hiring a Head of Master Data Governance", value: "hiring_mdm" },
+  { claim: "raised a Series D to scale seller onboarding", value: "series_d_sellers" },
+  { claim: "completed the acquisition of a regional competitor", value: "acquisition" },
+  { claim: "launched an enterprise-wide AI and automation programme", value: "ai_programme" },
 ];
 
 class MockResearch implements ResearchSource {
@@ -172,9 +179,9 @@ class MockResearch implements ResearchSource {
       return pages;
     }
     if (key === "owner_function") {
-      const fns = ["data", "engineering", "security", "finance"];
+      const fns = ["data", "procurement", "it", "sales", "finance"];
       const fn = fns[h % fns.length];
-      pages.push({ url: `${base}/careers`, sourceType: "careers", publishedAt: daysAgo(8), title: "Careers", text: `Open roles reporting into the ${fn} organisation.` });
+      pages.push({ url: `${base}/careers`, sourceType: "careers", publishedAt: daysAgo(8), title: "Careers", text: `Open roles for vendor and partner onboarding reporting into the ${fn} organisation.` });
       return pages;
     }
     if (key === "negative") {
@@ -184,20 +191,20 @@ class MockResearch implements ResearchSource {
       return pages;
     }
     if (key === "tooling") {
-      pages.push({ url: `https://stackreviews.example.com/${domain}`, sourceType: "review_site", publishedAt: daysAgo(60), title: "Stack", text: "Snowflake, dbt, Looker" });
+      pages.push({ url: `https://stackreviews.example.com/${domain}`, sourceType: "review_site", publishedAt: daysAgo(60), title: "Stack", text: ["SAP ECC, Excel-based vendor forms", "SAP S/4HANA, Informatica MDM", "Oracle EBS, Power Apps", "Microsoft Dynamics 365, manual KYC"][h % 4] });
       return pages;
     }
-    if (key === "size") {
+    if (key === "partner_network") {
       // A reopen pass on an unresolved contradiction finds nothing new.
       if (pass === "reopen" && sc === "contradiction_unresolved") return pages;
       if (sc === "contradiction_unresolved") {
-        pages.push({ url: `https://bizdaily.example.com/${domain}`, sourceType: "news", publishedAt: daysAgo(30), title: "Team size", text: "40" });
-        pages.push({ url: `https://startupwatch.example.com/${domain}`, sourceType: "press", publishedAt: daysAgo(35), title: "Team size", text: "120" });
+        pages.push({ url: `https://bizdaily.example.com/${domain}`, sourceType: "news", publishedAt: daysAgo(30), title: "Partner network", text: "4000" });
+        pages.push({ url: `https://startupwatch.example.com/${domain}`, sourceType: "press", publishedAt: daysAgo(35), title: "Partner network", text: "12000" });
       } else if (sc === "contradiction_official") {
-        pages.push({ url: `https://bizdaily.example.com/${domain}`, sourceType: "news", publishedAt: daysAgo(30), title: "Team size", text: "40" });
-        pages.push({ url: `${base}/about`, sourceType: "official", publishedAt: daysAgo(14), title: "About", text: "85" });
+        pages.push({ url: `https://bizdaily.example.com/${domain}`, sourceType: "news", publishedAt: daysAgo(30), title: "Partner network", text: "4000" });
+        pages.push({ url: `${base}/about`, sourceType: "official", publishedAt: daysAgo(14), title: "About", text: "8500" });
       } else {
-        pages.push({ url: `${base}/about`, sourceType: "official", publishedAt: daysAgo(20), title: "About", text: String(30 + (h % 90)) });
+        pages.push({ url: `${base}/about`, sourceType: "official", publishedAt: daysAgo(20), title: "About", text: String(500 + (h % 90) * 100) });
       }
       return pages;
     }
@@ -217,9 +224,9 @@ class MockLLM implements LLM {
       }
       if (key === "owner_function") {
         const fn = p.text.match(/into the (\w+) organisation/)?.[1] ?? null;
-        return { key, claim: `The ${fn} team owns the problem (hiring signals on careers page)`, value: fn, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
+        return { key, claim: `The ${fn} team owns partner and vendor onboarding (careers page)`, value: fn, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
       }
-      if (key === "size") return { key, claim: `Team size about ${p.text}`, value: p.text, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
+      if (key === "partner_network") return { key, claim: `Works with about ${Number(p.text).toLocaleString("en-IN")} distributors, vendors and partners`, value: p.text, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
       if (key === "tooling") return { key, claim: `Current stack includes ${p.text}`, value: null, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
       return { key, claim: p.title, value: null, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
     });
@@ -229,14 +236,22 @@ class MockLLM implements LLM {
     const out: { text: string; basedOn: string[] }[] = [];
     const triggers = facts.filter((f) => f.key === "trigger");
     const owner = facts.find((f) => f.key === "owner_function");
-    if (triggers.length && owner) out.push({ text: "Likely evaluating new tooling this half — growth trigger plus active hiring in the owning team", basedOn: [triggers[0].id, owner.id] });
+    if (triggers.length && owner) out.push({ text: "Likely reviewing how partner and vendor data is onboarded this half — a growth trigger plus active hiring in the owning team", basedOn: [triggers[0].id, owner.id] });
     const tooling = facts.find((f) => f.key === "tooling");
-    if (tooling) out.push({ text: "Existing modern data stack lowers integration risk", basedOn: [tooling.id] });
+    if (tooling) out.push({ text: /sap|oracle|dynamics/i.test(tooling.claim) ? "An established ERP means validated master data has a clear destination — integration risk is low" : "Manual onboarding tools suggest room for automation", basedOn: [tooling.id] });
     return out;
   }
 
   async mapRole(title: string | null, ownerFunction: string | null, contactFunction: string | null) {
     if (!title) return "unknown" as const;
+    // The seller's personas decide first; a real LLM gets the same personas as guidance.
+    const persona = matchPersona(title, seller());
+    if (persona) {
+      const fn = contactFunction ?? inferFunction(title);
+      // A decision maker outside the owning function influences rather than decides.
+      if (persona.role === "decision_maker" && ownerFunction && fn && !persona.functions.includes(ownerFunction) && fn !== ownerFunction) return "influencer" as const;
+      return persona.role;
+    }
     const t = title.toLowerCase();
     const inOwner = ownerFunction ? (contactFunction ?? inferFunction(title)) === ownerFunction : false;
     if (/\b(cfo|finance|procurement)\b/.test(t) && !inOwner) return "budget_owner" as const;
@@ -258,14 +273,15 @@ class MockLLM implements LLM {
       claims.push({ text, factIds: attempt === 1 && input.stepOrder === 99 ? [] : [lead.id] });
     }
     if (support) {
-      const text = `It looks like your ${support.claim.match(/The (\w+) team/)?.[1] ?? "data"} team is scaling at the same time.`;
+      const text = `It looks like your ${support.claim.match(/The (\w+) team/)?.[1] ?? "operations"} team is hiring for partner and vendor onboarding at the same time.`;
       lines.push(text);
       claims.push({ text, factIds: [support.id] });
     }
-    lines.push("", input.stepOrder === 1 ? "Teams at that stage often struggle to keep pipelines trustworthy as they grow. Worth a 20-minute conversation to compare notes?" : `Following up on my last note — ${input.instruction.toLowerCase()}.`);
+    // Approved seller collateral (about the seller, not the prospect).
+    lines.push("", input.stepOrder === 1 ? `${input.seller.pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${input.seller.pitch}`);
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");
     return {
-      subject: input.stepOrder === 1 ? `${input.company} + trustworthy data at scale` : `Re: ${input.company} + trustworthy data at scale`,
+      subject: input.stepOrder === 1 ? `${input.company} + first-time-right partner data` : `Re: ${input.company} + first-time-right partner data`,
       body: lines.join("\n"),
       angle: lead?.key ?? null,
       claims,

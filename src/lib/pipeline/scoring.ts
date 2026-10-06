@@ -3,43 +3,24 @@
 
 import { CONFIG } from "@/lib/config";
 import type { BuyingStage, FieldStatus, Priority, Tier } from "@prisma/client";
+import { seller, type SellerProfile } from "@/lib/seller";
+import { sellerFit, type SellerFit } from "@/lib/seller/fit";
 
 export interface Firmographics {
   industry?: string | null;
   employees?: number | null;
   country?: string | null;
+  technologies?: string[] | null;
 }
 
-export interface FitResult {
-  /** 0–100, scored only on known fields (unknown ≠ bad fit). Null if nothing is known. */
-  fit: number | null;
-  /** Share of ICP fields known (0–1); feeds data confidence. */
-  coverage: number;
-  breakdown: { industry: number | null; size: number | null; region: number | null };
-}
+export type FitResult = SellerFit;
 
-export function scoreFit(f: Firmographics, icp = CONFIG.icp): FitResult {
-  const w = icp.weights;
-  const industry = f.industry ? (icp.industries.some((i) => f.industry!.toLowerCase().includes(i)) ? w.industry : 0) : null;
-  let size: number | null = null;
-  if (f.employees != null) {
-    const { min, max } = icp.employees;
-    if (f.employees >= min && f.employees <= max) size = w.size;
-    else if (f.employees >= min * 0.5 && f.employees <= max * 2) size = Math.round(w.size / 2);
-    else size = 0;
-  }
-  const region = f.country ? ((icp.countries as readonly string[]).includes(f.country.toUpperCase()) ? w.region : 0) : null;
-
-  const parts = [
-    [industry, w.industry],
-    [size, w.size],
-    [region, w.region],
-  ] as const;
-  const known = parts.filter(([v]) => v !== null);
-  const knownMax = known.reduce((a, [, max]) => a + max, 0);
-  const got = known.reduce((a, [v]) => a + (v ?? 0), 0);
-  const fit = knownMax === 0 ? null : Math.round((got / knownMax) * 100);
-  return { fit, coverage: known.length / parts.length, breakdown: { industry, size, region } };
+/**
+ * Fit against the active seller's ideal customer profile. Scored on known
+ * components only (unknown ≠ bad fit); coverage feeds data confidence.
+ */
+export function scoreFit(f: Firmographics, profile: SellerProfile = seller()): FitResult {
+  return sellerFit(f, profile);
 }
 
 const STATUS_WEIGHT: Record<FieldStatus, number> = {

@@ -7,6 +7,8 @@ import { complianceGate, decideReadiness, factGuardrail, needsHumanApproval, typ
 import { addToWatchlist, charge, isSuppressed, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { contactFields } from "../fields";
 import { liveEvidence } from "./research";
+import { seller } from "@/lib/seller";
+import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
 
 // ───────────────────────── Stage 10 ─────────────────────────
 
@@ -113,9 +115,14 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   }
   await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.choose_evidence", outcome: "pass", reason: `Lead: ${facts[0].claim}` });
 
+  // Seller messaging: lead with the use case that matches this account's trigger and industry.
+  const sp = seller();
+  const trigger = classifyTrigger(facts[0].claim, sp);
+  const useCase = pickUseCase(account.industry, trigger?.key ?? null, sp) ?? account.useCase;
   const input = {
     firstName: contact.firstName, title: contact.titleNormalized, company: account.name, stepOrder, instruction,
-    facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim })), sender: CONFIG.sender,
+    facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim })), sender: sp.sender,
+    seller: { name: sp.name, pitch: (useCase && sp.messaging.byUseCase[useCase]) || sp.messaging.default, cta: sp.messaging.cta, useCase },
   };
   let attempt = 0;
   let out: Awaited<ReturnType<typeof ctx.adapters.llm.draft>> | null = null;

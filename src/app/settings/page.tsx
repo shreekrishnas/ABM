@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { CONFIG } from "@/lib/config";
+import { seller } from "@/lib/seller";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton } from "@/components/client";
@@ -20,6 +22,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 export default async function SettingsPage() {
   const [users, suppressions] = await Promise.all([db.user.findMany({ orderBy: { name: "asc" } }), db.suppression.count()]);
   const mode = process.env.ADAPTER_MODE ?? "mock";
+  const sp = seller();
   const accounts = await db.account.count();
   const seedAllowed = process.env.ALLOW_SEED === "true";
   return (
@@ -37,11 +40,11 @@ export default async function SettingsPage() {
           {["Data provider (Apollo / Clearbit)", "Research & search (Exa / Serper)", "LLM gateway (Claude)", "Mailbox verification", "Email sending", "Intent data (Bombora / G2)", "Website visit tracking"].map((x) => <Row key={x} k={x} v={<Badge color="#64748B">mock</Badge>} />)}
           <p className="muted mt-3 text-xs">In live mode the evidence gate refuses mock evidence, so test data can never reach a real send.</p>
         </Card>
-        <Card title="Ideal customer profile">
-          <Row k="Industries" v={CONFIG.icp.industries.join(", ")} />
-          <Row k="Employees" v={`${CONFIG.icp.employees.min}–${CONFIG.icp.employees.max}`} />
-          <Row k="Countries" v={CONFIG.icp.countries.join(", ")} />
-          <Row k="Weights" v={`industry ${CONFIG.icp.weights.industry} · size ${CONFIG.icp.weights.size} · region ${CONFIG.icp.weights.region}`} />
+        <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>}>
+          <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />
+          <Row k="Company size" v={`${sp.icp.employees.sweetSpot.toLocaleString()}+ ideal · ${sp.icp.employees.min}+ minimum`} />
+          <Row k="Markets" v={`${sp.icp.geos.primary.join(", ")} first · ${sp.icp.geos.secondary.slice(0, 6).join(", ")}…`} />
+          <Row k="Weights" v={<span className="text-xs font-medium">{Object.entries(sp.icp.weights).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").toLowerCase()} ${v}`).join(" · ")}</span>} />
           <Row k="Fit floor" v={CONFIG.fit.floor} />
           <Row k="Tier cut-offs" v={`T1 ≥ ${CONFIG.fit.tiers.T1} · T2 ≥ ${CONFIG.fit.tiers.T2}`} />
           <Row k="Lost-deal cooldown" v={`${CONFIG.fit.lostDealCooldownDays} days`} />

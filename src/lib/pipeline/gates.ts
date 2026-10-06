@@ -4,6 +4,7 @@
 import { CONFIG } from "@/lib/config";
 import type { BuyingRole, FieldStatus, ReadinessOutcome, ReplyClass, Relationship, Tier } from "@prisma/client";
 import { emailDomain } from "./normalize";
+import { seller } from "@/lib/seller";
 
 export interface GateResult {
   pass: boolean;
@@ -264,7 +265,7 @@ export function factGuardrail(claims: Claim[], facts: UsableFact[], now = new Da
 
 export function complianceGate(body: string): GateResult {
   if (!/unsubscribe|opt out|opt-out/i.test(body)) return { pass: false, reason: "Missing unsubscribe line" };
-  if (!body.includes(CONFIG.sender.address)) return { pass: false, reason: "Missing sender postal address" };
+  if (!body.includes(seller().sender.address)) return { pass: false, reason: "Missing sender postal address" };
   return { pass: true, reason: "Unsubscribe and sender details present" };
 }
 

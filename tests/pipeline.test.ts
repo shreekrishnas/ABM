@@ -26,7 +26,7 @@ async function reset() {
 async function account(domain: string, people: [string, string, string?][] = [["Asha Mehta", "VP Data"], ["Daniel Okafor", "Head of Data Platform"]], extra: Record<string, unknown> = {}) {
   const res = await ingestRows(
     people.map(([name, title, email]) => ({
-      company: domain.split(".")[0], domain, industry: "analytics", employees: 800, country: "US",
+      company: domain.split(".")[0], domain, industry: "fmcg", employees: 1500, country: "IN",
       contactName: name, title, email: email ?? `${name.toLowerCase().replace(/\s*\(.*\)/, "").replace(" ", ".")}@${domain}`, ...extra,
     })),
     { source: "test" },
@@ -107,13 +107,13 @@ describe("pipeline scenarios", () => {
     const a = await db.account.findUniqueOrThrow({ where: { id } });
     expect(a.reopenUsed).toBe(true);
     expect(await db.reviewItem.count({ where: { accountId: id, type: "contradiction" } })).toBe(1);
-    expect(await db.evidence.count({ where: { accountId: id, key: "size", status: "conflicting" } })).toBe(2);
+    expect(await db.evidence.count({ where: { accountId: id, key: "partner_network", status: "conflicting" } })).toBe(2);
   });
 
   it("official source resolves a contradiction", async () => {
     const id = await account("contradiction-official-theta.com");
     await runAccount(id);
-    const size = await db.evidence.findMany({ where: { accountId: id, key: "size" } });
+    const size = await db.evidence.findMany({ where: { accountId: id, key: "partner_network" } });
     expect(size.filter((e) => e.supersededById).length).toBe(1);
     expect(await db.reviewItem.count({ where: { accountId: id, type: "contradiction" } })).toBe(0);
   });
@@ -136,7 +136,7 @@ describe("pipeline scenarios", () => {
 
   it("budget cap stops the run and queues a review", async () => {
     const id = await account("strong-lambda.com");
-    await db.account.update({ where: { id }, data: { tier: "T3" } });
+    await db.account.update({ where: { id }, data: { tier: "T3", tierLocked: true } });
     await db.ledgerEntry.create({ data: { accountId: id, kind: "llm", amountMicros: 740_000, description: "prior spend", stage: 1 } });
     const r = await runAccount(id);
     expect(r.status).toBe("blocked");

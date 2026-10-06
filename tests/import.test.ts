@@ -18,7 +18,7 @@ async function reset() {
 
 // A weekly file as a sales-ops person would export it.
 const week1 = [
-  { "Company Name": "Acme Analytics", Website: "https://www.strong-acme.com/", Industry: "analytics", Headcount: "800", Country: "United States", Name: "Asha Mehta", "Work Email": "asha.mehta@strong-acme.com", "Job Title": "VP Data", "Internal Notes": "met at conf" },
+  { "Company Name": "Acme Analytics", Website: "https://www.strong-acme.com/", Industry: "fmcg", Headcount: "800", Country: "India", Name: "Asha Mehta", "Work Email": "asha.mehta@strong-acme.com", "Job Title": "VP Data", "Internal Notes": "met at conf" },
   { "Company Name": "Acme Analytics", Website: "strong-acme.com", Industry: "", Headcount: "", Country: "", Name: "Daniel Okafor", "Work Email": "daniel.okafor@strong-acme.com", "Job Title": "Head of Data Platform", "Internal Notes": "" },
 ];
 
@@ -102,9 +102,9 @@ describe("weekly re-uploads", () => {
     await ingestRows(week1, { source: "csv", filename: "week1.csv" });
     await ingestRows([{ "Company Name": "Acme Analytics", Website: "strong-acme.com", Industry: "", Headcount: "", Country: "" }], { source: "csv", filename: "sparse.csv" });
     const acc = await db.account.findFirstOrThrow();
-    expect(acc.industry).toBe("analytics");
+    expect(acc.industry).toBe("fmcg");
     expect(acc.employees).toBe(800);
-    expect(acc.country).toBe("US");
+    expect(acc.country).toBe("IN");
   });
 
   it("chunked uploads report spreadsheet row numbers and never import erased people", async () => {
@@ -132,5 +132,22 @@ describe("weekly re-uploads", () => {
     await processQueue({});
     expect(await db.draft.count()).toBe(drafts);
     expect((await db.account.findFirstOrThrow()).stage).toBe("OPPORTUNITY");
+  });
+
+  it("tier follows new data from weekly uploads unless it was set by hand", async () => {
+    await ingestRows([{ ...week1[0], Headcount: "5000" }], { source: "csv", filename: "w1.csv" });
+    await processQueue({});
+    expect((await db.account.findFirstOrThrow()).tier).toBe("T1");
+    // Next week the company is smaller and in a secondary market → lower fit, lower tier.
+    await ingestRows([{ ...week1[0], Headcount: "350", Country: "AE" }], { source: "csv", filename: "w2.csv" });
+    await processQueue({});
+    const after = await db.account.findFirstOrThrow();
+    expect(after.tier).not.toBe("T1");
+    expect(after.fitReasons.some((r) => r.startsWith("Company size"))).toBe(true);
+    // A hand-picked tier survives later data changes.
+    await db.account.update({ where: { id: after.id }, data: { tier: "T1", tierLocked: true } });
+    await ingestRows([{ ...week1[0], Headcount: "300" }], { source: "csv", filename: "w3.csv" });
+    await processQueue({});
+    expect((await db.account.findFirstOrThrow()).tier).toBe("T1");
   });
 });
