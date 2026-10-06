@@ -96,7 +96,10 @@ Light and dark themes flip via `data-theme` on `<html>`.
 ## Going live (roadmap)
 
 1. Auth and roles, multi-workspace, `ABM_API_KEY`.
-2. Real adapters (`ADAPTER_MODE=live`): provider, intent, research, Claude LLM, mailbox, email.
+2. Real adapters, switched on per service by env var. Live now: web research (`EXA_API_KEY`,
+   `TAVILY_API_KEY`, `SERPAPI_API_KEY`) and the LLM via OpenRouter (`OPENROUTER_API_KEY`,
+   `LLM_MODEL`, default `openai/gpt-4o-mini`). Still mock: contact provider (Apollo), mailbox
+   check, sending, intent, alerts. `ADAPTER_MODE=mock` forces everything back to mocks.
 3. Background queue (Inngest/BullMQ) to replace synchronous runs; cron hitting `/api/v1/tick`.
 4. Website tracking script for reverse-IP visits.
 5. Editable settings in the DB with audit history.

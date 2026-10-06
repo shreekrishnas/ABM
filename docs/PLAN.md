@@ -100,7 +100,7 @@ stage. A spike in intent can pull a watched account back into research.
 | Hallucinated claims in drafts | Brand and legal damage | Fact guardrail: every claim cites a usable fact id; failures regenerate up to 3 times, then human review |
 | Sending to suppressed or opted-out people | Legal exposure | Suppression checked at enrichment AND immediately before send |
 | Deliverability collapse | Domain blacklisted | Bounce breaker (2 % pauses everything) and per-mailbox caps |
-| Mock data leaking into production | Fake facts in real emails | Adapters selected by `ADAPTER_MODE`; `mock` mode marks evidence `sourceType=mock`, and the readiness gate refuses mock evidence when `ADAPTER_MODE=live` |
+| Mock data leaking into production | Fake facts in real emails | Adapters selected per service by which API keys are set; mock evidence is marked `sourceType=mock` and the evidence gate refuses it whenever web research is live. Sample data always runs on mocks |
 | Schema churn once real APIs land | Painful migrations | Prisma migrations from day one; external payloads kept in JSON `raw` columns |
 | No auth yet | Anyone can reach the API | Single-tenant dev only; every table carries `workspaceId`-ready structure; auth (NextAuth / Clerk) is roadmap item 1 before deploy |
 | Merged records lose history | Broken references | Duplicates marked `mergedIntoId`, never deleted |

@@ -5,12 +5,13 @@ import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton } from "@/components/client";
 import { seedDemoAction } from "../actions";
+import { serviceStatus } from "@/lib/adapters";
 
 export const metadata = { title: "Settings" };
 // Seeding a hosted database can take a while.
 export const maxDuration = 300;
 
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
+function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
       <span className="secondary">{k}</span>
@@ -21,7 +22,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 
 export default async function SettingsPage() {
   const [users, suppressions] = await Promise.all([db.user.findMany({ orderBy: { name: "asc" } }), db.suppression.count()]);
-  const mode = process.env.ADAPTER_MODE ?? "mock";
+  const services = serviceStatus();
   const sp = seller();
   const accounts = await db.account.count();
   const seedAllowed = process.env.ALLOW_SEED === "true";
@@ -35,10 +36,11 @@ export default async function SettingsPage() {
       )}
       <PageHeader eyebrow="Configuration" title="Settings" sub={<>Every threshold lives in <code className="mono">src/lib/config.ts</code>. This page is read-only for now; editable settings with an audit history are on the roadmap.</>} />
       <div className="grid gap-5 xl:grid-cols-3">
-        <Card title="Integrations" sub="External systems sit behind adapters">
-          <Row k="Adapter mode" v={<Badge color={mode === "mock" ? "#B45309" : "#059669"}>{mode}</Badge>} />
-          {["Data provider (Apollo / Clearbit)", "Research & search (Exa / Serper)", "LLM gateway (Claude)", "Mailbox verification", "Email sending", "Intent data (Bombora / G2)", "Website visit tracking"].map((x) => <Row key={x} k={x} v={<Badge color="#64748B">mock</Badge>} />)}
-          <p className="muted mt-3 text-xs">In live mode the evidence gate refuses mock evidence, so test data can never reach a real send.</p>
+        <Card title="Integrations" sub="Each service goes live once its API key is set in Vercel">
+          {services.map((x) => (
+            <Row key={x.key} k={<span>{x.label}<span className="muted block text-xs font-normal">{x.via}</span></span>} v={<Badge color={x.mode === "live" ? "#059669" : "#64748B"}>{x.mode}</Badge>} />
+          ))}
+          <p className="muted mt-3 text-xs">When web research is live the evidence gate refuses mock evidence, so test data can never reach a real send. Sample data always runs on mocks.</p>
         </Card>
         <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />

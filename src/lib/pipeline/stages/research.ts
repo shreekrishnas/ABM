@@ -72,7 +72,7 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
     await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Extract evidence: ${q.key}`, S);
     const extracted = await ctx.adapters.llm.extractEvidence(pages, q.key);
     for (const e of extracted) {
-      const g = evidenceGate(e);
+      const g = evidenceGate(e, ctx.adapters.research.live ? "live" : "mock");
       if (!g.pass) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.evidence_gate", outcome: "block", reason: `Dropped "${e.claim.slice(0, 60)}": ${g.reason}` });
         continue;

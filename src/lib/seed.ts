@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ingestRows } from "@/lib/pipeline/ingest";
 import { runBatch } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
+import { createMockAdapters } from "@/lib/adapters/mock";
 import { recordReply, recordSignal, sendApproved, recordOutcome } from "@/lib/pipeline/stages/engagement";
 
 // Fictional prospects shaped like Manch's ICP (names, domains and facts are made up).
@@ -113,7 +114,8 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   await db.opportunity.create({ data: { accountId: mosaic.id, name: "Mosaic — Platform", amountUsd: 85000, stage: "proposal", source: "inbound", ownerId: maya.id } });
 
   log("Running pipeline…");
-  const ctx = newContext();
+  // Sample data always uses the mock services, so seeding never spends API credits.
+  const ctx = { ...newContext(), adapters: createMockAdapters() };
   const results = await runBatch(all.map((a) => a.id), ctx);
   const tally = results.reduce<Record<string, number>>((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {});
   log("  ", tally);

@@ -77,7 +77,7 @@ export interface EvidenceDraft {
   publishedAt?: Date | null;
 }
 
-export function evidenceGate(e: EvidenceDraft, adapterMode: string = process.env.ADAPTER_MODE ?? "mock"): GateResult {
+export function evidenceGate(e: EvidenceDraft, adapterMode: "live" | "mock" = "mock"): GateResult {
   if (!e.sourceUrl || !/^https?:\/\//.test(e.sourceUrl)) return { pass: false, reason: "Missing source URL" };
   if (!e.sourceType) return { pass: false, reason: "Missing source type" };
   if (!e.publishedAt || Number.isNaN(e.publishedAt.getTime())) return { pass: false, reason: "Missing date" };

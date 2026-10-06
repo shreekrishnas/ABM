@@ -46,6 +46,8 @@ export interface ResearchPage {
 export type ResearchPass = "main" | "followup" | "reopen" | "refresh";
 
 export interface ResearchSource {
+  /** True for real web search; the evidence gate then refuses mock evidence. */
+  readonly live?: boolean;
   search(domain: string, companyName: string, questionKey: string, pass: ResearchPass): Promise<ResearchPage[]>;
 }
 
