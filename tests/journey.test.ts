@@ -104,8 +104,8 @@ describe("stage rules (agreed Phase 1 design)", () => {
     const headers = ["Company Name", "Company LinkedIn URL", "Keywords", "First Name", "Connection Sent", "Connection Accepted", "Follow-ups Sent", "Last Reply", "Stage"];
     const { mapping } = analyzeHeaders(headers);
     expect(Object.keys(mapping)).toHaveLength(headers.length);
-    const ok = validateRow({ "Company Name": "ABC Manufacturing Pvt Ltd", "Company LinkedIn URL": "linkedin.com/company/abc-mfg/", Keywords: "Additive Manufacturing; Aerospace", "First Name": "Rahul", "Connection Sent": "20/09/2026", "Connection Accepted": "Yes", "Follow-ups Sent": "2", "Last Reply": "Please share more details." }, mapping);
-    expect(ok.ok && ok.row).toMatchObject({ nameKey: "abc manufacturing", companyLinkedin: "https://www.linkedin.com/company/abc-mfg", keywords: ["Additive Manufacturing", "Aerospace"], activity: { connectionAccepted: true, followUps: 2 } });
+    const ok = validateRow({ "Company Name": "ABC Manufacturing Pvt Ltd", "Company LinkedIn URL": "linkedin.com/company/abc-mfg/", Keywords: "Distributor network; Vendor onboarding", "First Name": "Rahul", "Connection Sent": "20/09/2026", "Connection Accepted": "Yes", "Follow-ups Sent": "2", "Last Reply": "Please share more details." }, mapping);
+    expect(ok.ok && ok.row).toMatchObject({ nameKey: "abc manufacturing", companyLinkedin: "https://www.linkedin.com/company/abc-mfg", keywords: ["Distributor network", "Vendor onboarding"], activity: { connectionAccepted: true, followUps: 2 } });
     expect(ok.ok && (ok.row.activity?.connectionSent as Date).toISOString().slice(0, 10)).toBe("2026-09-20");
     const bad = validateRow({ "Company Name": "X", "First Name": "A", Stage: "Maybe later", "Follow-ups Sent": "two", "Company LinkedIn URL": "linkedin.com/in/someone" }, mapping);
     expect(!bad.ok && bad.error).toMatch(/Stage "Maybe later"/);
@@ -122,7 +122,7 @@ async function reset() {
 const list = [
   { "Company Name": "ABC Manufacturing", "Company Website": "abc-mfg.example", "First Name": "Rahul", "Last Name": "Sharma", "Job Title": "Head of Production", "Person LinkedIn URL": "https://www.linkedin.com/in/rahul-sharma", Phone: "+91 98765 43210" },
   { "Company Name": "ABC Manufacturing", "Company Website": "abc-mfg.example", "First Name": "Neha", "Last Name": "Iyer", "Job Title": "Procurement Manager", "Person LinkedIn URL": "https://www.linkedin.com/in/neha-iyer" },
-  { "Company Name": "Delta Polymers", "Company LinkedIn URL": "https://www.linkedin.com/company/delta-polymers", "First Name": "Vikram", "Last Name": "Rao", Email: "vikram@deltapolymers.example" },
+  { "Company Name": "Delta Beverages", "Company LinkedIn URL": "https://www.linkedin.com/company/delta-beverages", "First Name": "Vikram", "Last Name": "Rao", Email: "vikram@deltabeverages.example" },
 ];
 
 describe("import: companies, people and sender journeys", () => {
@@ -130,7 +130,7 @@ describe("import: companies, people and sender journeys", () => {
   beforeAll(() => setAdapters(createMockAdapters()));
   beforeEach(async () => {
     await reset();
-    campaign = (await db.campaign.create({ data: { name: "Polymer 3D Printing" } })).id;
+    campaign = (await db.campaign.create({ data: { name: "Q4 Distributor Onboarding" } })).id;
     s1 = (await db.senderProfile.create({ data: { name: "Sender 1" } })).id;
     s2 = (await db.senderProfile.create({ data: { name: "Sender 2" } })).id;
   });
@@ -185,7 +185,7 @@ describe("import: companies, people and sender journeys", () => {
     await ingestRows(
       [
         // Same company found by its LinkedIn page; adds the website it was missing.
-        { "Company Name": "Delta Polymers Pvt. Ltd.", "Company LinkedIn URL": "https://linkedin.com/company/delta-polymers", "Company Website": "deltapolymers.example", "First Name": "Vikram", "Last Name": "Rao", Email: "vikram.rao@deltapolymers.example" },
+        { "Company Name": "Delta Beverages Pvt. Ltd.", "Company LinkedIn URL": "https://linkedin.com/company/delta-beverages", "Company Website": "deltabeverages.example", "First Name": "Vikram", "Last Name": "Rao", Email: "vikram.rao@deltabeverages.example" },
         // Same name, no website → the existing company.
         { "Company Name": "ABC Manufacturing Ltd", "First Name": "Rahul", "Last Name": "Sharma", "Person LinkedIn URL": "linkedin.com/in/rahul-sharma", Email: "rahul@abc-mfg.example" },
         // Same name but a DIFFERENT website → a different company.
@@ -194,8 +194,8 @@ describe("import: companies, people and sender journeys", () => {
       { source: "csv", campaignId: campaign, senderId: s1 },
     );
     expect(await db.account.count()).toBe(3);
-    const delta = await db.account.findFirstOrThrow({ where: { linkedinUrl: "https://www.linkedin.com/company/delta-polymers" } });
-    expect(delta.domain).toBe("deltapolymers.example");
+    const delta = await db.account.findFirstOrThrow({ where: { linkedinUrl: "https://www.linkedin.com/company/delta-beverages" } });
+    expect(delta.domain).toBe("deltabeverages.example");
     expect(await db.contact.count({ where: { firstName: "Rahul" } })).toBe(1);
     expect((await db.contact.findFirstOrThrow({ where: { firstName: "Rahul" } })).email).toBe("rahul@abc-mfg.example");
     expect(await db.contact.count({ where: { firstName: "Vikram" } })).toBe(1); // email changed, matched by name in the company

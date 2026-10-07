@@ -44,7 +44,7 @@ export default async function SettingsPage() {
         <Card title="ABM campaigns & segments" sub="Chosen at import; a filter on People">
           {campaigns.length === 0 ? <p className="muted text-xs">None yet.</p> : campaigns.map((c) => <Row key={c.id} k={c.name} v={`${c._count.journeys} journeys`} />)}
           <ActionForm action={createCampaignFormAction} className="mt-3 flex gap-2">
-            <input name="name" className="glass-input" placeholder="e.g. Polymer 3D Printing" required aria-label="Campaign name" />
+            <input name="name" className="glass-input" placeholder="e.g. Q4 Distributor Onboarding" required aria-label="Campaign name" />
             <SubmitButton className="btn btn-primary btn-sm">Add</SubmitButton>
           </ActionForm>
         </Card>
