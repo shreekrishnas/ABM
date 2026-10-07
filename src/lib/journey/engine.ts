@@ -140,7 +140,9 @@ const DAY = 86_400_000;
 const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Next suggested action for one journey. */
-export function nextAction(s: JourneyState, now = new Date()): { text: string; dueAt: Date | null } {
+export function nextAction(s: JourneyState, now = new Date(), company?: { disqualifyReason?: string | null }): { text: string; dueAt: Date | null } {
+  // The company failed fit or exclusions: suggest no outreach until someone reviews it.
+  if (company?.disqualifyReason && !CLOSED.includes(s.stage)) return { text: `No outreach — company disqualified (${company.disqualifyReason})`, dueAt: null };
   const last = s.lastEngagementAt;
   const after = (days: number) => (last ? new Date(last.getTime() + days * DAY) : now);
   switch (s.stage) {
@@ -170,8 +172,9 @@ export function nextAction(s: JourneyState, now = new Date()): { text: string; d
  * Eligible to call: we hold a phone number, the person has not opted out, they have
  * engaged (accepted the connection or replied), and outreach has not ended.
  */
-export function eligibleToCall(p: { phone: string | null; suppressed: boolean; doNotContact: boolean }, stage: Stage | null): { ok: boolean; reason: string } {
+export function eligibleToCall(p: { phone: string | null; suppressed: boolean; doNotContact: boolean; companyDisqualified?: boolean }, stage: Stage | null): { ok: boolean; reason: string } {
   if (!p.phone) return { ok: false, reason: "No phone number" };
+  if (p.companyDisqualified) return { ok: false, reason: "Company disqualified" };
   if (p.suppressed || p.doNotContact) return { ok: false, reason: "Opted out / do not contact" };
   if (!stage) return { ok: false, reason: "No journey yet" };
   if (CLOSED.includes(stage)) return { ok: false, reason: `${STAGE_INFO[stage].label} — outreach closed` };

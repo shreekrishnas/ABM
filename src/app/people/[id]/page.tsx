@@ -44,8 +44,8 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     c.journeys[0];
   const now = new Date();
   const state = j ? { stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement } : null;
-  const next = state ? nextAction(state, now) : null;
-  const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact }, j?.stage ?? null);
+  const next = state ? nextAction(state, now, { disqualifyReason: c.account.stage === "DISQUALIFIED" ? c.account.disqualifyReason : null }) : null;
+  const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact, companyDisqualified: c.account.stage === "DISQUALIFIED" }, j?.stage ?? null);
   const hidden = j ? (
     <>
       <input type="hidden" name="contactId" value={c.id} />

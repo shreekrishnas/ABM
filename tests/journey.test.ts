@@ -84,6 +84,8 @@ describe("stage rules (agreed Phase 1 design)", () => {
     expect(eligibleToCall(ok, "not_interested").ok).toBe(false);
     expect(eligibleToCall({ ...ok, phone: null }, "interested").ok).toBe(false);
     expect(eligibleToCall({ ...ok, suppressed: true }, "interested").ok).toBe(false);
+    expect(eligibleToCall({ ...ok, companyDisqualified: true }, "interested").ok).toBe(false);
+    expect(nextAction(fresh(), now, { disqualifyReason: "Fit 17 below floor 40" }).text).toBe("No outreach — company disqualified (Fit 17 below floor 40)");
   });
 
   it("parses stage names as people type them", () => {
@@ -172,6 +174,8 @@ describe("import: companies, people and sender journeys", () => {
     const a = await neha();
     expect(a.stage).toBe("details_requested");
     expect([a.followUpCount, a.replyCount]).toEqual([2, 1]);
+    // Dated follow-ups keep their date; the reply stays the latest engagement.
+    expect(a.lastEngagement).toBe("Replied: Please share more details.");
     const events = a.events.length;
     const again = await ingestRows(week2, { source: "csv", campaignId: campaign, senderId: s1 });
     const b = await neha();
@@ -201,6 +205,20 @@ describe("import: companies, people and sender journeys", () => {
     expect(await db.contact.count({ where: { firstName: "Vikram" } })).toBe(1); // email changed, matched by name in the company
   });
 
+  it("a later upload that adds the missing website clears the old blockers", async () => {
+    const { runAccount } = await import("@/lib/pipeline/orchestrator");
+    await db.mailbox.create({ data: { address: "out@company.test", dailyCap: 40 } });
+    for (const tier of ["T1", "T2", "T3"] as const) await db.sequence.create({ data: { name: tier, tier, steps: { create: [{ order: 1, channel: "email", dayOffset: 0, instruction: "Lead" }] } } });
+    const row = { "Company Name": "Strong Beta Foods", "Company LinkedIn URL": "linkedin.com/company/strong-beta", Industry: "fmcg", "Employee Size": "3000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "VP Data", "Person LinkedIn URL": "linkedin.com/in/asha-strong-beta" };
+    const first = await ingestRows([row], { source: "csv", campaignId: campaign, senderId: s1 });
+    await runAccount(first.accountIds[0]);
+    expect(await db.reviewItem.count({ where: { status: "open", type: { in: ["lawful_basis_missing", "identity_conflict", "no_usable_person"] } } })).toBeGreaterThan(0);
+    await ingestRows([{ ...row, "Company Website": "strong-beta.com", Email: "asha.mehta@strong-beta.com" }], { source: "csv", campaignId: campaign, senderId: s1 });
+    await runAccount(first.accountIds[0], { fromStage: 2 });
+    expect((await db.account.findUniqueOrThrow({ where: { id: first.accountIds[0] } })).domain).toBe("strong-beta.com");
+    expect(await db.reviewItem.count({ where: { status: "open", type: { in: ["lawful_basis_missing", "identity_conflict", "no_usable_person"] } } })).toBe(0);
+  });
+
   it("two people with the same name but different LinkedIn URLs stay separate", async () => {
     await ingestRows(
       [
@@ -211,6 +229,14 @@ describe("import: companies, people and sender journeys", () => {
       { source: "csv", campaignId: campaign, senderId: s1 },
     );
     expect(await db.contact.count({ where: { firstName: "Amit" } })).toBe(2);
+  });
+
+  it("follow-ups without a date take the row's latest real date, so they land before the reply", async () => {
+    await ingestRows([{ ...list[0], "Connection Sent": "2026-09-18", "Connection Accepted": "2026-09-19", "Follow-ups Sent": "2", "Last Reply": "I will check and inform you.", "Last Reply Date": "2026-10-02" }], { source: "csv", campaignId: campaign, senderId: s1 });
+    const j = await db.journey.findFirstOrThrow({ include: { events: { orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }] } } });
+    expect(j.events.map((e) => e.type)).toEqual(["connection_sent", "connection_accepted", "follow_up_sent", "follow_up_sent", "reply"]);
+    expect(j.stage).toBe("nurture");
+    expect(j.lastEngagement).toBe("Replied: I will check and inform you.");
   });
 
   it("duplicate rows in one file become one person", async () => {

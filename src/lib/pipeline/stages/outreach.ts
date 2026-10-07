@@ -75,8 +75,13 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
     if (decision.outcome === "human_review") {
       await openReview({ type: decision.reasons.some((r) => r.includes("lawful")) ? "lawful_basis_missing" : "identity_conflict", stage: S, accountId: account.id, contactId: p.id, reason: `${p.fullName}: ${decision.reasons.join("; ")}` });
     }
-    if (decision.outcome === "ready") ready++;
+    if (decision.outcome === "ready") {
+      ready++;
+      // Earlier blockers for this person no longer apply (e.g. a website or email arrived in a later upload).
+      await db.reviewItem.updateMany({ where: { contactId: p.id, status: "open", type: { in: ["identity_conflict", "lawful_basis_missing"] } }, data: { status: "resolved", resolution: "Auto-resolved: person now passes readiness", resolvedAt: ctx.now } });
+    }
   }
+  if (ready) await db.reviewItem.updateMany({ where: { accountId: account.id, status: "open", type: "no_usable_person" }, data: { status: "resolved", resolution: "Auto-resolved: a person is now ready", resolvedAt: ctx.now } });
   if (!ready) {
     await openReview({ type: "no_usable_person", stage: S, accountId: account.id, reason: "Evidence is strong but nobody passed the readiness minimums" });
     throw new StopRun("No ready contacts");

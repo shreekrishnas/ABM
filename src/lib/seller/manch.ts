@@ -136,6 +136,6 @@ export const MANCH: SellerProfile = {
     company: "Manch Technologies",
     name: "Team Manch",
     // TODO(seller): replace with the full registered postal address (required in every email).
-    address: "Manch Technologies, Bengaluru, Karnataka, India",
+    address: "Bengaluru, Karnataka, India",
   },
 };

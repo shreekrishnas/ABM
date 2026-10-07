@@ -33,7 +33,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const [people, total, campaigns, senders, stageCounts] = await Promise.all([
     db.contact.findMany({
       where,
-      include: { account: { select: { id: true, name: true, doNotContact: true } }, journeys: { where: scope, include: { sender: { select: { name: true } }, campaign: { select: { name: true } } }, orderBy: { updatedAt: "desc" } } },
+      include: { account: { select: { id: true, name: true, doNotContact: true, stage: true, disqualifyReason: true } }, journeys: { where: scope, include: { sender: { select: { name: true } }, campaign: { select: { name: true } } }, orderBy: { updatedAt: "desc" } } },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * PAGE,
       take: PAGE,
@@ -123,8 +123,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
                     // The journey shown: the most recently active one in the current filter.
                     const j = c.journeys[0];
                     const state = j ? { stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement } : null;
-                    const next = state ? nextAction(state, now) : null;
-                    const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact }, j?.stage ?? null);
+                    const next = state ? nextAction(state, now, { disqualifyReason: c.account.stage === "DISQUALIFIED" ? c.account.disqualifyReason : null }) : null;
+                    const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact, companyDisqualified: c.account.stage === "DISQUALIFIED" }, j?.stage ?? null);
                     const info = j ? STAGE_INFO[j.stage] : null;
                     return (
                       <tr key={c.id}>

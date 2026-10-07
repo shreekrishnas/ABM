@@ -260,15 +260,22 @@ async function importActivities(journeyId: string, a: ActivityRow | null, create
   if (!a) return [];
   const journey = created ? null : await db.journey.findUnique({ where: { id: journeyId }, include: { events: { select: { type: true, detail: true } } } });
   const has = (type: string) => journey?.events.some((e) => e.type === type) ?? false;
-  const at = (d: Date | true | null) => (d instanceof Date ? d : now);
+  // "Yes" without a date: a connection comes before follow-ups and replies, so it takes the
+  // earliest real date on the row (same-day events keep their natural order); else the import time.
+  const dated = [a.connectionSent, a.connectionAccepted, a.lastFollowUp, a.lastReplyDate].filter((d): d is Date => d instanceof Date);
+  const earliest = dated.length ? new Date(Math.min(...dated.map((d) => d.getTime()))) : now;
+  const at = (d: Date | true | null) => (d instanceof Date ? d : earliest);
   const out: Activity[] = [];
   if (a.connectionSent && !has("connection_sent")) out.push({ type: "connection_sent", at: at(a.connectionSent) });
   if (a.connectionAccepted && !has("connection_accepted")) {
     if (!a.connectionSent && !has("connection_sent")) out.push({ type: "connection_sent", at: at(a.connectionAccepted) });
     out.push({ type: "connection_accepted", at: at(a.connectionAccepted) });
   }
+  // Follow-ups without a date column take the latest real date on the row (they happened by
+  // then, and before the reply), never the import time.
+  const known = [a.lastReplyDate, a.connectionAccepted, a.connectionSent].find((d): d is Date => d instanceof Date);
   const already = journey?.followUpCount ?? 0;
-  for (let i = already; i < (a.followUps ?? 0); i++) out.push({ type: "follow_up_sent", at: a.lastFollowUp ?? now });
+  for (let i = already; i < (a.followUps ?? 0); i++) out.push({ type: "follow_up_sent", at: a.lastFollowUp ?? known ?? now });
   if (a.lastReply && !journey?.events.some((e) => e.type === "reply" && e.detail?.startsWith(a.lastReply!.slice(0, 200)))) {
     out.push({ type: "reply", at: a.lastReplyDate ?? now, text: a.lastReply, meaning: classifyReplyRules(a.lastReply).stage });
   }
