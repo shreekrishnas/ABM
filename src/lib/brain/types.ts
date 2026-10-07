@@ -18,8 +18,17 @@ export interface CompanyCard {
 
 // ── Research Director (stage 5) ──
 
+/** What the CSV import brought in: used to steer research and the brief. */
+export interface ImportedContext {
+  technologies: string[];
+  keywords: string[];
+  notes: string | null;
+  conversations: { name: string; title: string | null; stage: string; lastReply: string | null; sender: string }[];
+}
+
 export interface PlanResearchInput {
   company: CompanyCard;
+  imported?: ImportedContext;
   seller: { name: string; summary: string; useCases: { key: string; name: string; pains: string }[]; triggers: { key: string; label: string }[] };
   candidates: { key: string; question: string; importance: "high" | "medium" | "low" }[];
   known: { key: string; claim: string; status: string }[];
@@ -40,6 +49,7 @@ export type PlanResearchOutput = z.infer<typeof planResearchSchema>;
 
 export interface BriefInput {
   company: CompanyCard;
+  imported?: ImportedContext;
   facts: { id: string; key: string; claim: string; status: string; sourceType: string }[];
   inferences: string[];
   negatives: string[];

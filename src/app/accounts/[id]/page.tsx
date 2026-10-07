@@ -11,6 +11,7 @@ import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLink
 import { addNoteAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
 import { BrainTab, VERDICT_COLOR } from "./brain-tab";
+import { IntakeTab } from "./intake-tab";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
@@ -114,6 +115,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         active={tab}
         tabs={[
           { id: "overview", label: "Evidence twin" },
+          { id: "intake", label: "Data → research" },
           { id: "brain", label: "AI brain" },
           { id: "people", label: "Buying group", count: a.contacts.length },
           { id: "outreach", label: "Drafts", count: drafts.length },
@@ -247,6 +249,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {tab === "intake" && <IntakeTab account={a} />}
       {tab === "brain" && <BrainTab accountId={a.id} twin={twin} />}
 
       {tab === "people" && (

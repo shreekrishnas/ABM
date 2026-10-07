@@ -2,21 +2,26 @@
 // fallback when the live model fails, so the pipeline never stalls on the LLM.
 
 import { seller } from "@/lib/seller";
+import { isTriggerKey } from "@/lib/research/keys";
 import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
 import { queryFor } from "@/lib/adapters/live/research";
 import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "./types";
 
 export function rulePlan(input: PlanResearchInput): PlanResearchOutput {
   const sp = seller();
+  const kw = input.imported?.keywords.slice(0, 2).map((k) => `"${k}"`).join(" OR ");
   const firstUseCase = input.seller.useCases.find((u) => sp.icp.industries.some((i) => i.useCases[0] === u.key && input.company.industry && i.match.some((m) => input.company.industry!.toLowerCase().includes(m))));
   const hypotheses: string[] = [];
   if (firstUseCase) hypotheses.push(`${input.company.name} likely feels "${firstUseCase.pains.split(";")[0].trim()}" — test with trigger and partner-network evidence`);
+  const talk = input.imported?.conversations[0];
+  if (talk) hypotheses.push(`${talk.name} (${talk.title ?? "contact"}) is already ${talk.stage.toLowerCase()} on LinkedIn — look for the initiative behind that interest`);
   if (input.company.technologies.some((t) => /sap|oracle|dynamics/i.test(t))) hypotheses.push(`An existing ERP (${input.company.technologies.find((t) => /sap|oracle|dynamics/i.test(t))}) means validated master data has a clear destination`);
   return {
     hypotheses,
     questions: input.candidates.map((c) => ({
       key: c.key,
-      query: queryFor(c.key, input.company.name).q,
+      // Imported keywords narrow the trigger and expansion searches to what this company actually does.
+      query: kw && (c.key === "trigger" || c.key === "expansion") ? `${queryFor(c.key, input.company.name).q} ${kw}` : queryFor(c.key, input.company.name).q,
       engine: input.routing[c.key] ?? input.engines[0] ?? "auto",
       why: c.question,
     })),
@@ -26,7 +31,8 @@ export function rulePlan(input: PlanResearchInput): PlanResearchOutput {
 
 export function ruleBrief(input: BriefInput): AccountBriefData {
   const sp = seller();
-  const triggers = input.facts.filter((f) => f.key === "trigger");
+  const talk = input.imported?.conversations[0];
+  const triggers = input.facts.filter((f) => isTriggerKey(f.key));
   const owner = input.facts.find((f) => f.key === "owner_function");
   const network = input.facts.find((f) => f.key === "partner_network");
   const tooling = input.facts.find((f) => f.key === "tooling");
@@ -74,7 +80,9 @@ export function ruleBrief(input: BriefInput): AccountBriefData {
     personaAngles,
     hypotheses: [...input.hypotheses.slice(0, 2), ...input.unknowns.map((u) => `Unknown — confirm in discovery: ${u.replace(/_/g, " ")}`)].slice(0, 5),
     risks: [...input.negatives.slice(0, 2), ...(incumbent ? [`Incumbent tool in stack: ${incumbent} — position against it, don't attack it`] : [])].slice(0, 5),
-    nextBestAction: verdict === "weak" ? "Keep on watch; re-check when a trigger appears" : `Reach the ${owner ? owner.claim.match(/The (\w+) team/)?.[1] ?? "owning" : "owning"} team's decision maker and champion with the ${painPoints[0]?.useCase.replace(/_/g, " ") ?? "primary"} angle`,
+    nextBestAction: talk
+      ? `${talk.name} (${talk.title ?? "contact"}) is ${talk.stage.toLowerCase()} on LinkedIn via ${talk.sender}${talk.lastReply ? ` ("${talk.lastReply.slice(0, 60)}")` : ""} — continue that conversation first; don't open a cold email to them`
+      : verdict === "weak" ? "Keep on watch; re-check when a trigger appears" : `Reach the ${owner ? owner.claim.match(/The (\w+) team/)?.[1] ?? "owning" : "owning"} team's decision maker and champion with the ${painPoints[0]?.useCase.replace(/_/g, " ") ?? "primary"} angle`,
   };
 }
 

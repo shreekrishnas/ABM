@@ -207,6 +207,11 @@ describe("import: companies, people and sender journeys", () => {
 
   it("a later upload that adds the missing website clears the old blockers", async () => {
     const { runAccount } = await import("@/lib/pipeline/orchestrator");
+    // This company's website can't be found by research, so the import is the only source.
+    const a = createMockAdapters();
+    const search = a.research.search.bind(a.research);
+    a.research.search = async (domain, name, key, pass, hint) => (key === "website" ? [] : search(domain, name, key, pass, hint));
+    setAdapters(a);
     await db.mailbox.create({ data: { address: "out@company.test", dailyCap: 40 } });
     for (const tier of ["T1", "T2", "T3"] as const) await db.sequence.create({ data: { name: tier, tier, steps: { create: [{ order: 1, channel: "email", dayOffset: 0, instruction: "Lead" }] } } });
     const row = { "Company Name": "Strong Beta Foods", "Company LinkedIn URL": "linkedin.com/company/strong-beta", Industry: "fmcg", "Employee Size": "3000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "VP Data", "Person LinkedIn URL": "linkedin.com/in/asha-strong-beta" };
@@ -217,6 +222,7 @@ describe("import: companies, people and sender journeys", () => {
     await runAccount(first.accountIds[0], { fromStage: 2 });
     expect((await db.account.findUniqueOrThrow({ where: { id: first.accountIds[0] } })).domain).toBe("strong-beta.com");
     expect(await db.reviewItem.count({ where: { status: "open", type: { in: ["lawful_basis_missing", "identity_conflict", "no_usable_person"] } } })).toBe(0);
+    setAdapters(createMockAdapters());
   });
 
   it("two people with the same name but different LinkedIn URLs stay separate", async () => {

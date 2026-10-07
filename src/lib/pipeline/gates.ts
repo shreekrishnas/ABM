@@ -2,6 +2,7 @@
 // can log it — nothing is ever dropped silently.
 
 import { CONFIG } from "@/lib/config";
+import { isTriggerKey } from "@/lib/research/keys";
 import type { BuyingRole, FieldStatus, ReadinessOutcome, ReplyClass, Relationship, Tier } from "@prisma/client";
 import { emailDomain } from "./normalize";
 import { seller } from "@/lib/seller";
@@ -256,7 +257,7 @@ export function factGuardrail(claims: Claim[], facts: UsableFact[], now = new Da
       const f = byId.get(id);
       if (!f) return { pass: false, reason: `Claim cites unknown fact ${id}` };
       if (f.status !== "verified" && f.status !== "probable") return { pass: false, reason: `Claim cites a ${f.status} fact` };
-      const kind: FreshnessKind = f.key === "trigger" ? "trigger" : "company";
+      const kind: FreshnessKind = isTriggerKey(f.key) ? "trigger" : "company";
       if (isStale(f.publishedAt, kind, now)) return { pass: false, reason: "Claim cites a stale fact" };
     }
   }

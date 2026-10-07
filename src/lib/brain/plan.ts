@@ -9,7 +9,7 @@ import { queryFor } from "@/lib/adapters/live/research";
 import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipeline/context";
 import { rulePlan } from "./rules";
 import { engineRouting } from "./insights";
-import type { PlanResearchOutput } from "./types";
+import type { ImportedContext, PlanResearchOutput } from "./types";
 
 export interface DirectedQuestion {
   key: string;
@@ -44,7 +44,7 @@ export function mergePlan(
   return { questions, skipped };
 }
 
-export async function directResearch(account: Account, candidates: DirectedQuestion[], known: { key: string; claim: string; status: string }[], ctx: RunContext) {
+export async function directResearch(account: Account, candidates: DirectedQuestion[], known: { key: string; claim: string; status: string }[], ctx: RunContext, imported?: ImportedContext) {
   if (!candidates.length) return { questions: candidates, skipped: [], hypotheses: [] as string[], planner: "none" };
   const sp = seller();
   const engines = ctx.adapters.research.engines();
@@ -52,6 +52,7 @@ export async function directResearch(account: Account, candidates: DirectedQuest
   const input = {
     company: { name: account.name, domain: account.domain, industry: account.industry, employees: account.employees, country: account.country, technologies: account.technologies, fitScore: account.fitScore, fitReasons: account.fitReasons },
     seller: { name: sp.name, summary: sp.summary, useCases: sp.useCases.map((u) => ({ key: u.key, name: u.name, pains: u.pains })), triggers: sp.triggers.map((t) => ({ key: t.key, label: t.label })) },
+    imported,
     candidates: candidates.map((c) => ({ key: c.key, question: c.question, importance: c.importance })),
     known,
     engines,

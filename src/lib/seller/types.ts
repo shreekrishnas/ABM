@@ -25,7 +25,8 @@ export interface SellerProfile {
   personas: { role: BuyingRoleKey; functions: string[]; titles: string[]; why: string }[];
   triggers: { key: string; label: string; keywords: string[]; why: string }[];
   negativeSignals: string[];
-  researchQuestions: { key: string; question: string; importance: "high" | "medium" | "low" }[];
+  /** core = asked for every company; deep = the deep dive (T1, or anyone engaged on LinkedIn). */
+  researchQuestions: { key: string; question: string; importance: "high" | "medium" | "low"; depth?: "core" | "deep" }[];
   messaging: { cta: string; byUseCase: Record<string, string>; default: string };
   sender: { company: string; name: string; address: string };
 }

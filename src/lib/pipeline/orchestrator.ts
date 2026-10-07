@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { BudgetExceeded, budgetFor, logEvent, newContext, openReview, spentUsd, StopRun, type RunContext } from "./context";
 import { s02CleanNormalize, s03FitTier, s04Identity } from "./stages/data";
-import { s05ResearchPlan, s06AccountResearch, s07AccountTwin } from "./stages/research";
+import { gapSearch, s05ResearchPlan, s06AccountResearch, s07AccountTwin } from "./stages/research";
+import { fillGaps } from "@/lib/research/intake";
 import { s08BuyingGroup, s09Enrichment } from "./stages/people";
 import { s10Readiness, s11DraftReview } from "./stages/outreach";
 import { escalateOverdue, recomputeAccount, sendApproved, tickSequences } from "./stages/engagement";
@@ -15,7 +16,8 @@ import { maybeGenerateInsights } from "@/lib/brain/insights";
 type StageFn = (a: Account, ctx: RunContext) => Promise<Account>;
 
 const LINEAR: [number, StageFn][] = [
-  [2, s02CleanNormalize],
+  // Stage 2 includes the intake gap fill: research what the import left out before fit and identity run.
+  [2, async (a, ctx) => fillGaps(await s02CleanNormalize(a, ctx), ctx, gapSearch)],
   [3, s03FitTier],
   [4, s04Identity],
   [5, (a, ctx) => s05ResearchPlan(a, ctx, "initial")],

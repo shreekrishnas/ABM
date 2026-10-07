@@ -117,6 +117,11 @@ export const MANCH: SellerProfile = {
     { key: "tooling", question: "Which ERP, MDM, workflow and KYC/eSign tools do they use today?", importance: "medium" },
     { key: "partner_network", question: "How large is their external network (distributors, retailers, vendors, sellers, gig workers) and how fast is it growing?", importance: "medium" },
     { key: "culture", question: "What is the company culture like?", importance: "low" },
+    // Deep dive — T1 companies, and any company where someone has engaged on LinkedIn.
+    { key: "erp_program", question: "Is an ERP / SAP S/4HANA, MDM or master-data programme underway — scope, timeline, implementation partner?", importance: "medium", depth: "deep" },
+    { key: "expansion", question: "Are they adding distributors, dealers, retailers, plants, markets, sellers or delivery partners?", importance: "medium", depth: "deep" },
+    { key: "leadership", question: "Did they appoint a new CIO, CDO, CPO, CFO or head of master data / procurement in the last 12 months?", importance: "medium", depth: "deep" },
+    { key: "compliance", question: "What regulatory or audit pressure applies — GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits?", importance: "medium", depth: "deep" },
   ],
 
   messaging: {

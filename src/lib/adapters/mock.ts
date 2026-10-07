@@ -3,6 +3,7 @@
 // contradictions, weak evidence, bounces) shows up in seeded data.
 
 import { rulePlan, ruleBrief, ruleCheckClaims, ruleInsights } from "@/lib/brain/rules";
+import { isTriggerKey } from "@/lib/research/keys";
 import { classifyReplyRules } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import type { BrainStats, BriefInput, ClaimToCheck, PlanResearchInput } from "@/lib/brain/types";
@@ -193,6 +194,31 @@ class MockResearch implements ResearchSource {
       pages.push({ url: `https://techwire.example.com/${domain}-${t2.value}`, sourceType: "press", publishedAt: daysAgo(15 + (h % 50)), title: `${companyName} ${t2.claim}`, text: `${companyName} ${t2.claim}.` });
       return pages;
     }
+    if (key === "website") {
+      // Companies imported without a website: their own site, found by name (some are not findable).
+      const slug = companyName.toLowerCase().replace(/\b(pvt|private|ltd|limited|inc)\b/g, "").replace(/[^a-z0-9]+/g, "");
+      if (hash(companyName) % 7 === 0) return [{ url: `https://www.zaubacorp.example/company/${slug}`, sourceType: "news", publishedAt: daysAgo(100), title: `${companyName} - company profile`, text: `${companyName} directory listing` }];
+      return [
+        { url: `https://www.linkedin.com/company/${slug}`, sourceType: "news", publishedAt: daysAgo(5), title: `${companyName} | LinkedIn`, text: `${companyName} on LinkedIn` },
+        { url: `https://www.${slug}.in/`, sourceType: "official", publishedAt: daysAgo(5), title: `${companyName} — Official website`, text: `Welcome to ${companyName}.` },
+      ];
+    }
+    if (key === "firmographics") {
+      const industries = ["fmcg", "manufacturing", "pharma distribution", "quick commerce", "nbfc lending"];
+      return [{ url: domain ? `https://${domain}/about` : `https://companies.example.org/${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: domain ? "official" : "news", publishedAt: daysAgo(30), title: `About ${companyName}`, text: `${companyName} is a ${industries[h % industries.length]} company headquartered in India with about ${(800 + (h % 40) * 100).toLocaleString("en-IN")} employees.` }];
+    }
+    if (["erp_program", "expansion", "leadership", "compliance"].includes(key)) {
+      // Deep-dive answers exist for well-documented companies only.
+      if (sc !== "strong" && sc !== "contradiction_official" && sc !== "contradiction_unresolved") return [];
+      const text: Record<string, string> = {
+        erp_program: `${companyName} selected an implementation partner for its SAP S/4HANA and master data programme`,
+        expansion: `${companyName} plans to add ${1 + (h % 4)},000 distributors and retailers in East India this year`,
+        leadership: `${companyName} appointed a new Chief Digital Officer to lead its data and automation agenda`,
+        compliance: `${companyName} is preparing for GST e-invoicing and stricter supplier KYC audits`,
+      };
+      if (key === "leadership" && h % 3 === 0) return [];
+      return [{ url: key === "leadership" ? `https://news.example.com/${domain}/leadership` : `${base}/press/${key}`, sourceType: key === "leadership" ? "news" : "official", publishedAt: daysAgo(20 + (h % 50)), title: text[key], text: `${text[key]}.` }];
+    }
     if (key === "owner_function") {
       const fns = ["data", "procurement", "it", "sales", "finance"];
       const fn = fns[h % fns.length];
@@ -248,6 +274,14 @@ class MockLLM implements LLM {
     return Promise.resolve(ruleInsights(stats));
   }
 
+  async extractFirmographics(pages: ResearchPage[]) {
+    for (const [i, p] of pages.entries()) {
+      const m = p.text.match(/is an? (.+?) company headquartered in ([A-Za-z ]+?) with about ([\d,]+) employees/);
+      if (m) return { industry: m[1], country: m[2], employees: Number(m[3].replace(/,/g, "")), page: i };
+    }
+    return null;
+  }
+
   classifyJourneyReply(text: string) {
     const r = classifyReplyRules(text);
     return Promise.resolve({ stage: r.stage, reason: r.reason, nextAction: STAGE_INFO[r.stage].next });
@@ -272,7 +306,7 @@ class MockLLM implements LLM {
 
   async infer(facts: { id: string; key: string; claim: string }[]) {
     const out: { text: string; basedOn: string[] }[] = [];
-    const triggers = facts.filter((f) => f.key === "trigger");
+    const triggers = facts.filter((f) => isTriggerKey(f.key));
     const owner = facts.find((f) => f.key === "owner_function");
     if (triggers.length && owner) out.push({ text: "Likely reviewing how partner and vendor data is onboarded this half — a growth trigger plus active hiring in the owning team", basedOn: [triggers[0].id, owner.id] });
     const tooling = facts.find((f) => f.key === "tooling");
@@ -299,7 +333,7 @@ class MockLLM implements LLM {
   }
 
   async draft(input: DraftInput, attempt: number) {
-    const lead = input.facts.find((f) => f.key === "trigger") ?? input.facts[0];
+    const lead = input.facts.find((f) => isTriggerKey(f.key)) ?? input.facts[0];
     const support = input.facts.find((f) => f.key === "owner_function" && f.id !== lead?.id);
     const hi = input.firstName ? `Hi ${input.firstName},` : "Hi,";
     const claims: { text: string; factIds: string[] }[] = [];

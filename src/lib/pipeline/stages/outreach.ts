@@ -1,6 +1,7 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
 import type { Account, Contact, Prisma } from "@prisma/client";
+import { isTriggerKey } from "@/lib/research/keys";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
@@ -26,7 +27,7 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
   const evidence = await liveEvidence(account.id);
   const accInput = {
     negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt })),
-    triggers: evidence.filter((e) => e.key === "trigger").map((e) => ({ status: e.status, publishedAt: e.publishedAt })),
+    triggers: evidence.filter((e) => isTriggerKey(e.key)).map((e) => ({ status: e.status, publishedAt: e.publishedAt })),
     followupUsed: account.followupUsed,
   };
   const people = await db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, state: { in: ["selected", "ready"] } } });
@@ -125,10 +126,10 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
 
   // Order: the angle's facts first, then the strongest fresh trigger, verified before probable, newest first.
   const facts = (await usableFacts(account.id, ctx.now)).sort((a, b) => {
-    const rank = (f: { id: string; key: string }) => (angleFacts.has(f.id) ? (f.key === "trigger" ? -2 : -1) : f.key === "trigger" ? 0 : f.key === "owner_function" ? 1 : 2);
+    const rank = (f: { id: string; key: string }) => (angleFacts.has(f.id) ? (isTriggerKey(f.key) ? -2 : -1) : isTriggerKey(f.key) ? 0 : f.key === "owner_function" ? 1 : 2);
     return rank(a) - rank(b) || (a.status === "verified" ? -1 : 1) - (b.status === "verified" ? -1 : 1) || b.publishedAt.getTime() - a.publishedAt.getTime();
   });
-  if (!facts.some((f) => f.key === "trigger")) {
+  if (!facts.some((f) => isTriggerKey(f.key))) {
     await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.choose_evidence", outcome: "block", reason: "No usable trigger fact — no draft" });
     return null;
   }
@@ -136,7 +137,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
 
   // Seller messaging: the brain's use case for this person, else the trigger/industry match.
   const sp = seller();
-  const trigger = classifyTrigger(facts.find((f) => f.key === "trigger")!.claim, sp);
+  const trigger = classifyTrigger(facts.find((f) => isTriggerKey(f.key))!.claim, sp);
   const useCase = angle?.useCase ?? pickUseCase(account.industry, trigger?.key ?? null, sp) ?? account.useCase;
   const proof = sp.proofPoints.find((p) => useCase && p.text.toLowerCase().includes(useCase.split("_")[0])) ?? sp.proofPoints[0];
   const input = {

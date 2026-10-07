@@ -29,7 +29,7 @@ export const CONFIG = {
   },
 
   research: {
-    maxQuestions: 6,
+    maxQuestions: 10,
     // Questions come from the active seller profile (seller().researchQuestions).
     // Questions whose answer never changes a decision.
     neverChangesDecision: ["culture"],

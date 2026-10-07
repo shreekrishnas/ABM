@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileSpreadsheet, Loader2, Plus, Upload, XCircle } from "lucide-react";
 import { analyzeHeaders, analyzeMapping, IMPORT_FIELDS, rowKeys, validateRow, type FieldGroup, type FieldKey } from "@/lib/import/fields";
-import { createCampaignAction, createSenderAction, finishImportAction, importChunkAction, previewMatchesAction, processImportAction, startImportAction } from "@/app/actions";
+import { createCampaignAction, createSenderAction, finishImportAction, importChunkAction, importResearchSummaryAction, previewMatchesAction, processImportAction, startImportAction } from "@/app/actions";
 
 const CHUNK = 250;
 const PREVIEW_CHUNK = 400; // companies per preview call (their people travel with them)
@@ -33,6 +33,7 @@ interface Preview {
 }
 
 interface Summary {
+  research: Awaited<ReturnType<typeof importResearchSummaryAction>>;
   filename: string;
   accepted: number;
   rejected: number;
@@ -242,7 +243,8 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         if (p.processed === 0 && p.remaining >= remaining) break; // stuck: leave the rest for the scheduler
         remaining = p.remaining;
       }
-      setPhase({ k: "finished", summary: { filename: file.name, accepted, rejected, errors, stats: fin.stats as unknown as Record<string, number>, processed, remaining } });
+      const research = await importResearchSummaryAction(start.batchId).catch(() => null);
+      setPhase({ k: "finished", summary: { research, filename: file.name, accepted, rejected, errors, stats: fin.stats as unknown as Record<string, number>, processed, remaining } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
       setPhase({ k: "map" });
@@ -435,6 +437,19 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
             <Stat label="New journeys" value={phase.summary.stats.journeysCreated ?? 0} tone="good" />
             <Stat label="Journeys with new activity" value={phase.summary.stats.journeysUpdated ?? 0} />
           </div>
+          {phase.summary.research && phase.summary.research.companies > 0 && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
+              <div className="micro mb-1.5">Import → research</div>
+              <ul className="grid gap-1 secondary">
+                {phase.summary.research.websitesFound > 0 && <li>Research found <b style={{ color: "var(--text-primary)" }}>{phase.summary.research.websitesFound}</b> missing website{phase.summary.research.websitesFound > 1 ? "s" : ""}, so people there can be verified.</li>}
+                {phase.summary.research.websitesMissing > 0 && <li style={{ color: "#B45309" }}>{phase.summary.research.websitesMissing} website{phase.summary.research.websitesMissing > 1 ? "s" : ""} could not be found — add Company Website in the next upload.</li>}
+                {phase.summary.research.profilesFilled > 0 && <li>Missing industry, size or country filled for <b style={{ color: "var(--text-primary)" }}>{phase.summary.research.profilesFilled}</b> compan{phase.summary.research.profilesFilled > 1 ? "ies" : "y"} (with sources).</li>}
+                <li><b style={{ color: "var(--text-primary)" }}>{phase.summary.research.deepDives}</b> deep-dive research run{phase.summary.research.deepDives === 1 ? "" : "s"}{phase.summary.research.engagedDeepDives ? `, ${phase.summary.research.engagedDeepDives} because someone already replied on LinkedIn` : ""}.</li>
+                {phase.summary.research.skippedKnown > 0 && <li>{phase.summary.research.skippedKnown} search{phase.summary.research.skippedKnown > 1 ? "es" : ""} skipped because the file already answered them (tech stack).</li>}
+              </ul>
+              <p className="muted mt-1.5 text-xs">Open any company → <b>Data → research</b> to see the full mapping.</p>
+            </div>
+          )}
           {phase.summary.errors.length > 0 && (
             <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)" }}>
               <div className="mb-1 font-semibold" style={{ color: "#B45309" }}>Rejected rows (fix and re-upload — re-uploading is safe)</div>

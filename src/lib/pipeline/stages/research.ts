@@ -1,6 +1,7 @@
 // Stages 5–7: Research Plan, Account Research, Evidence & Account Twin.
 
 import type { Account, Evidence, FieldStatus, Prisma } from "@prisma/client";
+import { isTriggerKey } from "@/lib/research/keys";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
@@ -12,18 +13,17 @@ import { sha256 } from "../crypto";
 import { seller } from "@/lib/seller";
 import { directResearch, type DirectedQuestion } from "@/lib/brain/plan";
 import { buildBrief } from "@/lib/brain/strategist";
+import { importContext, researchDepth } from "@/lib/research/intake";
 
 /** A research question, as directed by the brain (query and engine are optional). */
 export type PlannedQuestion = DirectedQuestion;
 
-export const freshnessKindFor = (key: string): FreshnessKind => (key === "trigger" ? "trigger" : key === "negative" ? "negative" : "company");
+export const freshnessKindFor = (key: string): FreshnessKind => (isTriggerKey(key) ? "trigger" : key === "negative" ? "negative" : "company");
 
 /** Evidence that is not superseded and still fresh. */
 export async function liveEvidence(accountId: string): Promise<Evidence[]> {
   return db.evidence.findMany({ where: { accountId, supersededById: null, flagged: false }, orderBy: { publishedAt: "desc" } });
 }
-
-const QUESTIONS_BY_TIER = { T1: 6, T2: 5, T3: 4 } as const;
 
 // ───────────────────────── Stage 5 ─────────────────────────
 
@@ -33,33 +33,43 @@ export async function s05ResearchPlan(account: Account, ctx: RunContext, reason:
   const knownFresh = new Set(
     evidence.filter((e) => (e.status === "verified" || e.status === "probable") && !isStale(e.publishedAt, freshnessKindFor(e.key), ctx.now)).map((e) => e.key),
   );
-  const cap = Math.min(CONFIG.research.maxQuestions, QUESTIONS_BY_TIER[account.tier ?? "T3"]);
+  // What the import already told us, and how deep this company deserves to go.
+  const imported = await importContext(account);
+  const depth = researchDepth(account.tier, imported);
   const questions: PlannedQuestion[] = [];
   const skipped: { key: string; reason: string }[] = [];
+  let deepUsed = 0;
 
   for (const t of seller().researchQuestions) {
+    const deep = t.depth === "deep";
     if ((CONFIG.research.neverChangesDecision as readonly string[]).includes(t.key)) {
       skipped.push({ key: t.key, reason: "Answer would not change a decision" });
+    } else if (t.key === "tooling" && imported.technologies.length) {
+      // The CSV named the systems — don't pay to search for them again.
+      skipped.push({ key: t.key, reason: `Known from import: ${imported.technologies.join(", ")}` });
     } else if (knownFresh.has(t.key) && t.key !== "negative") {
       // Negative evidence is always re-asked: its absence must be current.
       skipped.push({ key: t.key, reason: "Already known and fresh" });
-    } else if (questions.length >= cap) {
-      skipped.push({ key: t.key, reason: `Question cap for ${account.tier ?? "T3"} reached` });
+    } else if (deep && deepUsed >= depth.deepKeys) {
+      skipped.push({ key: t.key, reason: `Deep-dive question — ${depth.reason}` });
+    } else if (questions.length >= depth.cap) {
+      skipped.push({ key: t.key, reason: `Question cap reached (${depth.reason})` });
     } else {
+      if (deep) deepUsed++;
       questions.push({ key: t.key, question: t.question, importance: t.importance as PlannedQuestion["importance"] });
     }
   }
   // The brain tailors each query to this company, routes it to the best engine and
   // states what it expects to find. Code keeps the caps and high-importance questions.
   const known = evidence.filter((e) => !e.isNegative).slice(0, 12).map((e) => ({ key: e.key, claim: e.claim, status: e.status }));
-  const directed = await directResearch(account, questions, known, ctx);
+  const directed = await directResearch(account, questions, known, ctx, imported);
   skipped.push(...directed.skipped);
   await db.researchPlan.create({
-    data: { accountId: account.id, questions: directed.questions as unknown as Prisma.InputJsonValue, skipped, reason, hypotheses: directed.hypotheses, planner: directed.planner },
+    data: { accountId: account.id, questions: directed.questions as unknown as Prisma.InputJsonValue, skipped, reason, hypotheses: directed.hypotheses, planner: directed.planner, depth: depth.reason },
   });
   await logEvent(ctx, {
     accountId: account.id, stage: S, step: "research_plan.stop_rule", outcome: "pass",
-    reason: `${directed.questions.length} questions, ${skipped.length} skipped (${reason}) — planned by ${directed.planner}`,
+    reason: `${directed.questions.length} questions, ${skipped.length} skipped (${reason}) — ${depth.reason} — planned by ${directed.planner}`,
     data: { questions: directed.questions.map((q) => ({ key: q.key, engine: q.engine ?? "auto" })), skipped, hypotheses: directed.hypotheses },
   });
   return account;
@@ -122,6 +132,11 @@ async function searchOnce(account: Account, ctx: RunContext, q: PlannedQuestion,
   }
   if (failure) throw failure;
   return { pages, queryIds };
+}
+
+/** One gap-fill search (stage 2b), cached and charged like any other research question. */
+export async function gapSearch(account: Account, ctx: RunContext, key: string, query: string, why: string): Promise<ResearchPage[]> {
+  return (await searchOnce(account, ctx, { key, question: why, importance: "high", query, why }, "main")).pages;
 }
 
 async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQuestion[], pass: ResearchPass): Promise<Set<string>> {
@@ -208,7 +223,7 @@ export async function s06AccountResearch(account: Account, ctx: RunContext, opts
  * trigger, on a different engine than the one that found it.
  */
 async function corroborationQuestions(account: Account, keys: PlannedQuestion[], ctx: RunContext): Promise<PlannedQuestion[]> {
-  const probable = (await liveEvidence(account.id)).filter((e) => e.key === "trigger" && e.status === "probable" && !e.isNegative);
+  const probable = (await liveEvidence(account.id)).filter((e) => isTriggerKey(e.key) && e.status === "probable" && !e.isNegative);
   if (!probable.length) return keys;
   const best = probable[0];
   const engines = ctx.adapters.research.engines();

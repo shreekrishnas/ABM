@@ -557,3 +557,24 @@ export async function deletePersonAction(id: string): Promise<ActionState> {
   refresh("/people", `/accounts/${c.accountId}`);
   return { ok: true, message: `${c.fullName} deleted` };
 }
+
+/** After an import has been processed: what the intake and research did for its companies. */
+export async function importResearchSummaryAction(batchId: string) {
+  const batch = await db.importBatch.findUnique({ where: { id: batchId } });
+  if (!batch) return null;
+  const ids = (await db.account.findMany({ where: { lastImportBatchId: batchId }, select: { id: true } })).map((a) => a.id);
+  const since = batch.createdAt;
+  const [events, plans] = await Promise.all([
+    db.pipelineEvent.findMany({ where: { accountId: { in: ids }, step: { in: ["intake.website", "intake.firmographics"] }, createdAt: { gte: since } }, select: { step: true, outcome: true, reason: true } }),
+    db.researchPlan.findMany({ where: { accountId: { in: ids }, createdAt: { gte: since } }, select: { depth: true, skipped: true } }),
+  ]);
+  return {
+    companies: ids.length,
+    websitesFound: events.filter((e) => e.step === "intake.website" && e.outcome === "pass").length,
+    websitesMissing: events.filter((e) => e.step === "intake.website" && e.outcome === "block").length,
+    profilesFilled: events.filter((e) => e.step === "intake.firmographics" && e.outcome === "pass").length,
+    deepDives: plans.filter((p) => p.depth?.startsWith("deep")).length,
+    engagedDeepDives: plans.filter((p) => p.depth?.includes("engaged on LinkedIn")).length,
+    skippedKnown: plans.reduce((n, p) => n + (p.skipped as { reason: string }[]).filter((x) => x.reason.startsWith("Known from import")).length, 0),
+  };
+}

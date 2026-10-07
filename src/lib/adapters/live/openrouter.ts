@@ -66,6 +66,10 @@ export class OpenRouterLLM implements LLM {
       owner_function: `Which function owns partner/vendor onboarding or master data. value must be one of: ${FUNCTIONS.join(", ")}.`,
       tooling: "ERP, MDM, workflow, KYC or eSign tools the company uses. value = comma-separated tool names.",
       partner_network: "Size of the external network (distributors, dealers, retailers, vendors, delivery partners). value = the number only, digits.",
+      erp_program: "An ERP / SAP S/4HANA, MDM or master-data programme: what, scope, timeline, implementation partner. One item per programme.",
+      expansion: "Expansion of distributors, dealers, retailers, plants, markets, sellers or delivery partners. One item per announcement; include numbers when stated.",
+      leadership: "A new CIO, CDO, CPO, CFO, head of master data or head of procurement appointed. Claim = who, which role, when.",
+      compliance: "Regulatory or audit pressure the company faces (GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits).",
     };
     const schema = z.object({
       items: z.array(z.object({ page: z.number().int(), claim: z.string().min(5).max(240), value: z.string().max(120).nullable().optional(), kind: z.string().nullable().optional(), sameAs: z.string().nullable().optional() })).max(8),
@@ -187,6 +191,7 @@ export class OpenRouterLLM implements LLM {
         `USE CASES: ${input.seller.useCases.map((u) => `${u.key} (${u.pains})`).join(" | ")}`,
         `BUYING TRIGGERS: ${input.seller.triggers.map((t) => t.label).join("; ")}`,
         `ALREADY KNOWN: ${input.known.map((k) => `[${k.key}/${k.status}] ${k.claim}`).join(" | ") || "nothing"}`,
+        input.imported ? `FROM THE CLIENT'S IMPORT (treat as given; do not search for these again): systems: ${input.imported.technologies.join(", ") || "—"}; keywords: ${input.imported.keywords.join(", ") || "—"}; notes: ${input.imported.notes ?? "—"}; LinkedIn conversations: ${input.imported.conversations.map((c) => `${c.name} (${c.title ?? "?"}) — ${c.stage}${c.lastReply ? `: "${c.lastReply.slice(0, 120)}"` : ""}`).join(" | ") || "none"}. Use the keywords to make queries specific to what this company does.` : "",
         `QUESTIONS TO PLAN (keep every high-importance one):\n${input.candidates.map((c) => `- ${c.key} (${c.importance}): ${c.question}`).join("\n")}`,
         `ENGINES: ${input.engines.join(", ")}. exa = semantic web search with full page text (best for company pages, stack, network size); tavily = news search with dates (best for recent events); serp = Google News/Google (best for very recent news and second opinions).${Object.keys(input.routing).length ? ` Learned best engine per question: ${Object.entries(input.routing).map(([k, v]) => `${k}→${v}`).join(", ")}.` : ""}`,
         `Return {"hypotheses":["what you expect to find and why it would matter to ${input.seller.name}"],"questions":[{"key":"<question key>","query":"<search query>","engine":"<one of the engines>","why":"<what the answer decides>"}],"skip":[{"key":"...","reason":"..."}]}`,
@@ -207,6 +212,7 @@ export class OpenRouterLLM implements LLM {
         `NEGATIVE NEWS: ${input.negatives.join(" | ") || "none found"}`,
         `UNKNOWN: ${input.unknowns.join(", ") || "nothing"}`,
         `RESEARCH HYPOTHESES: ${input.hypotheses.join(" | ") || "none"}`,
+        input.imported ? `FROM THE CLIENT'S IMPORT: systems ${input.imported.technologies.join(", ") || "—"}; keywords ${input.imported.keywords.join(", ") || "—"}; team notes: ${input.imported.notes ?? "—"}; LinkedIn conversations already running: ${input.imported.conversations.map((c) => `${c.name} (${c.title ?? "?"}) — ${c.stage}${c.lastReply ? `: "${c.lastReply.slice(0, 120)}"` : ""}`).join(" | ") || "none"}. If a conversation is running, the next best action must build on it.` : "",
         `${input.seller.name.toUpperCase()} PRODUCTS: ${input.seller.products.map((p) => `${p.name}: ${p.what}`).join(" | ")}`,
         `USE CASES (useCase must be one of these keys): ${input.seller.useCases.map((u) => `${u.key} — pains: ${u.pains}; outcome: ${u.outcome}`).join(" | ")}`,
         `PERSONAS: ${input.seller.personas.map((p) => `${p.role}: ${p.titles.slice(0, 4).join(", ")} — ${p.why}`).join(" | ")}`,
@@ -248,5 +254,18 @@ export class OpenRouterLLM implements LLM {
       `Prospect: ${context.title ?? "unknown title"} at ${context.company}. Current stage: ${context.stage}.\nReply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"stage":"<stage key>","reason":"<one short sentence>","nextAction":"<the next step for the sender>"}`,
       150,
     );
+  }
+
+  async extractFirmographics(pages: ResearchPage[], company: string) {
+    if (!pages.length) return null;
+    const schema = z.object({ page: z.number().int().nullable(), industry: z.string().max(80).nullable(), employees: z.number().nullable(), country: z.string().max(60).nullable() });
+    const out = await this.json(
+      schema,
+      "You read company profile pages and return the company's industry, employee count and headquarters country. Use only what a page states about THIS company; null when not stated. employees = one number (midpoint of a range).",
+      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1500)}`).join("\n\n")}\n\nReturn {"page": <index of the page used or null>, "industry": "...", "employees": 1234, "country": "..."}`,
+      200,
+    );
+    if (out.page == null || !pages[out.page]) return null;
+    return { industry: out.industry, employees: out.employees, country: out.country, page: out.page };
   }
 }

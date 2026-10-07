@@ -513,6 +513,8 @@ model ResearchPlan {
   hypotheses String[] @default([])
   /// "mock" or the LLM model that planned the research.
   planner    String?
+  /// core | deep, and why ("T1", "engaged on LinkedIn: Asha Mehta — Interested").
+  depth      String?
   createdAt  DateTime @default(now())
 
   @@index([accountId])

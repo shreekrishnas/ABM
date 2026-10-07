@@ -9,6 +9,7 @@ import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipelin
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ruleBrief } from "./rules";
 import { latestLearnings } from "./insights";
+import { importContext } from "@/lib/research/intake";
 import { ROLES, type AccountBriefData, type BriefInput } from "./types";
 
 /** Drop anything the model cited that we don't hold, and fix indices after dropping. */
@@ -70,6 +71,7 @@ export async function buildBrief(account: Account, snap: TwinSnapshot, ctx: RunC
       competitors: sp.competitors.map((c) => ({ name: c.name, angle: c.angle })),
     },
     learnings: await latestLearnings(),
+    imported: await importContext(account),
   };
   let raw: AccountBriefData;
   let model = ctx.adapters.llm.model;

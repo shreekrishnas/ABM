@@ -20,6 +20,18 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
       return { q: `${c} (SAP OR Oracle OR "Microsoft Dynamics" OR Informatica OR "master data management")`, days: 730, news: false };
     case "partner_network":
       return { q: `${c} (distributors OR dealers OR retail outlets OR suppliers OR vendors OR delivery partners)`, days: 730, news: false };
+    case "erp_program":
+      return { q: `${c} ("SAP S/4HANA" OR "ERP implementation" OR "master data" OR MDM OR "digital transformation") partner rollout`, days: 365, news: true };
+    case "expansion":
+      return { q: `${c} (expansion OR "new plant" OR distributors OR dealers OR "new markets" OR sellers) 2026`, days: 180, news: true };
+    case "leadership":
+      return { q: `${c} appoints (CIO OR CDO OR "Chief Digital Officer" OR CPO OR CFO OR "head of procurement")`, days: 365, news: true };
+    case "compliance":
+      return { q: `${c} (GST e-invoicing OR KYC OR "data protection" OR DPDP OR audit OR compliance)`, days: 365, news: false };
+    case "website":
+      return { q: `${c} official website`, days: null, news: false };
+    case "firmographics":
+      return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
     default:
       return { q: `${c} ${key.replace(/_/g, " ")}`, days: 365, news: false };
   }
@@ -61,7 +73,7 @@ export class WebResearch implements ResearchSource {
     return (["exa", "tavily", "serp"] as Engine[]).filter((e) => this.keys[e]);
   }
 
-  private async exa(q: string, days: number | null, domain: string): Promise<ResearchPage[]> {
+  private async exa(q: string, days: number | null, domain: string, undatedOk = false): Promise<ResearchPage[]> {
     const body: Record<string, unknown> = { query: q, numResults: 6, type: "auto", contents: { text: { maxCharacters: 2500 } } };
     if (days) body.startPublishedDate = new Date(Date.now() - days * DAY).toISOString();
     const res = await fetchJson<{ results?: ExaResult[] }>("Exa", "https://api.exa.ai/search", {
@@ -70,29 +82,32 @@ export class WebResearch implements ResearchSource {
       body: JSON.stringify(body),
     });
     return (res.results ?? []).flatMap((r) => {
-      const published = parseLooseDate(r.publishedDate ?? r.published_date);
+      const published = parseLooseDate(r.publishedDate ?? r.published_date) ?? (undatedOk ? new Date() : null);
       if (!published) return [];
       return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, text: (r.text ?? r.title ?? "").slice(0, 2500), sourceType: classifySource(r.url, domain) }];
     });
   }
 
-  private async tavily(q: string, days: number | null, news: boolean, domain: string): Promise<ResearchPage[]> {
-    // Tavily only dates results on the news topic; undated results can't pass the evidence gate.
-    const body: Record<string, unknown> = { query: q.replace(/"/g, ""), topic: "news", max_results: 8, search_depth: "basic", days: days ?? 365 };
-    if (!news) body.days = Math.max(days ?? 365, 365);
+  private async tavily(q: string, days: number | null, news: boolean, domain: string, undatedOk = false): Promise<ResearchPage[]> {
+    // Tavily only dates results on the news topic; undated results can't pass the evidence gate
+    // (except gap-fill lookups such as the official website, which need no date).
+    const body: Record<string, unknown> = undatedOk
+      ? { query: q.replace(/"/g, ""), topic: "general", max_results: 8, search_depth: "basic" }
+      : { query: q.replace(/"/g, ""), topic: "news", max_results: 8, search_depth: "basic", days: days ?? 365 };
+    if (!news && !undatedOk) body.days = Math.max(days ?? 365, 365);
     const res = await fetchJson<{ results?: TavilyResult[] }>("Tavily", "https://api.tavily.com/search", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${this.keys.tavily}` },
       body: JSON.stringify(body),
     });
     return (res.results ?? []).flatMap((r) => {
-      const published = parseLooseDate(r.published_date);
+      const published = parseLooseDate(r.published_date) ?? (undatedOk ? new Date() : null);
       if (!published) return [];
       return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, text: `${r.title ?? ""}. ${r.content ?? ""}`.slice(0, 2000), sourceType: classifySource(r.url, domain) }];
     });
   }
 
-  private async serp(q: string, news: boolean, domain: string): Promise<ResearchPage[]> {
+  private async serp(q: string, news: boolean, domain: string, undatedOk = false): Promise<ResearchPage[]> {
     const params = new URLSearchParams({ engine: "google", q, api_key: this.keys.serp!, num: "8", hl: "en" });
     if (news) params.set("tbm", "nws");
     const res = await fetchJson<{ news_results?: { link: string; title: string; snippet?: string; date?: string; source?: string }[]; organic_results?: { link: string; title: string; snippet?: string; date?: string }[] }>(
@@ -100,16 +115,16 @@ export class WebResearch implements ResearchSource {
     );
     const items = news ? res.news_results ?? [] : res.organic_results ?? [];
     return items.flatMap((r) => {
-      const published = parseLooseDate(r.date);
+      const published = parseLooseDate(r.date) ?? (undatedOk ? new Date() : null);
       if (!published) return []; // undated results can't pass the evidence gate
       return [{ url: r.link, title: r.title, publishedAt: published, text: `${r.title}. ${r.snippet ?? ""}`.slice(0, 1500), sourceType: classifySource(r.link, domain) }];
     });
   }
 
-  private run(engine: Engine, q: string, days: number | null, news: boolean, domain: string) {
-    if (engine === "exa") return this.exa(q, days, domain);
-    if (engine === "tavily") return this.tavily(q, days, news, domain);
-    return this.serp(q, news, domain);
+  private run(engine: Engine, q: string, days: number | null, news: boolean, domain: string, undatedOk: boolean) {
+    if (engine === "exa") return this.exa(q, days, domain, undatedOk);
+    if (engine === "tavily") return this.tavily(q, days, news, domain, undatedOk);
+    return this.serp(q, news, domain, undatedOk);
   }
 
   async search(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
@@ -126,7 +141,7 @@ export class WebResearch implements ResearchSource {
     for (const engine of order) {
       let pages: ResearchPage[];
       try {
-        pages = await this.run(engine, q, days, news, domain);
+        pages = await this.run(engine, q, days, news, domain, key === "website" || key === "firmographics");
       } catch (e) {
         lastError = e; // quota or outage on one engine — try the next
         hint.onAttempt?.({ engine, results: 0, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
