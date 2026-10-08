@@ -108,3 +108,12 @@ Status pills (`.badge`) are unchanged from v1. Use them for states (Ready, Block
 4. **Never use an intent or family colour for decoration.**
 5. **Reading cards add `read`** (`glass-card-static read`). Don't stack blur on blur.
 6. **Check both themes and a 390px width before shipping.**
+
+## 8 · v3 layout layer (references: Linear, Superhuman, Stripe via awesome-design-md)
+
+The **look** stays exactly the Trilliant glass system: tokens, atmosphere, glass shell, radii, gradients, Inter + Fraunces. The references guide only **layout, icons and how features are shown**:
+
+- **Labelled sidebar.** The sidebar is 232px with a brand block (logo mark and seller name), group labels, and an icon and label on each item. Counts sit right-aligned; Approvals uses a red count. Between 900 and 1100px wide it collapses to the 92px icon rail; on mobile it moves to a bottom bar. Item recipe from the spec: active = white background, indigo text and glow.
+- **One action per row** (Superhuman). Each queue row ends in a small glass pill button that fills with indigo on hover. Never more than one.
+- **Meaning by dot, not fill** (Linear). Signal chips are neutral glass pills with a small coloured dot, so a row of four signals reads calmly. Only intent (Hot / Warm / Quiet) uses a filled tint.
+- **Numbers** (Stripe). Tabular figures; one stat strip per page instead of a grid of KPI cards.

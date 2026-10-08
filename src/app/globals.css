@@ -398,3 +398,53 @@ details.more[open] > summary::before { transform: rotate(90deg); }
 /* Sidebar group label (v2) */
 .sidebar-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin: 0.6rem 0 0.15rem; opacity: 0.8; }
 @media (max-width: 900px) { .sidebar-label { display: none; } }
+
+/* ═════════════════════════════════════════════════════════════
+   v3 — layout layer only. The visual language stays the Trilliant
+   glass system (tokens, atmosphere, radii, gradients, fonts). From the
+   references (Linear, Superhuman, Stripe) we take only layout and
+   representation: a labelled sidebar, one action per row, chips that
+   carry meaning with a dot, quieter density.
+   ═════════════════════════════════════════════════════════════ */
+:root { --sidebar-width: 232px; }
+
+/* Labelled sidebar inside the glass shell (same item recipe as the spec, wider) */
+.sidebar { width: var(--sidebar-width); align-items: stretch; padding: 1.1rem 0.85rem; gap: 2px; }
+.sidebar .brand { display: flex; align-items: center; gap: 0.7rem; padding: 0 0.35rem 1rem; }
+.sidebar .brand .mark { width: 40px; height: 40px; border-radius: 0.875rem; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #6366f1, #7c3aed); box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35); flex-shrink: 0; }
+.sidebar .brand .name { font-weight: 800; font-size: 0.95rem; letter-spacing: -0.02em; color: var(--text-primary); line-height: 1.15; }
+.sidebar .brand .sub { display: block; font-size: 0.68rem; font-weight: 500; letter-spacing: 0; color: var(--text-muted); }
+.sidebar-label { margin: 0.85rem 0.6rem 0.3rem; font-size: 0.62rem; opacity: 1; }
+.nav-item { position: relative; display: flex; align-items: center; gap: 0.7rem; height: 40px; padding: 0 0.75rem; border-radius: 0.875rem; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); transition: background 160ms, color 160ms; }
+.nav-item svg { color: #94a3b8; flex-shrink: 0; transition: color 160ms; }
+.nav-item:hover { background: rgba(255, 255, 255, 0.6); color: var(--text-primary); }
+.nav-item:hover svg { color: #475569; }
+.nav-item.active { background: #fff; color: var(--accent-indigo); font-weight: 700; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); }
+.nav-item.active svg { color: var(--accent-indigo); }
+[data-theme="dark"] .nav-item:hover { background: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .nav-item:hover svg { color: #cbd5e1; }
+[data-theme="dark"] .nav-item.active { background: rgba(99, 102, 241, 0.22); color: #a5b4fc; box-shadow: none; }
+[data-theme="dark"] .nav-item.active svg { color: #a5b4fc; }
+.nav-item .count { margin-left: auto; min-width: 20px; height: 19px; padding: 0 6px; border-radius: 9999px; font-size: 0.66rem; font-weight: 700; display: grid; place-items: center; color: var(--text-secondary); background: var(--surface-track); }
+.nav-item .count.alert { color: #fff; background: #ef4444; }
+
+/* Chips: meaning shown by a dot, pill shape from the spec; one fill colour per screen, not a rainbow */
+.chip { border-radius: 9999px; color: var(--text-secondary); background: var(--surface-card); border: 1px solid var(--border-subtle); font-weight: 600; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 9999px; background: var(--c, var(--text-muted)); flex-shrink: 0; }
+
+/* Queue row action: a small glass button (one action per row), not a coloured link */
+.q-row .q-act { padding: 0.35rem 0.75rem; border-radius: 9999px; background: var(--surface-card); border: 1px solid var(--border-subtle); color: var(--text-primary); font-weight: 600; transition: background 150ms, color 150ms, border-color 150ms; }
+.q-row:hover .q-act { background: var(--accent-indigo); border-color: var(--accent-indigo); color: #fff; }
+
+@media (max-width: 1100px) {
+  :root { --sidebar-width: 92px; }
+  .sidebar { align-items: center; }
+  .sidebar .brand .name, .nav-item .lbl, .sidebar-label { display: none; }
+  .nav-item { width: 48px; height: 48px; justify-content: center; padding: 0; }
+  .nav-item .count { position: absolute; top: 4px; right: 3px; margin: 0; background: #ef4444; color: #fff; }
+}
+@media (max-width: 900px) {
+  .sidebar { width: 100%; flex-direction: row; justify-content: flex-start; }
+  .sidebar .brand { display: none; }
+  .nav-item { width: 44px; height: 44px; flex-shrink: 0; }
+}
