@@ -1,6 +1,7 @@
 // Stages 12–13: Sequence/Send/Measure and Sales Handoff/Recycle, plus the
 // continuous signal engine (account-level engagement, buying stage, MQA).
 
+import { readIntent } from "@/lib/brain/intent";
 import type { Account, Prisma, ReplyClass, SignalType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -164,6 +165,12 @@ export async function recomputeAccount(accountId: string, ctx: RunContext = newC
   const score = accountEngagement(signals, ctx.now);
   const stage = stageFromEngagement(account.stage, score);
   const updated = await db.account.update({ where: { id: accountId }, data: { engagementScore: score, stage } });
+  // New engagement can make intent converge: a watched account that turns hot goes back to research now, not on its re-check date.
+  const intent = await readIntent(accountId, ctx.now);
+  if (intent.level === "hot" && ["WATCH", "RECYCLED"].includes(updated.stage) && updated.pipelineStatus !== "running" && updated.pipelineStatus !== "queued") {
+    await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "queued", queuedFromStage: 5, followupUsed: false, reopenUsed: false } });
+    await logEvent(ctx, { accountId, stage: 5, step: "research_plan.refresh_trigger", outcome: "info", reason: `Intent turned hot (${intent.score}: ${intent.families.join(", ")}) — re-researching now` });
+  }
   if (stage !== account.stage) {
     await logEvent(ctx, { accountId, stage: 12, step: "sequence_send.engagement_score", outcome: "info", reason: `Buying stage ${account.stage} → ${stage} (score ${score})` });
   }

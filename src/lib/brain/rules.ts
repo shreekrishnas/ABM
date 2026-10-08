@@ -77,7 +77,7 @@ export function ruleBrief(input: BriefInput): AccountBriefData {
   return {
     verdict,
     verdictWhy: `Fit ${fit}/100${input.company.fitReasons[0] ? ` (${input.company.fitReasons[0]})` : ""}; ${triggers.length} trigger fact(s)${owner ? `, ${owner.claim.toLowerCase()}` : ""}.`,
-    whyNow: triggers[0] ? { text: triggers[0].claim, factIds: [triggers[0].id] } : null,
+    whyNow: triggers[0] ? { text: input.intent?.whyNow && input.intent.level !== "cold" ? input.intent.whyNow.slice(0, 300) : triggers[0].claim, factIds: [triggers[0].id] } : null,
     painPoints,
     personaAngles,
     hypotheses: [...input.hypotheses.slice(0, 2), ...input.unknowns.map((u) => `Unknown — confirm in discovery: ${u.replace(/_/g, " ")}`)].slice(0, 5),

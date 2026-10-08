@@ -7,6 +7,7 @@ import { eligibleToCall, nextAction } from "@/lib/journey/engine";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { ReplyAssistant } from "@/components/reply-assistant";
 import { Avatar, Badge, Card, Empty, ago, date } from "@/components/ui";
+import { ProspectTrack } from "./prospect-track";
 import { deletePersonAction, logActivityAction, setStageAction, updatePersonAction } from "../../actions";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -23,7 +24,7 @@ function Field({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string }> }) {
+export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string; track?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const c = await db.contact.findUnique({
@@ -103,8 +104,9 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="grid content-start gap-5 xl:col-span-2">
+          <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />
           <Card
-            title="Journey"
+            title="LinkedIn journey"
             sub="Each sender profile keeps its own history — switching never mixes them"
             action={
               <Modal trigger="Start a journey" title="Start a journey" eyebrow={c.fullName} triggerClass="btn btn-secondary btn-sm">

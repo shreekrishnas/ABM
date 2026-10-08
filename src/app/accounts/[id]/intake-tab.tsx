@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Account } from "@prisma/client";
 import { ArrowRight, Database, FileInput, Search, Sparkles, UserRound } from "lucide-react";
 import { db } from "@/lib/db";
@@ -122,7 +123,7 @@ export async function IntakeTab({ account }: { account: Account }) {
             <ul className="grid gap-2 text-sm">
               {imported.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span><b style={{ color: "var(--text-primary)" }}>{c.fullName}</b> <span className="secondary">· {c.title ?? "—"}</span></span>
+                  <span><Link href={`/people/${c.id}`} className="hover:underline"><b style={{ color: "var(--text-primary)" }}>{c.fullName}</b></Link> <span className="secondary">· {c.title ?? "—"}</span></span>
                   <span className="flex flex-wrap gap-1">{c.journeys.length ? c.journeys.map((j) => <span key={j.id} title={j.sender.name}><Badge color={STAGE_INFO[j.stage].color}>{stageLabel(j.stage, j.followUpCount)}</Badge></span>) : <span className="muted text-xs">no journey</span>}</span>
                 </li>
               ))}

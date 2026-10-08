@@ -263,7 +263,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                       <tr key={c.id}>
                         <td className="strong">
                           <div className="flex items-center gap-2.5"><Avatar name={c.fullName} id={c.id} size={30} round />
-                            <div><div>{c.fullName}</div><div className="muted text-xs font-normal">{c.titleNormalized ?? c.title ?? "—"}</div><div className="mono muted text-[0.7rem] font-normal">{c.email ?? "no email"}</div></div>
+                            <div><div><Link href={`/people/${c.id}`} className="hover:underline">{c.fullName}</Link></div><div className="muted text-xs font-normal">{c.titleNormalized ?? c.title ?? "—"}</div><div className="mono muted text-[0.7rem] font-normal">{c.email ?? "no email"}</div></div>
                           </div>
                         </td>
                         <td><Badge color={c.buyingRole === "decision_maker" ? "#4F46E5" : c.buyingRole === "champion" ? "#0D9488" : "#64748B"}>{c.buyingRole.replace("_", " ")}</Badge></td>

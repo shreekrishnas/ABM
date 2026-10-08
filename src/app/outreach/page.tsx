@@ -99,7 +99,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                   <tbody>
                     {messages.map((m) => (
                       <tr key={m.id}>
-                        <td className="strong"><div className="flex items-center gap-2.5"><Avatar name={m.contact.fullName} id={m.contactId} size={28} round /><div>{m.contact.fullName}<div className="muted text-xs font-normal"><Link href={`/accounts/${m.contact.accountId}`} className="hover:underline">{m.contact.account.name}</Link></div></div></div></td>
+                        <td className="strong"><div className="flex items-center gap-2.5"><Avatar name={m.contact.fullName} id={m.contactId} size={28} round /><div><Link href={`/people/${m.contactId}`} className="hover:underline">{m.contact.fullName}</Link><div className="muted text-xs font-normal"><Link href={`/accounts/${m.contact.accountId}`} className="hover:underline">{m.contact.account.name}</Link></div></div></div></td>
                         <td className="max-w-[280px] truncate">{m.draft.subject}</td>
                         <td className="tnum">{m.draft.stepOrder}</td>
                         <td className="mono">{m.mailbox}</td>
@@ -123,7 +123,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                     <tbody>
                       {replies.map((r) => (
                         <tr key={r.id}>
-                          <td className="strong whitespace-nowrap">{r.contact.fullName}<div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
+                          <td className="strong whitespace-nowrap"><Link href={`/people/${r.contactId}`} className="hover:underline">{r.contact.fullName}</Link><div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
                           <td className="max-w-[260px]"><span className="line-clamp-2">{r.body}</span></td>
                           <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#7C3AED" : "#B45309"}>{r.class.replace("_", " ")}</Badge></td>
                           <td className="text-xs">{r.route}</td>

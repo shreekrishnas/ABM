@@ -46,8 +46,10 @@ export async function importContext(account: Account): Promise<ImportContext> {
  * questions; T3 the core only — unless someone at the company has already replied on
  * LinkedIn, which earns the full deep dive whatever the tier.
  */
-export function researchDepth(tier: Account["tier"], ctx: ImportContext): { depth: "core" | "deep"; deepKeys: number; cap: number; reason: string } {
+export function researchDepth(tier: Account["tier"], ctx: ImportContext, intent?: { level: string; score: number; families: string[] }): { depth: "core" | "deep"; deepKeys: number; cap: number; reason: string } {
   const engaged = ctx.conversations[0];
+  // Converging intent signals earn the deep dive even before tier does.
+  if (!engaged && intent?.level === "hot") return { depth: "deep", deepKeys: 99, cap: CONFIG.research.maxQuestions, reason: `deep — hot intent ${intent.score} (${intent.families.join(", ")})` };
   if (engaged) return { depth: "deep", deepKeys: 99, cap: CONFIG.research.maxQuestions, reason: `deep — engaged on LinkedIn: ${engaged.name} (${engaged.stage})` };
   if (tier === "T1") return { depth: "deep", deepKeys: 99, cap: CONFIG.research.maxQuestions, reason: "deep — T1 company" };
   if (tier === "T2") return { depth: "deep", deepKeys: 2, cap: 7, reason: "core + 2 deep questions — T2 company" };

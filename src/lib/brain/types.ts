@@ -47,9 +47,18 @@ export type PlanResearchOutput = z.infer<typeof planResearchSchema>;
 
 // ── Strategist (stage 7) ──
 
+export interface IntentContext {
+  score: number;
+  level: "hot" | "warm" | "cold";
+  whyNow: string | null;
+  /** Converging signals, strongest first, each specific (what, who, when). */
+  signals: { family: string; label: string }[];
+}
+
 export interface BriefInput {
   company: CompanyCard;
   imported?: ImportedContext;
+  intent?: IntentContext;
   facts: { id: string; key: string; claim: string; status: string; sourceType: string }[];
   inferences: string[];
   negatives: string[];

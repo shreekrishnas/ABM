@@ -5,6 +5,7 @@ import type { Account, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { seller, sellerContext } from "@/lib/seller";
+import { readIntent, toIntentContext } from "./intent";
 import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipeline/context";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ruleBrief } from "./rules";
@@ -72,6 +73,7 @@ export async function buildBrief(account: Account, snap: TwinSnapshot, ctx: RunC
     },
     learnings: await latestLearnings(),
     imported: await importContext(account),
+    intent: toIntentContext(await readIntent(account.id)),
   };
   let raw: AccountBriefData;
   let model = ctx.adapters.llm.model;

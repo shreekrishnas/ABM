@@ -15,6 +15,7 @@ export const SIGNALS = [
   "research.planned",
   "research.done",
   "evidence.judged", // Evidence judge: strong / weak, verified and usable triggers
+  "intent.scored", // Intent engine: converging signal families, score, why now
   "brief.ready", // Strategist verdict
   "verdict.conflict", // Two modules disagree; the main brain resolved it
   "buying_group.ready",

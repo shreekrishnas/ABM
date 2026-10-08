@@ -103,6 +103,8 @@ export interface DraftInput {
   /** Seller pack voice and fences. */
   tone?: string[];
   bannedClaims?: string[];
+  /** The person's strongest converging intent signals — choose the opening from these. Context, not claims. */
+  signals?: string[];
   /** Rewriter: the previous version and what the critic panel found wrong with it. */
   revise?: { subject: string; body: string; issues: string[] } | null;
 }

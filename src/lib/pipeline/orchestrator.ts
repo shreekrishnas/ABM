@@ -14,6 +14,7 @@ import { escalateOverdue, recomputeAccount, sendApproved, tickSequences } from "
 import { maybeGenerateInsights } from "@/lib/brain/insights";
 import { publish } from "@/lib/brain/bus";
 import { decide } from "@/lib/brain/decisions";
+import { readIntent } from "@/lib/brain/intent";
 import { latestBrief } from "@/lib/brain/strategist";
 import { loadSeller, sellerContext, withSeller } from "@/lib/seller";
 import { isTriggerKey } from "@/lib/research/keys";
@@ -152,6 +153,8 @@ async function afterModule(n: number, account: Account, ctx: RunContext) {
   const evidence = await liveEvidence(account.id);
   const triggers = evidence.filter((e) => isTriggerKey(e.key));
   const q = evidenceQuality(triggers.map((t) => ({ status: t.status, publishedAt: t.publishedAt })), ctx.now);
+  const intent = await readIntent(account.id, ctx.now);
+  await publish(ctx, { type: "intent.scored", module: "intent_engine", accountId: account.id, payload: { score: intent.score, level: intent.level, families: intent.families, whyNow: intent.whyNow } });
   await publish(ctx, { type: "evidence.judged", module: "evidence_judge", accountId: account.id, payload: { strong: q.strong, verified: q.verified, usable: q.usable } });
   const brief = await latestBrief(account.id);
   if (!brief) return;

@@ -294,6 +294,33 @@ export function needsHumanApproval(tier: Tier | null, autonomy: "review_all" | "
   return true;
 }
 
+/** Phrases that make a cold email read like every other cold email. */
+const GENERIC_PHRASES = [
+  /hope (this|you)[^.\n]{0,30}well/i, /\btouch(ing)? base\b/i, /\bjust (checking|following) (in|up)\b/i, /\bin today'?s (fast[- ]paced|competitive|digital|ever[- ]changing)/i,
+  /\bi came across your (profile|company|website)\b/i, /\bsynerg/i, /\bstreamline your (operations|processes|business)\b/i, /\bunlock (the )?(full )?potential\b/i,
+  /\bgame[- ]chang/i, /\bcutting[- ]edge\b/i, /\bwould love to (connect|chat|pick your brain)\b/i, /\b(take|taking) (your|the) business to the next level\b/i, /\bi wanted to reach out\b/i,
+];
+
+const STOP = new Set(["about", "their", "there", "which", "would", "could", "company", "announced", "recently", "across", "with", "from", "that", "this", "have", "will", "into", "more", "than", "they", "were", "been"]);
+const distinctive = (t: string) => new Set(t.toLowerCase().match(/[a-z0-9][a-z0-9/&.-]{3,}/g)?.filter((w) => !STOP.has(w)) ?? []);
+
+/**
+ * Specificity critic (code): the email must name the company, carry at least two
+ * distinctive words from the facts it cites (a number, a programme, a place), and
+ * use none of the stock cold-email phrases. Generic output is rewritten, never sent.
+ */
+export function specificityGate(body: string, company: string, citedFacts: string[]): GateResult {
+  const generic = GENERIC_PHRASES.map((r) => body.match(r)?.[0]).find(Boolean);
+  if (generic) return { pass: false, reason: `Generic phrase "${generic}" — replace it with something only true of this company` };
+  const brand = company.toLowerCase().split(/\s+/)[0];
+  if (brand && !body.toLowerCase().includes(brand)) return { pass: false, reason: `Does not name ${company}` };
+  const words = distinctive(body);
+  const factWords = new Set(citedFacts.flatMap((f) => [...distinctive(f)]).filter((w) => !w.startsWith(brand)));
+  const shared = [...factWords].filter((w) => words.has(w));
+  if (citedFacts.length && shared.length < 2) return { pass: false, reason: "Too generic: uses almost nothing specific from the cited facts (numbers, programme names, places)" };
+  return { pass: true, reason: `Specific: ${shared.slice(0, 4).join(", ")}` };
+}
+
 /** Hard claim rules for every seller, plus the seller's own banned claims. */
 const HARD_BANNED = [/\bguarantee(d|s)?\b/i, /\bthe only (platform|solution|tool|company)\b/i, /\bbest[- ]in[- ]class\b/i, /#1\b|\bnumber one\b/i, /\b\d+% (off|discount)\b/i, /\brisk[- ]free\b/i];
 

@@ -4,7 +4,7 @@ import type { Account, Contact, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { bannedClaimGate, complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
+import { bannedClaimGate, specificityGate, complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
 import { addToWatchlist, BudgetExceeded, charge, isSuppressed, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { contactFields } from "../fields";
 import { liveEvidence } from "./research";
@@ -16,6 +16,7 @@ import type { ClaimCheckResult } from "@/lib/brain/types";
 import type { DraftInput } from "@/lib/adapters/types";
 import { publish } from "@/lib/brain/bus";
 import { decide } from "@/lib/brain/decisions";
+import { readIntent } from "@/lib/brain/intent";
 
 // ───────────────────────── Stage 10 ─────────────────────────
 
@@ -152,6 +153,10 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     learnings: await latestLearnings(),
   };
   const sc = sellerContext();
+  // This person's converging signals (their own LinkedIn conversation and engagement + the company's) decide the opening.
+  const intent = await readIntent(account.id, ctx.now, contact.id);
+  input.signals = intent.signals.filter((s) => s.strength > 0 && s.family !== "team_context").slice(0, 3).map((s) => s.label);
+  if (input.angle && intent.whyNow && intent.level !== "cold") input.angle.whyNow = intent.whyNow;
   input.tone = sp.tone;
   input.bannedClaims = sp.bannedClaims;
   // The claim checker sees each fact with the exact quote from its source page.
@@ -205,6 +210,10 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     // 3. Compliance critic (code): unsubscribe line, sender address, banned claims.
     const comp = complianceGate(candidate.body);
     const ban = bannedClaimGate(`${candidate.subject}\n${candidate.body}`, sp.bannedClaims);
+    // 4. Specificity critic (code): no stock phrases; must use what is only true of this company.
+    const cited = candidate.claims.flatMap((c) => c.factIds).map((id) => facts.find((f) => f.id === id)?.claim ?? "").filter(Boolean);
+    const spec = specificityGate(candidate.body.split(`\n\n${sp.sender.name}`)[0], account.name, cited);
+    panel.push({ critic: "specificity (code)", pass: spec.pass, issues: spec.pass ? [] : [spec.reason], available: true });
     panel.push({ critic: "compliance (code)", pass: comp.pass && ban.pass, issues: [comp, ban].filter((x) => !x.pass).map((x) => x.reason), available: true });
 
     // 4. Style and relevance critic (model): tone, role, angle, length.

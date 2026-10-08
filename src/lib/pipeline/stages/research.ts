@@ -3,6 +3,7 @@
 import type { Account, Evidence, FieldStatus, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
 import { sellerContext } from "@/lib/seller";
+import { readIntent } from "@/lib/brain/intent";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
@@ -36,7 +37,8 @@ export async function s05ResearchPlan(account: Account, ctx: RunContext, reason:
   );
   // What the import already told us, and how deep this company deserves to go.
   const imported = await importContext(account);
-  const depth = researchDepth(account.tier, imported);
+  const intent = await readIntent(account.id, ctx.now);
+  const depth = researchDepth(account.tier, imported, intent);
   const questions: PlannedQuestion[] = [];
   const skipped: { key: string; reason: string }[] = [];
   let deepUsed = 0;

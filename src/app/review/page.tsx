@@ -81,7 +81,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                   <div className="grid gap-5 lg:grid-cols-5">
                     <ActionForm action={reviewDraftAction} className="grid gap-3 lg:col-span-3" resetOnSuccess={false}>
                       <input type="hidden" name="draftId" value={draft.id} />
-                      <div><label className="field-label">To</label><div className="text-sm secondary">{r.contact?.fullName} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></div></div>
+                      <div><label className="field-label">To</label><div className="text-sm secondary">{r.contact ? <Link href={`/people/${r.contact.id}`} className="hover:underline">{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></div></div>
                       <div><label className="field-label" htmlFor={`s-${draft.id}`}>Subject</label><input id={`s-${draft.id}`} name="subject" defaultValue={draft.subject} className="glass-input" /></div>
                       <div><label className="field-label" htmlFor={`b-${draft.id}`}>Body</label><textarea id={`b-${draft.id}`} name="body" defaultValue={draft.body} className="glass-textarea" rows={11} /></div>
                       <input name="note" className="glass-input" placeholder="Optional note for the log" />

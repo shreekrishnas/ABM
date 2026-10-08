@@ -214,28 +214,30 @@ model User {
 }
 
 model Account {
-  id           String       @id @default(cuid())
+  id            String       @id @default(cuid())
   /// The seller this account is researched and contacted for (a seller pack id). A run never mixes sellers.
-  sellerId     String       @default("manch")
-  name         String
-  domain       String?      @unique
-  industry     String?
-  employees    Int?
-  country      String? // ISO-3166 alpha-2
-  revenueUsd   BigInt?
-  technologies String[]     @default([])
+  sellerId      String       @default("manch")
+  /// Latest multi-signal intent reading: score, level, converging families, signals with evidence, why now.
+  intentReading Json?
+  name          String
+  domain        String?      @unique
+  industry      String?
+  employees     Int?
+  country       String? // ISO-3166 alpha-2
+  revenueUsd    BigInt?
+  technologies  String[]     @default([])
   /// Company LinkedIn page (normalized) — second matching key after domain.
-  linkedinUrl  String?
+  linkedinUrl   String?
   /// Normalized name (legal suffixes and punctuation removed) — third matching key.
-  nameKey      String?
-  city         String?
+  nameKey       String?
+  city          String?
   /// Products, capabilities, markets (import column "Keywords", ; separated).
-  keywords     String[]     @default([])
+  keywords      String[]     @default([])
   /// Import column "Company Notes" (team notes live in Note).
-  companyNotes String?
-  relationship Relationship @default(prospect)
-  doNotContact Boolean      @default(false)
-  source       String       @default("manual")
+  companyNotes  String?
+  relationship  Relationship @default(prospect)
+  doNotContact  Boolean      @default(false)
+  source        String       @default("manual")
 
   tier             Tier?
   /// true when a person set the tier by hand; otherwise it follows the fit score.
