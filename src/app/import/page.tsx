@@ -21,7 +21,7 @@ export default async function ImportPage() {
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="Stage 1 · Data input"
+        eyebrow="Bring data in"
         title="Import Companies & People"
         sub="One CSV creates linked company and people records, assigns the campaign and LinkedIn sender profile you choose, and starts each person's journey. Re-upload any time — existing companies and people are updated, never duplicated."
         actions={<a href="/import/template" className="btn btn-secondary"><Download size={15} /> Download template</a>}

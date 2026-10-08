@@ -1,28 +1,33 @@
 import Link from "next/link";
 import type { ReviewType } from "@prisma/client";
-import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
+import { Check, ClipboardCheck, ExternalLink, Layers, List, UserCheck, UserX, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, FieldBadge, PageHeader, TierBadge, ago, cx, date } from "@/components/ui";
 import { resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
+import { ViewSwitch } from "@/components/v2";
+import { ApprovalStack } from "./approval-stack";
 
 export const metadata = { title: "Review queue" };
 
 const TYPE_LABEL: Partial<Record<ReviewType, string>> = {
-  draft_approval: "Draft approval",
-  identity_conflict: "Identity conflict",
-  contradiction: "Contradiction",
-  guardrail_failed: "Guardrail failed",
-  budget_exceeded: "Budget reached",
-  no_usable_person: "No usable person",
-  lawful_basis_missing: "Lawful basis",
-  briefing_blocked: "Briefing blocked",
+  draft_approval: "Email to approve",
+  identity_conflict: "Is this the right person?",
+  contradiction: "Sources disagree",
+  guardrail_failed: "Email held by checks",
+  budget_exceeded: "Research budget reached",
+  no_usable_person: "Nobody to contact yet",
+  lawful_basis_missing: "Missing legal basis",
+  briefing_blocked: "Hand-off brief blocked",
   needs_human_reply: "Unclear reply",
-  bounce_breaker: "Bounce breaker",
+  bounce_breaker: "Too many bounces — sending paused",
+  other: "Suggestion or other",
 };
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const type = (await searchParams).type as ReviewType | undefined;
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string }> }) {
+  const sp = await searchParams;
+  const type = sp.type as ReviewType | undefined;
+  const view = sp.view === "list" ? "list" : "focus";
   const [counts, items] = await Promise.all([
     db.reviewItem.groupBy({ by: ["type"], where: { status: "open" }, _count: true }),
     db.reviewItem.findMany({ where: { status: "open", ...(type ? { type } : {}) }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
@@ -33,10 +38,12 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const evidence = await db.evidence.findMany({ where: { id: { in: evidenceIds } } });
   const evById = new Map(evidence.map((e) => [e.id, e]));
   const total = counts.reduce((a, c) => a + c._count, 0);
+  const stack = view === "focus" ? items.filter((r) => r.type === "draft_approval" && drafts.some((d) => d.id === r.draftId)).map((r) => ({ id: r.id, contact: r.contact, account: r.account, draft: drafts.find((d) => d.id === r.draftId)! })) : [];
+  const listItems = view === "focus" ? items.filter((r) => r.type !== "draft_approval") : items;
 
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Human in the loop" title="Review queue" sub="One queue for everything that needs a person. Every item has a reason; nothing is silently dropped. Drafts show next to the evidence they cite." />
+      <PageHeader eyebrow="Only a person can decide these" title="Approvals" sub="Emails come one at a time, with their checks. Other decisions are listed underneath, each with its reason." actions={<ViewSwitch base="/review" params={{ type }} current={view} views={[{ id: "focus", label: "One at a time", icon: <Layers size={13} /> }, { id: "list", label: "Everything", icon: <List size={13} /> }]} />} />
 
       <div className="mb-5 flex flex-wrap gap-2">
         <Link href="/review" className="badge" style={{ background: !type ? "var(--accent-indigo)" : "var(--surface-card)", color: !type ? "#fff" : "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>All · {total}</Link>
@@ -50,8 +57,11 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
       {items.length === 0 ? (
         <Card><Empty icon={<ClipboardCheck size={20} />} title="Nothing waiting" sub="When the pipeline needs a decision, it lands here with its reason." /></Card>
       ) : (
+        <>
+        {stack.length > 0 && <ApprovalStack items={stack} />}
+        {view === "focus" && stack.length > 0 && listItems.length > 0 && <div className="section-label"><span>Other decisions</span><span className="n">{listItems.length}</span></div>}
         <div className="stagger grid gap-4">
-          {items.map((r) => {
+          {listItems.map((r) => {
             const draft = r.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
             const overdue = r.dueAt && r.dueAt < new Date();
             return (
@@ -60,8 +70,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge color="#7C3AED">{TYPE_LABEL[r.type] ?? r.type}</Badge>
-                      <span className="mono muted">stage {r.stage}</span>
-                      {overdue && <Badge color="#DC2626">overdue</Badge>}
+                                            {overdue && <Badge color="#DC2626">overdue</Badge>}
                     </div>
                     <div className="mt-1.5 text-[0.95rem] font-semibold" style={{ color: "var(--text-primary)" }}>{r.reason}</div>
                     <div className="muted mt-0.5 text-xs">
@@ -147,6 +156,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             );
           })}
         </div>
+        </>
       )}
     </div>
   );

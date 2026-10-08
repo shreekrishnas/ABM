@@ -117,3 +117,17 @@ The **look** stays exactly the Trilliant glass system: tokens, atmosphere, glass
 - **One action per row** (Superhuman). Each queue row ends in a small glass pill button that fills with indigo on hover. Never more than one.
 - **Meaning by dot, not fill** (Linear). Signal chips are neutral glass pills with a small coloured dot, so a row of four signals reads calmly. Only intent (Hot / Warm / Quiet) uses a filled tint.
 - **Numbers** (Stripe). Tabular figures; one stat strip per page instead of a grid of KPI cards.
+
+## 9 · Each section has its own view
+
+Each section is shown the way its content works, not as one more list. Every page keeps a **List** switch (`ViewSwitch`, top-right) for the detail view.
+
+| Section | Default view | Why |
+|---|---|---|
+| Today | Queues with one action each | It's a to-do list |
+| Companies | **Priority map**: fit across, buying intent up, four named quadrants (Act now · Signals, weaker fit · Great fit, quiet · Park). Mark size = tier; red ring = hot. | Where to spend time is a position, not a row |
+| People | **Journey board**: 8 lanes (Not contacted → Invited → Connected → Talking → Interested → Meeting → Opportunity · Parked), one card per person and sender | Progress is movement across a path |
+| Approvals | **One at a time**: the top email as an editable card, its checks as chips, Approve & next / Reject, and the rest stacked behind with an "Up next" list | Approving is a sequence of decisions |
+| Emails | **Conversations**: people on the left; on the right, the whole thread as bubbles (ours on the right, theirs on the left; email and LinkedIn together) with each email's status | An email only makes sense in its conversation |
+| Import | **Step rail**: five numbered steps; done = green tick, current = brand gradient | It's a path with an end |
+| Company / Person | Hero with intent and next action; journey timeline | One entity, one story |

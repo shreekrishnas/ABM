@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Mail, MessageSquareReply, Phone, Send, Timer, UserPlus as Linkedin } from "lucide-react";
+import { Mail, MessageSquareReply, MessagesSquare, Phone, Send, Timer, UserPlus as Linkedin } from "lucide-react";
+import { ViewSwitch } from "@/components/v2";
+import { EmailThreads } from "./threads";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { breakerState } from "@/lib/pipeline/stages/engagement";
@@ -11,8 +13,17 @@ export const metadata = { title: "Outreach" };
 
 const CH = { email: Mail, linkedin: Linkedin, call: Phone, task: Timer };
 
-export default async function OutreachPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const tab = (await searchParams).tab ?? "sends";
+export default async function OutreachPage({ searchParams }: { searchParams: Promise<{ tab?: string; view?: string; c?: string }> }) {
+  const sp = await searchParams;
+  const tab = sp.tab ?? "sends";
+  if (sp.view !== "overview") {
+    return (
+      <div className="page-enter">
+        <PageHeader eyebrow="Every email as a conversation" title="Emails" sub="Each person's thread: what the brain wrote, where it stands, and what they said back — email and LinkedIn together." actions={<ViewSwitch base="/outreach" params={{}} current="threads" views={[{ id: "threads", label: "Conversations", icon: <MessagesSquare size={13} /> }, { id: "overview", label: "Sending & sequences", icon: <Send size={13} /> }]} />} />
+        <EmailThreads selected={sp.c} />
+      </div>
+    );
+  }
   const today = new Date(new Date().toISOString().slice(0, 10));
   const [sequences, mailboxes, sentToday, draftCounts, messages, replies, breaker, contactsInSeq] = await Promise.all([
     db.sequence.findMany({ include: { steps: { orderBy: { order: "asc" } }, _count: { select: { enrollments: true } } }, orderBy: { name: "asc" } }),
@@ -31,11 +42,12 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="Stage 11–12"
-        title="Outreach"
+        eyebrow="Sending & sequences"
+        title="Emails"
         sub="Multi-channel sequences by tier. Email sends automatically after approval; LinkedIn and call steps become tasks for the account owner."
         actions={
           <>
+            <ViewSwitch base="/outreach" params={{}} current="overview" views={[{ id: "threads", label: "Conversations", icon: <MessagesSquare size={13} /> }, { id: "overview", label: "Sending & sequences", icon: <Send size={13} /> }]} />
             <ActionButton action={tickAction} className="btn btn-secondary"><Timer size={15} /> Advance sequences</ActionButton>
             <ActionButton action={sendApprovedAction} className="btn btn-brand"><Send size={15} /> Send approved ({D("approved")})</ActionButton>
           </>
@@ -89,7 +101,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="mt-6">
-        <TabLinks base="/outreach" active={tab} tabs={[{ id: "sends", label: "Sends", count: messages.length }, { id: "replies", label: "Replies", count: replies.length }]} />
+        <TabLinks base="/outreach?view=overview" active={tab} tabs={[{ id: "sends", label: "Sends", count: messages.length }, { id: "replies", label: "Replies", count: replies.length }]} />
         {tab === "sends" && (
           <Card pad={false}>
             {messages.length === 0 ? <Empty icon={<Send size={20} />} title="Nothing sent yet" sub="Approve drafts in the review queue, then send." /> : (

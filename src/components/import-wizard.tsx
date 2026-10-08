@@ -257,10 +257,11 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
 
   return (
     <div className="grid gap-4">
-      <ol className="flex flex-wrap gap-1.5 text-xs">
+      <ol className="import-rail" aria-label="Import steps">
         {STEPS.map((s, i) => (
-          <li key={s} className="badge" style={{ background: i === step ? "rgba(99,102,241,0.14)" : i < step ? "rgba(16,185,129,0.12)" : "var(--surface-card-header)", color: i === step ? "#4338CA" : i < step ? "#047857" : "var(--text-muted)" }}>
-            {i + 1}. {s}
+          <li key={s} className={i < step ? "done" : i === step ? "here" : ""} aria-current={i === step ? "step" : undefined}>
+            <span className="n">{i < step ? "✓" : i + 1}</span>
+            <span className="t">{s}</span>
           </li>
         ))}
       </ol>

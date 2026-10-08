@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { BuyingStage, Prisma, Tier } from "@prisma/client";
-import { Building2, Plus, Search, Upload } from "lucide-react";
+import { Building2, List, Map, Plus, Search, Upload } from "lucide-react";
+import { PriorityMap } from "./priority-map";
 import { db } from "@/lib/db";
 import { STAGES } from "@/lib/config";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Meter, PageHeader, STAGE_STYLE, StageBadge, TierBadge, ago, cx } from "@/components/ui";
 import { createAccountAction } from "../actions";
-import { IntentPill, type IntentLevel } from "@/components/v2";
+import { IntentPill, ViewSwitch, type IntentLevel } from "@/components/v2";
 
 export const metadata = { title: "Companies" };
 
@@ -18,6 +19,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const stage = sp.stage as BuyingStage | undefined;
   const tier = sp.tier as Tier | undefined;
   const sort = (sp.sort as keyof typeof SORTS) ?? "engagement";
+  const view = sp.view === "list" ? "list" : "map";
 
   const where: Prisma.AccountWhereInput = {
     mergedIntoId: null,
@@ -46,9 +48,9 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="Company master"
+        eyebrow="Where to spend time"
         title="Companies"
-        sub="Every target company with its tier, buying stage, fit, intent and engagement. One record per company — all channel activity returns here."
+        sub="Fit across, buying intent up. Top-right is where to act now; switch to List for the details."
         actions={
           <div className="flex flex-wrap gap-2">
           <Link href="/import" className="btn btn-secondary"><Upload size={15} /> Import Companies &amp; People</Link>
@@ -82,7 +84,8 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
         <div className="segmented" role="group" aria-label="Tier">
           {[undefined, "T1", "T2", "T3"].map((t) => <Link key={t ?? "all"} href={link({ tier: t })} className={cx(tier === t && "on")}>{t ?? "All tiers"}</Link>)}
         </div>
-        <div className="segmented ml-auto" role="group" aria-label="Sort">
+        <div className="ml-auto"><ViewSwitch base="/accounts" params={{ q, stage, tier, sort }} current={view} views={[{ id: "map", label: "Priority map", icon: <Map size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /></div>
+        <div className="segmented" role="group" aria-label="Sort">
           {Object.entries(SORTS).map(([k, l]) => <Link key={k} href={link({ sort: k })} className={cx(sort === k && "on")}>{l}</Link>)}
         </div>
       </div>
@@ -97,6 +100,9 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
         })}
       </div>
 
+      {view === "map" ? (
+        <PriorityMap accounts={accounts.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} />
+      ) : (
       <Card pad={false}>
         {accounts.length === 0 ? <Empty icon={<Building2 size={20} />} title="No accounts match" sub="Try clearing filters, or import a CSV to add accounts." action={<Link href="/import" className="btn btn-primary btn-sm">Import accounts</Link>} /> : (
           <div className="table-wrap">
@@ -139,6 +145,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           </div>
         )}
       </Card>
+      )}
     </div>
   );
 }

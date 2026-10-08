@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { JourneyStage, Prisma } from "@prisma/client";
-import { Eye, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
+import { Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
+import { ViewSwitch } from "@/components/v2";
+import { JourneyBoard, type BoardCard } from "./journey-board";
 import { db } from "@/lib/db";
 import { JOURNEY_STAGES, STAGE_INFO, stageLabel, CLOSED } from "@/lib/journey/stages";
 import { eligibleToCall, nextAction } from "@/lib/journey/engine";
@@ -13,7 +15,7 @@ export const metadata = { title: "People" };
 const PAGE = 50;
 const NOT_CALLABLE: JourneyStage[] = ["not_contacted", "connection_sent", ...CLOSED];
 
-type SP = { q?: string; campaign?: string; sender?: string; stage?: string; call?: string; page?: string };
+type SP = { q?: string; campaign?: string; sender?: string; stage?: string; call?: string; page?: string; view?: string };
 
 export default async function PeoplePage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -49,17 +51,20 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     return `/people${p.toString() ? `?${p}` : ""}`;
   };
   const bulkReady = Boolean(sp.campaign && sp.sender);
+  const view = sp.view === "list" ? "list" : "board";
+  const boardJourneys = view === "board" ? await db.journey.findMany({ where: { ...scope, contact: { AND: and } }, take: 800, orderBy: { updatedAt: "desc" }, include: { contact: { select: { id: true, fullName: true, titleNormalized: true, title: true, account: { select: { name: true } } } }, sender: { select: { name: true } } } }) : [];
+  const cards: BoardCard[] = boardJourneys.map((j) => ({ journeyId: j.id, contactId: j.contact.id, name: j.contact.fullName, title: j.contact.titleNormalized ?? j.contact.title, company: j.contact.account.name, sender: j.sender.name, stage: j.stage, followUps: j.followUpCount, last: j.lastEngagementAt ?? j.updatedAt }));
 
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="People master"
+        eyebrow="Where every prospect stands"
         title="People"
-        sub={`${total.toLocaleString()} ${total === 1 ? "person" : "people"}${scoped ? " in this campaign / sender" : ""}. One record per person; each sender profile keeps its own journey. Reply count is a metric — the reply's meaning sets the stage.`}
-        actions={<Link href="/import" className="btn btn-brand"><Upload size={15} /> Import Companies &amp; People</Link>}
+        sub={`${total.toLocaleString()} ${total === 1 ? "person" : "people"}. Each column is a step of the LinkedIn journey; click anyone to see their whole story.`}
+        actions={<><ViewSwitch base="/people" params={{ q: sp.q, campaign: sp.campaign, sender: sp.sender, call: sp.call }} current={view} views={[{ id: "board", label: "Journey board", icon: <Columns3 size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /><Link href="/import" className="btn btn-brand"><Upload size={15} /> Import</Link></>}
       />
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
+      {view === "list" && <div className="mb-4 flex flex-wrap gap-1.5">
         {JOURNEY_STAGES.map((k) => {
           const n = stageCounts.find((s) => s.stage === k)?._count ?? 0;
           const active = stage === k;
@@ -69,7 +74,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </Link>
           );
         })}
-      </div>
+      </div>}
 
       <form className="mb-4 flex flex-wrap items-end gap-2" action="/people">
         <div className="relative min-w-[220px] flex-1">
@@ -80,11 +85,12 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         <select name="sender" defaultValue={sp.sender ?? ""} className="glass-select" style={{ maxWidth: 200 }} aria-label="Sender profile"><option value="">All senders</option>{senders.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
         <select name="stage" defaultValue={stage ?? ""} className="glass-select" style={{ maxWidth: 210 }} aria-label="Stage"><option value="">All stages</option>{JOURNEY_STAGES.map((k) => <option key={k} value={k}>{STAGE_INFO[k].n}. {STAGE_INFO[k].label}</option>)}</select>
         <select name="call" defaultValue={sp.call ?? ""} className="glass-select" style={{ maxWidth: 170 }} aria-label="Eligible to call"><option value="">Call: any</option><option value="yes">Eligible to call</option><option value="no">Not eligible</option></select>
+        {view === "board" && <input type="hidden" name="view" value="board" />}
         <button className="btn btn-primary">Filter</button>
         {(sp.q || scoped || stage || sp.call) && <Link href="/people" className="btn btn-ghost">Clear</Link>}
       </form>
 
-      <Card pad={false}>
+      {view === "board" ? <JourneyBoard cards={cards} /> : <Card pad={false}>
         {people.length === 0 ? (
           <div className="card-pad"><Empty icon={<Users size={20} />} title="No people match" sub="Import a CSV of companies and people, or clear the filters." action={<Link href="/import" className="btn btn-primary btn-sm">Import Companies &amp; People</Link>} /></div>
         ) : (
@@ -157,7 +163,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </div>
           </ActionForm>
         )}
-      </Card>
+      </Card>}
 
       {total > PAGE && (
         <div className="mt-4 flex items-center justify-between text-sm">

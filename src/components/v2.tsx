@@ -103,3 +103,18 @@ export function StatStrip({ items }: { items: { label: string; value: ReactNode;
     </div>
   );
 }
+
+/** Switch between a section's own view and the plain list. Links keep the other query params. */
+export function ViewSwitch({ base, params, current, views }: { base: string; params: Record<string, string | undefined>; current: string; views: { id: string; label: string; icon?: ReactNode }[] }) {
+  const href = (id: string) => {
+    const p = new URLSearchParams(Object.entries({ ...params, view: id }).filter(([, v]) => v) as [string, string][]);
+    return `${base}?${p.toString()}`;
+  };
+  return (
+    <div className="segmented" role="tablist" aria-label="View">
+      {views.map((v) => (
+        <Link key={v.id} role="tab" aria-selected={current === v.id} href={href(v.id)} className={current === v.id ? "on inline-flex items-center gap-1.5" : "inline-flex items-center gap-1.5"}>{v.icon}{v.label}</Link>
+      ))}
+    </div>
+  );
+}
