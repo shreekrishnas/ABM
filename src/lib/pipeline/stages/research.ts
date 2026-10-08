@@ -2,11 +2,12 @@
 
 import type { Account, Evidence, FieldStatus, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
+import { sellerContext } from "@/lib/seller";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
 import { queryFor } from "@/lib/adapters/live/research";
-import { evidenceGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
+import { evidenceGate, quoteGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
 import { dataConfidence } from "../scoring";
 import { BudgetExceeded, charge, ensureBudget, logEvent, openReview, recordCost, type RunContext } from "../context";
 import { sha256 } from "../crypto";
@@ -161,7 +162,9 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
     const extracted = await ctx.adapters.llm.extractEvidence(pages, q.key, held.map((e) => ({ id: e.id, claim: e.claim })));
     let kept = 0;
     for (const e of extracted) {
-      const g = evidenceGate(e, strict);
+      const page = pages.find((p) => p.url === e.sourceUrl);
+      const gq = quoteGate(e.quote, page, strict);
+      const g = !gq.pass ? gq : evidenceGate(e, strict);
       if (!g.pass) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.evidence_gate", outcome: "block", reason: `Dropped "${e.claim.slice(0, 60)}": ${g.reason}` });
         continue;
@@ -176,12 +179,13 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
       const engine = pages.find((p) => p.url === e.sourceUrl)?.engine ?? null;
       await db.evidence.create({
         data: {
+          sellerId: sellerContext().pack.id, sellerPackVersion: sellerContext().version,
           accountId: account.id, key: e.key,
           // A confirmation of a fact we hold takes that fact's wording and value, so the
           // two sources group together and corroborate.
           claim: same ? same.claim : e.claim, value: same ? same.value : e.value,
           sourceUrl: e.sourceUrl, sourceType: e.sourceType, publishedAt: e.publishedAt, isNegative: e.isNegative, negativeKind: e.negativeKind,
-          status: "probable", pass, engine,
+          status: "probable", pass, engine, quote: e.quote?.slice(0, 400) ?? null,
         },
       });
       if (same) await logEvent(ctx, { accountId: account.id, stage: S, step: "brain.corroborate", outcome: "pass", reason: `Second source for "${same.claim.slice(0, 80)}": ${e.sourceUrl}` });

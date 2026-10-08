@@ -2,6 +2,7 @@ import type { Adapters } from "./types";
 import { createMockAdapters } from "./mock";
 import { WebResearch } from "./live/research";
 import { OpenRouterLLM } from "./live/openrouter";
+import { DisconnectedSender, MxVerifier, NoProvider, SmtpSender } from "./live/email";
 
 // Each external service goes live on its own once its API key is set in the
 // environment; everything else stays on the deterministic mock. Stages only see
@@ -32,9 +33,9 @@ export function serviceStatus(): ServiceStatus[] {
   return [
     { key: "research", label: "Web research", mode: !off && engines ? "live" : "mock", via: engines || "Exa / Tavily / SerpAPI" },
     { key: "llm", label: "LLM (extract, draft, classify)", mode: !off && llmKey ? "live" : "mock", via: `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` },
-    { key: "provider", label: "Contact data provider", mode: "mock", via: "Apollo (pending)" },
-    { key: "mailbox", label: "Mailbox verification", mode: "mock", via: "MX check (planned, free)" },
-    { key: "email", label: "Email sending", mode: "mock", via: "Gmail / Microsoft 365 (planned)" },
+    { key: "provider", label: "Contact data provider", mode: off ? "mock" : "live", via: off ? "Sample people" : "None connected — only imported people are used (Apollo later)" },
+    { key: "mailbox", label: "Email verification", mode: off ? "mock" : "live", via: "Free MX check (domain accepts email)" },
+    { key: "email", label: "Email sending", mode: !off && env("SMTP_URL") ? "live" : "mock", via: env("SMTP_URL") ? "SMTP mailbox" : off ? "Sample sender" : "Not connected — approved emails are held (set SMTP_URL)" },
     { key: "intent", label: "Intent data", mode: "mock", via: "Website visits (planned)" },
     { key: "notifier", label: "Alerts", mode: "mock", via: "Slack / Teams webhook (planned)" },
   ];
@@ -47,6 +48,11 @@ export function createAdapters(): Adapters {
   if (r.exa || r.tavily || r.serp) a.research = new WebResearch(r);
   const llmKey = env("OPENROUTER_API_KEY");
   if (llmKey) a.llm = new OpenRouterLLM(llmKey);
+  // Real data: never use sample people or a pretend mailbox on real companies.
+  a.provider = new NoProvider();
+  a.mailbox = new MxVerifier();
+  const smtp = env("SMTP_URL");
+  a.email = smtp ? new SmtpSender(smtp, env("SMTP_FROM")) : new DisconnectedSender();
   return a;
 }
 

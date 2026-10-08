@@ -368,37 +368,25 @@ export async function seedDemoAction(): Promise<ActionState> {
   return { ok: true, message: `Sample data loaded: ${counts.accounts} accounts, ${counts.contacts} contacts, ${counts.evidence} facts, ${counts.reviews} review items` };
 }
 
-// ── AI brain ──
+// ── Fact feedback ──
 
 export async function flagFactAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const p = z.object({ evidenceId: z.string().min(1), reason: z.string().trim().min(3, "Say briefly what is wrong").max(300) }).safeParse({ evidenceId: str(fd, "evidenceId"), reason: str(fd, "reason") });
   if (!p.success) return { ok: false, message: p.error.issues[0].message };
   const { flagFact } = await import("@/lib/brain/feedback");
   const r = await flagFact(p.data.evidenceId, p.data.reason);
-  refresh(`/accounts/${r.accountId}`, "/review", "/outreach", "/brain");
+  refresh(`/accounts/${r.accountId}`, "/review", "/outreach");
   return { ok: true, message: `Marked wrong — it won't be used again${r.withdrawn ? `; ${r.withdrawn} draft(s) citing it withdrawn` : ""}` };
 }
 
 export async function unflagFactAction(evidenceId: string): Promise<ActionState> {
   const { unflagFact } = await import("@/lib/brain/feedback");
   const r = await unflagFact(evidenceId);
-  refresh(`/accounts/${r.accountId}`, "/brain");
+  refresh(`/accounts/${r.accountId}`);
   return { ok: true, message: "Fact restored (probable until the next twin update)" };
 }
 
-export async function rethinkAccountAction(accountId: string): Promise<ActionState> {
-  // Re-run from the twin: fresh statuses, a new brain brief, then readiness and drafts.
-  const r = await runAccount(accountId, { fromStage: 7 });
-  refresh(`/accounts/${accountId}`, "/accounts", "/review", "/brain");
-  return { ok: r.status !== "error", message: `Brain re-thought this account — ${r.reason}` };
-}
 
-export async function generateInsightsAction(): Promise<ActionState> {
-  const { generateInsights } = await import("@/lib/brain/insights");
-  const i = await generateInsights();
-  refresh("/brain");
-  return { ok: true, message: `New summary (${i.model}): ${i.headline}` };
-}
 
 // ── People journeys ──
 

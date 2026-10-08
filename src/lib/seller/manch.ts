@@ -111,18 +111,34 @@ export const MANCH: SellerProfile = {
   ],
 
   researchQuestions: [
-    { key: "trigger", question: "What changed recently that creates a master-data or onboarding need (ERP/S4HANA migration, distributor or seller expansion, gig hiring surge, new compliance mandate, M&A, AI programme)?", importance: "high" },
-    { key: "owner_function", question: "Which function owns partner/vendor onboarding and master data (IT/data, procurement, finance, sales operations)?", importance: "high" },
-    { key: "negative", question: "Any layoffs, hiring freeze, acquisition, insolvency, or a recently signed competing MDM programme?", importance: "high" },
-    { key: "tooling", question: "Which ERP, MDM, workflow and KYC/eSign tools do they use today?", importance: "medium" },
-    { key: "partner_network", question: "How large is their external network (distributors, retailers, vendors, sellers, gig workers) and how fast is it growing?", importance: "medium" },
-    { key: "culture", question: "What is the company culture like?", importance: "low" },
+    { key: "trigger", label: "Recent trigger", trigger: true, question: "What changed recently that creates a master-data or onboarding need (ERP/S4HANA migration, distributor or seller expansion, gig hiring surge, new compliance mandate, M&A, AI programme)?", importance: "high",
+      search: { terms: "(SAP S/4HANA OR ERP migration OR distributors OR dealer network OR expansion OR acquisition OR funding OR digital transformation OR vendor onboarding)", days: 120, news: true } },
+    { key: "owner_function", label: "Who owns onboarding", question: "Which function owns partner/vendor onboarding and master data (IT/data, procurement, finance, sales operations)?", importance: "high",
+      search: { terms: "careers (master data OR procurement OR vendor onboarding OR distributor onboarding OR SAP)", days: 365, news: false },
+      extract: "Which function owns partner/vendor onboarding or master data." },
+    { key: "negative", label: "Negative news", question: "Any layoffs, hiring freeze, acquisition, insolvency, or a recently signed competing MDM programme?", importance: "high" },
+    { key: "tooling", label: "Systems in use", question: "Which ERP, MDM, workflow and KYC/eSign tools do they use today?", importance: "medium",
+      search: { terms: '(SAP OR Oracle OR "Microsoft Dynamics" OR Informatica OR "master data management")', days: 730, news: false },
+      extract: "ERP, MDM, workflow, KYC or eSign tools the company uses. value = comma-separated tool names." },
+    { key: "partner_network", label: "Partner network size", question: "How large is their external network (distributors, retailers, vendors, sellers, gig workers) and how fast is it growing?", importance: "medium",
+      search: { terms: "(distributors OR dealers OR retail outlets OR suppliers OR vendors OR delivery partners)", days: 730, news: false },
+      extract: "Size of the external network (distributors, dealers, retailers, vendors, delivery partners). value = the number only, digits." },
+    { key: "culture", label: "Culture", question: "What is the company culture like?", importance: "low" },
     // Deep dive — T1 companies, and any company where someone has engaged on LinkedIn.
-    { key: "erp_program", question: "Is an ERP / SAP S/4HANA, MDM or master-data programme underway — scope, timeline, implementation partner?", importance: "medium", depth: "deep" },
-    { key: "expansion", question: "Are they adding distributors, dealers, retailers, plants, markets, sellers or delivery partners?", importance: "medium", depth: "deep" },
-    { key: "leadership", question: "Did they appoint a new CIO, CDO, CPO, CFO or head of master data / procurement in the last 12 months?", importance: "medium", depth: "deep" },
-    { key: "compliance", question: "What regulatory or audit pressure applies — GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits?", importance: "medium", depth: "deep" },
+    { key: "erp_program", label: "ERP / MDM programme", trigger: true, question: "Is an ERP / SAP S/4HANA, MDM or master-data programme underway — scope, timeline, implementation partner?", importance: "medium", depth: "deep",
+      search: { terms: '("SAP S/4HANA" OR "ERP implementation" OR "master data" OR MDM OR "digital transformation") partner rollout', days: 365, news: true },
+      extract: "An ERP / SAP S/4HANA, MDM or master-data programme: what, scope, timeline, implementation partner. One item per programme." },
+    { key: "expansion", label: "Expansion", trigger: true, question: "Are they adding distributors, dealers, retailers, plants, markets, sellers or delivery partners?", importance: "medium", depth: "deep",
+      search: { terms: '(expansion OR "new plant" OR distributors OR dealers OR "new markets" OR sellers)', days: 180, news: true },
+      extract: "Expansion of distributors, dealers, retailers, plants, markets, sellers or delivery partners. One item per announcement; include numbers when stated." },
+    { key: "leadership", label: "Leadership change", trigger: true, question: "Did they appoint a new CIO, CDO, CPO, CFO or head of master data / procurement in the last 12 months?", importance: "medium", depth: "deep",
+      search: { terms: 'appoints (CIO OR CDO OR "Chief Digital Officer" OR CPO OR CFO OR "head of procurement")', days: 365, news: true },
+      extract: "A new CIO, CDO, CPO, CFO, head of master data or head of procurement appointed. Claim = who, which role, when." },
+    { key: "compliance", label: "Compliance pressure", question: "What regulatory or audit pressure applies — GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits?", importance: "medium", depth: "deep",
+      search: { terms: '(GST e-invoicing OR KYC OR "data protection" OR DPDP OR audit OR compliance)', days: 365, news: false },
+      extract: "Regulatory or audit pressure the company faces (GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits)." },
   ],
+
 
   messaging: {
     cta: "Worth a 20-minute call to see how agents configure this in weeks, not quarters?",
@@ -142,5 +158,22 @@ export const MANCH: SellerProfile = {
     name: "Team Manch",
     // TODO(seller): replace with the full registered postal address (required in every email).
     address: "Bengaluru, Karnataka, India",
+  },
+
+  tone: ["Plain, specific and short: under 120 words", "Peer-to-peer, never salesy; no hype words", "One idea per email, one clear question at the end"],
+
+  bannedClaims: [
+    "guaranteed results or guaranteed ROI",
+    "named customer results that are not public references",
+    "being the only or the best platform",
+    "claims about the prospect's internal problems stated as fact",
+    "pricing or discounts",
+  ],
+
+  autonomy: "review_all",
+
+  ruleHints: {
+    techHypothesis: "An existing {tech} means validated master data must reach it cleanly — Manch integrates rather than replaces it",
+    toolingPain: "Fragmented or manual master data across {tools}",
   },
 };

@@ -4,7 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
-import type { BriefingInput, BriefingOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
+import type { BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
 import { inferFunction } from "@/lib/pipeline/normalize";
@@ -26,7 +26,7 @@ export class OpenRouterLLM implements LLM {
     this.model = model;
   }
 
-  private async json<T>(schema: z.ZodType<T>, system: string, user: string, maxTokens = 900): Promise<T> {
+  private async call(system: string, messages: { role: "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
     const res = await fetchJson<{ choices?: { message?: { content?: string } }[] }>("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -40,44 +40,46 @@ export class OpenRouterLLM implements LLM {
         temperature: 0.2,
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: `${system}\nRespond with a single JSON object only.` },
-          { role: "user", content: user },
-        ],
+        messages: [{ role: "system", content: `${system}\nRespond with a single JSON object only.` }, ...messages],
       }),
       timeoutMs: 45_000,
     });
-    const text = res.choices?.[0]?.message?.content ?? "";
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
-    } catch {
-      throw new Error(`OpenRouter returned non-JSON output`);
+    return res.choices?.[0]?.message?.content ?? "";
+  }
+
+  /** Typed output: validated against the schema; invalid output is retried once with the validation error, then the caller falls back. */
+  private async json<T>(schema: z.ZodType<T>, system: string, user: string, maxTokens = 900): Promise<T> {
+    const messages: { role: "user" | "assistant"; content: string }[] = [{ role: "user", content: user }];
+    let lastError = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const text = await this.call(system, messages, maxTokens);
+      try {
+        return schema.parse(JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
+      } catch (e) {
+        lastError = e instanceof z.ZodError ? e.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") : "not valid JSON";
+        messages.push({ role: "assistant", content: text.slice(0, 4000) }, { role: "user", content: `That output was invalid (${lastError}). Return the corrected JSON object only.` });
+      }
     }
-    return schema.parse(parsed);
+    throw new Error(`OpenRouter output invalid after retry: ${lastError}`);
   }
 
   async extractEvidence(pages: ResearchPage[], key: string, known: { id: string; claim: string }[] = []): Promise<ExtractedEvidence[]> {
     if (!pages.length) return [];
     const sp = seller();
-    const guide: Record<string, string> = {
+    const fixed: Record<string, string> = {
       trigger: `Recent events that create a need for ${sp.name} (${sp.triggers.map((t) => t.label).join("; ")}). One item per distinct event.`,
       negative: `Only explicit negative events. kind must be one of: ${NEGATIVE.join(", ")}.`,
-      owner_function: `Which function owns partner/vendor onboarding or master data. value must be one of: ${FUNCTIONS.join(", ")}.`,
-      tooling: "ERP, MDM, workflow, KYC or eSign tools the company uses. value = comma-separated tool names.",
-      partner_network: "Size of the external network (distributors, dealers, retailers, vendors, delivery partners). value = the number only, digits.",
-      erp_program: "An ERP / SAP S/4HANA, MDM or master-data programme: what, scope, timeline, implementation partner. One item per programme.",
-      expansion: "Expansion of distributors, dealers, retailers, plants, markets, sellers or delivery partners. One item per announcement; include numbers when stated.",
-      leadership: "A new CIO, CDO, CPO, CFO, head of master data or head of procurement appointed. Claim = who, which role, when.",
-      compliance: "Regulatory or audit pressure the company faces (GST e-invoicing, RBI KYC, DPDP, SOX, supplier audits).",
     };
+    const q = sp.researchQuestions.find((x) => x.key === key);
+    const guide: Record<string, string> = { [key]: fixed[key] ?? q?.extract ?? q?.question ?? key };
+    if (key === "owner_function") guide[key] += ` value must be one of: ${FUNCTIONS.join(", ")}.`;
     const schema = z.object({
-      items: z.array(z.object({ page: z.number().int(), claim: z.string().min(5).max(240), value: z.string().max(120).nullable().optional(), kind: z.string().nullable().optional(), sameAs: z.string().nullable().optional() })).max(8),
+      items: z.array(z.object({ page: z.number().int(), claim: z.string().min(5).max(240), quote: z.string().max(400).nullable().optional(), value: z.string().max(120).nullable().optional(), kind: z.string().nullable().optional(), sameAs: z.string().nullable().optional() })).max(8),
     });
     const out = await this.json(
       schema,
-      "You extract facts from web pages for B2B account research. Extract only what a page states explicitly — never infer or combine pages. Write each claim as one short sentence that starts with the company name. If nothing relevant is stated, return {\"items\": []}.",
-      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
+      "You extract facts from web pages for B2B account research. Extract only what a page states explicitly — never infer or combine pages. For every item, copy into \"quote\" the exact sentence from the page that supports it, character for character. Write each claim as one short sentence that starts with the company name. If nothing relevant is stated, return {\"items\": []}.",
+      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
     );
     return out.items.flatMap((it) => {
       const p = pages[it.page];
@@ -89,7 +91,7 @@ export class OpenRouterLLM implements LLM {
       if (key === "owner_function") value = value && (FUNCTIONS as readonly string[]).includes(value.toLowerCase()) ? value.toLowerCase() : null;
       if (key === "partner_network") value = value?.replace(/[^\d]/g, "") || null;
       const sameAsFactId = it.sameAs && known.some((k) => k.id === it.sameAs) ? it.sameAs : null;
-      return [{ key, claim: it.claim, value, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative, negativeKind: kind, sameAsFactId }];
+      return [{ key, claim: it.claim, value, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative, negativeKind: kind, sameAsFactId, quote: it.quote ?? null }];
     });
   }
 
@@ -124,20 +126,32 @@ export class OpenRouterLLM implements LLM {
     const out = await this.json(
       schema,
       [
-        `You write first-touch B2B emails for ${input.seller.name}. Plain, specific, under 120 words, no hype, no fake familiarity.`,
+        `You write first-touch B2B emails for ${input.seller.name}. ${(input.tone?.length ? input.tone : ["Plain, specific, under 120 words, no hype, no fake familiarity"]).join(". ")}.`,
+        input.bannedClaims?.length ? `Never claim: ${input.bannedClaims.join("; ")}.` : "",
         "Rules:",
         "1. Every sentence about the prospect must come from the FACTS list and be listed in claims with that fact's id.",
         "2. Do not mention anything about the prospect that is not in FACTS. Do not guess numbers.",
         "3. Use the SELLER PITCH for what the seller does; you may shorten it but must not add new claims.",
         "4. End with the CTA. Do not add a signature, address or unsubscribe line — the system appends them.",
         "5. If an ANGLE is given, build the email around that pain and capability for this person's role; the pain is a hypothesis, so phrase it as a question or 'teams like yours often…', never as a fact about them.",
-        attempt > 1 ? "6. A previous attempt failed fact-checking: cite a fact id for every prospect claim and keep each claim's wording close to the fact." : "",
+        attempt > 1 && !input.revise ? "6. A previous attempt failed fact-checking: cite a fact id for every prospect claim and keep each claim's wording close to the fact." : "",
+        input.revise ? "6. You are REWRITING the previous version below. Fix every listed issue, keep what works, and keep every remaining claim tied to a fact id." : "",
       ].join("\n"),
-      `Recipient: ${input.firstName ?? "there"}${input.title ? `, ${input.title}` : ""} at ${input.company}\nStep ${input.stepOrder}: ${input.instruction}\n\nFACTS:\n${input.facts.map((f) => `${f.id} [${f.key}] ${f.claim}`).join("\n")}${input.angle ? `\n\nANGLE for a ${input.angle.persona}: pain (hypothesis) = ${input.angle.pain}; ${input.seller.name} capability = ${input.angle.capability}${input.angle.proofPoint ? `; proof point = ${input.angle.proofPoint}` : ""}` : ""}${input.learnings?.length ? `\n\nWHAT HAS WORKED BEFORE (style advice only):\n- ${input.learnings.join("\n- ")}` : ""}\n\nSELLER PITCH: ${input.seller.pitch}\nCTA: ${input.seller.cta}\n\nReturn {"subject":"...","body":"...","claims":[{"text":"<sentence from body>","factIds":["<id>"]}]}`,
+      `Recipient: ${input.firstName ?? "there"}${input.title ? `, ${input.title}` : ""} at ${input.company}\nStep ${input.stepOrder}: ${input.instruction}\n\nFACTS:\n${input.facts.map((f) => `${f.id} [${f.key}] ${f.claim}`).join("\n")}${input.angle ? `\n\nANGLE for a ${input.angle.persona}: pain (hypothesis) = ${input.angle.pain}; ${input.seller.name} capability = ${input.angle.capability}${input.angle.proofPoint ? `; proof point = ${input.angle.proofPoint}` : ""}` : ""}${input.learnings?.length ? `\n\nWHAT HAS WORKED BEFORE (style advice only):\n- ${input.learnings.join("\n- ")}` : ""}\n\nSELLER PITCH: ${input.seller.pitch}\nCTA: ${input.seller.cta}${input.revise ? `\n\nPREVIOUS VERSION\nSubject: ${input.revise.subject}\n${input.revise.body.split("\n\n" + input.sender.name)[0]}\n\nISSUES TO FIX:\n- ${input.revise.issues.join("\n- ")}` : ""}\n\nReturn {"subject":"...","body":"...","claims":[{"text":"<sentence from body>","factIds":["<id>"]}]}`,
       700,
     );
     const footer = `\n\n${input.sender.name}\n${input.sender.company} · ${input.sender.address}\n\nReply "unsubscribe" and I won't email again.`;
     return { subject: out.subject, body: out.body.trim() + footer, angle: input.facts[0]?.key ?? null, claims: out.claims };
+  }
+
+  async critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput> {
+    const schema = z.object({ pass: z.boolean(), issues: z.array(z.string().min(3).max(240)).max(6), strengths: z.array(z.string().max(200)).max(4) });
+    return this.json(
+      schema,
+      "You are a strict reviewer of B2B cold emails. Judge only the email given. Fail it for: tone rules broken, any banned claim, a statement about the prospect presented as fact when it is a guess, not relevant to the recipient's role or the stated angle, or longer than 150 words before the signature. Each issue must say exactly what to change.",
+      `Recipient: ${input.recipientTitle ?? "unknown role"} at ${input.company}\nAngle: ${input.angle ?? "none"}\nTone rules: ${input.tone.join("; ")}\nBanned claims: ${input.bannedClaims.join("; ") || "none"}\n\nSubject: ${input.subject}\n${input.body}\n\nReturn {"pass": true|false, "issues": ["..."], "strengths": ["..."]}`,
+      500,
+    );
   }
 
   async classifyReply(text: string) {

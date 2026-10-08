@@ -107,7 +107,7 @@ describe("brain: pure rules", () => {
 
   it("rule insights refuse to conclude from small samples", () => {
     const s = ruleInsights({
-      generatedAt: "", research: [], creditsSavedUsd: 0, minSample: 10,
+      generatedAt: "", research: [], creditsSavedUsd: 0, minSample: 10, reviewer: { byUseCase: [], byRewrites: [] }, linkedin: { bySender: [], byRole: [] },
       messaging: { byUseCase: [{ label: "a", n: 3, hits: 3, rate: 1 }, { label: "b", n: 2, hits: 0, rate: 0 }], byRole: [], byTrigger: [], byTier: [] },
       review: { reviewed: 2, approvedAsIs: 2, edited: 0, rejected: 0, guardrailBlocked: 0, claimChecks: 0, claimsUnsupported: 0 },
       facts: { total: 0, flagged: 0, byEngine: [] }, fit: [],
@@ -173,13 +173,13 @@ describe("brain: pipeline", () => {
     setAdapters(a);
     const id = await account("strong-t3.com", [["Asha Mehta", "VP Data"]], { employees: 250, industry: "telecom", country: "US" });
     await db.account.update({ where: { id }, data: { tier: "T3", tierLocked: true } });
-    const { CONFIG } = await import("@/lib/config");
-    const prev = CONFIG.approval.requireHumanForT3;
-    (CONFIG.approval as { requireHumanForT3: boolean }).requireHumanForT3 = false;
+    const { SELLERS } = await import("@/lib/seller");
+    const prev = SELLERS.manch.autonomy;
+    SELLERS.manch.autonomy = "auto_t3";
     try {
       await runAccount(id);
     } finally {
-      (CONFIG.approval as { requireHumanForT3: boolean }).requireHumanForT3 = prev;
+      SELLERS.manch.autonomy = prev;
     }
     const drafts = await db.draft.findMany({ where: { contact: { accountId: id } } });
     expect(drafts.length).toBeGreaterThan(0);

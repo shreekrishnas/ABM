@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebResearch, classifySource, queryFor } from "@/lib/adapters/live/research";
+import { NoProvider } from "@/lib/adapters/live/email";
 import { OpenRouterLLM } from "@/lib/adapters/live/openrouter";
 import { ApiError, parseLooseDate } from "@/lib/adapters/live/http";
 import { createAdapters, serviceStatus } from "@/lib/adapters";
@@ -122,8 +123,14 @@ describe("live LLM (OpenRouter)", () => {
   });
 
   it("rejects malformed model output", async () => {
-    stubFetch(() => llmReply("not json at all"));
-    await expect(new OpenRouterLLM("or-test").classifyReply("hi")).rejects.toThrow(/non-JSON/);
+    let calls = 0;
+    stubFetch(() => {
+      calls++;
+      return llmReply("not json at all");
+    });
+    // Invalid output is retried once with the validation error, then the caller falls back.
+    await expect(new OpenRouterLLM("or-test").classifyReply("hi")).rejects.toThrow(/invalid after retry: not valid JSON/);
+    expect(calls).toBe(2);
     stubFetch(() => llmReply({ class: "maybe" }));
     await expect(new OpenRouterLLM("or-test").classifyReply("hi")).rejects.toThrow();
   });
@@ -151,7 +158,10 @@ describe("adapter selection", () => {
     expect(a.research.live).toBe(true);
     expect(a.llm).not.toBeInstanceOf(OpenRouterLLM);
     const s = Object.fromEntries(serviceStatus().map((x) => [x.key, x.mode]));
-    expect(s).toMatchObject({ research: "live", llm: "mock", provider: "mock", email: "mock" });
+    expect(s).toMatchObject({ research: "live", llm: "mock", provider: "live", mailbox: "live", email: "mock" });
+    // Real data never gets sample people, and nothing is "sent" without a real mailbox.
+    expect(a.provider).toBeInstanceOf(NoProvider);
+    expect(a.email.connected).toBe(false);
   });
 
   it("ADAPTER_MODE=mock forces every service onto mocks", () => {

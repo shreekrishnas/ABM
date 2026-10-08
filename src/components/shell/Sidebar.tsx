@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles, BrainCircuit,
+  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles,
 } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; count?: keyof Counts };
@@ -16,7 +16,6 @@ const GROUPS: Item[][] = [
     { href: "/", label: "Overview", icon: LayoutDashboard },
     { href: "/accounts", label: "Companies", icon: Building2 },
     { href: "/people", label: "People", icon: Users },
-    { href: "/brain", label: "AI Brain", icon: BrainCircuit },
     { href: "/pipeline", label: "Pipeline", icon: Workflow },
     { href: "/review", label: "Review queue", icon: ClipboardCheck, count: "review" },
   ],

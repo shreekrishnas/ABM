@@ -33,7 +33,7 @@ export function ReplyAssistant({ contactId, campaignId, senderId }: { contactId:
         </div>
       ) : (
         <div className="grid gap-2 rounded-xl px-3 py-3 text-sm" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-          <div className="micro">Suggested by {s.by === "rules" ? "rules" : s.by === "mock" ? "the sample brain" : s.by}</div>
+          <div className="micro">Suggested by {s.by === "rules" ? "rules" : s.by === "mock" ? "sample rules" : s.by}</div>
           <div className="secondary">{s.reason}. <b style={{ color: "var(--text-primary)" }}>Next:</b> {s.nextAction}</div>
           <input type="hidden" name="suggestedBy" value={s.by} />
           <div className="flex flex-wrap items-end gap-2">

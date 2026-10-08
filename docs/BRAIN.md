@@ -1,35 +1,53 @@
-# The AI brain
+# The ABM brain (v2) — backend only
 
-One model (OpenRouter, default `openai/gpt-4o-mini`) runs the whole flow for the client (Manch).
-Every step hands the next one structured, validated output; nothing about a prospect is ever
-taken from the model without a source.
+The brain has no screen of its own. It runs in the backend on every import and on a daily
+schedule (Vercel Cron → `GET /api/v1/tick`, protected by `CRON_SECRET`). Its results show
+up where people already work: company pages (facts, account summary, drafts, audit trail),
+the Review queue and People.
 
-| Step | Stage | What the brain does | What code enforces |
-|---|---|---|---|
-| Plan | 5 | Picks the questions that matter for this company, writes a company-specific query, chooses the engine, states hypotheses | High-importance questions can't be dropped; engine must exist; query must name the company; learned routing wins once an engine has 10+ searches |
-| Search once | 6 | — | One engine per question, next engine only if the first fails or finds nothing; a question searched in the last 7 days is served from cache; every engine call is logged and charged |
-| Extract | 6 | Pulls facts from pages and spots when a page reports a fact we already hold | URL and date come from the page; evidence gate; same-source dedupe |
-| Verify | 10 → 6 | Second source only for a single-source trigger, with a claim-specific query on a different engine | One follow-up per account; corroboration groups the two sources so the fact becomes verified |
-| Connect | 7 | Account brief: verdict, why now, pain points → Manch use case, angle per buying role, hypotheses, risks, next action | Pain points citing unknown facts or unknown use cases are dropped |
-| Angle per person | 11 | — | Each person starts from their role's angle; colleagues get unused pain points first |
-| Write + check | 11 | Writes the email around the angle; a second pass checks each claim against its cited fact | Fact guardrail + claim check, regenerate up to 3×, then a person; if the checker is down, a person reviews even T3 |
-| Learn | weekly | Summarises what works / doesn't from the numbers | No conclusion from fewer than 10 examples; research routing applied automatically; messaging learnings go to the writer as style advice; ICP changes wait for a person |
+## Seller packs (`src/lib/seller`)
+Every account has a `sellerId`. A run loads that seller's pack, validates it
+(`seller/schema.ts`) and makes it the brain's identity for the whole run (`withSeller`).
+ICP, research questions and search terms, extraction guides, triggers, use cases, proof,
+tone, banned claims, sender address and autonomy level all live in the pack. Every fact,
+brief, draft, signal and decision stores `sellerId` + pack version. Adding a seller =
+adding a pack; `tests/brain-v2.test.ts` fails if core code mentions a seller.
 
-If the model fails at plan, brief or insight time, a rule-based brain takes over and the run
-continues; the fallback is recorded (`planner`/`model` = `rules`).
+## Main brain and signal bus (`brain/bus.ts`, `pipeline/orchestrator.ts`)
+Modules publish typed, stored signals (`BrainSignal`): seller.context, run.planned,
+fit.scored, research.done, evidence.judged, brief.ready, verdict.conflict,
+readiness.decided, draft.critiqued, draft.rewritten, draft.ready, run.finished,
+learning.summary, proposal.created. `replay({accountId})` replays a run.
+Conflict rule: if the strategist says strong and the evidence judge says weak, the weaker
+verdict wins until re-research.
 
-## Accuracy
+## Decisions with both sides (`brain/decisions.ts`)
+Each judgement stores the choice, case for, case against, evidence for each, a confidence,
+and whether the brain acted or stopped at a fence (`Decision`).
 
-The AI Brain page tracks three accuracy numbers against a 98% target:
+## Truth before speed
+A fact is kept only with an exact quote that code finds on the source page (`quoteGate`).
+The claim checker sees each fact with its quote.
 
-- **Claims supported** — share of email claims the checker confirmed against their source.
-- **Approved as written** — share of reviewed drafts approved without edits.
-- **Fact precision** — share of facts not marked wrong. Marking a fact wrong (company page →
-  flag icon) removes it at once, withdraws unsent drafts that cite it, and counts against the
-  engine that found it.
+## Writer → critic panel → rewriter (`stages/outreach.ts`)
+Critics: truth (code), truth (model, with quotes), compliance + banned claims (code),
+style/relevance (model). Failing issues go to the rewriter; at most
+`CONFIG.loops.maxDraftVersions` versions, then a person. Autonomy level (pack):
+review_all | auto_t3 | auto_all — enforced in code; a critic that could not run always
+means a person reviews.
 
-## Cost controls
+## Email channel (only outbound channel)
+Live mode never uses sample people: `NoProvider` (only imported people until Apollo),
+free MX check (`probable`, never `verified`), SMTP sending when `SMTP_URL` is set; without
+it approved emails are held, never pretended sent. LinkedIn, website intent and calling
+are parked.
 
-Approximate per-search costs live in `CONFIG.costsUsd.search`; each tier has a budget per
-account (`CONFIG.budgetsUsd`). A search only starts if the most expensive engine still fits in
-the budget. Sample data always runs on mocks and never spends credits.
+## Model output
+Every LLM call is schema-validated; invalid output is retried once with the validation
+error, then the module falls back to rules or a person.
+
+## Learning
+Daily: reviewer verdicts (by use case, by rewrites), LinkedIn progress (by sender, role),
+fact precision, engine yield, email replies. Small samples are labelled tentative. Engine
+routing is applied automatically; everything else becomes a `Proposal` + Review item —
+never applied without a person and a test.

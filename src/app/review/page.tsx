@@ -93,7 +93,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     <div className="lg:col-span-2">
                       {(draft.useCase || draft.painPoint) && (
                         <div className="mb-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-                          <div className="micro mb-1">Brain angle for this person</div>
+                          <div className="micro mb-1">Angle for this person</div>
                           <div className="secondary">{draft.useCase?.replace(/_/g, " ")}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</div>
                         </div>
                       )}

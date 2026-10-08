@@ -215,6 +215,8 @@ model User {
 
 model Account {
   id           String       @id @default(cuid())
+  /// The seller this account is researched and contacted for (a seller pack id). A run never mixes sellers.
+  sellerId     String       @default("manch")
   name         String
   domain       String?      @unique
   industry     String?
@@ -417,26 +419,30 @@ model FieldState {
 }
 
 model Evidence {
-  id             String      @id @default(cuid())
-  accountId      String
-  account        Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  key            String // question key: trigger, owner_function, negative, tooling, size ...
-  claim          String // human-readable fact
-  value          String? // normalized value for contradiction checks
-  sourceUrl      String
-  sourceType     String // official | press | news | careers | provider | review_site | mock
-  publishedAt    DateTime
-  isNegative     Boolean     @default(false)
-  negativeKind   String? // layoffs | hiring_freeze | acquired | bankrupt | competitor_signed
-  status         FieldStatus @default(probable)
-  supersededById String?
-  pass           String      @default("main") // main | followup | reopen | refresh
+  id                String      @id @default(cuid())
+  accountId         String
+  account           Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  key               String // question key: trigger, owner_function, negative, tooling, size ...
+  claim             String // human-readable fact
+  value             String? // normalized value for contradiction checks
+  sourceUrl         String
+  sourceType        String // official | press | news | careers | provider | review_site | mock
+  publishedAt       DateTime
+  isNegative        Boolean     @default(false)
+  negativeKind      String? // layoffs | hiring_freeze | acquired | bankrupt | competitor_signed
+  status            FieldStatus @default(probable)
+  supersededById    String?
+  pass              String      @default("main") // main | followup | reopen | refresh
   /// Search engine that found the source (exa | tavily | serp | mock).
-  engine         String?
+  engine            String?
   /// A person marked this fact as wrong. Feeds fact-precision on the AI Brain page.
-  flagged        Boolean     @default(false)
-  flagReason     String?
-  createdAt      DateTime    @default(now())
+  flagged           Boolean     @default(false)
+  flagReason        String?
+  /// Exact supporting sentence copied from the source page (checked by code to appear on the page).
+  quote             String?
+  sellerId          String?
+  sellerPackVersion String?
+  createdAt         DateTime    @default(now())
 
   @@index([accountId, key])
 }
@@ -482,13 +488,15 @@ model ResearchQuery {
 /// The brain's synthesis of an account: pain points tied to evidence, persona angles,
 /// hypotheses for discovery, risks and the next best action.
 model AccountBrief {
-  id        String   @id @default(cuid())
-  accountId String
-  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  version   Int
-  brief     Json
-  model     String
-  createdAt DateTime @default(now())
+  id                String   @id @default(cuid())
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  version           Int
+  brief             Json
+  model             String
+  sellerId          String?
+  sellerPackVersion String?
+  createdAt         DateTime @default(now())
 
   @@unique([accountId, version])
 }
@@ -600,6 +608,12 @@ model Draft {
   blockReason       String?
   reviewerNote      String?
   reviewedAt        DateTime?
+  /// Critic panel verdicts on the final version: [{ critic, pass, issues[] }]
+  critique          Json?
+  /// How many times the rewriter revised this draft after critique.
+  rewrites          Int         @default(0)
+  sellerId          String?
+  sellerPackVersion String?
   createdAt         DateTime    @default(now())
 
   message Message?
@@ -852,4 +866,68 @@ model JourneyEvent {
   createdAt  DateTime      @default(now())
 
   @@index([journeyId, occurredAt])
+}
+
+/// Typed, stored, replayable signals between brain modules. Modules never call each other; they publish here.
+model BrainSignal {
+  id          String   @id @default(cuid())
+  runId       String
+  accountId   String?
+  sellerId    String
+  packVersion String
+  /// e.g. seller.context, run.planned, research.done, evidence.judged, brief.ready, readiness.decided, draft.critiqued, draft.ready, verdict.conflict
+  type        String
+  /// Module that published it.
+  module      String
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([runId])
+  @@index([type, createdAt])
+}
+
+/// A judgement with both sides: what was chosen, the case for and against, the evidence for each, and a confidence.
+model Decision {
+  id              String   @id @default(cuid())
+  runId           String?
+  accountId       String?
+  contactId       String?
+  draftId         String?
+  module          String
+  question        String
+  choice          String
+  caseFor         String
+  caseAgainst     String
+  evidenceFor     String[] @default([])
+  evidenceAgainst String[] @default([])
+  confidence      Float
+  /// acted = the brain did it itself; needs_human = it stopped inside a fence and asked.
+  autonomy        String
+  sellerId        String
+  packVersion     String
+  createdAt       DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([module, createdAt])
+}
+
+/// Self-improver proposals. Never applied automatically: a person accepts, and a test must cover the change.
+model Proposal {
+  id         String    @id @default(cuid())
+  sellerId   String
+  /// research | messaging | icp | rules
+  area       String
+  change     String
+  rationale  String
+  evidence   String
+  sampleSize Int
+  /// Below the sample threshold the finding is labelled tentative.
+  tentative  Boolean
+  /// proposed | accepted | rejected
+  status     String    @default("proposed")
+  createdAt  DateTime  @default(now())
+  decidedAt  DateTime?
+
+  @@index([status, createdAt])
 }

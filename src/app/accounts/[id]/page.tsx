@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
-import { AlertTriangle, ArrowLeft, BrainCircuit, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG, STAGES } from "@/lib/config";
 import { seller } from "@/lib/seller";
@@ -10,7 +10,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
 import { addNoteAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
-import { BrainTab, VERDICT_COLOR } from "./brain-tab";
+const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
@@ -116,7 +116,6 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         tabs={[
           { id: "overview", label: "Evidence twin" },
           { id: "intake", label: "Data → research" },
-          { id: "brain", label: "AI brain" },
           { id: "people", label: "Buying group", count: a.contacts.length },
           { id: "outreach", label: "Drafts", count: drafts.length },
           { id: "activity", label: "Activity & notes", count: a._count.signals + a.notes.length },
@@ -137,7 +136,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                         <span className="text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
                         <span className="flex items-center gap-1.5">
                           <FieldBadge status={f.status as FieldStatus} />
-                          <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Teach the brain">
+                          <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Feedback">
                             <ActionForm action={flagFactAction} className="grid gap-3">
                               <input type="hidden" name="evidenceId" value={f.id} />
                               <p className="secondary text-sm">&ldquo;{f.claim}&rdquo;</p>
@@ -183,7 +182,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           </div>
           <div className="grid content-start gap-5">
             {brief && (
-              <Card title={<span className="inline-flex items-center gap-2"><BrainCircuit size={16} style={{ color: "#7C3AED" }} /> Brain verdict</span>} action={<Link href={`/accounts/${a.id}?tab=brain`} className="btn btn-secondary btn-sm">Open</Link>}>
+              <Card title="Account summary" sub="Written automatically from the sourced facts">
                 <Badge color={VERDICT_COLOR[brief.verdict]} dot>{brief.verdict}</Badge>
                 <p className="secondary mt-2 text-sm">{brief.verdictWhy}</p>
                 {brief.painPoints[0] && <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Top pain:</b> {brief.painPoints[0].pain}</p>}
@@ -250,7 +249,6 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       )}
 
       {tab === "intake" && <IntakeTab account={a} />}
-      {tab === "brain" && <BrainTab accountId={a.id} twin={twin} />}
 
       {tab === "people" && (
         <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment." action={<Link href={`/people?q=${encodeURIComponent(a.name)}`} className="btn btn-secondary btn-sm">Journeys in People</Link>}>

@@ -104,15 +104,18 @@ export const CONFIG = {
     searchCacheDays: 7,
     /** Below this many examples a rate is not treated as a finding. */
     minSample: 10,
-    /** Regenerate the "what works" summary when the latest is older than this. */
-    insightEveryDays: 7,
+    /** Regenerate the "what works" summary when the latest is older than this (reviewer edits arrive daily). */
+    insightEveryDays: 1,
     /** How many learnings are passed to the draft writer as style advice. */
     learningsInDrafts: 3,
   },
 
-  approval: {
-    // When false, T3 drafts that pass every automatic check skip human review.
-    requireHumanForT3: true,
+  // Approval (autonomy level) lives in the seller pack: review_all | auto_t3 | auto_all.
+  loops: {
+    /** Writer → critic panel → rewriter: at most this many versions per email. */
+    maxDraftVersions: 3,
+    /** Targeted re-research passes per run before the account goes to the watch list. */
+    maxReResearch: 1,
   },
 
   // Legal basis by company country. Confirm with counsel before going live.
@@ -124,7 +127,7 @@ export const CONFIG = {
     AU: "Spam Act inferred consent (conspicuous publication)",
     SG: "PDPA business contact exemption",
     EU: "GDPR Art. 6(1)(f) legitimate interest — LIA on file",
-    // Manch's GCC and SE Asia markets — B2B outreach bases to confirm with counsel.
+    // GCC and SE Asia markets — B2B outreach bases to confirm with counsel.
     AE: "UAE PDPL (Federal Decree-Law 45/2021) — B2B legitimate business contact, opt-out honoured (confirm with counsel)",
     SA: "Saudi PDPL — B2B legitimate interest, opt-out honoured (confirm with counsel)",
     QA: "Qatar PDPPL (Law 13/2016) — B2B legitimate purpose, opt-out honoured (confirm with counsel)",

@@ -4,15 +4,18 @@ import type { Account, Contact, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
+import { bannedClaimGate, complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
 import { addToWatchlist, BudgetExceeded, charge, isSuppressed, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { contactFields } from "../fields";
 import { liveEvidence } from "./research";
-import { seller } from "@/lib/seller";
+import { seller, sellerContext } from "@/lib/seller";
 import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
 import { assignPainPoints, latestBrief, pickAngle } from "@/lib/brain/strategist";
 import { latestLearnings } from "@/lib/brain/insights";
 import type { ClaimCheckResult } from "@/lib/brain/types";
+import type { DraftInput } from "@/lib/adapters/types";
+import { publish } from "@/lib/brain/bus";
+import { decide } from "@/lib/brain/decisions";
 
 // ───────────────────────── Stage 10 ─────────────────────────
 
@@ -65,7 +68,8 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
       identity: { email: f.email?.status ?? "unknown", title: f.title?.status ?? "unknown", company: f.company?.status ?? "unknown" },
       buyingRole: p.buyingRole,
       lawfulBasis: p.lawfulBasis,
-      emailDeliverable: f.email?.status === "verified",
+      // Verified mailbox, or a domain that accepts email (free MX check) — never a guess.
+      emailDeliverable: f.email?.status === "verified" || (f.email?.status === "probable" && f.email?.source === "mailbox_check"),
       suppressed: await isSuppressed(p.email),
     }, ctx.now);
     await db.contact.update({
@@ -140,81 +144,132 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   const trigger = classifyTrigger(facts.find((f) => isTriggerKey(f.key))!.claim, sp);
   const useCase = angle?.useCase ?? pickUseCase(account.industry, trigger?.key ?? null, sp) ?? account.useCase;
   const proof = sp.proofPoints.find((p) => useCase && p.text.toLowerCase().includes(useCase.split("_")[0])) ?? sp.proofPoints[0];
-  const input = {
+  const input: DraftInput = {
     firstName: contact.firstName, title: contact.titleNormalized, company: account.name, stepOrder, instruction,
     facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim })), sender: sp.sender,
     seller: { name: sp.name, pitch: (useCase && sp.messaging.byUseCase[useCase]) || sp.messaging.default, cta: sp.messaging.cta, useCase },
     angle: angle ? { pain: angle.pain, capability: angle.capability, persona: contact.titleNormalized ?? angle.persona, whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null } : null,
     learnings: await latestLearnings(),
   };
-  const factText = new Map(facts.map((f) => [f.id, f.claim]));
+  const sc = sellerContext();
+  input.tone = sp.tone;
+  input.bannedClaims = sp.bannedClaims;
+  // The claim checker sees each fact with the exact quote from its source page.
+  const factText = new Map(facts.map((f) => [f.id, f.quote ? `${f.claim} (source says: "${f.quote}")` : f.claim]));
+  const usable = facts.map((f) => ({ id: f.id, status: f.status, publishedAt: f.publishedAt, key: f.key }));
+
+  // Writer → critic panel → rewriter. The brain revises its own email until every
+  // critic passes or the loop cap is reached; code sets the cap.
+  type Panel = { critic: string; pass: boolean; issues: string[]; available: boolean };
   let attempt = 0;
-  let out: Awaited<ReturnType<typeof ctx.adapters.llm.draft>> | null = null;
+  let current: Awaited<ReturnType<typeof ctx.adapters.llm.draft>> | null = null;
+  let panel: Panel[] = [];
   let checks: ClaimCheckResult[] | null = null;
-  let lastReason = "";
-  while (attempt < CONFIG.guardrail.maxAttempts) {
+  let strengths: string[] = [];
+  let issues: string[] = [];
+  while (attempt < CONFIG.loops.maxDraftVersions) {
     attempt++;
-    await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmStrong, `Draft step ${stepOrder} for ${contact.fullName} (attempt ${attempt})`, S);
-    const candidate = await ctx.adapters.llm.draft(input, attempt);
-    const g = factGuardrail(candidate.claims as Claim[], facts.map((f) => ({ id: f.id, status: f.status, publishedAt: f.publishedAt, key: f.key })), ctx.now);
-    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.fact_guardrail", outcome: g.pass ? "pass" : "block", reason: `Attempt ${attempt}: ${g.reason}` });
-    if (!g.pass) {
-      lastReason = g.reason;
-      continue;
-    }
-    // Second, independent check: does each cited fact actually say what the claim says?
-    try {
-      await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Claim check for ${contact.fullName} (attempt ${attempt})`, S);
-      const res = await ctx.adapters.llm.checkClaims(candidate.claims.map((c) => ({ text: c.text, facts: c.factIds.map((id) => ({ id, claim: factText.get(id) ?? "" })) })));
-      checks = candidate.claims.map((c, i) => {
-        const r = res.find((x) => x.index === i);
-        return { text: c.text, supported: r?.supported ?? false, reason: r?.reason ?? "Not checked" };
+    await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmStrong, `Draft step ${stepOrder} for ${contact.fullName} (version ${attempt})`, S);
+    const revise = current && issues.length ? { subject: current.subject, body: current.body, issues } : null;
+    const candidate = await ctx.adapters.llm.draft({ ...input, revise }, attempt);
+    if (revise) await publish(ctx, { type: "draft.rewritten", module: "rewriter", accountId: account.id, payload: { contactId: contact.id, version: attempt, fixing: issues } });
+    current = candidate;
+    panel = [];
+    checks = null;
+
+    // 1. Truth critic (code): every claim cites a usable, fresh fact.
+    const g = factGuardrail(candidate.claims as Claim[], usable, ctx.now);
+    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.fact_guardrail", outcome: g.pass ? "pass" : "block", reason: `Version ${attempt}: ${g.reason}` });
+    panel.push({ critic: "truth (code)", pass: g.pass, issues: g.pass ? [] : [g.reason], available: true });
+
+    // 2. Truth critic (model): does each cited fact, with its quote, say what the claim says?
+    if (g.pass) {
+      try {
+        await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Claim check for ${contact.fullName} (version ${attempt})`, S);
+        const res = await ctx.adapters.llm.checkClaims(candidate.claims.map((c) => ({ text: c.text, facts: c.factIds.map((id) => ({ id, claim: factText.get(id) ?? "" })) })));
+        checks = candidate.claims.map((c, i) => {
+          const r = res.find((x) => x.index === i);
+          return { text: c.text, supported: r?.supported ?? false, reason: r?.reason ?? "Not checked" };
+        });
+      } catch (e) {
+        if (e instanceof BudgetExceeded) throw e;
+      }
+      const bad = checks?.filter((c) => !c.supported) ?? [];
+      await logEvent(ctx, {
+        accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.claim_check", outcome: checks == null ? "info" : bad.length ? "block" : "pass",
+        reason: checks == null ? "Claim checker unavailable — a person will review" : bad.length ? `Version ${attempt}: unsupported — ${bad.map((b) => `"${b.text.slice(0, 60)}" (${b.reason})`).join("; ")}` : `Version ${attempt}: all ${checks.length} claim(s) supported`,
       });
+      panel.push({ critic: "truth (model)", pass: checks != null && !bad.length, issues: bad.map((b) => `Claim not supported by its source: "${b.text.slice(0, 80)}" — ${b.reason}`), available: checks != null });
+    }
+
+    // 3. Compliance critic (code): unsubscribe line, sender address, banned claims.
+    const comp = complianceGate(candidate.body);
+    const ban = bannedClaimGate(`${candidate.subject}\n${candidate.body}`, sp.bannedClaims);
+    panel.push({ critic: "compliance (code)", pass: comp.pass && ban.pass, issues: [comp, ban].filter((x) => !x.pass).map((x) => x.reason), available: true });
+
+    // 4. Style and relevance critic (model): tone, role, angle, length.
+    try {
+      await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Critique for ${contact.fullName} (version ${attempt})`, S);
+      const c = await ctx.adapters.llm.critiqueDraft({ subject: candidate.subject, body: candidate.body, company: account.name, recipientTitle: contact.titleNormalized, angle: angle ? `${angle.pain} → ${angle.capability}` : null, tone: sp.tone, bannedClaims: sp.bannedClaims });
+      strengths = c.strengths;
+      panel.push({ critic: "style (model)", pass: c.pass && c.issues.length === 0, issues: c.issues, available: true });
     } catch (e) {
       if (e instanceof BudgetExceeded) throw e;
-      checks = null; // checker unavailable — a person must review this draft
+      panel.push({ critic: "style (model)", pass: true, issues: [], available: false });
     }
-    const bad = checks?.filter((c) => !c.supported) ?? [];
-    await logEvent(ctx, {
-      accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.claim_check", outcome: checks == null ? "info" : bad.length ? "block" : "pass",
-      reason: checks == null ? "Claim checker unavailable — sending to human review" : bad.length ? `Attempt ${attempt}: unsupported — ${bad.map((b) => `"${b.text.slice(0, 60)}" (${b.reason})`).join("; ")}` : `Attempt ${attempt}: all ${checks.length} claim(s) supported`,
-    });
-    if (bad.length) {
-      lastReason = `Claim not supported by its source: ${bad[0].text.slice(0, 80)}`;
-      continue;
-    }
-    out = candidate;
-    break;
+
+    issues = panel.flatMap((p) => (p.pass ? [] : p.issues));
+    await publish(ctx, { type: "draft.critiqued", module: "critic_panel", accountId: account.id, payload: { contactId: contact.id, version: attempt, panel } });
+    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.critic_panel", outcome: issues.length ? "block" : "pass", reason: issues.length ? `Version ${attempt}: ${issues.length} issue(s) — ${issues.slice(0, 2).join("; ").slice(0, 300)}${attempt < CONFIG.loops.maxDraftVersions ? " → rewriting" : ""}` : `Version ${attempt}: every critic passed` });
+    if (!issues.length) break;
   }
 
-  if (!out) {
+  const critique = panel as unknown as Prisma.InputJsonValue;
+  if (issues.length || !current) {
     const blocked = await db.draft.create({
-      data: { contactId: contact.id, stepOrder, subject: "(blocked)", body: "", claims: [], status: "blocked", guardrailAttempts: attempt, blockReason: lastReason },
+      data: { sellerId: sc.pack.id, sellerPackVersion: sc.version, contactId: contact.id, stepOrder, subject: current?.subject ?? "(blocked)", body: current?.body ?? "", claims: (current?.claims ?? []) as unknown as Prisma.InputJsonValue, status: "blocked", guardrailAttempts: attempt, rewrites: attempt - 1, critique, blockReason: issues[0] ?? "No draft" },
     });
-    await openReview({ type: "guardrail_failed", stage: S, accountId: account.id, contactId: contact.id, draftId: blocked.id, reason: `Fact guardrail failed ${attempt}×: ${lastReason}` });
+    await decide(ctx, {
+      module: "critic_panel", question: `Send step ${stepOrder} to ${contact.fullName}?`, choice: "Hold — a person decides",
+      caseFor: strengths.join("; ") || "Draft is built on the account's sourced facts",
+      caseAgainst: issues.join("; "), evidenceFor: (current?.claims ?? []).flatMap((c) => c.factIds), evidenceAgainst: issues,
+      confidence: 0.3, autonomy: "needs_human", accountId: account.id, contactId: contact.id, draftId: blocked.id,
+    });
+    await openReview({ type: "guardrail_failed", stage: S, accountId: account.id, contactId: contact.id, draftId: blocked.id, reason: `Still failing after ${attempt} version(s): ${issues[0] ?? ""}`.slice(0, 300) });
     return blocked;
   }
 
-  const comp = complianceGate(out.body);
-  await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.compliance", outcome: comp.pass ? "pass" : "block", reason: comp.reason });
-  // No completed claim check means a person reviews it, whatever the tier policy.
-  const human = needsHumanApproval(account.tier) || checks == null;
+  const out = current;
+  // A critic that could not run means a person reviews it, whatever the autonomy level.
+  const criticDown = panel.some((p) => !p.available) || checks == null;
+  const human = needsHumanApproval(account.tier, sp.autonomy) || criticDown;
   const draft = await db.draft.create({
     data: {
+      sellerId: sc.pack.id, sellerPackVersion: sc.version,
       contactId: contact.id, stepOrder, subject: out.subject, body: out.body, angle: trigger?.key ?? out.angle,
       painPoint: angle?.pain ?? null, useCase, claimCheck: (checks ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
       claims: out.claims as unknown as Prisma.InputJsonValue, leadEvidenceId: out.claims[0]?.factIds[0] ?? null,
-      guardrailAttempts: attempt,
-      status: !comp.pass ? "blocked" : human ? "pending_review" : "approved",
-      blockReason: comp.pass ? null : comp.reason,
-      reviewedAt: !human && comp.pass ? ctx.now : null,
-      reviewerNote: !human && comp.pass ? "Auto-approved (T3 policy, all checks passed)" : null,
+      guardrailAttempts: attempt, rewrites: attempt - 1, critique,
+      status: human ? "pending_review" : "approved",
+      reviewedAt: !human ? ctx.now : null,
+      reviewerNote: !human ? `Auto-approved (${sp.autonomy}: every critic passed)` : null,
     },
   });
-  if (comp.pass && human) {
+  const supported = checks ? checks.filter((c) => c.supported).length / Math.max(1, checks.length) : 0.5;
+  await decide(ctx, {
+    module: "main_brain", question: `Send step ${stepOrder} to ${contact.fullName}?`,
+    choice: human ? "Ready — waiting for a person to approve" : "Approved by the brain",
+    caseFor: [`Every critic passed on version ${attempt}`, ...strengths].join("; "),
+    caseAgainst: [criticDown ? "A critic could not run" : "", angle ? `The pain point is a hypothesis: ${angle.pain}` : "", attempt > 1 ? `Needed ${attempt - 1} rewrite(s)` : ""].filter(Boolean).join("; ") || "No open risks found",
+    evidenceFor: out.claims.flatMap((c) => c.factIds), evidenceAgainst: [],
+    confidence: criticDown ? 0.5 : Math.min(0.95, 0.6 + 0.35 * supported - 0.05 * (attempt - 1)),
+    autonomy: human ? "needs_human" : "acted", accountId: account.id, contactId: contact.id, draftId: draft.id,
+  });
+  if (human) {
     await openReview({ type: "draft_approval", stage: S, accountId: account.id, contactId: contact.id, draftId: draft.id, reason: `Step ${stepOrder} draft for ${contact.fullName} (${account.tier})`, dueInHours: 24 });
   }
-  await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.human_review", outcome: comp.pass ? "pass" : "block", reason: comp.pass ? (human ? "Queued for human approval" : "Auto-approved") : "Blocked by compliance" });
+  await publish(ctx, { type: "draft.ready", module: "writer", accountId: account.id, payload: { contactId: contact.id, draftId: draft.id, versions: attempt, needsHuman: human } });
+  await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.human_review", outcome: "pass", reason: human ? `Queued for approval (${criticDown ? "a critic could not run" : sp.autonomy})` : `Auto-approved (${sp.autonomy})` });
   return draft;
 }
 

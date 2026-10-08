@@ -52,6 +52,11 @@ export async function sendApproved(ctx: RunContext = newContext()) {
   if (!breaker.pass && drafts.length) {
     await openReview({ type: "bounce_breaker", stage: S, reason: breaker.reason });
   }
+  // Fence: with no real mailbox connected, approved emails wait — the brain never pretends to send.
+  if (drafts.length && ctx.adapters.email.connected === false) {
+    for (const d of drafts) await logEvent(ctx, { accountId: d.contact.accountId, contactId: d.contactId, stage: S, step: "sequence_send.channel", outcome: "block", reason: "Approved, waiting: no mailbox connected (set SMTP_URL)" });
+    return { sent: 0, held: drafts.length, reasons: ["No mailbox connected"] };
+  }
   for (const d of drafts) {
     const c = d.contact;
     const box = await pickMailbox(ctx.now);

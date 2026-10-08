@@ -8,6 +8,8 @@ import { classifyReplyRules } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import type { BrainStats, BriefInput, ClaimToCheck, PlanResearchInput } from "@/lib/brain/types";
 import type {
+  CritiqueInput,
+  CritiqueOutput,
   Adapters,
   BriefingInput,
   DataProvider,
@@ -289,7 +291,12 @@ class MockLLM implements LLM {
 
   async extractEvidence(pages: ResearchPage[], key: string): Promise<ExtractedEvidence[]> {
     if (key === "negative" && pages.length === 0) return [];
-    return pages.map((p) => {
+    const quoteOf = (p: ResearchPage) => (p.text && p.text.length > 12 ? p.text.split(/(?<=[.!?])\s/)[0] : `${p.title} ${p.text ?? ""}`.trim()).slice(0, 240);
+    return pages.map((p): ExtractedEvidence => ({ ...this.extractOne(p, key), quote: quoteOf(p) }));
+  }
+
+  private extractOne(p: ResearchPage, key: string): ExtractedEvidence {
+    {
       if (key === "negative") {
         const kind = Object.keys(NEGATIVE_KINDS).find((k) => p.text.includes(k)) ?? "layoffs";
         return { key, claim: p.title, value: NEGATIVE_KINDS[kind], sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: true, negativeKind: NEGATIVE_KINDS[kind] };
@@ -301,7 +308,7 @@ class MockLLM implements LLM {
       if (key === "partner_network") return { key, claim: `Works with about ${Number(p.text).toLocaleString("en-IN")} distributors, vendors and partners`, value: p.text, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
       if (key === "tooling") return { key, claim: `Current stack includes ${p.text}`, value: null, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
       return { key, claim: p.title, value: null, sourceUrl: p.url, sourceType: p.sourceType, publishedAt: p.publishedAt, isNegative: false, negativeKind: null };
-    });
+    }
   }
 
   async infer(facts: { id: string; key: string; claim: string }[]) {
@@ -355,11 +362,24 @@ class MockLLM implements LLM {
     lines.push("", input.stepOrder === 1 ? `${input.seller.pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${input.seller.pitch}`);
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");
     return {
-      subject: input.stepOrder === 1 ? `${input.company} + first-time-right partner data` : `Re: ${input.company} + first-time-right partner data`,
+      subject: input.stepOrder === 1 ? `${input.company} + ${input.seller.name}` : `Re: ${input.company} + ${input.seller.name}`,
       body: lines.join("\n"),
       angle: lead?.key ?? null,
       claims,
     };
+  }
+
+  /** Sample critic: length, hype words and the seller's banned claims. */
+  async critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput> {
+    const body = input.body.split(/\n\n[^\n]*\n[^\n]* · /)[0];
+    const issues: string[] = [];
+    const words = body.split(/\s+/).filter(Boolean).length;
+    if (words > 150) issues.push(`Too long (${words} words) — cut to under 120`);
+    const hype = body.match(/\b(revolutionary|game[- ]changing|synergy|world[- ]class|cutting[- ]edge)\b/i);
+    if (hype) issues.push(`Hype word "${hype[0]}" — say what it does instead`);
+    const banned = input.bannedClaims.find((b: string) => b.length < 40 && body.toLowerCase().includes(b.toLowerCase()));
+    if (banned) issues.push(`Banned claim: ${banned}`);
+    return { pass: issues.length === 0, issues, strengths: issues.length ? [] : ["Specific, short, ends with one question"] };
   }
 
   async classifyReply(text: string) {

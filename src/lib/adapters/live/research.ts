@@ -3,38 +3,19 @@
 
 import type { ResearchPage, ResearchPass, ResearchSource, SearchHint } from "../types";
 import { fetchJson, parseLooseDate } from "./http";
+import { seller } from "@/lib/seller";
 
 const DAY = 86_400_000;
 
-/** Search intent per research question, phrased for the seller (Manch). */
+/** Search intent per research question. Seller-specific terms come from the active seller pack; website, firmographics and negative news are generic. */
 export function queryFor(key: string, company: string): { q: string; days: number | null; news: boolean } {
   const c = `"${company}"`;
-  switch (key) {
-    case "trigger":
-      return { q: `${c} (SAP S/4HANA OR ERP migration OR distributors OR dealer network OR expansion OR acquisition OR funding OR digital transformation OR vendor onboarding)`, days: 120, news: true };
-    case "negative":
-      return { q: `${c} (layoffs OR job cuts OR hiring freeze OR acquired OR insolvency OR bankruptcy)`, days: 120, news: true };
-    case "owner_function":
-      return { q: `${c} careers (master data OR procurement OR vendor onboarding OR distributor onboarding OR SAP)`, days: 365, news: false };
-    case "tooling":
-      return { q: `${c} (SAP OR Oracle OR "Microsoft Dynamics" OR Informatica OR "master data management")`, days: 730, news: false };
-    case "partner_network":
-      return { q: `${c} (distributors OR dealers OR retail outlets OR suppliers OR vendors OR delivery partners)`, days: 730, news: false };
-    case "erp_program":
-      return { q: `${c} ("SAP S/4HANA" OR "ERP implementation" OR "master data" OR MDM OR "digital transformation") partner rollout`, days: 365, news: true };
-    case "expansion":
-      return { q: `${c} (expansion OR "new plant" OR distributors OR dealers OR "new markets" OR sellers) 2026`, days: 180, news: true };
-    case "leadership":
-      return { q: `${c} appoints (CIO OR CDO OR "Chief Digital Officer" OR CPO OR CFO OR "head of procurement")`, days: 365, news: true };
-    case "compliance":
-      return { q: `${c} (GST e-invoicing OR KYC OR "data protection" OR DPDP OR audit OR compliance)`, days: 365, news: false };
-    case "website":
-      return { q: `${c} official website`, days: null, news: false };
-    case "firmographics":
-      return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
-    default:
-      return { q: `${c} ${key.replace(/_/g, " ")}`, days: 365, news: false };
-  }
+  if (key === "website") return { q: `${c} official website`, days: null, news: false };
+  if (key === "firmographics") return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
+  const s = seller().researchQuestions.find((x) => x.key === key)?.search;
+  if (s) return { q: `${c} ${s.terms}`, days: s.days, news: s.news };
+  if (key === "negative") return { q: `${c} (layoffs OR job cuts OR hiring freeze OR acquired OR insolvency OR bankruptcy)`, days: 120, news: true };
+  return { q: `${c} ${key.replace(/_/g, " ")}`, days: 365, news: false };
 }
 
 export function classifySource(url: string, domain: string): ResearchPage["sourceType"] {

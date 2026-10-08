@@ -120,7 +120,7 @@ export async function s09Enrichment(account: Account, ctx: RunContext): Promise<
     if (f.email?.status !== "verified") {
       await charge(account.id, account.tier, "verification", CONFIG.costsUsd.mailboxVerify, `Verify ${email}`, S);
       const v = await ctx.adapters.mailbox.verify(email);
-      await setContactField(c.id, "email", { value: email, status: v.deliverable ? "verified" : "invalid", source: "mailbox_check" });
+      await setContactField(c.id, "email", { value: email, status: v.status ?? (v.deliverable ? "verified" : "invalid"), source: "mailbox_check" });
       await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "enrichment.mailbox_verification", outcome: v.deliverable ? "pass" : "block", reason: v.reason });
       if (!v.deliverable) {
         await db.contact.update({ where: { id: c.id }, data: { state: "new" } });

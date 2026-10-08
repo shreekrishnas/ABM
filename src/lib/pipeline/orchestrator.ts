@@ -12,6 +12,13 @@ import { s08BuyingGroup, s09Enrichment } from "./stages/people";
 import { s10Readiness, s11DraftReview } from "./stages/outreach";
 import { escalateOverdue, recomputeAccount, sendApproved, tickSequences } from "./stages/engagement";
 import { maybeGenerateInsights } from "@/lib/brain/insights";
+import { publish } from "@/lib/brain/bus";
+import { decide } from "@/lib/brain/decisions";
+import { latestBrief } from "@/lib/brain/strategist";
+import { loadSeller, sellerContext, withSeller } from "@/lib/seller";
+import { isTriggerKey } from "@/lib/research/keys";
+import { evidenceQuality } from "./gates";
+import { liveEvidence } from "./stages/research";
 
 type StageFn = (a: Account, ctx: RunContext) => Promise<Account>;
 
@@ -52,6 +59,22 @@ async function acquireLock(accountId: string, now: Date): Promise<boolean> {
  */
 export async function runAccount(accountId: string, opts: { fromStage?: number; ctx?: RunContext; reason?: "initial" | "refresh" | "intent_surge" } = {}): Promise<RunResult> {
   const ctx = opts.ctx ?? newContext();
+  const found = await db.account.findUnique({ where: { id: accountId }, select: { sellerId: true } });
+  if (!found) return { accountId, status: "error", reachedStage: 0, reason: "Account not found", runId: ctx.runId };
+  // Seller context module: the account's seller pack becomes the brain's identity for the whole run.
+  let sellerOk = true;
+  try {
+    loadSeller(found.sellerId);
+  } catch (e) {
+    sellerOk = false;
+    await logEvent(ctx, { accountId, stage: 1, step: "seller.context", outcome: "error", reason: e instanceof Error ? e.message : String(e) });
+  }
+  if (!sellerOk) return { accountId, status: "error", reachedStage: 0, reason: `Seller pack "${found.sellerId}" missing or invalid`, runId: ctx.runId };
+  return withSeller(found.sellerId, () => runWithSeller(accountId, opts, ctx));
+}
+
+/** Main brain: plans the run, runs the modules in order, resolves conflicts, enforces loop caps and budget. */
+async function runWithSeller(accountId: string, opts: { fromStage?: number; reason?: "initial" | "refresh" | "intent_surge" }, ctx: RunContext): Promise<RunResult> {
   let account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { accountId, status: "error", reachedStage: 0, reason: "Account not found", runId: ctx.runId };
   if (account.mergedIntoId) return { accountId, status: "skipped", reachedStage: account.pipelineStage, reason: "Merged into another account", runId: ctx.runId };
@@ -63,17 +86,25 @@ export async function runAccount(accountId: string, opts: { fromStage?: number; 
   if (!(await acquireLock(accountId, ctx.now))) return { accountId, status: "skipped", reachedStage: account.pipelineStage, reason: "Already running", runId: ctx.runId };
 
   let stage = from;
+  const sc = sellerContext();
+  await publish(ctx, { type: "seller.context", module: "seller_context", accountId, payload: { sellerId: sc.pack.id, version: sc.version, seller: sc.pack.name } });
+  await publish(ctx, {
+    type: "run.planned", module: "main_brain", accountId,
+    payload: { fromStage: from, modules: LINEAR.filter(([n]) => n >= from).map(([n]) => MODULE_OF[n]).concat(from <= 11 ? ["readiness_gate", "writer", "critic_panel", "rewriter"] : []), budgetUsd: budgetFor(account.tier), loopCaps: CONFIG.loops, reason: opts.reason ?? "initial" },
+  });
   try {
     for (const [n, fn] of LINEAR) {
       if (n < from) continue;
       stage = n;
       account = n === 5 && opts.reason ? await s05ResearchPlan(account, ctx, opts.reason) : await fn(account, ctx);
       account = await db.account.update({ where: { id: accountId }, data: { pipelineStage: n } });
+      await afterModule(n, account, ctx);
     }
 
     if (from <= 10) {
       stage = 10;
       let r = await s10Readiness(account, ctx);
+      await publish(ctx, { type: "readiness.decided", module: "readiness_gate", accountId, payload: { ready: r.ready, reResearch: r.reResearch } });
       if (r.reResearch) {
         // Loop 1: one targeted re-research pass on the trigger question, then decide again.
         account = await db.account.update({ where: { id: accountId }, data: { followupUsed: true } });
@@ -89,8 +120,10 @@ export async function runAccount(accountId: string, opts: { fromStage?: number; 
     account = await s11DraftReview(account, ctx);
     account = await db.account.update({ where: { id: accountId }, data: { pipelineStage: 11, pipelineStatus: "done" } });
     await recomputeAccount(accountId, ctx);
+    await publish(ctx, { type: "run.finished", module: "main_brain", accountId, payload: { status: "done", reachedStage: 11 } });
     return { accountId, status: "done", reachedStage: 11, reason: "Drafts queued", runId: ctx.runId };
   } catch (e) {
+    await publish(ctx, { type: "run.finished", module: "main_brain", accountId, payload: { status: e instanceof StopRun || e instanceof BudgetExceeded ? "blocked" : "error", reachedStage: stage, reason: e instanceof Error ? e.message.slice(0, 200) : e instanceof StopRun ? e.reason : String(e) } }).catch(() => undefined);
     if (e instanceof StopRun) {
       await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "blocked", pipelineStage: Math.max(stage - 1, 1) } });
       await logEvent(ctx, { accountId, stage, step: "orchestrator.stop", outcome: "block", reason: e.reason });
@@ -106,6 +139,31 @@ export async function runAccount(accountId: string, opts: { fromStage?: number; 
     await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "error", pipelineStage: Math.max(stage - 1, 1) } });
     await logEvent(ctx, { accountId, stage, step: "orchestrator.error", outcome: "error", reason: msg.slice(0, 500) });
     return { accountId, status: "error", reachedStage: stage, reason: msg, runId: ctx.runId };
+  }
+}
+
+const MODULE_OF: Record<number, string> = { 2: "intake", 3: "fit", 4: "contact_verifier", 5: "planner", 6: "search_router+extractor", 7: "evidence_judge+account_twin+strategist", 8: "buying_group", 9: "contact_verifier" };
+
+/** What each module reports on the bus, and the main brain's conflict rule after the strategist. */
+async function afterModule(n: number, account: Account, ctx: RunContext) {
+  if (n === 3) await publish(ctx, { type: "fit.scored", module: "fit", accountId: account.id, payload: { fit: account.fitScore, tier: account.tier } });
+  if (n === 6) await publish(ctx, { type: "research.done", module: "search_router", accountId: account.id, payload: { facts: await db.evidence.count({ where: { accountId: account.id, supersededById: null, flagged: false } }) } });
+  if (n !== 7) return;
+  const evidence = await liveEvidence(account.id);
+  const triggers = evidence.filter((e) => isTriggerKey(e.key));
+  const q = evidenceQuality(triggers.map((t) => ({ status: t.status, publishedAt: t.publishedAt })), ctx.now);
+  await publish(ctx, { type: "evidence.judged", module: "evidence_judge", accountId: account.id, payload: { strong: q.strong, verified: q.verified, usable: q.usable } });
+  const brief = await latestBrief(account.id);
+  if (!brief) return;
+  await publish(ctx, { type: "brief.ready", module: "strategist", accountId: account.id, payload: { verdict: brief.verdict, painPoints: brief.painPoints.length } });
+  // Conflict: the strategist is upbeat but the evidence judge is not. The weaker verdict wins until re-research.
+  if (brief.verdict === "strong" && !q.strong) {
+    await publish(ctx, { type: "verdict.conflict", module: "main_brain", accountId: account.id, payload: { strategist: "strong", evidenceJudge: "weak", winner: "evidence_judge" } });
+    await decide(ctx, {
+      module: "main_brain", question: `Is ${account.name} ready for outreach?`, choice: "Not yet — the weaker verdict (evidence) wins until re-research",
+      caseFor: `Strategist: ${brief.verdictWhy}`, caseAgainst: `Evidence judge: only ${q.verified} verified / ${q.usable} usable trigger(s) in ${CONFIG.readiness.triggerWindowDays} days`,
+      evidenceFor: brief.whyNow?.factIds ?? [], evidenceAgainst: triggers.map((t) => t.id), confidence: 0.6, autonomy: "acted", accountId: account.id,
+    });
   }
 }
 

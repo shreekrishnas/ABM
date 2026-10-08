@@ -76,7 +76,7 @@ export default async function SettingsPage() {
           {Object.entries(CONFIG.budgetsUsd).map(([t, v]) => <Row key={t} k={`${t} budget per account`} v={`$${v.toFixed(2)}`} />)}
           <Row k="Paid lookup" v={`$${CONFIG.costsUsd.paidLookup.toFixed(2)}`} />
           <Row k="LLM cheap / strong" v={`$${CONFIG.costsUsd.llmCheap} / $${CONFIG.costsUsd.llmStrong}`} />
-          <Row k="Human approval for T3" v={CONFIG.approval.requireHumanForT3 ? "Required" : "Auto when checks pass"} />
+          <Row k="Approval (autonomy)" v={{ review_all: "A person approves every email", auto_t3: "T3 emails that pass every critic go out", auto_all: "Emails that pass every critic go out" }[sp.autonomy]} />
           <Row k="Guardrail attempts" v={CONFIG.guardrail.maxAttempts} />
         </Card>
         <Card title="Freshness & readiness">

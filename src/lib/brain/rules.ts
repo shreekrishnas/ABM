@@ -15,13 +15,14 @@ export function rulePlan(input: PlanResearchInput): PlanResearchOutput {
   if (firstUseCase) hypotheses.push(`${input.company.name} likely feels "${firstUseCase.pains.split(";")[0].trim()}" — test with trigger and partner-network evidence`);
   const talk = input.imported?.conversations[0];
   if (talk) hypotheses.push(`${talk.name} (${talk.title ?? "contact"}) is already ${talk.stage.toLowerCase()} on LinkedIn — look for the initiative behind that interest`);
-  if (input.company.technologies.some((t) => /sap|oracle|dynamics/i.test(t))) hypotheses.push(`An existing ERP (${input.company.technologies.find((t) => /sap|oracle|dynamics/i.test(t))}) means validated master data has a clear destination`);
+  const core = input.company.technologies.find((t) => sp.icp.tech.erp.some((e) => t.toLowerCase().includes(e)));
+  if (core) hypotheses.push(sp.ruleHints.techHypothesis.replace("{tech}", core));
   return {
     hypotheses,
     questions: input.candidates.map((c) => ({
       key: c.key,
       // Imported keywords narrow the trigger and expansion searches to what this company actually does.
-      query: kw && (c.key === "trigger" || c.key === "expansion") ? `${queryFor(c.key, input.company.name).q} ${kw}` : queryFor(c.key, input.company.name).q,
+      query: kw && isTriggerKey(c.key) ? `${queryFor(c.key, input.company.name).q} ${kw}` : queryFor(c.key, input.company.name).q,
       engine: input.routing[c.key] ?? input.engines[0] ?? "auto",
       why: c.question,
     })),
@@ -55,9 +56,10 @@ export function ruleBrief(input: BriefInput): AccountBriefData {
     });
   }
   if (tooling && painPoints.length < 3) {
-    const uc = sp.useCases.find((u) => u.key === "customer_master") ?? sp.useCases[0];
-    if (!seen.has(uc.key) && /informatica|reltio|mdg|excel|manual|power apps/i.test(tooling.claim)) {
-      painPoints.push({ pain: `Fragmented or manual master data across ${tooling.claim.replace(/^Current stack includes /, "")}`, factIds: [tooling.id], useCase: uc.key, capability: uc.outcome, confidence: "medium" });
+    const uc = sp.useCases[sp.useCases.length > 2 ? 2 : 0];
+    const replaceable = [...sp.icp.tech.incumbents, ...sp.icp.tech.workflow, "excel", "manual"];
+    if (uc && !seen.has(uc.key) && replaceable.some((t) => tooling.claim.toLowerCase().includes(t))) {
+      painPoints.push({ pain: sp.ruleHints.toolingPain.replace("{tools}", tooling.claim.replace(/^Current stack includes /, "")), factIds: [tooling.id], useCase: uc.key, capability: uc.outcome, confidence: "medium" });
     }
   }
 
@@ -136,6 +138,17 @@ export function ruleInsights(stats: BrainStats): InsightSummary {
   const fitOk = stats.fit.filter((f) => enough(f.n) && f.rate != null);
   if (fitOk.length >= 2 && fitOk[0].rate! < fitOk[fitOk.length - 1].rate!) {
     recommendations.push({ area: "targeting", text: "Lower fit bands are converting better than higher ones — revisit the ICP weights" });
+  }
+  // People before outcomes: reviewer verdicts and LinkedIn progress, labelled tentative on small samples.
+  const tag = (r: { n: number }) => (enough(r.n) ? "" : " (tentative)");
+  const revUc = (stats.reviewer?.byUseCase ?? []).filter((r) => r.n >= 3 && r.rate != null).sort((a, b) => a.rate! - b.rate!);
+  if (revUc.length && revUc[0].rate! < 0.6) {
+    notWorking.push({ text: `Reviewers often change "${nice(revUc[0].label)}" drafts${tag(revUc[0])}`, evidence: `${pct(revUc[0].rate)} approved as written of ${revUc[0].n}` });
+    recommendations.push({ area: "messaging", text: `Rework the "${nice(revUc[0].label)}" pitch in the seller pack using reviewers' edits${tag(revUc[0])}` });
+  }
+  const li = (stats.linkedin?.bySender ?? []).filter((r) => r.n >= 3 && r.rate != null).sort((a, b) => b.rate! - a.rate!);
+  if (li.length >= 2 && li[0].rate! > li[li.length - 1].rate!) {
+    working.push({ text: `${li[0].label} gets more people to Interested on LinkedIn${tag(li[0])}`, evidence: `${pct(li[0].rate)} of ${li[0].n} vs ${pct(li[li.length - 1].rate)} of ${li[li.length - 1].n}` });
   }
   if (stats.creditsSavedUsd > 0) working.push({ text: "Search cache is avoiding repeat paid searches", evidence: `$${stats.creditsSavedUsd.toFixed(2)} saved` });
   if (!recommendations.length) recommendations.push({ area: "process", text: `Keep collecting outcomes — findings need at least ${stats.minSample} examples per group` });

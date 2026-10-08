@@ -35,7 +35,7 @@ export interface DataProvider {
 }
 
 export interface MailboxVerifier {
-  verify(email: string): Promise<{ deliverable: boolean; reason: string }>;
+  verify(email: string): Promise<{ deliverable: boolean; reason: string; status?: "verified" | "probable" | "invalid" }>;
 }
 
 export interface ResearchPage {
@@ -77,6 +77,8 @@ export interface ExtractedEvidence {
   negativeKind: string | null;
   /** Set when this page confirms a fact we already hold (independent corroboration). */
   sameAsFactId?: string | null;
+  /** Exact sentence copied from the page that supports the claim. Code checks it is really on the page. */
+  quote?: string | null;
 }
 
 export interface Inference {
@@ -98,6 +100,28 @@ export interface DraftInput {
   angle?: { pain: string; capability: string; persona: string; whyNow: string | null; proofPoint: string | null } | null;
   /** What has worked before, from the learning loop (advice, not facts). */
   learnings?: string[];
+  /** Seller pack voice and fences. */
+  tone?: string[];
+  bannedClaims?: string[];
+  /** Rewriter: the previous version and what the critic panel found wrong with it. */
+  revise?: { subject: string; body: string; issues: string[] } | null;
+}
+
+export interface CritiqueInput {
+  subject: string;
+  body: string;
+  company: string;
+  recipientTitle: string | null;
+  angle: string | null;
+  tone: string[];
+  bannedClaims: string[];
+}
+export interface CritiqueOutput {
+  pass: boolean;
+  /** Each issue is specific enough for the rewriter to fix. */
+  issues: string[];
+  /** Short case for sending this version as it stands. */
+  strengths: string[];
 }
 
 export interface DraftOutput {
@@ -136,6 +160,8 @@ export interface LLM {
   // ── The brain ──
   planResearch(input: PlanResearchInput): Promise<PlanResearchOutput>;
   accountBrief(input: BriefInput): Promise<AccountBriefData>;
+  /** Style and relevance critic: tone, banned claims, relevance to the angle and role. */
+  critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
   /** Industry, employee count and country from company pages; `page` = index of the page it came from. */
@@ -145,6 +171,8 @@ export interface LLM {
 }
 
 export interface EmailSender {
+  /** false = no real mailbox; the sender holds approved emails instead of sending. Mocks leave it undefined. */
+  readonly connected?: boolean;
   send(msg: { from: string; to: string; subject: string; body: string; idempotencyKey: string }): Promise<{ providerId: string }>;
 }
 

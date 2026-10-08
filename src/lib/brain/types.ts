@@ -98,6 +98,8 @@ export interface Rate {
   n: number;
   hits: number;
   rate: number | null;
+  /** Fewer examples than the sample threshold: a hint, not a finding. */
+  tentative?: boolean;
 }
 
 export interface BrainStats {
@@ -108,6 +110,10 @@ export interface BrainStats {
   review: { reviewed: number; approvedAsIs: number; edited: number; rejected: number; guardrailBlocked: number; claimChecks: number; claimsUnsupported: number };
   facts: { total: number; flagged: number; byEngine: Rate[] };
   fit: Rate[];
+  /** Reviewer verdicts (approved without edits) by use case and by how many rewrites the brain needed — arrives daily. */
+  reviewer: { byUseCase: Rate[]; byRewrites: Rate[] };
+  /** LinkedIn journeys that reached Interested or beyond, by sender and buying role. */
+  linkedin: { bySender: Rate[]; byRole: Rate[] };
   /** Below this sample size a rate is not a finding. */
   minSample: number;
 }

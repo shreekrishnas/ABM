@@ -4,7 +4,7 @@
 import type { Account, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { seller } from "@/lib/seller";
+import { seller, sellerContext } from "@/lib/seller";
 import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipeline/context";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ruleBrief } from "./rules";
@@ -89,7 +89,7 @@ export async function buildBrief(account: Account, snap: TwinSnapshot, ctx: RunC
   const dropped = raw.painPoints.length - brief.painPoints.length;
   const prev = await db.accountBrief.findFirst({ where: { accountId: account.id }, orderBy: { version: "desc" } });
   const version = (prev?.version ?? 0) + 1;
-  await db.accountBrief.create({ data: { accountId: account.id, version, brief: brief as unknown as Prisma.InputJsonValue, model } });
+  await db.accountBrief.create({ data: { sellerId: sellerContext().pack.id, sellerPackVersion: sellerContext().version, accountId: account.id, version, brief: brief as unknown as Prisma.InputJsonValue, model } });
   if (brief.painPoints[0]) await db.account.update({ where: { id: account.id }, data: { useCase: brief.painPoints[0].useCase } });
   await logEvent(ctx, {
     accountId: account.id, stage: S, step: "brain.brief", outcome: "pass",

@@ -87,6 +87,19 @@ export function evidenceGate(e: EvidenceDraft, adapterMode: "live" | "mock" = "m
   return { pass: true, reason: "Source, type and date present" };
 }
 
+const squash = (t: string) => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^a-z0-9%$.,'"]+/g, " ").trim();
+
+/**
+ * Truth before speed: a fact is kept only with an exact supporting quote that really
+ * appears on its source page. In live mode a missing quote drops the fact.
+ */
+export function quoteGate(quote: string | null | undefined, page: { title: string; text: string } | undefined, adapterMode: "live" | "mock" = "mock"): GateResult {
+  if (!quote || quote.trim().length < 12) return adapterMode === "live" ? { pass: false, reason: "No supporting quote from the page" } : { pass: true, reason: "Sample data (no quote required)" };
+  if (!page) return { pass: false, reason: "Source page not found for the quote" };
+  if (!squash(`${page.title} ${page.text}`).includes(squash(quote))) return { pass: false, reason: "Quote does not appear on the source page" };
+  return { pass: true, reason: "Exact quote found on the page" };
+}
+
 // ── Stage 7: fact status & contradictions ──
 
 export interface EvidenceLike {
@@ -270,9 +283,27 @@ export function complianceGate(body: string): GateResult {
   return { pass: true, reason: "Unsubscribe and sender details present" };
 }
 
-export function needsHumanApproval(tier: Tier | null): boolean {
-  if (tier === "T3") return CONFIG.approval.requireHumanForT3;
+/**
+ * Autonomy fence (code-enforced): when a person must approve an email before it is sent.
+ * review_all → always; auto_t3 → T1/T2 always, T3 only if a critic could not run;
+ * auto_all → only when a critic could not run.
+ */
+export function needsHumanApproval(tier: Tier | null, autonomy: "review_all" | "auto_t3" | "auto_all" = seller().autonomy): boolean {
+  if (autonomy === "auto_all") return false;
+  if (autonomy === "auto_t3") return tier !== "T3";
   return true;
+}
+
+/** Hard claim rules for every seller, plus the seller's own banned claims. */
+const HARD_BANNED = [/\bguarantee(d|s)?\b/i, /\bthe only (platform|solution|tool|company)\b/i, /\bbest[- ]in[- ]class\b/i, /#1\b|\bnumber one\b/i, /\b\d+% (off|discount)\b/i, /\brisk[- ]free\b/i];
+
+export function bannedClaimGate(text: string, banned: string[] = seller().bannedClaims): GateResult {
+  const hit = HARD_BANNED.find((r) => r.test(text));
+  if (hit) return { pass: false, reason: `Banned claim: "${text.match(hit)?.[0]}"` };
+  const t = text.toLowerCase();
+  const own = banned.find((b) => b.length < 40 && t.includes(b.toLowerCase()));
+  if (own) return { pass: false, reason: `Banned claim for this seller: "${own}"` };
+  return { pass: true, reason: "No banned claims" };
 }
 
 // ── Stage 12: sending ──

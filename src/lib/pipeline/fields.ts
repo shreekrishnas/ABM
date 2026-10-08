@@ -27,9 +27,9 @@ export async function setAccountField(accountId: string, field: string, u: Field
   });
 }
 
-export async function contactFields(contactId: string): Promise<Record<string, { status: FieldStatus; value: string | null; recheckUsed: boolean; observedAt: Date | null }>> {
+export async function contactFields(contactId: string): Promise<Record<string, { status: FieldStatus; value: string | null; recheckUsed: boolean; observedAt: Date | null; source: string | null }>> {
   const rows = await db.fieldState.findMany({ where: { contactId } });
-  return Object.fromEntries(rows.map((r) => [r.field, { status: r.status, value: r.value, recheckUsed: r.recheckUsed, observedAt: r.observedAt }]));
+  return Object.fromEntries(rows.map((r) => [r.field, { status: r.status, value: r.value, recheckUsed: r.recheckUsed, observedAt: r.observedAt, source: r.source }]));
 }
 
 export const usable = (s: FieldStatus | undefined) => s === "verified" || s === "probable";

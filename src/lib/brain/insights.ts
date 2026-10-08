@@ -5,7 +5,9 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { newContext, type RunContext } from "@/lib/pipeline/context";
+import { newContext, openReview, type RunContext } from "@/lib/pipeline/context";
+import { publish } from "./bus";
+import { sellerContext } from "@/lib/seller";
 import { ruleInsights } from "./rules";
 import type { BrainStats, InsightSummary, Rate } from "./types";
 
@@ -13,7 +15,7 @@ const DAY = 86_400_000;
 
 function rates(map: Map<string, { n: number; hits: number }>): Rate[] {
   return [...map.entries()]
-    .map(([label, v]) => ({ label, n: v.n, hits: v.hits, rate: v.n ? v.hits / v.n : null }))
+    .map(([label, v]) => ({ label, n: v.n, hits: v.hits, rate: v.n ? v.hits / v.n : null, tentative: v.n < CONFIG.brain.minSample }))
     .sort((a, b) => b.n - a.n);
 }
 
@@ -61,12 +63,29 @@ export async function computeStats(now = new Date()): Promise<BrainStats> {
   }
 
   // Reviewer verdicts on drafts.
-  const drafts = await db.draft.findMany({ where: { createdAt: { gte: since } }, select: { status: true, reviewerNote: true, reviewedAt: true, claimCheck: true } });
+  const drafts = await db.draft.findMany({ where: { createdAt: { gte: since } }, select: { status: true, reviewerNote: true, reviewedAt: true, claimCheck: true, useCase: true, rewrites: true } });
   const auto = (n: string | null) => !!n && /^Auto-approved/.test(n);
   const withdrawn = (n: string | null) => !!n && /^Withdrawn/.test(n);
   const reviewed = drafts.filter((d) => d.reviewedAt && !auto(d.reviewerNote) && !withdrawn(d.reviewerNote) && ["approved", "sent", "rejected"].includes(d.status));
   const edited = reviewed.filter((d) => d.reviewerNote?.includes("Edited by reviewer")).length;
   const rejected = reviewed.filter((d) => d.status === "rejected").length;
+  const [revUseCase, revRewrites]: Tally[] = [new Map(), new Map()];
+  for (const d of reviewed) {
+    const asIs = d.status !== "rejected" && !d.reviewerNote?.includes("Edited by reviewer");
+    bump(revUseCase, d.useCase ?? "unknown", asIs);
+    bump(revRewrites, d.rewrites === 0 ? "first version" : `${d.rewrites} rewrite(s)`, asIs);
+  }
+
+  // LinkedIn journeys: how far people got, by sender and role (the main channel today).
+  const journeys = await db.journey.findMany({ where: { updatedAt: { gte: since } }, select: { stage: true, sender: { select: { name: true } }, contact: { select: { buyingRole: true } } } });
+  const [liSender, liRole]: Tally[] = [new Map(), new Map()];
+  const advanced = new Set(["interested", "call_scheduled", "demo_scheduled", "opportunity", "closed_won"]);
+  for (const j of journeys) {
+    if (j.stage === "not_contacted") continue;
+    bump(liSender, j.sender.name, advanced.has(j.stage));
+    bump(liRole, j.contact.buyingRole, advanced.has(j.stage));
+  }
+
   const claimEvents = await db.pipelineEvent.count({ where: { step: "draft_review.claim_check", outcome: "block", createdAt: { gte: since } } });
   const review = {
     reviewed: reviewed.length,
@@ -102,6 +121,8 @@ export async function computeStats(now = new Date()): Promise<BrainStats> {
     review,
     facts: { total: ev.length, flagged: ev.filter((e) => e.flagged).length, byEngine: rates(byEngine) },
     fit: rates(fit).sort((a, b) => a.label.localeCompare(b.label)),
+    reviewer: { byUseCase: rates(revUseCase), byRewrites: rates(revRewrites) },
+    linkedin: { bySender: rates(liSender), byRole: rates(liRole) },
     minSample,
   };
 }
@@ -153,7 +174,29 @@ export async function generateInsights(ctx: RunContext = newContext()): Promise<
     model = "rules";
   }
   const row = await db.brainInsight.create({ data: { stats: stats as unknown as Prisma.InputJsonValue, summary: summary as unknown as Prisma.InputJsonValue, model, createdAt: ctx.now } });
+  await publish(ctx, { type: "learning.summary", module: "learning_analyst", payload: { headline: summary.headline, model } });
+  await proposeImprovements(summary, stats, ctx);
   return { ...summary, id: row.id, model, createdAt: row.createdAt, stats };
+}
+
+/**
+ * Self-improver: turns findings into proposals. Research routing is applied on its own
+ * (engineRouting); everything else — messaging, targeting, process — is only proposed:
+ * a person accepts it, and the change ships with a test. Never changes rules by itself.
+ */
+export async function proposeImprovements(summary: InsightSummary, stats: BrainStats, ctx: RunContext) {
+  const sp = sellerContext().pack;
+  const sample = Math.max(stats.review.reviewed, stats.facts.total, ...stats.messaging.byUseCase.map((r) => r.n), ...stats.linkedin.bySender.map((r) => r.n), 0);
+  for (const r of summary.recommendations) {
+    if (r.area === "research" || /^Keep collecting/.test(r.text)) continue;
+    const open = await db.proposal.findFirst({ where: { sellerId: sp.id, change: r.text, status: "proposed" } });
+    if (open) continue;
+    const tentative = sample < stats.minSample;
+    const evidence = [...summary.working, ...summary.notWorking].map((w) => `${w.text} (${w.evidence})`).join("; ").slice(0, 600) || "See the latest learning summary";
+    const p = await db.proposal.create({ data: { sellerId: sp.id, area: r.area === "targeting" ? "icp" : r.area === "process" ? "rules" : r.area, change: r.text, rationale: summary.headline, evidence, sampleSize: sample, tentative, createdAt: ctx.now } });
+    await publish(ctx, { type: "proposal.created", module: "self_improver", payload: { proposalId: p.id, area: p.area, tentative } });
+    await openReview({ type: "other", stage: 12, reason: `${tentative ? "Tentative proposal" : "Proposal"} (${p.area}): ${r.text}`.slice(0, 300), payload: { proposalId: p.id, evidence } });
+  }
 }
 
 /** Called from the scheduled tick: refresh the summary once a week. */

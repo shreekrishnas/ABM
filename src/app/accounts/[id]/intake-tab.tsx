@@ -2,12 +2,12 @@ import type { Account } from "@prisma/client";
 import { ArrowRight, Database, FileInput, Search, Sparkles, UserRound } from "lucide-react";
 import { db } from "@/lib/db";
 import { importContext, intakeMap } from "@/lib/research/intake";
-import { QUESTION_LABEL } from "@/lib/research/keys";
+import { questionLabel } from "@/lib/research/keys";
 import { STAGE_INFO, stageLabel } from "@/lib/journey/stages";
 import { Badge, Card, Empty, FieldBadge, ago, date } from "@/components/ui";
 import type { FieldStatus } from "@prisma/client";
 
-const label = (k: string) => QUESTION_LABEL[k] ?? k.replace(/_/g, " ");
+const label = questionLabel;
 
 function Source({ s }: { s: string | null }) {
   if (!s) return <span className="muted">—</span>;
