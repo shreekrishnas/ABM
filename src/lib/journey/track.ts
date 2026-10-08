@@ -54,6 +54,8 @@ const LI_LABEL: Record<string, string> = {
   details_shared: "Details shared", call_scheduled: "Call scheduled", demo_scheduled: "Demo scheduled", call_logged: "Call made", stage_set: "Stage changed", note: "Note", imported: "LinkedIn history imported",
 };
 
+const STAGE_BY: Record<number, string> = { 1: "import", 2: "data cleanup", 3: "fit scoring", 4: "identity check", 5: "research plan", 6: "research", 7: "evidence", 8: "buying group", 9: "contact check", 10: "readiness", 11: "writer", 12: "sending", 13: "hand-off" };
+
 const tone = (o: string): TrackTone => (o === "pass" ? "good" : o === "block" ? "wait" : o === "error" ? "bad" : "info");
 
 export async function prospectTrack(contactId: string) {
@@ -83,7 +85,7 @@ export async function prospectTrack(contactId: string) {
     if (seen.has(k)) continue;
     seen.add(k);
     const kind: TrackKind = e.step.startsWith("sequence_send") ? "email" : e.step.startsWith("draft_review") ? "brain" : "data";
-    items.push({ at: e.createdAt, kind, tone: tone(e.outcome), title: STEP_LABEL[e.step] ?? e.step.replace(/[._]/g, " "), detail: e.reason, by: `stage ${e.stage}` });
+    items.push({ at: e.createdAt, kind, tone: tone(e.outcome), title: STEP_LABEL[e.step] ?? e.step.replace(/[._]/g, " "), detail: e.reason, by: STAGE_BY[e.stage] ?? `step ${e.stage}` });
   }
 
   for (const d of decisions) {

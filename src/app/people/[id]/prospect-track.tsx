@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
 import { prospectTrack, MILESTONES, type TrackKind } from "@/lib/journey/track";
 import { readIntent } from "@/lib/brain/intent";
 import { withSeller } from "@/lib/seller";
-import { Badge, Card, Empty, date } from "@/components/ui";
+import { Card, Empty, date } from "@/components/ui";
+import { FamilyChip, IntentPill, Stepper } from "@/components/v2";
 
 const KIND: Record<TrackKind, { label: string; color: string }> = {
   linkedin: { label: "LinkedIn", color: "#0A66C2" },
@@ -14,7 +14,6 @@ const KIND: Record<TrackKind, { label: string; color: string }> = {
   people: { label: "People & reviews", color: "#B45309" },
 };
 const TONE = { good: "#10B981", bad: "#DC2626", wait: "#F59E0B", info: "#94A3B8" } as const;
-const LEVEL = { hot: "#DC2626", warm: "#F59E0B", cold: "#64748B" } as const;
 
 /** One person's whole journey with us: milestones, what is pulling them in, and every touchpoint. */
 export async function ProspectTrack({ contactId, accountId, sellerId, filter }: { contactId: string; accountId: string; sellerId: string; filter?: string }) {
@@ -24,27 +23,14 @@ export async function ProspectTrack({ contactId, accountId, sellerId, filter }: 
   const base = `/people/${contactId}`;
 
   return (
-    <Card title="Prospect journey" sub={`${t.daysInSystem} day${t.daysInSystem === 1 ? "" : "s"} with us · now at ${t.current}${t.firstTouch ? ` · first touch ${date(t.firstTouch)}` : " · not contacted yet"}`}>
-      <ol className="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Milestones">
-        {MILESTONES.map((m, i) => {
-          const done = t.reached[m];
-          const here = m === t.current;
-          return (
-            <li key={m} className="flex items-center gap-1.5">
-              <span className="badge" aria-current={here ? "step" : undefined} style={{ background: done ? (here ? "rgba(99,102,241,0.16)" : "rgba(16,185,129,0.12)") : "var(--surface-card-header)", color: done ? (here ? "#4338CA" : "#047857") : "var(--text-tertiary, #94A3B8)", border: here ? "1px solid #6366F1" : "1px solid transparent" }}>
-                {done && !here && <Check size={11} className="mr-1 inline" />}{m}
-              </span>
-              {i < MILESTONES.length - 1 && <span className="muted text-xs" aria-hidden>›</span>}
-            </li>
-          );
-        })}
-      </ol>
+    <Card className="read" title="Prospect journey" sub={`${t.daysInSystem} day${t.daysInSystem === 1 ? "" : "s"} with us · now at ${t.current}${t.firstTouch ? ` · first touch ${date(t.firstTouch)}` : " · not contacted yet"}`}>
+      <div className="mb-4"><Stepper steps={MILESTONES} reached={t.reached} current={t.current} /></div>
 
-      <div className="mb-4 rounded-xl px-3 py-3" style={{ background: "var(--surface-card-header)" }}>
+      <div className="mb-4 rounded-2xl px-4 py-3" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <b style={{ color: "var(--text-primary)" }}>Buying intent</b>
-          <Badge color={LEVEL[intent.level]} dot>{intent.level} · {intent.score}</Badge>
-          <span className="muted text-xs">{intent.explain}</span>
+          <IntentPill level={intent.level} score={intent.score} title={intent.explain} />
+          {intent.families.map((f) => <FamilyChip key={f} family={f} />)}
         </div>
         {intent.whyNow && <p className="secondary mt-2 text-sm"><b style={{ color: "var(--text-primary)" }}>Why now:</b> {intent.whyNow}</p>}
         {intent.signals.length > 0 && (
@@ -52,7 +38,7 @@ export async function ProspectTrack({ contactId, accountId, sellerId, filter }: 
             {intent.signals.slice(0, 6).map((s, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="mono shrink-0" style={{ color: s.strength < 0 ? "#DC2626" : "#059669", minWidth: 34 }}>{s.strength < 0 ? "−" : "+"}{Math.round(Math.abs(s.strength) * 100)}</span>
-                <span className="muted shrink-0" style={{ minWidth: 92 }}>{s.family.replace("_", " ")}</span>
+                <span className="shrink-0" style={{ minWidth: 104 }}><FamilyChip family={s.family} /></span>
                 <span className="secondary">{s.label}</span>
               </li>
             ))}

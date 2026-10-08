@@ -10,6 +10,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
 import { addNoteAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
+import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
 
@@ -56,13 +57,14 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
   const stageName = STAGES.find((s) => s.n === a.pipelineStage)?.name ?? "Not started";
+  const reading = a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null; families: string[]; explain: string } | null;
   const drafts = a.contacts.flatMap((c) => c.drafts.map((d) => ({ ...d, contact: c })));
 
   return (
     <div className="page-enter">
       <Link href="/accounts" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Companies</Link>
 
-      <div className="glass-card-static card-pad mb-5 overflow-hidden" style={{ background: `linear-gradient(155deg, rgba(99,102,241,0.08), var(--surface-card) 55%)` }}>
+      <div className="glass-card-static read card-pad mb-5 overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex min-w-0 items-center gap-4">
             <Avatar name={a.name} id={a.id} size={56} />
@@ -95,18 +97,28 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <Kpi label="Fit" value={a.fitScore ?? "—"} meta="Known fields only" />
-          <Kpi label="Data confidence" value={a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—"} accent="#0D9488" meta="Verified share of what we hold" />
-          <Kpi label="Intent" value={Math.round(a.intentScore)} accent="#0EA5E9" meta={a.intentScore >= CONFIG.intent.surgeThreshold ? "Surging" : "Baseline"} />
-          <Kpi label="Engagement" value={Math.round(a.engagementScore)} accent="#7C3AED" meta={`MQA at ${CONFIG.engagement.stages.MQA}`} />
-          <Kpi label="Pipeline stage" value={a.pipelineStage || "—"} accent={a.pipelineStatus === "blocked" ? "#F59E0B" : a.pipelineStatus === "error" ? "#DC2626" : "#10B981"} meta={`${stageName} · ${a.pipelineStatus}`} />
-          <div className="kpi" style={{ ["--kpi-accent" as string]: spent / cap > 0.8 ? "#DC2626" : "#10B981" }}>
-            <span className="micro">Budget</span>
-            <div className="value display-num tnum">${spent.toFixed(2)}</div>
-            <div className="mt-2"><Meter value={spent} max={cap} color={spent / cap > 0.8 ? "#DC2626" : "#10B981"} /></div>
-            <div className="meta">of ${cap.toFixed(2)} ({a.tier ?? "T3"})</div>
+        {reading && (
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="micro">Buying intent</span>
+                <IntentPill level={reading.level} score={reading.score} title={reading.explain} />
+                {reading.families.map((f) => <FamilyChip key={f} family={f} />)}
+              </div>
+              {reading.whyNow && <p className="secondary mt-2 text-sm"><b style={{ color: "var(--text-primary)" }}>Why now:</b> {reading.whyNow}</p>}
+            </div>
           </div>
+        )}
+        {brief?.nextBestAction && <div className="mt-4"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
+
+        <div className="mt-4">
+          <StatStrip items={[
+            { label: "Fit", value: a.fitScore ?? "—", meta: "against the seller's ideal customer" },
+            { label: "Data we trust", value: a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—", meta: "verified share of fields" },
+            { label: "Engagement", value: Math.round(a.engagementScore), meta: `sales-ready at ${CONFIG.engagement.stages.MQA}` },
+            { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: a.pipelineStatus === "blocked" ? "waiting on a check" : a.pipelineStatus },
+            { label: "Research spend", value: `$${spent.toFixed(2)}`, meta: `of $${cap.toFixed(2)} for ${a.tier ?? "T3"}` },
+          ]} />
         </div>
       </div>
 

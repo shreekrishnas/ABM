@@ -5,34 +5,48 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles,
+  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles, Sun,
 } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; count?: keyof Counts };
 type Counts = { review: number; handoffs: number; tasks: number };
 
-const GROUPS: Item[][] = [
-  [
-    { href: "/", label: "Overview", icon: LayoutDashboard },
-    { href: "/accounts", label: "Companies", icon: Building2 },
-    { href: "/people", label: "People", icon: Users },
-    { href: "/pipeline", label: "Pipeline", icon: Workflow },
-    { href: "/review", label: "Review queue", icon: ClipboardCheck, count: "review" },
-  ],
-  [
-    { href: "/outreach", label: "Outreach", icon: Send },
-    { href: "/signals", label: "Signals", icon: Radar },
-    { href: "/handoffs", label: "Sales handoffs", icon: Handshake, count: "handoffs" },
-  ],
-  [
-    { href: "/crm/opportunities", label: "CRM · Opportunities", icon: BadgeDollarSign },
-    { href: "/crm/tasks", label: "CRM · Tasks", icon: ListTodo, count: "tasks" },
-  ],
-  [
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
-    { href: "/import", label: "Import Companies & People", icon: Upload },
-    { href: "/settings", label: "Settings", icon: Settings2 },
-  ],
+// v2: grouped by the job, not by the system. Daily work first; plumbing last.
+const GROUPS: { label: string; items: Item[] }[] = [
+  {
+    label: "Work",
+    items: [
+      { href: "/", label: "Today — what needs you", icon: Sun },
+      { href: "/accounts", label: "Companies", icon: Building2 },
+      { href: "/people", label: "People", icon: Users },
+      { href: "/review", label: "Approvals & checks", icon: ClipboardCheck, count: "review" },
+      { href: "/outreach", label: "Emails", icon: Send },
+    ],
+  },
+  {
+    label: "Flow",
+    items: [
+      { href: "/import", label: "Import companies & people", icon: Upload },
+      { href: "/signals", label: "Signals", icon: Radar },
+      { href: "/handoffs", label: "Hand-offs to sales", icon: Handshake, count: "handoffs" },
+      { href: "/pipeline", label: "Behind the scenes", icon: Workflow },
+    ],
+  },
+  {
+    label: "CRM",
+    items: [
+      { href: "/crm/opportunities", label: "Opportunities", icon: BadgeDollarSign },
+      { href: "/crm/tasks", label: "Tasks", icon: ListTodo, count: "tasks" },
+    ],
+  },
+  {
+    label: "Results",
+    items: [
+      { href: "/overview", label: "Program overview", icon: LayoutDashboard },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/settings", label: "Settings", icon: Settings2 },
+    ],
+  },
 ];
 
 type Tip = { label: string; top: number; left: number } | null;
@@ -65,9 +79,10 @@ export function Sidebar({ counts }: { counts: Counts }) {
         <Sparkles size={20} strokeWidth={2.2} />
       </Link>
       {GROUPS.map((g, i) => (
-        <div key={i} className="contents">
+        <div key={g.label} className="contents">
           {i > 0 && <div className="sidebar-sep" />}
-          {g.map((it) => {
+          <span className="sidebar-label" aria-hidden>{g.label}</span>
+          {g.items.map((it) => {
             const Icon = it.icon;
             const n = it.count ? counts[it.count] : 0;
             return (

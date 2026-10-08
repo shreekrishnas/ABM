@@ -6,6 +6,7 @@ import { STAGES } from "@/lib/config";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Meter, PageHeader, STAGE_STYLE, StageBadge, TierBadge, ago, cx } from "@/components/ui";
 import { createAccountAction } from "../actions";
+import { IntentPill, type IntentLevel } from "@/components/v2";
 
 export const metadata = { title: "Companies" };
 
@@ -27,11 +28,14 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const orderBy: Prisma.AccountOrderByWithRelationInput =
     sort === "fit" ? { fitScore: { sort: "desc", nulls: "last" } } : sort === "intent" ? { intentScore: "desc" } : sort === "recent" ? { updatedAt: "desc" } : sort === "name" ? { name: "asc" } : { engagementScore: "desc" };
 
-  const [accounts, stageCounts, users] = await Promise.all([
+  const [rawAccounts, stageCounts, users] = await Promise.all([
     db.account.findMany({ where, orderBy, include: { owner: true, _count: { select: { contacts: true, reviewItems: { where: { status: "open" } } } } }, take: 300 }),
     db.account.groupBy({ by: ["stage"], where: { mergedIntoId: null }, _count: true }),
     db.user.findMany({ orderBy: { name: "asc" } }),
   ]);
+  // Buying intent lives in the multi-signal reading; sort on its score when asked.
+  const intentOf = (a: { intentReading: unknown }) => (a.intentReading as { score?: number } | null)?.score ?? -1;
+  const accounts = sort === "intent" ? [...rawAccounts].sort((x, y) => intentOf(y) - intentOf(x)) : rawAccounts;
 
   const link = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams(Object.entries({ q, stage, tier, sort, ...patch }).filter(([, v]) => v) as [string, string][]);
@@ -98,7 +102,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           <div className="table-wrap">
             <table className="data">
               <thead>
-                <tr><th>Account</th><th>Tier</th><th>Stage</th><th>Fit</th><th>Intent</th><th className="w-40">Engagement</th><th>Pipeline</th><th>Owner</th><th>Updated</th></tr>
+                <tr><th>Account</th><th>Tier</th><th>Stage</th><th>Fit</th><th>Buying intent</th><th className="w-40">Engagement</th><th>Pipeline</th><th>Owner</th><th>Updated</th></tr>
               </thead>
               <tbody>
                 {accounts.map((a) => {
@@ -117,7 +121,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                       <td><TierBadge tier={a.tier} /></td>
                       <td><StageBadge stage={a.stage} /></td>
                       <td className="tnum">{a.fitScore ?? <span className="muted">—</span>}</td>
-                      <td className="tnum">{Math.round(a.intentScore)}</td>
+                      <td>{(() => { const r = a.intentReading as { level: IntentLevel; score: number; whyNow: string | null } | null; return r ? <IntentPill level={r.level} score={r.score} title={r.whyNow ?? undefined} /> : <span className="muted text-xs">not read yet</span>; })()}</td>
                       <td><div className="flex items-center gap-2"><div className="flex-1"><Meter value={a.engagementScore} /></div><span className="tnum w-8 text-right text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{Math.round(a.engagementScore)}</span></div></td>
                       <td>
                         <div className="flex items-center gap-1.5">

@@ -5,17 +5,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { Moon, Search, Sun } from "lucide-react";
 
 const TITLES: [string, string, string][] = [
-  ["/accounts", "Companies", "Company master: tier, stage, fit and intent"],
-  ["/people", "People", "People master and sender journeys"],
-  ["/pipeline", "Pipeline", "Thirteen stages, every gate logged"],
-  ["/review", "Review queue", "Everything waiting on a person"],
-  ["/outreach", "Outreach", "Sequences, drafts and sends"],
-  ["/signals", "Signals", "Intent, visits and engagement"],
-  ["/handoffs", "Sales handoffs", "Accounts ready for a rep"],
-  ["/crm", "CRM", "System of record"],
-  ["/analytics", "Analytics", "What the program is producing"],
-  ["/import", "Import Companies & People", "One CSV, linked records, sender journeys"],
-  ["/settings", "Settings", "Thresholds and policies"],
+  ["/accounts", "Companies", "Who to focus on, and why now"],
+  ["/people", "People", "Every prospect and their journey with us"],
+  ["/pipeline", "Behind the scenes", "Every step the brain took, and why"],
+  ["/review", "Approvals & checks", "Things only a person can decide"],
+  ["/outreach", "Emails", "Drafts, sends and replies"],
+  ["/signals", "Signals", "Visits, clicks and intent"],
+  ["/handoffs", "Hand-offs to sales", "Accounts ready for a rep"],
+  ["/crm", "CRM", "Opportunities and tasks"],
+  ["/overview", "Program overview", "What the program is producing"],
+  ["/analytics", "Analytics", "What is working"],
+  ["/import", "Import companies & people", "One file in; research and journeys follow"],
+  ["/settings", "Settings", "Seller, rules and connections"],
 ];
 
 function greeting() {
@@ -45,7 +46,7 @@ export function Topbar() {
     } catch {}
   };
 
-  const t = TITLES.find(([p]) => path.startsWith(p));
+  const t: [string, string, string] | undefined = path === "/" ? ["/", "Today", "Only what needs a person"] : TITLES.find(([p]) => path.startsWith(p));
   return (
     <header className="topbar">
       <div className="min-w-0">

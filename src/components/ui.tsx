@@ -27,12 +27,12 @@ export const STAGE_STYLE: Record<BuyingStage, { color: string; label: string }> 
   UNAWARE: { color: "#64748B", label: "Unaware" },
   AWARE: { color: "#0EA5E9", label: "Aware" },
   ENGAGED: { color: "#8B5CF6", label: "Engaged" },
-  MQA: { color: "#7C3AED", label: "MQA" },
+  MQA: { color: "#7C3AED", label: "Sales-ready" },
   OPPORTUNITY: { color: "#4F46E5", label: "Opportunity" },
   CUSTOMER: { color: "#059669", label: "Customer" },
   WATCH: { color: "#B45309", label: "Watch" },
   DISQUALIFIED: { color: "#DC2626", label: "Disqualified" },
-  RECYCLED: { color: "#0891B2", label: "Recycled" },
+  RECYCLED: { color: "#0891B2", label: "Back in research" },
 };
 
 export function StageBadge({ stage }: { stage: BuyingStage }) {
@@ -61,9 +61,11 @@ export const FIELD_STATUS_STYLE: Record<FieldStatus, string> = {
   unknown: "#64748B",
 };
 
+const FIELD_WORD: Record<FieldStatus, string> = { verified: "verified", probable: "likely", conflicting: "conflict", stale: "outdated", invalid: "wrong", unknown: "unchecked" };
+
 export function FieldBadge({ status }: { status: FieldStatus | undefined | null }) {
   const s = status ?? "unknown";
-  return <Badge color={FIELD_STATUS_STYLE[s]} dot>{s}</Badge>;
+  return <Badge color={FIELD_STATUS_STYLE[s]} dot title={s}>{FIELD_WORD[s]}</Badge>;
 }
 
 const AVATAR_PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];

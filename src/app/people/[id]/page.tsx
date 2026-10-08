@@ -103,7 +103,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       {sp.edit === "1" && <Card title="Edit person" className="mb-5">{editForm}</Card>}
 
       <div className="grid gap-5 xl:grid-cols-3">
-        <div className="grid content-start gap-5 xl:col-span-2">
+        <div className="grid min-w-0 content-start gap-5 xl:col-span-2">
           <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />
           <Card
             title="LinkedIn journey"
@@ -208,7 +208,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           )}
         </div>
 
-        <div className="grid content-start gap-5">
+        <div className="grid min-w-0 content-start gap-5">
           <Card title="Identity & contact">
             <Field k="First name" v={c.firstName} />
             <Field k="Last name" v={c.lastName} />
