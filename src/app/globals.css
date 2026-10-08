@@ -457,3 +457,15 @@ details.more[open] > summary::before { transform: rotate(90deg); }
 .import-rail li.done .n { background: var(--status-success); color: #fff; }
 .import-rail li.here { color: var(--accent-indigo); background: var(--surface-card-elevated); border-color: color-mix(in srgb, var(--accent-indigo) 40%, transparent); box-shadow: 0 6px 18px rgba(99, 102, 241, 0.15); }
 .import-rail li.here .n { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; }
+
+/* Layout safety: grid/flex children may shrink below their content, so nothing pushes the page wider than the screen. */
+.app-main .grid > *, .app-main .flex > section, .app-main .flex > div { min-width: 0; }
+.segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.table-wrap { max-width: 100%; }
+@media (max-width: 900px) {
+  .app-main .flex { flex-wrap: wrap; }
+  .app-main .flex.flex-nowrap, .app-main .q-row, .app-main .stepper .s { flex-wrap: nowrap; }
+}
+.chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .app-main .whitespace-nowrap { white-space: normal; } }
+@media (max-width: 900px) { .app-main .badge { white-space: normal; max-width: 100%; } }

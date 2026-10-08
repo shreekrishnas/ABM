@@ -85,7 +85,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         <select name="sender" defaultValue={sp.sender ?? ""} className="glass-select" style={{ maxWidth: 200 }} aria-label="Sender profile"><option value="">All senders</option>{senders.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
         <select name="stage" defaultValue={stage ?? ""} className="glass-select" style={{ maxWidth: 210 }} aria-label="Stage"><option value="">All stages</option>{JOURNEY_STAGES.map((k) => <option key={k} value={k}>{STAGE_INFO[k].n}. {STAGE_INFO[k].label}</option>)}</select>
         <select name="call" defaultValue={sp.call ?? ""} className="glass-select" style={{ maxWidth: 170 }} aria-label="Eligible to call"><option value="">Call: any</option><option value="yes">Eligible to call</option><option value="no">Not eligible</option></select>
-        {view === "board" && <input type="hidden" name="view" value="board" />}
+        {view === "list" && <input type="hidden" name="view" value="list" />}
         <button className="btn btn-primary">Filter</button>
         {(sp.q || scoped || stage || sp.call) && <Link href="/people" className="btn btn-ghost">Clear</Link>}
       </form>

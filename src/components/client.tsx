@@ -5,6 +5,11 @@ import { useFormStatus } from "react-dom";
 import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 import type { ActionState } from "@/app/actions";
 
+/** Next.js redirect() works by throwing; those must pass through. */
+function isRedirect(e: unknown) {
+  return typeof e === "object" && e !== null && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT");
+}
+
 /** Show a toast from anywhere; rendered by <ToastHost /> in the root layout so it survives re-renders. */
 export function toast(state: ActionState) {
   if (state) window.dispatchEvent(new CustomEvent("abm:toast", { detail: state }));
@@ -48,7 +53,15 @@ export function ActionButton({ action, children, className = "btn btn-secondary"
         title={title}
         onClick={() => {
           if (confirm && !window.confirm(confirm)) return;
-          start(async () => toast(await action()));
+          start(async () => {
+            try {
+              toast(await action());
+            } catch (e) {
+              // A redirect is not an error; anything else becomes a message instead of a crashed page.
+              if (isRedirect(e)) throw e;
+              toast({ ok: false, message: "Something went wrong — try again. If it keeps happening, the server or database may be down." });
+            }
+          });
         }}
       >
         {pending ? <Loader2 size={15} className="spin" /> : null}
@@ -63,9 +76,16 @@ export function ActionForm({ action, children, className, resetOnSuccess = true 
   // Toast as soon as the action resolves: the form itself may unmount in the
   // same render (e.g. an approved draft leaves the queue).
   const [state, formAction] = useActionState(async (s: ActionState, fd: FormData) => {
-    const r = await action(s, fd);
-    toast(r);
-    return r;
+    try {
+      const r = await action(s, fd);
+      toast(r);
+      return r;
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      const r = { ok: false, message: "Something went wrong — try again. If it keeps happening, the server or database may be down." };
+      toast(r);
+      return r;
+    }
   }, null);
   const [key, setKey] = useState(0);
   useEffect(() => {

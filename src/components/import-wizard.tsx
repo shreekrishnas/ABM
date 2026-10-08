@@ -298,7 +298,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
                 {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <NewOption label="campaign" onCreate={async (name) => {
-                const r = await createCampaignAction(name);
+                const r = await createCampaignAction(name).catch(() => ({ ok: false as const, message: "Could not create the campaign — try again" }));
                 if (!r.ok) return r.message;
                 setCampaigns((xs) => (xs.some((x) => x.id === r.id) ? xs : [...xs, { id: r.id, name: r.name }]));
                 setCampaignId(r.id);
@@ -313,7 +313,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
                 {senders.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               <NewOption label="sender profile" onCreate={async (name) => {
-                const r = await createSenderAction(name);
+                const r = await createSenderAction(name).catch(() => ({ ok: false as const, message: "Could not create the sender profile — try again" }));
                 if (!r.ok) return r.message;
                 setSenders((xs) => (xs.some((x) => x.id === r.id) ? xs : [...xs, { id: r.id, name: r.name }]));
                 setSenderId(r.id);

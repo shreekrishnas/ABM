@@ -40,7 +40,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const accounts = sort === "intent" ? [...rawAccounts].sort((x, y) => intentOf(y) - intentOf(x)) : rawAccounts;
 
   const link = (patch: Record<string, string | undefined>) => {
-    const p = new URLSearchParams(Object.entries({ q, stage, tier, sort, ...patch }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ q, stage, tier, sort, view: view === "list" ? "list" : undefined, ...patch }).filter(([, v]) => v) as [string, string][]);
     return `/accounts${p.size ? `?${p}` : ""}`;
   };
   const total = stageCounts.reduce((a, s) => a + s._count, 0);
@@ -80,11 +80,12 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           <input name="q" defaultValue={q} className="glass-input" placeholder="Search name, domain or industry" aria-label="Search accounts" />
           {stage && <input type="hidden" name="stage" value={stage} />}
           {tier && <input type="hidden" name="tier" value={tier} />}
+          {view === "list" && <input type="hidden" name="view" value="list" />}
         </form>
         <div className="segmented" role="group" aria-label="Tier">
           {[undefined, "T1", "T2", "T3"].map((t) => <Link key={t ?? "all"} href={link({ tier: t })} className={cx(tier === t && "on")}>{t ?? "All tiers"}</Link>)}
         </div>
-        <div className="ml-auto"><ViewSwitch base="/accounts" params={{ q, stage, tier, sort }} current={view} views={[{ id: "map", label: "Priority map", icon: <Map size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /></div>
+        <div className="ml-auto"><ViewSwitch base="/accounts" params={{ q, stage, tier, sort: sp.sort }} current={view} views={[{ id: "map", label: "Priority map", icon: <Map size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /></div>
         <div className="segmented" role="group" aria-label="Sort">
           {Object.entries(SORTS).map(([k, l]) => <Link key={k} href={link({ sort: k })} className={cx(sort === k && "on")}>{l}</Link>)}
         </div>
