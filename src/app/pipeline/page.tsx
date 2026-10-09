@@ -6,6 +6,7 @@ import { CAT_COLOR, STAGE_DOCS } from "@/lib/stage-docs";
 import { ActionButton } from "@/components/client";
 import { Badge, Card, Empty, Kpi, PageHeader, ago, cx } from "@/components/ui";
 import { runAllAction, tickAction } from "../actions";
+import { QueuePanel } from "@/components/queue-panel";
 
 export const metadata = { title: "Pipeline" };
 
@@ -45,10 +46,12 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         actions={
           <>
             <ActionButton action={tickAction} className="btn btn-secondary"><Timer size={15} /> Run scheduler</ActionButton>
-            <ActionButton action={runAllAction} className="btn btn-brand"><Play size={15} /> Run new accounts</ActionButton>
+            <ActionButton action={runAllAction} className="btn btn-brand"><Play size={15} /> Queue new accounts</ActionButton>
           </>
         }
       />
+
+      <QueuePanel className="mb-5" />
 
       <Card>
         <div className="table-wrap pb-2">

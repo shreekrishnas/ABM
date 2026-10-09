@@ -4,21 +4,39 @@
 // mutation revalidates the pages that show it.
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { finishBatch, importChunk, ingestRows, startBatch, type BatchStats } from "@/lib/pipeline/ingest";
 import { analyzeMapping } from "@/lib/import/fields";
-import { runAccount, runBatch, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
+import { runAccount, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
+import { kickDrain } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
 
 const refresh = (...paths: string[]) => {
   for (const p of ["/", ...paths]) revalidatePath(p);
 };
+
+/** This deployment's own origin, so the background queue can call its route. */
+async function requestOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return null;
+  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/** Start the background queue once this response is sent. */
+async function startBackgroundQueue() {
+  const origin = await requestOrigin();
+  after(() => kickDrain(origin));
+}
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);
@@ -34,11 +52,14 @@ export async function runAccountAction(accountId: string, fromStage?: number): P
 }
 
 export async function runAllAction(): Promise<ActionState> {
-  const accounts = await db.account.findMany({ where: { mergedIntoId: null, pipelineStage: { lt: 11 }, pipelineStatus: { in: ["idle", "error"] } }, select: { id: true } });
-  const res = await runBatch(accounts.map((a) => a.id));
-  refresh("/accounts", "/pipeline", "/review");
-  const done = res.filter((r) => r.status === "done").length;
-  return { ok: true, message: `Ran ${res.length} account(s): ${done} reached drafting, ${res.length - done} stopped at a gate` };
+  // Queue them for the background worker: a long list would time out in one request.
+  const accounts = await db.account.findMany({ where: { mergedIntoId: null, pipelineStage: { lt: 11 }, pipelineStatus: { in: ["idle", "error"] } }, select: { id: true, pipelineStage: true } });
+  for (const a of accounts) {
+    await db.account.update({ where: { id: a.id }, data: { pipelineStatus: "queued", queuedFromStage: Math.max(2, a.pipelineStage + 1) } });
+  }
+  if (accounts.length) await startBackgroundQueue();
+  refresh("/accounts", "/pipeline", "/import");
+  return { ok: true, message: accounts.length ? `Queued ${accounts.length} account(s); they run in the background` : "Nothing to run: every account is through drafting or already queued" };
 }
 
 export async function tickAction(): Promise<ActionState> {
@@ -348,8 +369,22 @@ export async function createSenderFormAction(_: ActionState, fd: FormData): Prom
 
 export async function finishImportAction(batchId: string) {
   const b = await finishBatch(batchId);
+  // The page processes while it stays open; the background queue finishes the rest if it is closed.
+  if (b.toProcess > 0) await startBackgroundQueue();
   refresh("/import", "/accounts");
   return { toProcess: b.toProcess, stats: b.stats as unknown as BatchStats };
+}
+
+/** "Process now": start the background queue; without a reachable origin, do one slice here. */
+export async function processQueueNowAction(): Promise<ActionState> {
+  const origin = await requestOrigin();
+  if (await kickDrain(origin)) {
+    refresh("/import", "/pipeline");
+    return { ok: true, message: "Processing in the background; this page updates as companies finish" };
+  }
+  const r = await processQueue({ budgetMs: 35_000 });
+  refresh("/import", "/accounts", "/pipeline", "/review");
+  return { ok: true, message: `Processed ${r.processed}; ${r.remaining} remaining` };
 }
 
 export async function processImportAction(batchId?: string) {

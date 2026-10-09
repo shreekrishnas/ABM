@@ -981,3 +981,15 @@ model ProspectSuggestion {
   @@unique([sellerId, nameKey])
   @@index([sellerId, status, score])
 }
+
+/// A short-lived lease so only one worker runs a background job at a time (e.g. the
+/// import queue drain). A lease past `expiresAt` is free to take over.
+model JobLease {
+  name       String   @id
+  holder     String
+  expiresAt  DateTime
+  lastRunAt  DateTime?
+  /// What the last run did, for the status panel.
+  lastResult Json?
+  updatedAt  DateTime @updatedAt
+}

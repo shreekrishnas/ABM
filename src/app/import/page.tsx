@@ -1,9 +1,8 @@
 import { Download } from "lucide-react";
 import { db } from "@/lib/db";
 import { ImportWizard } from "@/components/import-wizard";
-import { ActionButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader, ago } from "@/components/ui";
-import { processImportAction } from "../actions";
+import { QueuePanel } from "@/components/queue-panel";
 
 export const metadata = { title: "Import" };
 // Each upload step is a short request; processing steps can take a while.
@@ -12,9 +11,8 @@ export const maxDuration = 300;
 type Stats = Partial<Record<"accountsCreated" | "accountsUpdated" | "accountsUnchanged" | "contactsCreated" | "contactsUpdated" | "contactsUnchanged" | "skippedErased" | "journeysCreated" | "journeysUpdated", number>>;
 
 export default async function ImportPage() {
-  const [batches, queued, campaigns, senders] = await Promise.all([
+  const [batches, campaigns, senders] = await Promise.all([
     db.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 25, include: { campaign: true, sender: true } }),
-    db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
     db.campaign.findMany({ where: { active: true }, orderBy: { createdAt: "desc" }, select: { id: true, name: true } }),
     db.senderProfile.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
@@ -39,16 +37,11 @@ export default async function ImportPage() {
             <li><b style={{ color: "var(--text-primary)" }}>Stage.</b> LinkedIn activity columns set the starting stage; otherwise people start at Not Contacted. A reply&apos;s meaning sets the stage.</li>
             <li><b style={{ color: "var(--text-primary)" }}>Updating.</b> Newer non-blank values replace old ones. Blank cells never erase anything.</li>
             <li><b style={{ color: "var(--text-primary)" }}>Re-checking.</b> Only changed fields lose their verified status (e.g. a new job title is re-verified before any email).</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Automatic.</b> New and changed accounts run through the pipeline right after upload. Unchanged ones are skipped — no repeated spend.</li>
+            <li><b style={{ color: "var(--text-primary)" }}>Automatic.</b> New and changed accounts run through the pipeline right after upload, in the background, so you can close this page. Unchanged ones are skipped — no repeated spend.</li>
             <li><b style={{ color: "var(--text-primary)" }}>Strict.</b> Only mapped, predefined fields are stored; other columns are ignored and listed. Rows with invalid values are rejected with the row number and reason.</li>
             <li><b style={{ color: "var(--text-primary)" }}>Safe.</b> People erased under GDPR are never re-imported; unsubscribed people stay suppressed.</li>
           </ul>
-          {queued > 0 && (
-            <div className="mt-4 rounded-xl px-3 py-3 text-sm" style={{ background: "var(--surface-card-header)" }}>
-              <div className="mb-2 secondary"><b style={{ color: "var(--text-primary)" }}>{queued}</b> account{queued === 1 ? "" : "s"} waiting to be processed.</div>
-              <ActionButton action={async () => { "use server"; const r = await processImportAction(); return { ok: true, message: `Processed ${r.processed}; ${r.remaining} remaining` }; }} className="btn btn-primary btn-sm">Process now</ActionButton>
-            </div>
-          )}
+          <QueuePanel className="mt-4" />
         </Card>
       </div>
 

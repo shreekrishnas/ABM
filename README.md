@@ -68,6 +68,17 @@ columns are defined in `src/lib/import/fields.ts`). Upload as often as you like:
   batches (no file-size or timeout limit). Unchanged accounts are skipped — no repeat spend.
 - GDPR-erased people are never re-imported.
 
+## Background queue
+
+Imports, "Queue new accounts" and the daily run mark companies `queued`. `POST /api/v1/queue`
+answers at once, then works through the queue for one 45-second slice after responding and
+calls itself again until the queue is empty, so a large import finishes after the page is
+closed. A database lease (`JobLease`) lets only one chain run at a time; a crashed one expires
+and the next kick (or the daily run) takes over. The Import and Behind-the-scenes pages show
+what is waiting, with a "Process now" button. No external service is needed.
+
+Set `APP_URL` if the deployment can't call its own URL (e.g. password-protected previews).
+
 ## REST API (`/api/v1`)
 
 Every route except `/health` needs `Authorization: Bearer <ABM_API_KEY>`. In production the API
@@ -87,6 +98,7 @@ Settings → Access & spend shows what is configured.
 | POST | `/signals` | Tracking/intent/email webhook — `{ domain \| accountId, type, contactEmail?, detail? }` |
 | POST | `/replies` | Inbox webhook — `{ fromEmail, body }` → classified and routed |
 | POST | `/tick` | Cron: advance sequences, send approved, watchlist, intent, escalations |
+| GET / POST | `/queue` | Queue status / start the background drain (also accepts `CRON_SECRET`) |
 | POST | `/gdpr/erase` | `{ email }` erase and suppress |
 
 ## Design
@@ -104,6 +116,6 @@ Light and dark themes flip via `data-theme` on `<html>`.
    `TAVILY_API_KEY`, `SERPAPI_API_KEY`) and the LLM via OpenRouter (`OPENROUTER_API_KEY`,
    `LLM_MODEL`, default `openai/gpt-4o-mini`). Still mock: contact provider (Apollo), mailbox
    check, sending, intent, alerts. `ADAPTER_MODE=mock` forces everything back to mocks.
-3. Background queue (Inngest/BullMQ) to replace synchronous runs; cron hitting `/api/v1/tick`.
+3. ~~Background queue~~ done (self-chaining `/api/v1/queue`). Move to Inngest if runs need retries or fan-out.
 4. Website tracking script for reverse-IP visits.
 5. Editable settings in the DB with audit history.
