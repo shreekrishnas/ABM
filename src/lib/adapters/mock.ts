@@ -3,6 +3,7 @@
 // contradictions, weak evidence, bounces) shows up in seeded data.
 
 import { rulePlan, ruleBrief, ruleCheckClaims, ruleInsights } from "@/lib/brain/rules";
+import { HashEmbedder } from "./hash-embedder";
 import { isTriggerKey } from "@/lib/research/keys";
 import { classifyReplyRules } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
@@ -377,6 +378,23 @@ class MockLLM implements LLM {
     const support = input.facts.find((f) => f.key === "owner_function" && f.id !== lead?.id);
     const hi = input.firstName ? `Hi ${input.firstName},` : "Hi,";
     const claims: { text: string; factIds: string[] }[] = [];
+
+    // LinkedIn: short, no subject, no footer, shaped by the play.
+    if (input.channel === "linkedin") {
+      const about = lead ? lead.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "") : "";
+      const said = lead ? `saw that ${input.company} ${about}`.replace(/\.$/, "") : `glad to see ${input.company}'s progress`;
+      let body: string;
+      if (input.writing?.play.key === "linkedin_connect") {
+        body = `Hi ${input.firstName ?? "there"}, ${said}. Would be glad to connect.`;
+        const max = input.writing.play.limits.maxChars ?? 200;
+        if (body.length > max) body = `Hi ${input.firstName ?? "there"}, following ${input.company}'s recent news. Would be glad to connect.`;
+      } else {
+        body = `Thanks for connecting, ${input.firstName ?? "there"}. I ${said}. How is your team handling partner onboarding through that?`;
+      }
+      if (lead && body.includes(about.slice(0, 20))) claims.push({ text: body, factIds: [lead.id] });
+      return { subject: "", body, angle: lead?.key ?? null, claims };
+    }
+
     const lines: string[] = [hi, ""];
     if (lead) {
       const text = `I saw that ${input.company} ${lead.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "")}.`;
@@ -392,7 +410,20 @@ class MockLLM implements LLM {
     // The brain's angle for this person, asked as a question (a hypothesis, not a fact).
     if (input.angle && input.stepOrder === 1) lines.push("", `Is ${input.angle.pain.split(" — ")[0].replace(/^./, (c) => c.toLowerCase())} something your team is dealing with?`);
     // Approved seller collateral (about the seller, not the prospect).
-    lines.push("", input.stepOrder === 1 ? `${input.seller.pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${input.seller.pitch}`);
+    let pitch = input.seller.pitch;
+    const tail = () => (input.stepOrder === 1 ? `${pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${pitch}`);
+    // Respect the play's length: drop the supporting line, then shorten the pitch to its first sentence.
+    const max = input.writing?.play.limits.maxWords;
+    const count = () => [...lines, tail()].join(" ").split(/\s+/).filter(Boolean).length;
+    if (max && count() > max && support) {
+      const i = lines.findIndex((l) => l.startsWith("It looks like your"));
+      if (i >= 0) {
+        lines.splice(i, 1);
+        claims.splice(claims.findIndex((c) => c.factIds[0] === support.id), 1);
+      }
+    }
+    if (max && count() > max) pitch = pitch.split(/(?<=\.)\s/)[0];
+    lines.push("", tail());
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");
     return {
       subject: input.stepOrder === 1 ? `${input.company} + ${input.seller.name}` : `Re: ${input.company} + ${input.seller.name}`,
@@ -473,6 +504,7 @@ export function createMockAdapters(): Adapters & { provider: MockProvider } {
     email: new MockEmail(),
     intent: new MockIntent(),
     notifier: new MockNotifier(),
+    embedder: new HashEmbedder(),
   };
 }
 

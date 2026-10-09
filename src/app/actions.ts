@@ -510,7 +510,21 @@ export async function suggestReplyAction(contactId: string, campaignId: string, 
   if (!c) return { ok: false as const, message: "Person not found" };
   const { suggestReplyMeaning } = await import("@/lib/journey/service");
   const s = await suggestReplyMeaning(text.slice(0, 4000), { company: c.account.name, title: c.titleNormalized ?? c.title, stage: c.journeys[0]?.stage ?? "not_contacted" });
-  return { ok: true as const, ...s };
+  // Knowledge base: objection answers and proof that fit what they said.
+  const { ensureSellerPacks, sellerFor } = await import("@/lib/seller");
+  const { ensureIndexed } = await import("@/lib/knowledge/rag/store");
+  const { retrieve } = await import("@/lib/knowledge/rag/retrieve");
+  let knowledge: { title: string; text: string; kind: string }[] = [];
+  try {
+    await ensureSellerPacks();
+    const sp = sellerFor(c.account.sellerId);
+    await ensureIndexed(sp);
+    const hits = await retrieve({ sellerId: sp.id, query: text.slice(0, 1000), kinds: ["objection", "case_study", "product", "competitor"], k: 2, minScore: 0.2 });
+    knowledge = hits.map((h) => ({ title: h.title, kind: h.kind, text: h.text.split("\n").slice(1).join("\n").slice(0, 500) }));
+  } catch {
+    knowledge = [];
+  }
+  return { ok: true as const, ...s, knowledge };
 }
 
 /** The person confirms (or changes) the suggested stage; the reply is counted and saved. */

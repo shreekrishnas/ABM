@@ -1,5 +1,6 @@
 import type { Stage } from "@/lib/journey/stages";
 import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "@/lib/brain/types";
+import type { WritingContext } from "@/lib/knowledge/select";
 
 // Interfaces for every external system. Stages depend on these, never on a vendor.
 // Swap the mock implementations for real ones in adapters/index.ts.
@@ -107,6 +108,10 @@ export interface DraftInput {
   signals?: string[];
   /** Rewriter: the previous version and what the critic panel found wrong with it. */
   revise?: { subject: string; body: string; issues: string[] } | null;
+  /** email (default) or a LinkedIn message: no subject, no signature or unsubscribe footer. */
+  channel?: "email" | "linkedin";
+  /** Writing knowledge for this message: play, persona profile, examples, market norms and facts. */
+  writing?: WritingContext;
 }
 
 export interface CritiqueInput {
@@ -117,6 +122,10 @@ export interface CritiqueInput {
   angle: string | null;
   tone: string[];
   bannedClaims: string[];
+  /** The play the message was written to (plain-text brief), so style is judged against it. */
+  play?: string;
+  /** The recipient's persona profile name and what they care about. */
+  persona?: string;
 }
 export interface CritiqueOutput {
   pass: boolean;
@@ -199,6 +208,15 @@ export interface Notifier {
   alert(to: string, subject: string, body: string): Promise<void>;
 }
 
+/** Turns text into vectors for the knowledge base. Vectors from different models are never compared. */
+export interface Embedder {
+  /** Model id stored with every vector, e.g. "openai/text-embedding-3-small" or "hash-v1". */
+  readonly model: string;
+  readonly live: boolean;
+  /** One vector per input, in order. Implementations batch internally. */
+  embed(texts: string[]): Promise<number[][]>;
+}
+
 export interface Adapters {
   provider: DataProvider;
   mailbox: MailboxVerifier;
@@ -207,4 +225,5 @@ export interface Adapters {
   email: EmailSender;
   intent: IntentProvider;
   notifier: Notifier;
+  embedder: Embedder;
 }

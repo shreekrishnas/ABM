@@ -2,7 +2,51 @@
 // writing, learning) is generic; this is the only place seller-specific words live.
 // Adding a seller = adding a pack file + passing tests/seller-pack.test.ts.
 
+import type { PlayKey } from "@/lib/knowledge/playbook";
+
 export type BuyingRoleKey = "decision_maker" | "champion" | "influencer" | "budget_owner";
+
+/** A buyer the seller writes to, in more depth than `personas`: what they care about and how they talk. */
+export interface PersonaProfile {
+  key: string;
+  name: string;
+  role: BuyingRoleKey;
+  functions: string[];
+  /** Title words that identify this persona (lowercase). */
+  titleHints: string[];
+  /** What keeps them busy and what they are measured on. */
+  cares: string[];
+  /** Words and phrases they use for the problem. */
+  language: string[];
+  avoid: string[];
+  /** The kind of opening that tends to land. */
+  opener: string;
+  sources: string[];
+}
+
+export interface WritingExample {
+  id: string;
+  play: PlayKey;
+  /** PersonaProfile key. */
+  persona: string;
+  useCase?: string;
+  trigger?: string;
+  /** good = imitate; bad = what to avoid. */
+  quality: "good" | "bad";
+  subject?: string;
+  body: string;
+  why: string;
+}
+
+/** Everything the writer knows about writing for this seller's market and buyers. */
+export interface WritingKnowledge {
+  market: { label: string; norms: { text: string; sources: string[] }[] };
+  personas: PersonaProfile[];
+  /** Third-party facts the writer may use (named source, never as a claim about the prospect). */
+  marketFacts: { id: string; text: string; attribution: string; source: string }[];
+  objections: { key: string; objection: string; answer: string; sources: string[] }[];
+  examples: WritingExample[];
+}
 
 export interface SellerProfile {
   id: string;
@@ -45,6 +89,8 @@ export interface SellerProfile {
   autonomy: "review_all" | "auto_t3" | "auto_all";
   /** Wording for the rule-based fallback brain; {tech} and {tools} are filled in. */
   ruleHints: { techHypothesis: string; toolingPain: string };
+  /** Writing knowledge base: personas, market norms, objections, examples. */
+  writing?: WritingKnowledge;
 }
 
 export interface ResearchQuestion {

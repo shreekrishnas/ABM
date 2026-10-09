@@ -10,7 +10,7 @@ import { ActionForm, SubmitButton } from "./client";
 export function ReplyAssistant({ contactId, campaignId, senderId }: { contactId: string; campaignId: string; senderId: string }) {
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
-  const [s, setS] = useState<{ stage: Stage; reason: string; nextAction: string; by: string } | null>(null);
+  const [s, setS] = useState<{ stage: Stage; reason: string; nextAction: string; by: string; knowledge: { title: string; text: string; kind: string }[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   return (
@@ -24,7 +24,7 @@ export function ReplyAssistant({ contactId, campaignId, senderId }: { contactId:
           <button type="button" className="btn btn-secondary btn-sm" disabled={pending || !text.trim()} onClick={() => start(async () => {
             setErr(null);
             const r = await suggestReplyAction(contactId, campaignId, senderId, text);
-            if (r.ok) setS({ stage: r.stage, reason: r.reason, nextAction: r.nextAction, by: r.by });
+            if (r.ok) setS({ stage: r.stage, reason: r.reason, nextAction: r.nextAction, by: r.by, knowledge: r.knowledge ?? [] });
             else setErr(r.message);
           })}>
             {pending ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Suggest meaning
@@ -35,6 +35,14 @@ export function ReplyAssistant({ contactId, campaignId, senderId }: { contactId:
         <div className="grid gap-2 rounded-xl px-3 py-3 text-sm" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
           <div className="micro">Suggested by {s.by === "rules" ? "rules" : s.by === "mock" ? "sample rules" : s.by}</div>
           <div className="secondary">{s.reason}. <b style={{ color: "var(--text-primary)" }}>Next:</b> {s.nextAction}</div>
+          {s.knowledge.length > 0 && (
+            <details className="more">
+              <summary>From the knowledge base ({s.knowledge.length})</summary>
+              <ul className="mt-2 grid gap-2">
+                {s.knowledge.map((k) => <li key={k.title} className="text-xs"><b style={{ color: "var(--text-primary)" }}>{k.title}</b><div className="secondary whitespace-pre-line">{k.text}</div></li>)}
+              </ul>
+            </details>
+          )}
           <input type="hidden" name="suggestedBy" value={s.by} />
           <div className="flex flex-wrap items-end gap-2">
             <div>

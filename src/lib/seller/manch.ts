@@ -5,6 +5,7 @@
 // ACTIVE_SELLER in src/lib/seller/index.ts.
 
 import type { SellerProfile } from "./types";
+import { MANCH_WRITING } from "./manch-writing";
 
 export const MANCH: SellerProfile = {
   id: "manch",
@@ -182,4 +183,6 @@ export const MANCH: SellerProfile = {
     techHypothesis: "An existing {tech} means validated master data must reach it cleanly — Manch integrates rather than replaces it",
     toolingPain: "Fragmented or manual master data across {tools}",
   },
+
+  writing: MANCH_WRITING,
 };

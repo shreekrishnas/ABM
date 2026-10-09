@@ -17,6 +17,9 @@ import type { DraftInput } from "@/lib/adapters/types";
 import { publish } from "@/lib/brain/bus";
 import { decide } from "@/lib/brain/decisions";
 import { readIntent } from "@/lib/brain/intent";
+import { checkPlay, messageBody, playFor, type PlayKey } from "@/lib/knowledge/playbook";
+import { knowledgeTrace, writingContext } from "@/lib/knowledge/select";
+import { retrieveForMessage } from "@/lib/knowledge/rag/for-message";
 
 // ───────────────────────── Stage 10 ─────────────────────────
 
@@ -104,6 +107,13 @@ export async function sequenceForTier(tier: Account["tier"]) {
   );
 }
 
+/** First, middle or last email of the person's sequence → which email play to write. */
+export async function emailPlayFor(contactId: string, stepOrder: number): Promise<PlayKey> {
+  const e = await db.enrollment.findFirst({ where: { contactId }, orderBy: { createdAt: "desc" }, include: { sequence: { include: { steps: { orderBy: { order: "asc" } } } } } });
+  const emails = (e?.sequence.steps ?? []).filter((s) => s.channel === "email").map((s) => s.order);
+  return playFor("email", stepOrder, { firstOfChannel: emails.length === 0 || stepOrder <= emails[0], lastOfChannel: emails.length > 1 && stepOrder === emails[emails.length - 1] }).key;
+}
+
 export async function usableFacts(accountId: string, now: Date) {
   const ev = await liveEvidence(accountId);
   return ev.filter((e) => !e.isNegative && (e.status === "verified" || e.status === "probable") && e.publishedAt.getTime() <= now.getTime());
@@ -159,6 +169,21 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   if (input.angle && intent.whyNow && intent.level !== "cold") input.angle.whyNow = intent.whyNow;
   input.tone = sp.tone;
   input.bannedClaims = sp.bannedClaims;
+  // Writing knowledge: the play for this step, the recipient's persona profile, the closest examples.
+  const writing = writingContext(sp.writing, {
+    play: await emailPlayFor(contact.id, stepOrder),
+    recipient: { buyingRole: contact.buyingRole, function: contact.function, title: contact.titleNormalized ?? contact.title },
+    useCase: useCase ?? null,
+    trigger: trigger?.key ?? null,
+  });
+  // Knowledge base (RAG): reference knowledge and any uploaded or learned examples for this play.
+  const rag = await retrieveForMessage({ sp, writing, recipientTitle: contact.titleNormalized ?? contact.title, company: account.name, trigger: trigger ? { key: trigger.key, label: trigger.label } : null, useCase: useCase ?? null, leadFact: facts[0]?.claim ?? null });
+  writing.references = rag.references;
+  if (rag.examples.length) writing.examples = [...rag.examples.map((h) => ({ id: h.chunkId, quality: "good" as const, body: h.text.split("\n").slice(1).join("\n"), why: h.origin === "learned" ? "Got a positive reply" : `Added by the team: ${h.title}` })), ...writing.examples].slice(0, 4);
+  if (rag.error) await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.knowledge", outcome: "info", reason: `Knowledge base unavailable, writing without it: ${rag.error.slice(0, 200)}` });
+  else await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.knowledge", outcome: "pass", reason: `Knowledge: ${writing.play.label}${writing.persona ? ` · ${writing.persona.name}` : ""} · ${rag.references.length} reference(s)${rag.references.length ? ` (${rag.references.map((r) => r.title).slice(0, 3).join("; ")})` : ""}${rag.examples.length ? ` · ${rag.examples.length} learned/uploaded example(s)` : ""}` });
+  input.channel = "email";
+  input.writing = writing;
   // The claim checker sees each fact with the exact quote from its source page.
   const factText = new Map(facts.map((f) => [f.id, f.quote ? `${f.claim} (source says: "${f.quote}")` : f.claim]));
   const usable = facts.map((f) => ({ id: f.id, status: f.status, publishedAt: f.publishedAt, key: f.key }));
@@ -207,6 +232,10 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
       panel.push({ critic: "truth (model)", pass: checks != null && !bad.length, issues: bad.map((b) => `Claim not supported by its source: "${b.text.slice(0, 80)}" — ${b.reason}`), available: checks != null });
     }
 
+    // 2b. Playbook critic (code): length, subject, one ask, no filler — the measurable parts of the play.
+    const pc = checkPlay(writing.play, { subject: candidate.subject, body: messageBody(candidate.body, sp.sender.name) });
+    panel.push({ critic: "playbook (code)", pass: pc.pass, issues: pc.issues, available: true });
+
     // 3. Compliance critic (code): unsubscribe line, sender address, banned claims.
     const comp = complianceGate(candidate.body);
     const ban = bannedClaimGate(`${candidate.subject}\n${candidate.body}`, sp.bannedClaims);
@@ -219,7 +248,10 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     // 4. Style and relevance critic (model): tone, role, angle, length.
     try {
       await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Critique for ${contact.fullName} (version ${attempt})`, S);
-      const c = await ctx.adapters.llm.critiqueDraft({ subject: candidate.subject, body: candidate.body, company: account.name, recipientTitle: contact.titleNormalized, angle: angle ? `${angle.pain} → ${angle.capability}` : null, tone: sp.tone, bannedClaims: sp.bannedClaims });
+      const c = await ctx.adapters.llm.critiqueDraft({
+        subject: candidate.subject, body: candidate.body, company: account.name, recipientTitle: contact.titleNormalized, angle: angle ? `${angle.pain} → ${angle.capability}` : null, tone: sp.tone, bannedClaims: sp.bannedClaims,
+        play: writing.playBrief, persona: writing.persona ? `${writing.persona.name} — cares about: ${writing.persona.cares.join("; ")}` : undefined,
+      });
       strengths = c.strengths;
       panel.push({ critic: "style (model)", pass: c.pass && c.issues.length === 0, issues: c.issues, available: true });
     } catch (e) {
@@ -236,7 +268,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   const critique = panel as unknown as Prisma.InputJsonValue;
   if (issues.length || !current) {
     const blocked = await db.draft.create({
-      data: { sellerId: sc.pack.id, sellerPackVersion: sc.version, contactId: contact.id, stepOrder, subject: current?.subject ?? "(blocked)", body: current?.body ?? "", claims: (current?.claims ?? []) as unknown as Prisma.InputJsonValue, status: "blocked", guardrailAttempts: attempt, rewrites: attempt - 1, critique, blockReason: issues[0] ?? "No draft" },
+      data: { sellerId: sc.pack.id, sellerPackVersion: sc.version, contactId: contact.id, stepOrder, subject: current?.subject ?? "(blocked)", body: current?.body ?? "", claims: (current?.claims ?? []) as unknown as Prisma.InputJsonValue, status: "blocked", guardrailAttempts: attempt, rewrites: attempt - 1, critique, blockReason: issues[0] ?? "No draft", knowledge: knowledgeTrace(writing) },
     });
     await decide(ctx, {
       module: "critic_panel", question: `Send step ${stepOrder} to ${contact.fullName}?`, choice: "Hold — a person decides",
@@ -258,7 +290,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
       contactId: contact.id, stepOrder, subject: out.subject, body: out.body, angle: trigger?.key ?? out.angle,
       painPoint: angle?.pain ?? null, useCase, claimCheck: (checks ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
       claims: out.claims as unknown as Prisma.InputJsonValue, leadEvidenceId: out.claims[0]?.factIds[0] ?? null,
-      guardrailAttempts: attempt, rewrites: attempt - 1, critique,
+      guardrailAttempts: attempt, rewrites: attempt - 1, critique, knowledge: knowledgeTrace(writing),
       status: human ? "pending_review" : "approved",
       reviewedAt: !human ? ctx.now : null,
       reviewerNote: !human ? `Auto-approved (${sp.autonomy}: every critic passed)` : null,

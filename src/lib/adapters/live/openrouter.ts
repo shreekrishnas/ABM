@@ -118,29 +118,47 @@ export class OpenRouterLLM implements LLM {
   }
 
   async draft(input: DraftInput, attempt: number): Promise<DraftOutput> {
+    const linkedin = input.channel === "linkedin";
+    const w = input.writing;
     const schema = z.object({
-      subject: z.string().min(3).max(90),
-      body: z.string().min(40).max(1400),
+      subject: linkedin ? z.string().max(90).optional().default("") : z.string().min(3).max(90),
+      body: z.string().min(linkedin ? 10 : 40).max(1400),
       claims: z.array(z.object({ text: z.string(), factIds: z.array(z.string()) })).max(4),
     });
+    const good = w?.examples.filter((e) => e.quality === "good") ?? [];
+    const bad = w?.examples.filter((e) => e.quality === "bad") ?? [];
+    const knowledge = w
+      ? [
+          `\n\n${w.playBrief}`,
+          w.persona ? `\n\nRECIPIENT PERSONA: ${w.persona.name}\nCares about: ${w.persona.cares.join("; ")}\nTheir words: ${w.persona.language.join(", ")}\nAvoid: ${w.persona.avoid.join("; ")}\nOpening that lands: ${w.persona.opener}` : "",
+          w.norms.length ? `\n\nMARKET NORMS:\n- ${w.norms.join("\n- ")}` : "",
+          w.marketFacts.length ? `\n\nMARKET FACTS you may use (at most one; name the source; never present it as a fact about the prospect):\n- ${w.marketFacts.map((f) => `${f.text} (${f.attribution})`).join("\n- ")}` : "",
+          good.length ? `\n\nSTYLE EXAMPLES — imitate their shape, tone and length; never copy their details, placeholders, names or numbers:\n${good.map((e) => `---\n${e.subject ? `Subject: ${e.subject}\n` : ""}${e.body}\n(Why it works: ${e.why})`).join("\n")}` : "",
+          w.references?.length ? `\n\nREFERENCE KNOWLEDGE (from the knowledge base; use only what fits this person):${w.references.map((r) => `\n--- ${r.approved ? "APPROVED — may be stated about the seller" : "BACKGROUND — for understanding only; never state it as a fact or quote its numbers"} · ${r.kind} · ${r.title}\n${r.text}`).join("")}` : "",
+          bad.length ? `\n\nDON'T WRITE LIKE THIS:\n${bad.map((e) => `---\n${e.body}\n(Why it fails: ${e.why})`).join("\n")}` : "",
+        ].join("")
+      : "";
     const out = await this.json(
       schema,
       [
-        `You write first-touch B2B emails for ${input.seller.name}. ${(input.tone?.length ? input.tone : ["Plain, specific, under 120 words, no hype, no fake familiarity"]).join(". ")}.`,
+        `You write ${linkedin ? "LinkedIn messages" : "B2B outreach emails"} for ${input.seller.name}. ${(input.tone?.length ? input.tone : ["Plain, specific, under 120 words, no hype, no fake familiarity"]).join(". ")}.`,
+        w ? `Follow the PLAY, the RECIPIENT PERSONA and the MARKET NORMS in the message below. The play's limits are checked by code; a message that breaks them is rejected.` : "",
+        linkedin ? "This is a LinkedIn message: no subject line, no signature, no email footer, no links." : "",
         input.bannedClaims?.length ? `Never claim: ${input.bannedClaims.join("; ")}.` : "",
         "Rules:",
         "1. Every sentence about the prospect must come from the FACTS list and be listed in claims with that fact's id.",
         "2. Do not mention anything about the prospect that is not in FACTS. Do not guess numbers.",
         "3. Use the SELLER PITCH for what the seller does; you may shorten it but must not add new claims.",
-        "4. End with the CTA. Do not add a signature, address or unsubscribe line — the system appends them.",
+        `4. End with one ask in the style the PLAY describes (the seller CTA is one way to say it). ${linkedin ? "No signature." : "Do not add a signature, address or unsubscribe line — the system appends them."}`,
         "5. If an ANGLE is given, build the email around that pain and capability for this person's role; the pain is a hypothesis, so phrase it as a question or 'teams like yours often…', never as a fact about them.",
         attempt > 1 && !input.revise ? "6. A previous attempt failed fact-checking: cite a fact id for every prospect claim and keep each claim's wording close to the fact." : "",
         "7. Open with the most specific converging signal from SIGNALS (a running LinkedIn conversation beats everything). Anything you say about the prospect must still cite a FACT id; a LinkedIn conversation may be referred to as 'our conversation on LinkedIn'. Never use stock phrases (hope this finds you well, touch base, I came across, streamline your operations, unlock potential).",
         input.revise ? "6. You are REWRITING the previous version below. Fix every listed issue, keep what works, and keep every remaining claim tied to a fact id." : "",
       ].join("\n"),
-      `Recipient: ${input.firstName ?? "there"}${input.title ? `, ${input.title}` : ""} at ${input.company}\nStep ${input.stepOrder}: ${input.instruction}\n\nFACTS:\n${input.facts.map((f) => `${f.id} [${f.key}] ${f.claim}`).join("\n")}${input.angle ? `\n\nANGLE for a ${input.angle.persona}: pain (hypothesis) = ${input.angle.pain}; ${input.seller.name} capability = ${input.angle.capability}${input.angle.proofPoint ? `; proof point = ${input.angle.proofPoint}` : ""}` : ""}${input.learnings?.length ? `\n\nWHAT HAS WORKED BEFORE (style advice only):\n- ${input.learnings.join("\n- ")}` : ""}${input.signals?.length ? `\n\nSIGNALS (converging, strongest first):\n- ${input.signals.join("\n- ")}` : ""}\n\nSELLER PITCH: ${input.seller.pitch}\nCTA: ${input.seller.cta}${input.revise ? `\n\nPREVIOUS VERSION\nSubject: ${input.revise.subject}\n${input.revise.body.split("\n\n" + input.sender.name)[0]}\n\nISSUES TO FIX:\n- ${input.revise.issues.join("\n- ")}` : ""}\n\nReturn {"subject":"...","body":"...","claims":[{"text":"<sentence from body>","factIds":["<id>"]}]}`,
+      `Recipient: ${input.firstName ?? "there"}${input.title ? `, ${input.title}` : ""} at ${input.company}\nStep ${input.stepOrder}: ${input.instruction}\n\nFACTS:\n${input.facts.map((f) => `${f.id} [${f.key}] ${f.claim}`).join("\n")}${input.angle ? `\n\nANGLE for a ${input.angle.persona}: pain (hypothesis) = ${input.angle.pain}; ${input.seller.name} capability = ${input.angle.capability}${input.angle.proofPoint ? `; proof point = ${input.angle.proofPoint}` : ""}` : ""}${input.learnings?.length ? `\n\nWHAT HAS WORKED BEFORE (style advice only):\n- ${input.learnings.join("\n- ")}` : ""}${input.signals?.length ? `\n\nSIGNALS (converging, strongest first):\n- ${input.signals.join("\n- ")}` : ""}\n\nSELLER PITCH: ${input.seller.pitch}\nCTA: ${input.seller.cta}${knowledge}${input.revise ? `\n\nPREVIOUS VERSION\nSubject: ${input.revise.subject}\n${input.revise.body.split("\n\n" + input.sender.name)[0]}\n\nISSUES TO FIX:\n- ${input.revise.issues.join("\n- ")}` : ""}\n\nReturn {"subject":"${linkedin ? "" : "..."}","body":"...","claims":[{"text":"<sentence from body>","factIds":["<id>"]}]}`,
       700,
     );
+    if (linkedin) return { subject: "", body: out.body.trim(), angle: input.facts[0]?.key ?? null, claims: out.claims };
     const footer = `\n\n${input.sender.name}\n${input.sender.company} · ${input.sender.address}\n\nReply "unsubscribe" and I won't email again.`;
     return { subject: out.subject, body: out.body.trim() + footer, angle: input.facts[0]?.key ?? null, claims: out.claims };
   }
@@ -150,7 +168,7 @@ export class OpenRouterLLM implements LLM {
     return this.json(
       schema,
       "You are a strict reviewer of B2B cold emails. Judge only the email given. Fail it for: tone rules broken, any banned claim, a statement about the prospect presented as fact when it is a guess, not relevant to the recipient's role or the stated angle, or longer than 150 words before the signature. Each issue must say exactly what to change.",
-      `Recipient: ${input.recipientTitle ?? "unknown role"} at ${input.company}\nAngle: ${input.angle ?? "none"}\nTone rules: ${input.tone.join("; ")}\nBanned claims: ${input.bannedClaims.join("; ") || "none"}\n\nSubject: ${input.subject}\n${input.body}\n\nReturn {"pass": true|false, "issues": ["..."], "strengths": ["..."]}`,
+      `Recipient: ${input.recipientTitle ?? "unknown role"} at ${input.company}${input.persona ? `\nPersona: ${input.persona}` : ""}\nAngle: ${input.angle ?? "none"}\nTone rules: ${input.tone.join("; ")}\nBanned claims: ${input.bannedClaims.join("; ") || "none"}${input.play ? `\n\nThe message must follow this play (judge structure, ask and fit for the persona; length is checked separately):\n${input.play}` : ""}\n\nSubject: ${input.subject}\n${input.body}\n\nReturn {"pass": true|false, "issues": ["..."], "strengths": ["..."]}`,
       500,
     );
   }
