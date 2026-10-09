@@ -5,6 +5,15 @@ import { ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, TierBadge } from "@/components/ui";
 import { reviewDraftAction } from "../actions";
 
+/** The writer's checks in plain words (two of them used to read "truth"). */
+const CHECK_LABEL: Record<string, string> = {
+  "truth (code)": "every claim cites a fact",
+  "truth (model)": "claims match sources",
+  "specificity (code)": "specific to them",
+  "compliance (code)": "compliance",
+  "style (model)": "tone & style",
+};
+
 type Item = { id: string; contact: { id: string; fullName: string; titleNormalized: string | null; email: string | null } | null; account: { id: string; name: string; tier: "T1" | "T2" | "T3" | null } | null; draft: Draft };
 
 /** Approvals as a stack: one email at a time, the decision right under it, the rest waiting behind. */
@@ -13,7 +22,7 @@ export function ApprovalStack({ items }: { items: Item[] }) {
   const d = top.draft;
   const checks = Array.isArray(d.claimCheck) ? (d.claimCheck as { supported: boolean }[]) : null;
   const supported = checks?.filter((c) => c.supported).length ?? 0;
-  const critique = Array.isArray(d.critique) ? (d.critique as { critic: string; pass: boolean }[]) : [];
+  const critique = Array.isArray(d.critique) ? (d.critique as { critic: string; pass: boolean; issues?: string[] }[]) : [];
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
       <div className="relative pb-5">
@@ -37,7 +46,7 @@ export function ApprovalStack({ items }: { items: Item[] }) {
 
           <div className="mb-4 flex flex-wrap gap-1.5">
             {checks && <span className="chip" style={{ ["--c" as string]: supported === checks.length ? "var(--ok)" : "var(--stop)" }}><ShieldCheck size={12} /> {supported}/{checks.length} claims match their sources</span>}
-            {critique.map((c) => <span key={c.critic} className="chip" style={{ ["--c" as string]: c.pass ? "var(--ok)" : "var(--wait)" }}>{c.critic.replace(/ \((code|model)\)/, "")}</span>)}
+            {critique.map((c) => <span key={c.critic} className="chip" title={c.pass ? "Passed" : c.issues?.join("; ")} style={{ ["--c" as string]: c.pass ? "var(--ok)" : "var(--wait)" }}>{CHECK_LABEL[c.critic] ?? c.critic.replace(/ \((code|model)\)/, "")}</span>)}
             {d.rewrites > 0 && <span className="chip">Rewritten {d.rewrites}× by the brain</span>}
             {d.painPoint && <span className="chip" style={{ ["--c" as string]: "var(--accent-indigo)" }}>Angle: {d.painPoint.slice(0, 60)}{d.painPoint.length > 60 ? "…" : ""}</span>}
           </div>

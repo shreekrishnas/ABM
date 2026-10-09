@@ -77,9 +77,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       </div>}
 
       <form className="mb-4 flex flex-wrap items-end gap-2" action="/people">
-        <div className="relative min-w-[220px] flex-1">
-          <Search size={15} className="muted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input name="q" defaultValue={sp.q} placeholder="Name, email, title or company" className="glass-input" style={{ paddingLeft: 34 }} />
+        <div className="relative min-w-[260px] flex-[2]">
+          <Search size={15} className="muted absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
+          <input name="q" defaultValue={sp.q} placeholder="Name, email, title or company" aria-label="Search people" className="glass-input" style={{ paddingLeft: 34 }} />
         </div>
         <select name="campaign" defaultValue={sp.campaign ?? ""} className="glass-select" style={{ maxWidth: 220 }} aria-label="Campaign"><option value="">All campaigns</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         <select name="sender" defaultValue={sp.sender ?? ""} className="glass-select" style={{ maxWidth: 200 }} aria-label="Sender profile"><option value="">All senders</option>{senders.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>

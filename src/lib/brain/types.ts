@@ -23,7 +23,7 @@ export interface ImportedContext {
   technologies: string[];
   keywords: string[];
   notes: string | null;
-  conversations: { name: string; title: string | null; stage: string; lastReply: string | null; sender: string }[];
+  conversations: { name: string; title: string | null; stage: string; phrase?: string; lastReply: string | null; sender: string }[];
 }
 
 export interface PlanResearchInput {

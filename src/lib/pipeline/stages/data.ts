@@ -189,6 +189,12 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
 
 // ───────────────────────── Stage 4 ─────────────────────────
 
+/** ["company", "email"] → "company and email don't match other sources" (plain words for the review queue). */
+function conflictPhrase(fields: string[]) {
+  const list = fields.length > 1 ? `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}` : fields[0] ?? "details";
+  return `${list} ${fields.length > 1 ? "don't" : "doesn't"} match other sources`;
+}
+
 export async function s04Identity(account: Account, ctx: RunContext): Promise<Account> {
   const S = 4;
   const contacts = await db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, state: { notIn: ["suppressed", "do_not_contact", "handed_off"] } } });
@@ -292,7 +298,7 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     if (conflict) {
       await openReview({
         type: "identity_conflict", stage: S, accountId: account.id, contactId: c.id,
-        reason: `${c.fullName}: ${Object.entries(statuses).filter(([, s]) => s === "conflicting").map(([f]) => f).join(", ")} conflicting${emailDomain(c.email) && (CONFIG.personalDomains as readonly string[]).includes(emailDomain(c.email)!) ? " (personal email)" : ""}`,
+        reason: `${c.fullName}: ${conflictPhrase(Object.entries(statuses).filter(([, s]) => s === "conflicting").map(([f]) => f))}${emailDomain(c.email) && (CONFIG.personalDomains as readonly string[]).includes(emailDomain(c.email)!) ? " (personal email)" : ""}`,
         payload: { statuses, providerEmployer: p?.companyDomain ?? null, providerTitle: p?.title ?? null },
       });
     }

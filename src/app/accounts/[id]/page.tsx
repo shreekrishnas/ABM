@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
-import { CONFIG, STAGES } from "@/lib/config";
+import { CONFIG } from "@/lib/config";
+import { PIPELINE_STATUS_LABEL, PROGRESS_LABEL } from "@/lib/stage-docs";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
@@ -57,7 +58,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const sp = seller();
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
-  const stageName = STAGES.find((s) => s.n === a.pipelineStage)?.name ?? "Not started";
+  const stageName = PROGRESS_LABEL[a.pipelineStage] ?? "Not started";
   const reading = a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null; families: string[]; explain: string } | null;
   const drafts = a.contacts.flatMap((c) => c.drafts.map((d) => ({ ...d, contact: c })));
 
@@ -117,7 +118,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             { label: "Fit", value: a.fitScore ?? "—", meta: "against the seller's ideal customer" },
             { label: "Data we trust", value: a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—", meta: "verified share of fields" },
             { label: "Engagement", value: Math.round(a.engagementScore), meta: `sales-ready at ${CONFIG.engagement.stages.MQA}` },
-            { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: a.pipelineStatus === "blocked" ? "waiting on a check" : a.pipelineStatus },
+            { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus },
           ]} />
         </div>
       </div>
@@ -144,9 +145,9 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <ul className="grid gap-2.5">
                   {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
                     <li key={f.id} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
-                        <span className="flex items-center gap-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
+                        <span className="flex shrink-0 items-center gap-1.5">
                           <FieldBadge status={f.status as FieldStatus} />
                           <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Feedback">
                             <ActionForm action={flagFactAction} className="grid gap-3">

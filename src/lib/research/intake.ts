@@ -35,7 +35,7 @@ export async function importContext(account: Account): Promise<ImportContext> {
     keywords: account.keywords,
     notes: account.companyNotes,
     conversations: journeys.map((j) => ({
-      name: j.contact.fullName, title: j.contact.title, stage: STAGE_INFO[j.stage].label, sender: j.sender.name,
+      name: j.contact.fullName, title: j.contact.title, stage: STAGE_INFO[j.stage].label, phrase: STAGE_INFO[j.stage].phrase, sender: j.sender.name,
       lastReply: j.events[0]?.detail?.split(" · ")[0] ?? null,
     })),
   };
