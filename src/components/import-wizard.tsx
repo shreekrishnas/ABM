@@ -240,7 +240,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         setPhase({ k: "importing", label: "Running the pipeline on new and changed companies (step 2 of 2)", done: fin.toProcess - remaining, total: fin.toProcess });
         const p = await processImportAction(start.batchId);
         processed += p.processed;
-        if (p.processed === 0 && p.remaining >= remaining) break; // stuck: leave the rest for the scheduler
+        if (p.processed === 0 && p.remaining >= remaining) break; // stuck: the background queue finishes the rest
         remaining = p.remaining;
       }
       const research = await importResearchSummaryAction(start.batchId).catch(() => null);
@@ -420,7 +420,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         <div className="grid gap-3 rounded-2xl p-5" style={{ background: "var(--surface-card-header)" }}>
           <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}><Loader2 size={16} className="spin" /> {phase.label}…</div>
           <Bar value={phase.done} total={phase.total} label="Progress" />
-          <p className="muted text-xs">You can leave this page during step 2 — anything not finished is picked up by the scheduler.</p>
+          <p className="muted text-xs">You can leave this page during step 2 — anything not finished keeps processing in the background.</p>
         </div>
       )}
 
@@ -428,7 +428,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         <div className="grid gap-4">
           <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(16,185,129,0.1)", color: "#047857" }}>
             <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
-            <span><b>{phase.summary.filename}</b> imported into {campaignName} · {senderName}: {phase.summary.accepted.toLocaleString()} rows saved, {phase.summary.rejected.toLocaleString()} rejected. {phase.summary.processed} compan{phase.summary.processed === 1 ? "y" : "ies"} processed{phase.summary.remaining ? `, ${phase.summary.remaining} left for the scheduler` : ""}.</span>
+            <span><b>{phase.summary.filename}</b> imported into {campaignName} · {senderName}: {phase.summary.accepted.toLocaleString()} rows saved, {phase.summary.rejected.toLocaleString()} rejected. {phase.summary.processed} compan{phase.summary.processed === 1 ? "y" : "ies"} processed{phase.summary.remaining ? `, ${phase.summary.remaining} still processing in the background` : ""}.</span>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Stat label="New companies" value={phase.summary.stats.accountsCreated ?? 0} tone="good" />
