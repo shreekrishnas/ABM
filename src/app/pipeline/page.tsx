@@ -46,7 +46,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         actions={
           <>
             <ActionButton action={tickAction} className="btn btn-secondary"><Timer size={15} /> Run scheduler</ActionButton>
-            <ActionButton action={runAllAction} className="btn btn-brand"><Play size={15} /> Queue new accounts</ActionButton>
+            <ActionButton action={runAllAction} className="btn btn-brand"><Play size={15} /> Process new companies</ActionButton>
           </>
         }
       />

@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Building2, CircleDollarSign, ClipboardCheck, Flame, MessageSquareReply, Target, Wallet } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { STAGES } from "@/lib/config";
-import { AreaTrend, HBars, TierDonut, VBars } from "@/components/charts";
-import { STAGE_STYLE, Avatar, Card, Empty, Kpi, Meter, PageHeader, StageBadge, TierBadge, ago, money } from "@/components/ui";
+import { AreaTrend, HBars, TierDonut } from "@/components/charts";
+import { StatStrip } from "@/components/v2";
+import { STAGE_SHORT } from "@/lib/stage-docs";
+import { REVIEW_TYPE_LABEL } from "@/lib/review-labels";
+import { STAGE_STYLE, Avatar, Card, Empty, Meter, PageHeader, StageBadge, TierBadge, ago, money } from "@/components/ui";
 import { ActionButton } from "@/components/client";
 import { runAllAction, tickAction } from "../actions";
 
@@ -39,7 +42,7 @@ export default async function ProgramOverview() {
     const day = days.find((d) => d.key === s.occurredAt.toISOString().slice(0, 10));
     if (day) day.value += Math.round(s.points);
   }
-  const blocksByStage = STAGES.slice(1).map((s) => ({ label: String(s.n), value: blocks.find((b) => b.stage === s.n)?._count ?? 0 }));
+  const blocksByStage = STAGES.slice(1).map((s) => ({ label: STAGE_SHORT[s.n] ?? s.name, value: blocks.find((b) => b.stage === s.n)?._count ?? 0 })).filter((b) => b.value > 0);
   const replyRate = delivered ? Math.round((replies / delivered) * 1000) / 10 : 0;
   const spendUsd = (spend._sum.amountMicros ?? 0) / 1_000_000;
 
@@ -52,19 +55,19 @@ export default async function ProgramOverview() {
         actions={
           <>
             <ActionButton action={tickAction} className="btn btn-secondary">Run scheduler</ActionButton>
-            <ActionButton action={runAllAction} className="btn btn-brand">Run pipeline on new accounts</ActionButton>
+            <ActionButton action={runAllAction} className="btn btn-brand">Process new companies</ActionButton>
           </>
         }
       />
 
-      <div className="stagger grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <Kpi label="Target companies" value={target} icon={<Target size={16} />} meta={`${byStage.DISQUALIFIED ?? 0} disqualified · ${byStage.WATCH ?? 0} watching`} />
-        <Kpi label="MQAs" value={byStage.MQA ?? 0} accent="#7C3AED" icon={<Flame size={16} />} meta={`${byStage.ENGAGED ?? 0} engaged, warming up`} />
-        <Kpi label="Pipeline influenced" value={money(openOpps._sum.amountUsd ?? 0)} accent="#4F46E5" icon={<CircleDollarSign size={16} />} meta={`${openOpps._count} open · ${money(wonOpps._sum.amountUsd ?? 0)} won`} />
-        <Kpi label="Reply rate" value={`${replyRate}%`} accent="#0EA5E9" icon={<MessageSquareReply size={16} />} meta={`${positive} positive of ${replies} replies`} />
-        <Kpi label="Needs a person" value={reviews} accent={reviews > 10 ? "#DC2626" : "#F59E0B"} icon={<ClipboardCheck size={16} />} meta={<Link href="/review" className="hover:underline">Open review queue →</Link>} />
-        <Kpi label="Spend to date" value={`$${spendUsd.toFixed(2)}`} accent="#10B981" icon={<Wallet size={16} />} meta={`$${target ? (spendUsd / Math.max(1, target)).toFixed(2) : "0.00"} per target account`} />
-      </div>
+      <StatStrip items={[
+        { label: "Target companies", value: target, meta: `${byStage.DISQUALIFIED ?? 0} disqualified · ${byStage.WATCH ?? 0} watching` },
+        { label: "Sales-ready", value: byStage.MQA ?? 0, meta: `${byStage.ENGAGED ?? 0} engaged, warming up` },
+        { label: "Pipeline influenced", value: money(openOpps._sum.amountUsd ?? 0), meta: `${openOpps._count} open · ${money(wonOpps._sum.amountUsd ?? 0)} won` },
+        { label: "Reply rate", value: `${replyRate}%`, meta: `${positive} positive of ${replies} replies` },
+        { label: "Needs a person", value: reviews, meta: <Link href="/review" className="hover:underline">Open approvals →</Link> },
+        { label: "Spend to date", value: `$${spendUsd.toFixed(2)}`, meta: `$${target ? (spendUsd / Math.max(1, target)).toFixed(2) : "0.00"} per target company` },
+      ]} />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <Card title="Buying-stage funnel" sub="Accounts by stage, account-level engagement" className="xl:col-span-2">
@@ -81,7 +84,7 @@ export default async function ProgramOverview() {
           <AreaTrend data={days} unit="points" />
         </Card>
         <Card title="Gate blocks by stage" sub="Where records stop — every block is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Pipeline <ArrowRight size={14} /></Link>}>
-          <VBars data={blocksByStage} unit="blocks" />
+          {blocksByStage.length ? <HBars data={blocksByStage} unit="blocks" height={Math.max(140, blocksByStage.length * 40)} /> : <Empty title="No blocks yet" sub="Every stop is logged here with its reason." />}
         </Card>
       </div>
 
@@ -112,7 +115,7 @@ export default async function ProgramOverview() {
               {reviewItems.map((r) => (
                 <li key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: "var(--surface-card-header)", borderLeft: `3px solid ${r.type === "draft_approval" ? "#8B5CF6" : r.type === "budget_exceeded" ? "#EF4444" : "#F59E0B"}` }}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="micro">{r.type.replaceAll("_", " ")}</span>
+                    <span className="micro">{REVIEW_TYPE_LABEL[r.type] ?? r.type.replaceAll("_", " ")}</span>
                     <span className="muted text-[0.7rem]">{ago(r.createdAt)}</span>
                   </div>
                   <div className="mt-0.5 line-clamp-2 text-[0.82rem] secondary">{r.reason}</div>

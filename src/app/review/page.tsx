@@ -7,22 +7,10 @@ import { Badge, Card, Empty, FieldBadge, PageHeader, TierBadge, ago, cx, date } 
 import { resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
 import { ViewSwitch } from "@/components/v2";
 import { ApprovalStack } from "./approval-stack";
+import { REVIEW_TYPE_LABEL as TYPE_LABEL } from "@/lib/review-labels";
 
 export const metadata = { title: "Review queue" };
 
-const TYPE_LABEL: Partial<Record<ReviewType, string>> = {
-  draft_approval: "Email to approve",
-  identity_conflict: "Is this the right person?",
-  contradiction: "Sources disagree",
-  guardrail_failed: "Email held by checks",
-  budget_exceeded: "Research budget reached",
-  no_usable_person: "Nobody to contact yet",
-  lawful_basis_missing: "Missing legal basis",
-  briefing_blocked: "Hand-off brief blocked",
-  needs_human_reply: "Unclear reply",
-  bounce_breaker: "Too many bounces — sending paused",
-  other: "Suggestion or other",
-};
 
 export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string }> }) {
   const sp = await searchParams;

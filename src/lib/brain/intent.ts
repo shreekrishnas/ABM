@@ -143,7 +143,7 @@ export async function collectSignals(accountId: string, now = new Date(), contac
     if (!base) continue;
     const strength = base * decay("conversation", j.lastEngagementAt, now);
     if (strength < 0.05) continue;
-    out.push({ family: "conversation", label: `${j.contact.fullName}${j.contact.titleNormalized ?? j.contact.title ? ` (${j.contact.titleNormalized ?? j.contact.title})` : ""} is ${STAGE_INFO[j.stage].label.toLowerCase()} on LinkedIn with ${j.sender.name}${when(j.lastEngagementAt)}`, strength, at: j.lastEngagementAt, refs: [j.id], contactId: j.contact.id });
+    out.push({ family: "conversation", label: `${j.contact.fullName}${j.contact.titleNormalized ?? j.contact.title ? ` (${j.contact.titleNormalized ?? j.contact.title})` : ""} ${STAGE_INFO[j.stage].phrase} on LinkedIn with ${j.sender.name}${when(j.lastEngagementAt)}`, strength, at: j.lastEngagementAt, refs: [j.id], contactId: j.contact.id });
   }
 
   // 4. Email and web engagement, third-party surges.

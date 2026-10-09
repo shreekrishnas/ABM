@@ -14,7 +14,7 @@ export function rulePlan(input: PlanResearchInput): PlanResearchOutput {
   const hypotheses: string[] = [];
   if (firstUseCase) hypotheses.push(`${input.company.name} likely feels "${firstUseCase.pains.split(";")[0].trim()}" — test with trigger and partner-network evidence`);
   const talk = input.imported?.conversations[0];
-  if (talk) hypotheses.push(`${talk.name} (${talk.title ?? "contact"}) is already ${talk.stage.toLowerCase()} on LinkedIn — look for the initiative behind that interest`);
+  if (talk) hypotheses.push(`${talk.name} (${talk.title ?? "contact"}) ${talk.phrase ?? `is ${talk.stage.toLowerCase()}`} on LinkedIn — look for the initiative behind that interest`);
   const core = input.company.technologies.find((t) => sp.icp.tech.erp.some((e) => t.toLowerCase().includes(e)));
   if (core) hypotheses.push(sp.ruleHints.techHypothesis.replace("{tech}", core));
   return {
@@ -83,7 +83,7 @@ export function ruleBrief(input: BriefInput): AccountBriefData {
     hypotheses: [...input.hypotheses.slice(0, 2), ...input.unknowns.map((u) => `Unknown — confirm in discovery: ${u.replace(/_/g, " ")}`)].slice(0, 5),
     risks: [...input.negatives.slice(0, 2), ...(incumbent ? [`Incumbent tool in stack: ${incumbent} — position against it, don't attack it`] : [])].slice(0, 5),
     nextBestAction: talk
-      ? `${talk.name} (${talk.title ?? "contact"}) is ${talk.stage.toLowerCase()} on LinkedIn via ${talk.sender}${talk.lastReply ? ` ("${talk.lastReply.slice(0, 60)}")` : ""} — continue that conversation first; don't open a cold email to them`
+      ? `${talk.name} (${talk.title ?? "contact"}) ${talk.phrase ?? `is ${talk.stage.toLowerCase()}`} on LinkedIn via ${talk.sender}${talk.lastReply ? ` ("${talk.lastReply.slice(0, 60)}")` : ""} — continue that conversation first; don't open a cold email to them`
       : verdict === "weak" ? "Keep on watch; re-check when a trigger appears" : `Reach the ${owner ? owner.claim.match(/The (\w+) team/)?.[1] ?? "owning" : "owning"} team's decision maker and champion with the ${painPoints[0]?.useCase.replace(/_/g, " ") ?? "primary"} angle`,
   };
 }

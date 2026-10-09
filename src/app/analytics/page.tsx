@@ -2,8 +2,10 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { classifyTrigger } from "@/lib/seller/fit";
-import { HBars, VBars } from "@/components/charts";
-import { Card, Kpi, PageHeader, money } from "@/components/ui";
+import { HBars } from "@/components/charts";
+import { StatStrip } from "@/components/v2";
+import { STAGE_SHORT } from "@/lib/stage-docs";
+import { Card, PageHeader, money } from "@/components/ui";
 
 export const metadata = { title: "Analytics" };
 
@@ -56,17 +58,17 @@ export default async function AnalyticsPage() {
 
   const spend = (k: string) => (ledgerByKind.find((l) => l.kind === k)?._sum.amountMicros ?? 0) / 1e6;
   const totalSpend = spend("llm") + spend("lookup") + spend("verification");
-  const stageSpend = ledgerByStage.sort((a, b) => a.stage - b.stage).map((s) => ({ label: `S${s.stage}`, value: Math.round(((s._sum.amountMicros ?? 0) / 1e6) * 100) / 100 }));
+  const stageSpend = ledgerByStage.sort((a, b) => a.stage - b.stage).map((s) => ({ label: STAGE_SHORT[s.stage] ?? `Stage ${s.stage}`, value: Math.round(((s._sum.amountMicros ?? 0) / 1e6) * 100) / 100 }));
 
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Learning loop" title="Analytics" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
-      <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Total spend" value={`$${totalSpend.toFixed(2)}`} meta="LLM + lookups + verification" />
-        <Kpi label="LLM" value={`$${spend("llm").toFixed(2)}`} accent="#7C3AED" meta={`${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls via the gateway`} />
-        <Kpi label="Paid lookups" value={`$${spend("lookup").toFixed(2)}`} accent="#0EA5E9" meta="Only for missing fields" />
-        <Kpi label="Sends" value={messages.length} accent="#10B981" meta={`${replies.length} replies`} />
-      </div>
+      <StatStrip items={[
+        { label: "Total spend", value: `$${totalSpend.toFixed(2)}`, meta: "AI + lookups + verification" },
+        { label: "AI (research and writing)", value: `$${spend("llm").toFixed(2)}`, meta: `${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls` },
+        { label: "Paid lookups", value: `$${spend("lookup").toFixed(2)}`, meta: "Only for missing fields" },
+        { label: "Emails sent", value: messages.length, meta: `${replies.length} replies` },
+      ]} />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card title="Reply rate by angle" sub="Which trigger type, used as the lead, gets answers" pad={false}>
@@ -101,7 +103,7 @@ export default async function AnalyticsPage() {
           </div>
         </Card>
         <Card title="Spend by stage" sub="Where the per-account budget goes">
-          <VBars data={stageSpend} unit="USD" height={200} />
+          <HBars data={stageSpend} unit="USD" height={Math.max(160, stageSpend.length * 34)} />
         </Card>
       </div>
     </div>

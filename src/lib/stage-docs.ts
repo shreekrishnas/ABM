@@ -22,3 +22,19 @@ export const CAT_COLOR: Record<string, string> = {
   outreach: "#C0620A",
   engagement: "#B4235A",
 };
+
+/** Where a company is, in plain words (DESIGN.md §6: no internal stage names on screen). */
+export const PROGRESS_LABEL: Record<number, string> = {
+  0: "Not started", 1: "Imported", 2: "Data cleaned", 3: "Fit checked", 4: "Contacts verified", 5: "Research planned", 6: "Researched",
+  7: "Facts confirmed", 8: "Buying group mapped", 9: "Contacts checked", 10: "Ready for outreach", 11: "Emails drafted", 12: "In outreach", 13: "Handed to sales",
+};
+
+export const PIPELINE_STATUS_LABEL: Record<string, string> = {
+  idle: "paused", queued: "queued", running: "running now", done: "complete", blocked: "waiting on a check", error: "needs attention",
+};
+
+/** Short plain names for charts and chips. */
+export const STAGE_SHORT: Record<number, string> = {
+  1: "Import", 2: "Data cleanup", 3: "Fit check", 4: "Identity check", 5: "Research plan", 6: "Research", 7: "Fact check",
+  8: "Buying group", 9: "Contact check", 10: "Readiness", 11: "Writer", 12: "Sending", 13: "Hand-off",
+};
