@@ -15,10 +15,12 @@ beforeAll(() => {
   saved = MANCH.icp.mustHave;
   savedEmp = MANCH.icp.employees;
   MANCH.icp.mustHave = RULE;
+  MANCH.icp.industryMode = "any";
   MANCH.icp.employees = { sweetSpot: 10000, mid: 5001, min: 5001 };
 });
 afterAll(() => {
   MANCH.icp.mustHave = saved;
+  MANCH.icp.industryMode = "targeted";
   MANCH.icp.employees = savedEmp;
 });
 beforeEach(async () => {
@@ -32,6 +34,14 @@ beforeEach(async () => {
 const add = async (name: string, extra: Record<string, unknown>) => (await ingestRows([{ "Company Name": name, "Company Website": `strong-${name.toLowerCase().replace(/\s+/g, "")}.com`, Industry: "fmcg", "First Name": "Asha", "Job Title": "Head of Master Data", ...extra }], { source: "csv" })).accountIds[0];
 
 describe("Manch targeting: India and more than 5,000 employees", () => {
+  it("any industry qualifies: a cement maker and a bank score the same fit", async () => {
+    const { scoreFit } = await import("@/lib/pipeline/scoring");
+    const a = scoreFit({ industry: "cement", employees: 12000, country: "IN", technologies: [] });
+    const b = scoreFit({ industry: "software services", employees: 12000, country: "IN", technologies: [] });
+    expect(a.fit).toBe(b.fit);
+    expect(a.components.find((c) => c.key === "industry")?.points).toBeNull();
+  });
+
   it("the rule itself", () => {
     expect(mustHaveGate({ country: "IN", employees: 6000 }, RULE).pass).toBe(true);
     expect(mustHaveGate({ country: "IN", employees: 5000 }, RULE).reason).toMatch(/Too small/);

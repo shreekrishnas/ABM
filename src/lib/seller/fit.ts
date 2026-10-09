@@ -45,8 +45,9 @@ export function sellerFit(a: FitInput, p: SellerProfile): SellerFit {
   const ind = matchIndustry(a.industry, p);
   const components: FitComponent[] = [];
 
-  // Industry: primary verticals score full, secondary partial.
-  if (!a.industry) components.push({ key: "industry", label: "Industry", points: null, max: w.industry, reason: "Industry unknown" });
+  // Industry: primary verticals score full, secondary partial — unless the seller targets any industry.
+  if (p.icp.industryMode === "any") components.push({ key: "industry", label: "Industry", points: null, max: w.industry, reason: a.industry ? `${a.industry} — any industry qualifies` : "Any industry qualifies" });
+  else if (!a.industry) components.push({ key: "industry", label: "Industry", points: null, max: w.industry, reason: "Industry unknown" });
   else if (!ind) components.push({ key: "industry", label: "Industry", points: Math.round(w.industry * 0.15), max: w.industry, reason: `${a.industry} is outside ${p.name}'s target verticals` });
   else components.push({ key: "industry", label: "Industry", points: ind.tier === "primary" ? w.industry : Math.round(w.industry * 0.65), max: w.industry, reason: `${ind.label} — ${ind.tier} vertical` });
 
@@ -68,7 +69,8 @@ export function sellerFit(a: FitInput, p: SellerProfile): SellerFit {
   else components.push({ key: "geography", label: "Geography", points: Math.round(w.geography * 0.2), max: w.geography, reason: `${c} — outside current markets` });
 
   // Partner network intensity: how many external parties the business onboards.
-  if (!ind) components.push({ key: "partnerNetwork", label: "Partner network", points: a.industry ? 0 : null, max: w.partnerNetwork, reason: a.industry ? "No large distributor/vendor/gig network expected" : "Unknown until industry is known" });
+  if (p.icp.industryMode === "any") components.push({ key: "partnerNetwork", label: "Partner network", points: null, max: w.partnerNetwork, reason: "Not judged by industry (research checks the real network)" });
+  else if (!ind) components.push({ key: "partnerNetwork", label: "Partner network", points: a.industry ? 0 : null, max: w.partnerNetwork, reason: a.industry ? "No large distributor/vendor/gig network expected" : "Unknown until industry is known" });
   else components.push({ key: "partnerNetwork", label: "Partner network", points: Math.round(w.partnerNetwork * ind.partnerIntensity), max: w.partnerNetwork, reason: ind.partnerIntensity >= 0.9 ? "Large distributor/vendor/seller network typical" : "Meaningful partner and vendor network typical" });
 
   // Tech stack: ERP to integrate with, incumbents to displace, DIY workflow tools.

@@ -7,4 +7,7 @@ process.env.ADAPTER_MODE = "mock";
 // (dynamic import: a static one would be hoisted above the DATABASE_URL line)
 const { MANCH } = await import("@/lib/seller/manch");
 MANCH.icp.mustHave = undefined;
+MANCH.icp.industryMode = "targeted";
 MANCH.icp.employees = { sweetSpot: 1000, mid: 500, min: 200 };
+
+export {};
