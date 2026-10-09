@@ -10,6 +10,7 @@ import { accountEngagement, stageFromEngagement } from "../scoring";
 import { addToWatchlist, charge, isSuppressed, logEvent, newContext, openReview, type RunContext } from "../context";
 import { setContactField } from "../fields";
 import { draftForContact, usableFacts } from "./outreach";
+import { learnFromPositiveReply } from "@/lib/knowledge/rag/learn";
 
 const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
@@ -221,6 +222,8 @@ export async function recordReply(contactId: string, body: string, ctx: RunConte
       await pauseAll("positive reply");
       await db.contact.update({ where: { id: contactId }, data: { state: "replied" } });
       await recordSignal({ accountId: contact.accountId, contactId, type: "email_reply", source: "email_provider", detail: "positive" }, ctx);
+      // The email that earned this reply becomes an example the writer learns from.
+      await learnFromPositiveReply(contactId).catch(() => false);
       if (!(await db.handoff.findFirst({ where: { accountId: contact.accountId, acknowledgedAt: null } }))) {
         await s13Handoff(await db.account.findUniqueOrThrow({ where: { id: contact.accountId } }), "positive_reply", ctx);
       }

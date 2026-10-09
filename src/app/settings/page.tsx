@@ -74,7 +74,7 @@ export default async function SettingsPage() {
           {sec.seedAllowed && <Row k={<span>Sample data reset<span className="muted block text-xs font-normal">ALLOW_SEED · can wipe all data</span></span>} v={<Badge color="#DC2626">allowed</Badge>} />}
           <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's run stops for review when its research and lookups reach its tier budget." : "Every paid call is still recorded per company; nothing is capped. Set ENFORCE_BUDGETS=true to stop runs at the tier budget."}</p>
         </Card>
-        <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link><Link href="/settings/seller/edit" className="btn btn-primary btn-sm">Edit</Link></span>}>
+        <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link><Link href="/settings/seller/edit" className="btn btn-primary btn-sm">Edit</Link><Link href="/settings/knowledge" className="btn btn-secondary btn-sm">Knowledge base</Link></span>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />
           <Row k="Company size" v={`${sp.icp.employees.sweetSpot.toLocaleString()}+ ideal · ${sp.icp.employees.min}+ minimum`} />
           <Row k="Markets" v={`${sp.icp.geos.primary.join(", ")} first · ${sp.icp.geos.secondary.slice(0, 6).join(", ")}…`} />

@@ -68,6 +68,13 @@ columns are defined in `src/lib/import/fields.ts`). Upload as often as you like:
   batches (no file-size or timeout limit). Unchanged accounts are skipped — no repeat spend.
 - GDPR-erased people are never re-imported.
 
+## Knowledge base
+
+Settings → Knowledge base: outreach research, the writing playbook, personas, objection answers,
+example messages and Manch's material, chunked and embedded (OpenRouter embeddings). Each draft
+retrieves what fits the person and step; emails that get positive replies are learned as examples.
+See [`docs/KNOWLEDGE.md`](docs/KNOWLEDGE.md).
+
 ## Background queue
 
 Imports, "Queue new accounts" and the daily run mark companies `queued`. `POST /api/v1/queue`

@@ -612,6 +612,8 @@ model Draft {
   reviewedAt        DateTime?
   /// Critic panel verdicts on the final version: [{ critic, pass, issues[] }]
   critique          Json?
+  /// Writing knowledge used: { play, persona, examples[], marketFacts[] } — so replies can be traced to it.
+  knowledge         Json?
   /// How many times the rewriter revised this draft after critique.
   rewrites          Int         @default(0)
   sellerId          String?
@@ -1009,4 +1011,51 @@ model SellerPackRevision {
   createdAt DateTime @default(now())
 
   @@index([sellerId, createdAt])
+}
+
+/// A document in the knowledge base: built in (sources, playbook, seller pack), uploaded
+/// by a person, or learned from messages that got positive replies. Split into chunks.
+model KnowledgeDoc {
+  id        String           @id @default(cuid())
+  sellerId  String
+  /// Stable key for built-in and learned docs ("builtin:persona:cio_cdo", "learned:draft:<id>"); null for uploads.
+  key       String?
+  /// built_in | upload | learned
+  origin    String
+  /// playbook | persona | objection | example | market_fact | norm | research | case_study | product | competitor | document
+  kind      String
+  title     String
+  text      String
+  url       String?
+  /// Filters: { channel?, plays?, personas?, useCases?, triggers? }
+  tags      Json?
+  /// Approved = its claims about the seller may be stated in messages; otherwise background only.
+  approved  Boolean          @default(false)
+  /// Content hash; unchanged docs are not re-embedded.
+  hash      String
+  chunks    KnowledgeChunk[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([sellerId, key])
+  @@index([sellerId, kind])
+}
+
+/// One searchable piece of a document, with its embedding.
+model KnowledgeChunk {
+  id         String       @id @default(cuid())
+  docId      String
+  doc        KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  sellerId   String
+  kind       String
+  ord        Int
+  heading    String?
+  text       String
+  embedding  Float[]
+  /// Model that made the embedding; vectors from different models are never compared.
+  embedModel String
+  createdAt  DateTime     @default(now())
+
+  @@index([sellerId, embedModel])
+  @@index([docId])
 }
