@@ -72,7 +72,7 @@ export default async function ProgramOverview() {
         </Card>
         <Card title="Active accounts by tier" sub="T1 1:1 · T2 1:few · T3 1:many">
           <TierDonut data={(["T1", "T2", "T3"] as const).map((t) => ({ label: t === "T1" ? "T1 · 1:1" : t === "T2" ? "T2 · 1:few" : "T3 · 1:many", value: tierGroups.find((g) => g.tier === t)?._count ?? 0 }))} />
-          <p className="muted mt-4 text-xs leading-relaxed">Budgets per account: T1 $5.00, T2 $2.00, T3 $0.75. Tier sets research depth and approval policy.</p>
+          <p className="muted mt-4 text-xs leading-relaxed">Tier is set by company size and upgraded to T1 when buying intent turns hot. It sets research depth.</p>
         </Card>
       </div>
 

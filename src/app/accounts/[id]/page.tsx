@@ -117,7 +117,6 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             { label: "Data we trust", value: a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—", meta: "verified share of fields" },
             { label: "Engagement", value: Math.round(a.engagementScore), meta: `sales-ready at ${CONFIG.engagement.stages.MQA}` },
             { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: a.pipelineStatus === "blocked" ? "waiting on a check" : a.pipelineStatus },
-            { label: "Research spend", value: `$${spent.toFixed(2)}`, meta: `of $${cap.toFixed(2)} for ${a.tier ?? "T3"}` },
           ]} />
         </div>
       </div>

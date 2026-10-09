@@ -167,7 +167,9 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   const intent = await ctx.adapters.intent.intent(account.domain ?? account.name);
   const fitValue = fit.fit ?? 50; // unknown firmographics: neutral fit, low confidence carries the gap
   // Tier follows the fit score (so weekly data updates can move it) unless set by hand.
-  const tier = account.tierLocked && account.tier ? account.tier : tierFor(fitValue);
+  const bySize = seller().icp.tierBySize;
+  const sizeTier = bySize && account.employees != null ? (account.employees >= bySize.T1 ? "T1" : account.employees >= bySize.T2 ? "T2" : "T3") : null;
+  const tier = account.tierLocked && account.tier ? account.tier : sizeTier ?? tierFor(fitValue);
   const pr = researchPriority(fitValue, confidence, intent.score);
 
   if (intent.score > 0) {

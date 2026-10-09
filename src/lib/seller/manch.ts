@@ -84,6 +84,8 @@ export const MANCH: SellerProfile = {
     mustHave: { countries: ["IN"], minEmployees: 5001 },
     // No target industries for now: any industry qualifies; research and buying signals decide.
     industryMode: "any",
+    // Tier by size: 50,000+ = T1, 15,000+ = T2, else T3. Hot buying signals upgrade to T1.
+    tierBySize: { T1: 50000, T2: 15000 },
   },
 
   personas: [

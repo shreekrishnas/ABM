@@ -23,6 +23,8 @@ export interface SellerProfile {
     geos: { primary: string[]; secondary: string[] };
     tech: { erp: string[]; incumbents: string[]; workflow: string[] };
     weights: { industry: number; size: number; geography: number; partnerNetwork: number; techStack: number };
+    /** Starting tier from employee count (T1 at or above T1, T2 at or above T2, else T3). Hot buying signals upgrade to T1. */
+    tierBySize?: { T1: number; T2: number };
     /** "any" = no target industries: industry neither adds nor removes fit; the list below only helps pick use cases. */
     industryMode?: "targeted" | "any";
     /** Hard rules: a company that fails one is excluded before any research money is spent. */

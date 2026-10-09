@@ -16,11 +16,13 @@ beforeAll(() => {
   savedEmp = MANCH.icp.employees;
   MANCH.icp.mustHave = RULE;
   MANCH.icp.industryMode = "any";
+  MANCH.icp.tierBySize = { T1: 50000, T2: 15000 };
   MANCH.icp.employees = { sweetSpot: 10000, mid: 5001, min: 5001 };
 });
 afterAll(() => {
   MANCH.icp.mustHave = saved;
   MANCH.icp.industryMode = "targeted";
+  MANCH.icp.tierBySize = undefined;
   MANCH.icp.employees = savedEmp;
 });
 beforeEach(async () => {
@@ -65,6 +67,28 @@ describe("Manch targeting: India and more than 5,000 employees", () => {
       expect(a.stage).toBe("DISQUALIFIED");
       expect(await db.researchQuery.count({ where: { accountId: id, key: { notIn: ["website", "firmographics"] } } })).toBe(0);
     }
+  });
+
+  it("size sets the starting tier", async () => {
+    const big = await add("Mega Foods", { "Employee Size": "60000", Country: "IN" });
+    const mid = await add("Mid Foods", { "Employee Size": "20000", Country: "IN" });
+    const small = await add("Weak Foods", { "Employee Size": "6000", Country: "IN" });
+    await db.account.update({ where: { id: small }, data: { domain: "weak-foods.com" } });
+    for (const id of [big, mid, small]) await runAccount(id, { fromStage: 3 });
+    const tiers = await db.account.findMany({ where: { id: { in: [big, mid, small] } }, select: { name: true, tier: true } });
+    expect(Object.fromEntries(tiers.map((t) => [t.name, t.tier]))).toMatchObject({ "Mega Foods": "T1", "Mid Foods": "T2", "Weak Foods": "T3" });
+  });
+
+  it("hot buying signals upgrade a smaller company to T1 and run the deep dive", async () => {
+    const campaign = await db.campaign.create({ data: { name: "Q4" } });
+    const sender = await db.senderProfile.create({ data: { name: "Sender 1" } });
+    const r = await ingestRows([{ "Company Name": "Hot Foods", "Company Website": "strong-hotfoods.com", Industry: "fmcg", "Employee Size": "7000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "Head of Master Data", "Connection Sent": "2026-09-20", "Last Reply": "Yes, interested — share details", "Last Reply Date": "2026-10-05" }], { source: "csv", campaignId: campaign.id, senderId: sender.id });
+    const id = r.accountIds[0];
+    await runAccount(id);
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.tier).toBe("T1");
+    expect(await db.pipelineEvent.count({ where: { accountId: id, step: "fit_tier.intent_upgrade" } })).toBe(1);
+    expect(await db.decision.count({ where: { accountId: id, choice: { contains: "→ T1" } } })).toBe(1);
   });
 
   it("unknown size waits for data, then runs when a re-upload adds it", async () => {

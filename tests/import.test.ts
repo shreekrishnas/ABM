@@ -146,7 +146,10 @@ describe("weekly re-uploads", () => {
     await ingestRows([{ ...week1[0], Headcount: "350", Country: "AE" }], { source: "csv", filename: "w2.csv" });
     await processQueue({});
     const after = await db.account.findFirstOrThrow();
-    expect(after.tier).not.toBe("T1");
+    // The fit step lowers the tier from the new data; converging buying signals may then lift it back to T1 (logged).
+    const sized = await db.pipelineEvent.findFirstOrThrow({ where: { accountId: after.id, step: "fit_tier.research_priority" }, orderBy: { createdAt: "desc" } });
+    expect(sized.reason).not.toMatch(/^T1/);
+    if (after.tier === "T1") expect(await db.pipelineEvent.count({ where: { accountId: after.id, step: "fit_tier.intent_upgrade" } })).toBeGreaterThan(0);
     expect(after.fitReasons.some((r) => r.startsWith("Company size"))).toBe(true);
     // A hand-picked tier survives later data changes.
     await db.account.update({ where: { id: after.id }, data: { tier: "T1", tierLocked: true } });

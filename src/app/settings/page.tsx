@@ -69,13 +69,12 @@ export default async function SettingsPage() {
           <Row k="Markets" v={`${sp.icp.geos.primary.join(", ")} first · ${sp.icp.geos.secondary.slice(0, 6).join(", ")}…`} />
           <Row k="Weights" v={<span className="text-xs font-medium">{Object.entries(sp.icp.weights).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").toLowerCase()} ${v}`).join(" · ")}</span>} />
           <Row k="Fit floor" v={CONFIG.fit.floor} />
-          <Row k="Tier cut-offs" v={`T1 ≥ ${CONFIG.fit.tiers.T1} · T2 ≥ ${CONFIG.fit.tiers.T2}`} />
+          <Row k="Targeting rule" v={sp.icp.mustHave ? `${sp.icp.mustHave.countries?.join(", ") ?? "any country"} · more than ${((sp.icp.mustHave.minEmployees ?? 1) - 1).toLocaleString()} employees` : "None"} />
+          <Row k="Industries" v={sp.icp.industryMode === "any" ? "Any industry" : "Target list"} />
+          <Row k="Tiers" v={sp.icp.tierBySize ? `By size: T1 ${sp.icp.tierBySize.T1.toLocaleString()}+ · T2 ${sp.icp.tierBySize.T2.toLocaleString()}+ · hot intent → T1` : `T1 ≥ ${CONFIG.fit.tiers.T1} · T2 ≥ ${CONFIG.fit.tiers.T2}`} />
           <Row k="Lost-deal cooldown" v={`${CONFIG.fit.lostDealCooldownDays} days`} />
         </Card>
-        <Card title="Budgets & approval">
-          {Object.entries(CONFIG.budgetsUsd).map(([t, v]) => <Row key={t} k={`${t} budget per account`} v={`$${v.toFixed(2)}`} />)}
-          <Row k="Paid lookup" v={`$${CONFIG.costsUsd.paidLookup.toFixed(2)}`} />
-          <Row k="LLM cheap / strong" v={`$${CONFIG.costsUsd.llmCheap} / $${CONFIG.costsUsd.llmStrong}`} />
+        <Card title="Approval">
           <Row k="Approval (autonomy)" v={{ review_all: "A person approves every email", auto_t3: "T3 emails that pass every critic go out", auto_all: "Emails that pass every critic go out" }[sp.autonomy]} />
           <Row k="Guardrail attempts" v={CONFIG.guardrail.maxAttempts} />
         </Card>

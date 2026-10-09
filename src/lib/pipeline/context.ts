@@ -54,6 +54,11 @@ export async function spentUsd(accountId: string): Promise<number> {
   return (agg._sum.amountMicros ?? 0) / 1_000_000;
 }
 
+/** Budgets are off unless ENFORCE_BUDGETS=true: costs are still recorded, nothing is capped. */
+export function budgetsEnforced() {
+  return process.env.ENFORCE_BUDGETS === "true";
+}
+
 export function budgetFor(tier: Tier | null): number {
   return CONFIG.budgetsUsd[tier ?? "T3"];
 }
@@ -63,9 +68,11 @@ export function budgetFor(tier: Tier | null): number {
  * BudgetExceeded instead of spending past the cap.
  */
 export async function charge(accountId: string, tier: Tier | null, kind: LedgerKind, usd: number, description: string, stage: number) {
-  const cap = budgetFor(tier);
-  const spent = await spentUsd(accountId);
-  if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);
+  if (budgetsEnforced()) {
+    const cap = budgetFor(tier);
+    const spent = await spentUsd(accountId);
+    if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);
+  }
   await db.ledgerEntry.create({ data: { accountId, kind, amountMicros: toMicros(usd), description, stage } });
 }
 
@@ -77,6 +84,7 @@ export async function recordCost(accountId: string, kind: LedgerKind, usd: numbe
 
 /** Throws BudgetExceeded if `usd` more would pass the tier cap. */
 export async function ensureBudget(accountId: string, tier: Tier | null, usd: number) {
+  if (!budgetsEnforced()) return;
   const cap = budgetFor(tier);
   const spent = await spentUsd(accountId);
   if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);

@@ -99,7 +99,7 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
       stage = n;
       account = n === 5 && opts.reason ? await s05ResearchPlan(account, ctx, opts.reason) : await fn(account, ctx);
       account = await db.account.update({ where: { id: accountId }, data: { pipelineStage: n } });
-      await afterModule(n, account, ctx);
+      account = await afterModule(n, account, ctx);
     }
 
     if (from <= 10) {
@@ -146,18 +146,29 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
 const MODULE_OF: Record<number, string> = { 2: "intake", 3: "fit", 4: "contact_verifier", 5: "planner", 6: "search_router+extractor", 7: "evidence_judge+account_twin+strategist", 8: "buying_group", 9: "contact_verifier" };
 
 /** What each module reports on the bus, and the main brain's conflict rule after the strategist. */
-async function afterModule(n: number, account: Account, ctx: RunContext) {
+async function afterModule(n: number, account: Account, ctx: RunContext): Promise<Account> {
   if (n === 3) await publish(ctx, { type: "fit.scored", module: "fit", accountId: account.id, payload: { fit: account.fitScore, tier: account.tier } });
   if (n === 6) await publish(ctx, { type: "research.done", module: "search_router", accountId: account.id, payload: { facts: await db.evidence.count({ where: { accountId: account.id, supersededById: null, flagged: false } }) } });
-  if (n !== 7) return;
+  if (n !== 7) return account;
   const evidence = await liveEvidence(account.id);
   const triggers = evidence.filter((e) => isTriggerKey(e.key));
   const q = evidenceQuality(triggers.map((t) => ({ status: t.status, publishedAt: t.publishedAt })), ctx.now);
-  const intent = await readIntent(account.id, ctx.now);
+  let intent = await readIntent(account.id, ctx.now);
+  // Hot buying signals upgrade the tier to T1 and earn the deep dive now (once per run).
+  if (intent.level === "hot" && account.tier !== "T1" && !account.tierLocked) {
+    const from = account.tier;
+    account = await db.account.update({ where: { id: account.id }, data: { tier: "T1" } });
+    await logEvent(ctx, { accountId: account.id, stage: 7, step: "fit_tier.intent_upgrade", outcome: "pass", reason: `Upgraded ${from ?? "—"} → T1: buying intent is hot (${intent.score}: ${intent.families.join(", ")})` });
+    await decide(ctx, { module: "main_brain", question: `Should ${account.name} get T1 attention?`, choice: `Upgrade ${from} → T1 and run the deep dive`, caseFor: intent.whyNow ?? intent.explain, caseAgainst: `Company size alone put it at ${from}`, evidenceFor: intent.signals.flatMap((s) => s.refs).slice(0, 10), confidence: Math.min(0.95, intent.score / 100), autonomy: "acted", accountId: account.id });
+    account = await s05ResearchPlan(account, ctx, "refresh");
+    account = await s06AccountResearch(account, ctx, { pass: "main" });
+    account = await s07AccountTwin(account, ctx);
+    intent = await readIntent(account.id, ctx.now);
+  }
   await publish(ctx, { type: "intent.scored", module: "intent_engine", accountId: account.id, payload: { score: intent.score, level: intent.level, families: intent.families, whyNow: intent.whyNow } });
   await publish(ctx, { type: "evidence.judged", module: "evidence_judge", accountId: account.id, payload: { strong: q.strong, verified: q.verified, usable: q.usable } });
   const brief = await latestBrief(account.id);
-  if (!brief) return;
+  if (!brief) return account;
   await publish(ctx, { type: "brief.ready", module: "strategist", accountId: account.id, payload: { verdict: brief.verdict, painPoints: brief.painPoints.length } });
   // Conflict: the strategist is upbeat but the evidence judge is not. The weaker verdict wins until re-research.
   if (brief.verdict === "strong" && !q.strong) {
@@ -168,6 +179,7 @@ async function afterModule(n: number, account: Account, ctx: RunContext) {
       evidenceFor: brief.whyNow?.factIds ?? [], evidenceAgainst: triggers.map((t) => t.id), confidence: 0.6, autonomy: "acted", accountId: account.id,
     });
   }
+  return account;
 }
 
 export async function runBatch(accountIds: string[], ctx: RunContext = newContext()) {
