@@ -27,6 +27,7 @@ export const SIGNALS = [
   "run.finished",
   "learning.summary",
   "proposal.created",
+  "market.scanned", // Market scan: new companies with buying events, industry momentum
 ] as const;
 export type SignalType = (typeof SIGNALS)[number];
 

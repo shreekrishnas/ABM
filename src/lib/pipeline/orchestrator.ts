@@ -1,6 +1,7 @@
 // Runs accounts through stages 2–11. Stages 12–13 are event-driven (sends,
 // signals, replies). Every outcome — pass, stop, budget, crash — is recorded.
 
+import { maybeScanMarket } from "@/lib/discover/scan";
 import type { Account } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -271,7 +272,8 @@ export async function tick(ctx: RunContext = newContext()) {
   const watch = await processWatchlist(ctx);
   const escalated = await escalateOverdue(ctx);
   const insights = await maybeGenerateInsights(ctx);
-  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights };
+  const market = await maybeScanMarket(ctx).catch(() => false);
+  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market };
 }
 
 export async function budgetSummary(account: Account) {

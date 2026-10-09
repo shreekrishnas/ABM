@@ -19,10 +19,11 @@ const themeScript = `try{var t=localStorage.getItem("abm-theme");if(t==="dark"||
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [reviews, handoffs, tasks] = await Promise.all([
+  const [reviews, handoffs, tasks, discover] = await Promise.all([
     db.reviewItem.count({ where: { status: "open" } }),
     db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
     db.task.count({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lte: new Date() } } }),
+    db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning style={{ ["--font-fraunces" as string]: '"Fraunces Variable"' }}>
@@ -35,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="app-shell glass-panel">
             <Sidebar counts={{ review: reviews, handoffs, tasks }} />
             <div className="app-content">
-              <Topbar />
+              <Topbar discover={discover} />
               <main className="app-main" id="main">{children}</main>
             </div>
           </div>

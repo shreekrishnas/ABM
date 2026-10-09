@@ -4,7 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
-import type { BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
+import type { MarketEventExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
 import { inferFunction } from "@/lib/pipeline/normalize";
@@ -283,5 +283,18 @@ export class OpenRouterLLM implements LLM {
     );
     if (out.page == null || !pages[out.page]) return null;
     return { industry: out.industry, employees: out.employees, country: out.country, page: out.page };
+  }
+
+  async extractMarketEvents(pages: ResearchPage[]): Promise<MarketEventExtract[]> {
+    if (!pages.length) return [];
+    const sp = seller();
+    const schema = z.object({ items: z.array(z.object({ page: z.number().int(), company: z.string().min(2).max(120), industry: z.string().max(80).nullable(), triggerKey: z.string().max(40), claim: z.string().max(300), quote: z.string().max(400) })).max(30) });
+    const out = await this.json(
+      schema,
+      `You read news pages and list companies that had a buying event relevant to ${sp.name}. Events: ${sp.triggers.map((t) => `${t.key} = ${t.label}`).join("; ")}. Only companies a page names explicitly; never the publisher, a consultant or a vendor. quote = exact words copied from the page that show the event. triggerKey = one of the keys above, or "other". industry = the company's industry if the page says or makes it obvious, else null.`,
+      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "company": "...", "industry": "...", "triggerKey": "...", "claim": "...", "quote": "..."}]}`,
+      1500,
+    );
+    return out.items.filter((x) => pages[x.page]);
   }
 }

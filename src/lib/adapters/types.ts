@@ -168,8 +168,20 @@ export interface LLM {
   insights(stats: BrainStats): Promise<InsightSummary>;
   /** Industry, employee count and country from company pages; `page` = index of the page it came from. */
   extractFirmographics(pages: ResearchPage[], company: string): Promise<{ industry: string | null; employees: number | null; country: string | null; page: number } | null>;
+  /** Market scan: companies named in news pages with a buying event. `quote` must be exact words from the page. */
+  extractMarketEvents(pages: ResearchPage[]): Promise<MarketEventExtract[]>;
   /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
   classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
+}
+
+export interface MarketEventExtract {
+  page: number;
+  company: string;
+  industry: string | null;
+  /** Seller trigger key (e.g. erp_migration) or "other". */
+  triggerKey: string;
+  claim: string;
+  quote: string;
 }
 
 export interface EmailSender {

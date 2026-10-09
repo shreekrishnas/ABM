@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Moon, Search, Sun } from "lucide-react";
+import Link from "next/link";
+import { Globe, Moon, Search, Sun } from "lucide-react";
 
 const TITLES: [string, string, string][] = [
   ["/accounts", "Companies", "Who to focus on, and why now"],
@@ -16,6 +17,7 @@ const TITLES: [string, string, string][] = [
   ["/overview", "Program overview", "What the program is producing"],
   ["/analytics", "Analytics", "What is working"],
   ["/import", "Import companies & people", "One file in; research and journeys follow"],
+  ["/discover", "Discover", "New companies and rising industries"],
   ["/settings", "Settings", "Seller, rules and connections"],
 ];
 
@@ -24,7 +26,7 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Topbar() {
+export function Topbar({ discover = 0 }: { discover?: number }) {
   const path = usePathname();
   const router = useRouter();
   const [dark, setDark] = useState(false);
@@ -65,6 +67,10 @@ export function Topbar() {
           <Search size={16} />
           <input className="glass-input" placeholder="Search accounts, domains…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search accounts" />
         </form>
+        <Link href="/discover" className={`round-control relative${path.startsWith("/discover") ? " is-active" : ""}`} aria-label={`Discover new companies${discover ? ` (${discover} suggested)` : ""}`} title="Discover: new companies and rising industries">
+          <Globe size={18} />
+          {discover > 0 && <span className="topbar-badge tnum">{discover > 99 ? "99+" : discover}</span>}
+        </Link>
         <button className="round-control" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
           {dark ? <Sun size={18} /> : <Moon size={18} />}
         </button>

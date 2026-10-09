@@ -12,6 +12,7 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
   const c = `"${company}"`;
   if (key === "website") return { q: `${c} official website`, days: null, news: false };
   if (key === "firmographics") return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
+  if (key.startsWith("market")) return { q: "", days: 90, news: true };
   const s = seller().researchQuestions.find((x) => x.key === key)?.search;
   if (s) return { q: `${c} ${s.terms}`, days: s.days, news: s.news };
   if (key === "negative") return { q: `${c} (layoffs OR job cuts OR hiring freeze OR acquired OR insolvency OR bankruptcy)`, days: 120, news: true };

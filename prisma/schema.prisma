@@ -933,3 +933,51 @@ model Proposal {
 
   @@index([status, createdAt])
 }
+
+/// A buying event found by the market scan for a company that may not be in the database yet.
+model MarketEvent {
+  id          String   @id @default(cuid())
+  sellerId    String
+  company     String
+  nameKey     String
+  industry    String?
+  /// Industry bucket used by the trend radar (pharma, fmcg, bfsi…).
+  bucket      String
+  triggerKey  String
+  claim       String
+  /// Exact words from the page; the event is kept only if they are on it.
+  quote       String
+  sourceUrl   String
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([sellerId, sourceUrl, nameKey])
+  @@index([sellerId, bucket, publishedAt])
+}
+
+/// A company the brain suggests adding, with the evidence behind it.
+model ProspectSuggestion {
+  id        String   @id @default(cuid())
+  sellerId  String
+  name      String
+  nameKey   String
+  domain    String?
+  industry  String?
+  bucket    String
+  country   String?
+  employees Int?
+  score     Int
+  level     String
+  whyNow    String
+  families  String[] @default([])
+  sources   Json
+  /// new | added | dismissed | excluded
+  status    String   @default("new")
+  reason    String?
+  accountId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sellerId, nameKey])
+  @@index([sellerId, status, score])
+}

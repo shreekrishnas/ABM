@@ -23,6 +23,7 @@ import type {
   PersonQuery,
   ProviderPerson,
   ResearchPage,
+  MarketEventExtract,
   ResearchPass,
   ResearchSource,
   SearchHint,
@@ -162,6 +163,22 @@ const TRIGGERS = [
   { claim: "launched an enterprise-wide AI and automation programme", value: "ai_programme" },
 ];
 
+
+/** Fictional market for the scan: pharma is heating up, FMCG cooling — the trend the radar must catch. */
+export const MOCK_MARKET = [
+  { name: "Sahyadri Lifesciences", industry: "pharmaceuticals", country: "India", employees: 18000, trigger: "erp_migration", claim: "began its SAP S/4HANA migration to unify plant and distributor master data", days: 6 },
+  { name: "Narmada Pharma", industry: "pharmaceuticals", country: "India", employees: 9200, trigger: "channel_expansion", claim: "will add 2,500 stockists and chemist distributors across tier-3 towns", days: 11 },
+  { name: "Kaveri Biologics", industry: "pharmaceuticals", country: "India", employees: 7400, trigger: "compliance_mandate", claim: "is rolling out serialisation and supplier KYC checks to meet new CDSCO track-and-trace rules", days: 15 },
+  { name: "Godavari Generics", industry: "pharmaceuticals", country: "India", employees: 3100, trigger: "channel_expansion", claim: "is expanding its distributor network into East India", days: 19 },
+  { name: "Vindhya Healthcare", industry: "pharmaceuticals", country: "India", employees: 12500, trigger: "ma_integration", claim: "completed the acquisition of a regional API maker and will merge vendor masters", days: 24 },
+  { name: "Tapti Remedies", industry: "pharmaceuticals", country: "India", employees: 6100, trigger: "erp_migration", claim: "announced an ERP upgrade across eight formulation plants", days: 70 },
+  { name: "Lotus Consumer Brands", industry: "fmcg", country: "India", employees: 8800, trigger: "channel_expansion", claim: "plans to add 1,200 rural distributors", days: 52 },
+  { name: "Saffron Foods", industry: "fmcg", country: "India", employees: 6400, trigger: "erp_migration", claim: "went live on SAP S/4HANA for its dairy business", days: 64 },
+  { name: "Marina Retail Group", industry: "fmcg", country: "Singapore", employees: 22000, trigger: "channel_expansion", claim: "is expanding its dealer network across South-East Asia", days: 9 },
+  { name: "Konkan Auto Components", industry: "automotive", country: "India", employees: 11000, trigger: "workforce_scale", claim: "is hiring thousands of field technicians for its new plants", days: 28 },
+];
+const MARKET_BY_NAME = new Map(MOCK_MARKET.map((m) => [m.name.toLowerCase(), m]));
+
 class MockResearch implements ResearchSource {
   engines() {
     return ["mock"];
@@ -204,6 +221,13 @@ class MockResearch implements ResearchSource {
         { url: `https://www.linkedin.com/company/${slug}`, sourceType: "news", publishedAt: daysAgo(5), title: `${companyName} | LinkedIn`, text: `${companyName} on LinkedIn` },
         { url: `https://www.${slug}.in/`, sourceType: "official", publishedAt: daysAgo(5), title: `${companyName} — Official website`, text: `Welcome to ${companyName}.` },
       ];
+    }
+    if (key === "firmographics" && MARKET_BY_NAME.has(companyName.toLowerCase())) {
+      const m = MARKET_BY_NAME.get(companyName.toLowerCase())!;
+      return [{ url: `https://companies.example.org/${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news", publishedAt: daysAgo(30), title: `About ${companyName}`, text: `${companyName} is a ${m.industry} company headquartered in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees.` }];
+    }
+    if (key.startsWith("market")) {
+      return MOCK_MARKET.map((m) => ({ url: `https://marketwire.example.com/${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${m.trigger}`, sourceType: "news" as const, publishedAt: daysAgo(m.days), title: `${m.name} ${m.claim}`, text: `${m.name} ${m.claim}. The ${m.industry} company is based in ${m.country}.` }));
     }
     if (key === "firmographics") {
       const industries = ["fmcg", "manufacturing", "pharma distribution", "quick commerce", "nbfc lending"];
@@ -282,6 +306,15 @@ class MockLLM implements LLM {
       if (m) return { industry: m[1], country: m[2], employees: Number(m[3].replace(/,/g, "")), page: i };
     }
     return null;
+  }
+
+  async extractMarketEvents(pages: ResearchPage[]): Promise<MarketEventExtract[]> {
+    const out: MarketEventExtract[] = [];
+    for (const [i, p] of pages.entries()) {
+      const m = MOCK_MARKET.find((x) => p.title.startsWith(x.name));
+      if (m) out.push({ page: i, company: m.name, industry: m.industry, triggerKey: m.trigger, claim: `${m.name} ${m.claim}`, quote: `${m.name} ${m.claim}` });
+    }
+    return out;
   }
 
   classifyJourneyReply(text: string) {

@@ -566,3 +566,26 @@ export async function importResearchSummaryAction(batchId: string) {
     skippedKnown: plans.reduce((n, p) => n + (p.skipped as { reason: string }[]).filter((x) => x.reason.startsWith("Known from import")).length, 0),
   };
 }
+
+// ── Discover ──
+
+export async function scanMarketAction(): Promise<ActionState> {
+  const { scanMarket } = await import("@/lib/discover/scan");
+  const r = await scanMarket(newContext());
+  refresh("/discover");
+  return { ok: true, message: `Scanned ${r.searches} searches · ${r.events} buying events · ${r.suggestions} companies suggested · ${r.excluded} outside your targeting rule` };
+}
+
+export async function addSuggestionAction(id: string): Promise<ActionState> {
+  const { addSuggestion } = await import("@/lib/discover/scan");
+  const accountId = await addSuggestion(id);
+  refresh("/discover", "/accounts");
+  return { ok: !!accountId, message: accountId ? "Added to companies — research starts on the next run" : "Couldn't add this company" };
+}
+
+export async function dismissSuggestionAction(id: string): Promise<ActionState> {
+  const { dismissSuggestion } = await import("@/lib/discover/scan");
+  await dismissSuggestion(id);
+  refresh("/discover");
+  return { ok: true, message: "Dismissed" };
+}
