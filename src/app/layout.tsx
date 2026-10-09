@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "@fontsource-variable/fraunces/opsz.css";
@@ -19,6 +20,7 @@ const themeScript = `try{var t=localStorage.getItem("abm-theme");if(t==="dark"||
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await ensureSellerPacks();
   const [reviews, handoffs, tasks, discover] = await Promise.all([
     db.reviewItem.count({ where: { status: "open" } }),
     db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
@@ -34,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <div className="app-outer">
           <div className="app-shell glass-panel">
-            <Sidebar counts={{ review: reviews, handoffs, tasks }} />
+            <Sidebar counts={{ review: reviews, handoffs, tasks }} sellerName={seller().name} />
             <div className="app-content">
               <Topbar discover={discover} />
               <main className="app-main" id="main">{children}</main>

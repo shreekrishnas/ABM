@@ -5,7 +5,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { matchIndustry } from "@/lib/seller/fit";
 import { mustHaveGate, quoteGate } from "@/lib/pipeline/gates";
 import { companyNameKey, normalizeCountry } from "@/lib/pipeline/normalize";
@@ -47,6 +47,7 @@ export interface ScanResult {
 }
 
 export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanResult> {
+  await ensureSellerPacks();
   const p = seller();
   const mode = ctx.adapters.research.live ? "live" : "mock";
   const country = p.icp.mustHave?.countries?.includes("IN") ? "India" : "";
@@ -147,6 +148,7 @@ async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number;
 
 /** Weekly from the tick; never twice inside RESCAN_DAYS. */
 export async function maybeScanMarket(ctx: RunContext) {
+  await ensureSellerPacks();
   const last = await db.marketEvent.findFirst({ where: { sellerId: seller().id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
   if (last && ctx.now.getTime() - last.createdAt.getTime() < RESCAN_DAYS * DAY) return false;
   await scanMarket(ctx);

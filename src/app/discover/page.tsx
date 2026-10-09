@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, Globe, Plus, Radar, TrendingDown, TrendingUp, X } from "lucide-react";
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { industryTrends, type Momentum } from "@/lib/discover/trends";
 import { bucketLabel } from "@/lib/discover/scan";
 import { ActionButton } from "@/components/client";
@@ -23,6 +23,7 @@ const STATUS_WORD: Record<string, string> = { new: "Suggested", added: "Added", 
 type Source = { url: string; quote: string; at: string; trigger: string };
 
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string }> }) {
+  await ensureSellerPacks();
   const sp = await searchParams;
   const status = (STATUS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "new";
   const p = seller();

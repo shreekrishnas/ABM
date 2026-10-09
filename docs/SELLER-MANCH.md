@@ -1,8 +1,10 @@
 # Seller profile: Manch Technologies
 
 This brief records what the platform knows about Manch Technologies (the seller) and how that
-knowledge drives fit scoring, research, buying-group mapping and drafts. The encoded profile is
-`src/lib/seller/manch.ts`; you can view it in the app under **Settings → Seller profile**.
+knowledge drives fit scoring, research, buying-group mapping and drafts. The built-in profile is
+`src/lib/seller/manch.ts`; view and **edit** it in the app under **Settings → Seller profile**.
+Saved edits override the built-in values below (with version history); this document describes
+the built-in pack.
 
 > Research was done from public sources on 2026-10-06. manchtech.com itself could not be fetched
 > from the build environment (network policy), so facts come from search snippets of manchtech.com

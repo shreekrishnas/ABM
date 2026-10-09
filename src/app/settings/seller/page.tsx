@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
-import { seller } from "@/lib/seller";
+import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { Badge, Card, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Seller profile" };
 
 const ROLE_COLOR = { decision_maker: "#4F46E5", champion: "#0D9488", influencer: "#64748B", budget_owner: "#B45309" } as const;
 
-export default function SellerPage() {
+export default async function SellerPage() {
+  await ensureSellerPacks();
   const sp = seller();
   const w = sp.icp.weights;
   return (
@@ -17,7 +18,12 @@ export default function SellerPage() {
         eyebrow="Seller profile · drives fit, research, buying groups and drafts"
         title={sp.name}
         sub={sp.summary}
-        actions={<a href={sp.website} target="_blank" rel="noreferrer" className="btn btn-secondary"><ExternalLink size={15} /> Website</a>}
+        actions={
+          <>
+            <a href={sp.website} target="_blank" rel="noreferrer" className="btn btn-secondary"><ExternalLink size={15} /> Website</a>
+            <Link href="/settings/seller/edit" className="btn btn-brand"><Pencil size={15} /> Edit profile</Link>
+          </>
+        }
       />
 
       <div className="grid gap-5 xl:grid-cols-3">

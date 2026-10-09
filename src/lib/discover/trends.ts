@@ -4,7 +4,7 @@
 // few companies is flagged — the miss we had with pharma.
 
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { isTriggerKey } from "@/lib/research/keys";
 import { bucketLabel, bucketOf } from "./scan";
 
@@ -41,6 +41,7 @@ export function momentumOf(recent: number, prior: number): Momentum {
 }
 
 export async function industryTrends(now = new Date()): Promise<IndustryTrend[]> {
+  await ensureSellerPacks();
   const p = seller();
   const d30 = new Date(now.getTime() - 30 * DAY);
   const d90 = new Date(now.getTime() - 90 * DAY);

@@ -13,6 +13,13 @@ tone, banned claims, sender address and autonomy level all live in the pack. Eve
 brief, draft, signal and decision stores `sellerId` + pack version. Adding a seller =
 adding a pack; `tests/brain-v2.test.ts` fails if core code mentions a seller.
 
+Packs are editable in **Settings → Seller profile → Edit** (`/settings/seller/edit`). Each save
+is validated against the full schema and stored as a `SellerPackRevision`; the newest valid
+revision overrides the pack in code, every run loads it at the start (`ensureSellerPacks`), and
+the pack version is a content hash (key order doesn't matter). Restore and "reset to built-in"
+are new revisions, so history is never lost. A stored revision that stops validating is ignored
+(runs keep the last valid pack) and flagged on the edit screen.
+
 ## Main brain and signal bus (`brain/bus.ts`, `pipeline/orchestrator.ts`)
 Modules publish typed, stored signals (`BrainSignal`): seller.context, run.planned,
 fit.scored, research.done, evidence.judged, brief.ready, verdict.conflict,
