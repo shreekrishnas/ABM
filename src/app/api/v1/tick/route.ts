@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
 import { newContext } from "@/lib/pipeline/context";
 import { processIntent, tick } from "@/lib/pipeline/orchestrator";
 import { authorize, json } from "@/lib/api";
 
-// The backend brain's heartbeat. Vercel Cron calls GET (with CRON_SECRET); other
-// schedulers call POST (with ABM_API_KEY). Works through queued imports, follow-ups,
-// approved sends, watch-list re-checks, intent surges, escalations and the weekly learning pass.
+// The backend brain's heartbeat. Vercel Cron calls GET with `Authorization: Bearer
+// <CRON_SECRET>`; other schedulers call POST with ABM_API_KEY. Either secret works on
+// either method. In production, with neither secret set, the route refuses to run:
+// every tick spends search and LLM credits.
 async function run() {
   const ctx = newContext();
   const result = await tick(ctx);
@@ -15,15 +15,14 @@ async function run() {
 
 export const maxDuration = 60;
 
+function allowed(req: Request) {
+  return authorize(req, { alsoAccept: [process.env.CRON_SECRET?.trim() || undefined] });
+}
+
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!secret && authorize(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  return run();
+  return allowed(req) ?? run();
 }
 
 export async function POST(req: Request) {
-  const denied = authorize(req);
-  if (denied) return denied;
-  return run();
+  return allowed(req) ?? run();
 }

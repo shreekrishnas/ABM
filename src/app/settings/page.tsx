@@ -6,6 +6,7 @@ import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { createCampaignFormAction, createSenderFormAction, seedDemoAction } from "../actions";
 import { serviceStatus } from "@/lib/adapters";
+import { securityStatus } from "@/lib/api";
 
 export const metadata = { title: "Settings" };
 // Seeding a hosted database can take a while.
@@ -28,6 +29,7 @@ export default async function SettingsPage() {
     db.senderProfile.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { journeys: true } } } }),
   ]);
   const services = serviceStatus();
+  const sec = securityStatus();
   const sp = seller();
   const accounts = await db.account.count();
   const seedAllowed = process.env.ALLOW_SEED === "true";
@@ -62,6 +64,14 @@ export default async function SettingsPage() {
             <Row key={x.key} k={<span>{x.label}<span className="muted block text-xs font-normal">{x.via}</span></span>} v={<Badge color={x.mode === "live" ? "#059669" : "#64748B"}>{x.mode}</Badge>} />
           ))}
           <p className="muted mt-3 text-xs">When web research is live the evidence gate refuses mock evidence, so test data can never reach a real send. Sample data always runs on mocks.</p>
+        </Card>
+        <Card title="Access & spend" sub="Set these in Vercel environment variables">
+          <Row k={<span>Page password<span className="muted block text-xs font-normal">APP_PASSWORD</span></span>} v={<Badge color={sec.pagePassword ? "#059669" : "#B45309"}>{sec.pagePassword ? "on" : "off"}</Badge>} />
+          <Row k={<span>API key<span className="muted block text-xs font-normal">ABM_API_KEY · webhooks and the REST API</span></span>} v={<Badge color={sec.apiKey ? "#059669" : sec.production && !sec.apiOpen ? "#DC2626" : "#B45309"}>{sec.apiKey ? "set" : sec.apiOpen ? "open" : "API refused"}</Badge>} />
+          <Row k={<span>Scheduler secret<span className="muted block text-xs font-normal">CRON_SECRET · daily run</span></span>} v={<Badge color={sec.cronSecret ? "#059669" : "#B45309"}>{sec.cronSecret ? "set" : "not set"}</Badge>} />
+          <Row k={<span>Spend caps per tier<span className="muted block text-xs font-normal">ENFORCE_BUDGETS · T1 ${CONFIG.budgetsUsd.T1} · T2 ${CONFIG.budgetsUsd.T2} · T3 ${CONFIG.budgetsUsd.T3}</span></span>} v={<Badge color={sec.budgetsEnforced ? "#059669" : "#64748B"}>{sec.budgetsEnforced ? "enforced" : "recorded only"}</Badge>} />
+          {sec.seedAllowed && <Row k={<span>Sample data reset<span className="muted block text-xs font-normal">ALLOW_SEED · can wipe all data</span></span>} v={<Badge color="#DC2626">allowed</Badge>} />}
+          <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's run stops for review when its research and lookups reach its tier budget." : "Every paid call is still recorded per company; nothing is capped. Set ENFORCE_BUDGETS=true to stop runs at the tier budget."}</p>
         </Card>
         <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />

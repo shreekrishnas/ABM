@@ -42,22 +42,35 @@ mention 30+ customers across e-commerce, fintech, FMCG and manufacturing.
 Australia, Germany, Philippines, Saudi Arabia and UAE, which suggests GCC and international
 expansion.
 
-## 3. Who is a good fit (how the fit score works)
+## 3. Who is a good fit (how targeting and the fit score work)
 
-The score has five components and is scored **on known fields only**, so missing data never counts
-as a bad fit:
+**Targeting rule (hard filter, runs before any research spend).** Only companies **located in
+India with more than 5,000 employees** go on to research. A company outside India or with 5,000 or
+fewer employees is disqualified at stage 3. A company whose size or country is unknown waits; it runs
+automatically once a re-upload (or the gap-fill search) supplies the missing value.
+
+**Industries.** No target-industry list for now (`industryMode: "any"`): any industry qualifies, and
+research and buying signals decide. The industry list below still drives the use case, messaging and
+the industry part of the fit score.
+
+The fit score has five components and is scored **on known fields only**, so missing data never
+counts as a bad fit:
 
 | Component | Weight | Logic |
 |---|---|---|
 | Industry | 35 | Primary verticals: FMCG/CPG and beverages, manufacturing, e-commerce and quick commerce, fintech/NBFC/lending. Secondary: pharma distribution, logistics and mobility, retail chains, telecom and energy. |
-| Company size | 25 | 1,000+ employees full marks; 500+ strong; 200+ partial; under 200 scores 0. |
+| Company size | 25 | 10,000+ employees full marks; 5,001+ partial (smaller companies never reach scoring). |
 | Geography | 15 | India full; GCC, US/UK, SE Asia and Australia partial. |
 | Partner network | 15 | How many external parties the business onboards (distributors, vendors, sellers, gig workers), inferred from the vertical. |
 | Tech stack | 10 | ERP to integrate with (SAP, Oracle, Dynamics…) +6, legacy MDM to replace (Informatica, Reltio, SAP MDG…) +3, DIY workflow tools (Power Apps, Appian…) +1. |
 
-Tiers: T1 for 80 and above, T2 for 60 and above, otherwise T3. Accounts below 40 stop at stage 3.
-Tiers now follow the score, so weekly data changes can move them, unless a person locks a tier by
-hand.
+Accounts below a fit of 40 stop at stage 3.
+
+**Tiers follow company size**: T1 at 50,000+ employees, T2 at 15,000+, otherwise T3. Hot buying
+intent (two or more independent signal families converging) upgrades a company to T1 and runs the
+deep dive. A person can lock a tier by hand; weekly data changes then leave it alone.
+
+These values live in `src/lib/seller/manch.ts` (`icp.mustHave`, `icp.employees`, `icp.tierBySize`).
 
 ## 4. Buying group
 
@@ -89,7 +102,7 @@ prospect. The fact guardrail still requires every prospect claim to cite evidenc
 
 1. Full registered postal address and sender names (legally required in every email).
 2. Which customer names may be used in emails (HCCB is currently referenced only as "a large beverage bottler").
-3. Confirm target verticals, regions and minimum company size.
+3. Confirm target verticals, regions and the 5,000-employee minimum.
 4. Current pricing or deal-size bands (to set tier budgets and opportunity amounts).
 5. Any partners or resellers (e.g. international SI partners) to treat as partner accounts.
 

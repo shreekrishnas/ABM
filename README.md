@@ -29,7 +29,8 @@ npm run db:seed
 
 # 3. Run
 npm run dev                     # http://localhost:3000
-npm test                        # 36 unit + integration tests (uses abm_test)
+npm test                        # unit + integration tests (uses abm_test)
+npm run pipeline:run            # one scheduler tick from the command line (or pass account ids)
 npm run build                   # production build
 ```
 
@@ -69,7 +70,10 @@ columns are defined in `src/lib/import/fields.ts`). Upload as often as you like:
 
 ## REST API (`/api/v1`)
 
-Set `ABM_API_KEY` to require `Authorization: Bearer <key>` (required before deploying).
+Every route except `/health` needs `Authorization: Bearer <ABM_API_KEY>`. In production the API
+fails closed: with no key set, routes answer 503 (set `ABM_API_OPEN=true` only for a private test
+deployment). `/tick` also accepts `CRON_SECRET`, which Vercel Cron sends on its daily call.
+Settings → Access & spend shows what is configured.
 
 | Method | Path | Purpose |
 |---|---|---|

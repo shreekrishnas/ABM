@@ -139,6 +139,8 @@ export async function s09Enrichment(account: Account, ctx: RunContext): Promise<
     await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "enrichment.lawful_basis", outcome: basis ? "pass" : "block", reason: basis ?? `No lawful basis configured for ${c.country ?? account.country ?? "unknown country"}` });
     if (!basis) {
       await openReview({ type: "lawful_basis_missing", stage: S, accountId: account.id, contactId: c.id, reason: `No lawful basis for ${c.country ?? account.country ?? "unknown country"} — confirm with counsel` });
+      // Not outreach-ready until a basis is confirmed (stage 10 blocks the send either way).
+      continue;
     }
     ready++;
   }
