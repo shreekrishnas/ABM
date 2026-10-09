@@ -17,7 +17,7 @@ import {
   phoneCountry,
   standardizeTitle,
 } from "../normalize";
-import { exclusionGate, fitFloorGate, emailDomainStatus, isStale, phoneCountryStatus } from "../gates";
+import { exclusionGate, fitFloorGate, mustHaveGate, emailDomainStatus, isStale, phoneCountryStatus } from "../gates";
 import { dataConfidence, identityConfidence, researchPriority, scoreFit, tierFor } from "../scoring";
 import { charge, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { seller } from "@/lib/seller";
@@ -125,6 +125,22 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
     const stage = account.relationship === "customer" ? "CUSTOMER" : openOpp ? "OPPORTUNITY" : "DISQUALIFIED";
     await db.account.update({ where: { id: account.id }, data: { stage, disqualifyReason: ex.reason } });
     throw new StopRun(ex.reason);
+  }
+
+  // Hard targeting rules from the seller pack, after the gap fill has had its chance.
+  const must = mustHaveGate(account);
+  await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.targeting_rules", outcome: must.pass ? "pass" : "block", reason: must.reason });
+  if (!must.pass) {
+    if (must.unknown) {
+      await db.account.update({ where: { id: account.id }, data: { disqualifyReason: must.reason } });
+    } else {
+      await db.account.update({ where: { id: account.id }, data: { stage: "DISQUALIFIED", disqualifyReason: must.reason } });
+    }
+    throw new StopRun(must.reason);
+  }
+  // Newer data now meets the rules: lift an earlier targeting stop.
+  if (account.disqualifyReason && /^(Outside target countries|Too small|Can't confirm)/.test(account.disqualifyReason)) {
+    account = await db.account.update({ where: { id: account.id }, data: { disqualifyReason: null, ...(account.stage === "DISQUALIFIED" ? { stage: "UNAWARE" } : {}) } });
   }
 
   const fit = scoreFit(account);

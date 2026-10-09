@@ -37,6 +37,25 @@ export function exclusionGate(i: ExclusionInput): GateResult {
   return { pass: true, reason: "No exclusion applies" };
 }
 
+/**
+ * The seller's hard targeting rules (e.g. India, more than 5,000 employees).
+ * Known and failing → excluded. Unknown → stop without spending, until the data arrives.
+ */
+export function mustHaveGate(a: { country: string | null; employees: number | null }, rule = seller().icp.mustHave): GateResult & { unknown?: boolean } {
+  if (!rule) return { pass: true, reason: "No hard targeting rules" };
+  const missing: string[] = [];
+  if (rule.countries?.length) {
+    if (!a.country) missing.push("country");
+    else if (!rule.countries.includes(a.country.toUpperCase())) return { pass: false, reason: `Outside target countries (${a.country}; must be ${rule.countries.join(" or ")})` };
+  }
+  if (rule.minEmployees) {
+    if (a.employees == null) missing.push("employee size");
+    else if (a.employees < rule.minEmployees) return { pass: false, reason: `Too small (${a.employees.toLocaleString()} employees; must be more than ${(rule.minEmployees - 1).toLocaleString()})` };
+  }
+  if (missing.length) return { pass: false, unknown: true, reason: `Can't confirm ${missing.join(" and ")} — add it to the next upload` };
+  return { pass: true, reason: "Meets the targeting rules" };
+}
+
 export function fitFloorGate(fit: number | null): GateResult {
   if (fit === null) return { pass: true, reason: "No firmographics known — research decides" };
   return fit >= CONFIG.fit.floor ? { pass: true, reason: `Fit ${fit} ≥ ${CONFIG.fit.floor}` } : { pass: false, reason: `Fit ${fit} below floor ${CONFIG.fit.floor}` };

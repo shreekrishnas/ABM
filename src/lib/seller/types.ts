@@ -23,6 +23,8 @@ export interface SellerProfile {
     geos: { primary: string[]; secondary: string[] };
     tech: { erp: string[]; incumbents: string[]; workflow: string[] };
     weights: { industry: number; size: number; geography: number; partnerNetwork: number; techStack: number };
+    /** Hard rules: a company that fails one is excluded before any research money is spent. */
+    mustHave?: { countries?: string[]; minEmployees?: number };
   };
   personas: { role: BuyingRoleKey; functions: string[]; titles: string[]; why: string }[];
   triggers: { key: string; label: string; keywords: string[]; why: string }[];

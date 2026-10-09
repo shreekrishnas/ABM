@@ -69,7 +69,7 @@ export const MANCH: SellerProfile = {
       { key: "retail", label: "Retail chains & franchises", tier: "secondary", match: ["retail", "franchise", "consumer durables", "electronics retail", "apparel"], partnerIntensity: 0.7, useCases: ["vendor_onboarding", "distributor_onboarding"] },
       { key: "telecom", label: "Telecom & energy distribution", tier: "secondary", match: ["telecom", "telecommunications", "energy", "oil and gas", "utilities", "power"], partnerIntensity: 0.6, useCases: ["distributor_onboarding", "regulated_kyc"] },
     ],
-    employees: { sweetSpot: 1000, mid: 500, min: 200 },
+    employees: { sweetSpot: 10000, mid: 5001, min: 5001 },
     geos: {
       primary: ["IN"],
       secondary: ["AE", "SA", "QA", "OM", "KW", "BH", "US", "GB", "SG", "MY", "ID", "PH", "AU"],
@@ -80,6 +80,8 @@ export const MANCH: SellerProfile = {
       workflow: ["appian", "pega", "power apps", "mendix", "outsystems", "servicenow"],
     },
     weights: { industry: 35, size: 25, geography: 15, partnerNetwork: 15, techStack: 10 },
+    // Manch's targeting rule: companies located in India with more than 5,000 employees.
+    mustHave: { countries: ["IN"], minEmployees: 5001 },
   },
 
   personas: [
