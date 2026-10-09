@@ -4,7 +4,7 @@ import type { FieldStatus } from "@prisma/client";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG, STAGES } from "@/lib/config";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
@@ -15,6 +15,7 @@ const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" 
 import { IntakeTab } from "./intake-tab";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+  await ensureSellerPacks();
   const { id } = await params;
   const tab = (await searchParams).tab ?? "overview";
   const a = await db.account.findUnique({

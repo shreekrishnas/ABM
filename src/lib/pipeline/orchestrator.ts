@@ -17,7 +17,7 @@ import { publish } from "@/lib/brain/bus";
 import { decide } from "@/lib/brain/decisions";
 import { readIntent } from "@/lib/brain/intent";
 import { latestBrief } from "@/lib/brain/strategist";
-import { loadSeller, sellerContext, withSeller } from "@/lib/seller";
+import { ensureSellerPacks, loadSeller, sellerContext, withSeller } from "@/lib/seller";
 import { isTriggerKey } from "@/lib/research/keys";
 import { evidenceQuality } from "./gates";
 import { liveEvidence } from "./stages/research";
@@ -65,6 +65,7 @@ export async function runAccount(accountId: string, opts: { fromStage?: number; 
   if (!found) return { accountId, status: "error", reachedStage: 0, reason: "Account not found", runId: ctx.runId };
   // Seller context module: the account's seller pack becomes the brain's identity for the whole run.
   let sellerOk = true;
+  await ensureSellerPacks();
   try {
     loadSeller(found.sellerId);
   } catch (e) {
@@ -266,6 +267,7 @@ export async function processQueue(opts: { batchId?: string; budgetMs?: number; 
 
 /** The scheduler's job: what a cron would run every few minutes. */
 export async function tick(ctx: RunContext = newContext()) {
+  await ensureSellerPacks();
   const queue = await processQueue({ ctx, budgetMs: 30_000 });
   const sequences = await tickSequences(ctx);
   const sent = await sendApproved(ctx);

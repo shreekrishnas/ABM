@@ -118,4 +118,4 @@ Light and dark themes flip via `data-theme` on `<html>`.
    check, sending, intent, alerts. `ADAPTER_MODE=mock` forces everything back to mocks.
 3. ~~Background queue~~ done (self-chaining `/api/v1/queue`). Move to Inngest if runs need retries or fan-out.
 4. Website tracking script for reverse-IP visits.
-5. Editable settings in the DB with audit history.
+5. ~~Editable seller profile~~ done (Settings → Seller profile → Edit, with version history). Pipeline thresholds in `config.ts` are still code.

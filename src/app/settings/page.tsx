@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
@@ -22,6 +22,7 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 }
 
 export default async function SettingsPage() {
+  await ensureSellerPacks();
   const [users, suppressions, campaigns, senders] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
     db.suppression.count(),
@@ -41,7 +42,7 @@ export default async function SettingsPage() {
           <p className="secondary text-sm">Runs 24 sample accounts through the real pipeline (mock external services). Takes up to a minute. Remove the <code className="mono">ALLOW_SEED</code> variable in Vercel afterwards so nobody can wipe the data.</p>
         </Card>
       )}
-      <PageHeader eyebrow="Configuration" title="Settings" sub={<>Every threshold lives in <code className="mono">src/lib/config.ts</code>. This page is read-only for now; editable settings with an audit history are on the roadmap.</>} />
+      <PageHeader eyebrow="Configuration" title="Settings" sub={<>The seller profile (targeting, messaging, approval) is editable, with version history. Pipeline mechanics live in <code className="mono">src/lib/config.ts</code>.</>} />
       <div className="mb-5 grid gap-5 md:grid-cols-2">
         <Card title="ABM campaigns & segments" sub="Chosen at import; a filter on People">
           {campaigns.length === 0 ? <p className="muted text-xs">None yet.</p> : campaigns.map((c) => <Row key={c.id} k={c.name} v={`${c._count.journeys} journeys`} />)}
@@ -73,7 +74,7 @@ export default async function SettingsPage() {
           {sec.seedAllowed && <Row k={<span>Sample data reset<span className="muted block text-xs font-normal">ALLOW_SEED · can wipe all data</span></span>} v={<Badge color="#DC2626">allowed</Badge>} />}
           <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's run stops for review when its research and lookups reach its tier budget." : "Every paid call is still recorded per company; nothing is capped. Set ENFORCE_BUDGETS=true to stop runs at the tier budget."}</p>
         </Card>
-        <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>}>
+        <Card title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link><Link href="/settings/seller/edit" className="btn btn-primary btn-sm">Edit</Link></span>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />
           <Row k="Company size" v={`${sp.icp.employees.sweetSpot.toLocaleString()}+ ideal · ${sp.icp.employees.min}+ minimum`} />
           <Row k="Markets" v={`${sp.icp.geos.primary.join(", ")} first · ${sp.icp.geos.secondary.slice(0, 6).join(", ")}…`} />

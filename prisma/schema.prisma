@@ -993,3 +993,20 @@ model JobLease {
   lastResult Json?
   updatedAt  DateTime @updatedAt
 }
+
+/// An edited version of a seller pack (Settings → Seller profile → Edit). The newest
+/// revision per seller is active; `pack = null` means "back to the built-in pack in code".
+/// Restoring an older version saves it again as a new revision, so history is never lost.
+model SellerPackRevision {
+  id        String   @id @default(cuid())
+  sellerId  String
+  pack      Json?
+  /// Content hash, the same value stamped on facts, briefs and drafts made with this pack.
+  version   String
+  /// Top-level sections that differ from the previous active pack.
+  changed   String[]
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([sellerId, createdAt])
+}

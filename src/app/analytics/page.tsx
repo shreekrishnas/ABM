@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { seller } from "@/lib/seller";
+import { ensureSellerPacks, seller } from "@/lib/seller";
 import { classifyTrigger } from "@/lib/seller/fit";
 import { HBars, VBars } from "@/components/charts";
 import { Card, Kpi, PageHeader, money } from "@/components/ui";
@@ -8,6 +8,7 @@ import { Card, Kpi, PageHeader, money } from "@/components/ui";
 export const metadata = { title: "Analytics" };
 
 export default async function AnalyticsPage() {
+  await ensureSellerPacks();
   const [messages, replies, evidence, ledgerByKind, ledgerByStage, oppsByTier, accountsByTier, closed] = await Promise.all([
     db.message.findMany({ where: { status: { in: ["delivered", "bounced"] } }, include: { draft: true, contact: { include: { account: true } } } }),
     db.reply.findMany({ include: { message: { include: { draft: true } }, contact: { include: { account: true } } } }),

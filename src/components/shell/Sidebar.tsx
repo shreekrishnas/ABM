@@ -47,14 +47,14 @@ const GROUPS: { label: string; items: Item[] }[] = [
   },
 ];
 
-export function Sidebar({ counts }: { counts: Counts }) {
+export function Sidebar({ counts, sellerName }: { counts: Counts; sellerName: string }) {
   const path = usePathname();
   const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
   return (
     <nav className="sidebar" aria-label="Main">
       <Link href="/" className="brand" aria-label="ABM home">
         <span className="mark"><Sparkles size={15} strokeWidth={2.2} /></span>
-        <span className="name">ABM<span className="sub">Manch Technologies</span></span>
+        <span className="name">ABM<span className="sub">{sellerName}</span></span>
       </Link>
       {GROUPS.map((g) => (
         <div key={g.label} className="contents">
