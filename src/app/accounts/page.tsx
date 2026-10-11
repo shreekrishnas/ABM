@@ -11,14 +11,14 @@ import { IntentPill, ViewSwitch, type IntentLevel } from "@/components/v2";
 
 export const metadata = { title: "Companies" };
 
-const SORTS = { engagement: "Engagement", fit: "Fit", intent: "Intent", recent: "Recently updated", name: "Name" } as const;
+const SORTS = { priority: "Priority", engagement: "Engagement", fit: "Fit", intent: "Intent", recent: "Recently updated", name: "Name" } as const;
 
 export default async function AccountsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const q = sp.q?.trim();
   const stage = sp.stage as BuyingStage | undefined;
   const tier = sp.tier as Tier | undefined;
-  const sort = (sp.sort as keyof typeof SORTS) ?? "engagement";
+  const sort = (sp.sort as keyof typeof SORTS) in SORTS ? (sp.sort as keyof typeof SORTS) : "priority";
   const view = sp.view === "list" ? "list" : "map";
 
   const where: Prisma.AccountWhereInput = {
@@ -28,7 +28,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
     ...(tier ? { tier } : {}),
   };
   const orderBy: Prisma.AccountOrderByWithRelationInput =
-    sort === "fit" ? { fitScore: { sort: "desc", nulls: "last" } } : sort === "intent" ? { intentScore: "desc" } : sort === "recent" ? { updatedAt: "desc" } : sort === "name" ? { name: "asc" } : { engagementScore: "desc" };
+    sort === "priority" ? { priorityScore: { sort: "desc", nulls: "last" } } : sort === "fit" ? { fitScore: { sort: "desc", nulls: "last" } } : sort === "intent" ? { intentScore: "desc" } : sort === "recent" ? { updatedAt: "desc" } : sort === "name" ? { name: "asc" } : { engagementScore: "desc" };
 
   const [rawAccounts, stageCounts, users] = await Promise.all([
     db.account.findMany({ where, orderBy, include: { owner: true, _count: { select: { contacts: true, reviewItems: { where: { status: "open" } } } } }, take: 300 }),
@@ -109,7 +109,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           <div className="table-wrap">
             <table className="data">
               <thead>
-                <tr><th>Account</th><th>Tier</th><th>Stage</th><th>Fit</th><th>Buying intent</th><th className="w-40">Engagement</th><th>Pipeline</th><th>Owner</th><th>Updated</th></tr>
+                <tr><th>Account</th><th>Tier</th><th>Stage</th><th>Priority</th><th>Fit</th><th>Buying intent</th><th className="w-40">Engagement</th><th>Pipeline</th><th>Owner</th><th>Updated</th></tr>
               </thead>
               <tbody>
                 {accounts.map((a) => {
@@ -127,6 +127,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td><TierBadge tier={a.tier} /></td>
                       <td><StageBadge stage={a.stage} /></td>
+                      <td className="tnum font-semibold" style={{ color: "var(--text-primary)" }}>{a.priorityScore ?? <span className="muted font-normal">—</span>}</td>
                       <td className="tnum">{a.fitScore ?? <span className="muted">—</span>}</td>
                       <td>{(() => { const r = a.intentReading as { level: IntentLevel; score: number; whyNow: string | null } | null; return r ? <IntentPill level={r.level} score={r.score} title={r.whyNow ?? undefined} /> : <span className="muted text-xs">not read yet</span>; })()}</td>
                       <td><div className="flex items-center gap-2"><div className="flex-1"><Meter value={a.engagementScore} /></div><span className="tnum w-8 text-right text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{Math.round(a.engagementScore)}</span></div></td>

@@ -341,7 +341,9 @@ export function specificityGate(body: string, company: string, citedFacts: strin
 }
 
 /** Hard claim rules for every seller, plus the seller's own banned claims. */
-const HARD_BANNED = [/\bguarantee(d|s)?\b/i, /\bthe only (platform|solution|tool|company)\b/i, /\bbest[- ]in[- ]class\b/i, /#1\b|\bnumber one\b/i, /\b\d+% (off|discount)\b/i, /\brisk[- ]free\b/i];
+/** Never tell a prospect we watched them browse. */
+const VISIT_MENTION = /\b(visit(ed|ing)?|were on|been on|check(ed|ing) out|brows(ed|ing)|look(ed|ing) at|view(ed|ing)|read(ing)?|saw (that )?you)\b[^.]{0,40}\bour (website|site|pricing|blog|page|case stud)/i;
+const HARD_BANNED = [VISIT_MENTION, /\bguarantee(d|s)?\b/i, /\bthe only (platform|solution|tool|company)\b/i, /\bbest[- ]in[- ]class\b/i, /#1\b|\bnumber one\b/i, /\b\d+% (off|discount)\b/i, /\brisk[- ]free\b/i];
 
 export function bannedClaimGate(text: string, banned: string[] = seller().bannedClaims): GateResult {
   const hit = HARD_BANNED.find((r) => r.test(text));

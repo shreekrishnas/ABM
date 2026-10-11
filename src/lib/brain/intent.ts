@@ -10,6 +10,7 @@ import { seller } from "@/lib/seller";
 import { classifyTrigger } from "@/lib/seller/fit";
 import { isTriggerKey } from "@/lib/research/keys";
 import { STAGE_INFO } from "@/lib/journey/stages";
+import { priorityFor } from "./priority";
 
 const DAY = 86_400_000;
 
@@ -174,7 +175,9 @@ export async function collectSignals(accountId: string, now = new Date(), contac
 export async function readIntent(accountId: string, now = new Date(), contactId?: string): Promise<IntentReading> {
   const reading = scoreIntent(await collectSignals(accountId, now, contactId));
   if (!contactId) {
-    await db.account.update({ where: { id: accountId }, data: { intentReading: reading as unknown as object } });
+    const a = await db.account.findUniqueOrThrow({ where: { id: accountId }, select: { fitScore: true, employees: true } });
+    const p = priorityFor(a, reading, now);
+    await db.account.update({ where: { id: accountId }, data: { intentReading: reading as unknown as object, priorityScore: p.score, priorityParts: p.parts as unknown as object } });
   }
   return reading;
 }

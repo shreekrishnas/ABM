@@ -15,6 +15,7 @@ import { industryTrends } from "@/lib/discover/trends";
 import { forgetSync } from "@/lib/knowledge/rag/store";
 import { clearRetrievalCache } from "@/lib/knowledge/rag/retrieve";
 import { prospectTrack } from "@/lib/journey/track";
+import { contactToken, recordVisit } from "@/lib/web/visits";
 
 const saved = { mustHave: MANCH.icp.mustHave, mode: MANCH.icp.industryMode, tiers: MANCH.icp.tierBySize, emp: MANCH.icp.employees };
 const log: string[] = [];
@@ -92,6 +93,12 @@ describe("end to end: every section talks to the next", () => {
     ok(`Approved emails sent (${s.sent})`);
     const c = await db.contact.findFirstOrThrow({ where: { accountId, messages: { some: { status: "delivered" } } } });
     await recordSignal({ accountId, contactId: c.id, type: "email_click", source: "test" });
+    const v = await recordVisit({ url: "https://manch.example/pricing?abm=x", title: "Pricing", visitorId: "e2ebrowser01", token: contactToken(c.id), source: "email_link" });
+    expect(v.contactId).toBe(c.id);
+    expect(await db.signal.count({ where: { accountId, contactId: c.id, type: "pricing_visit" } })).toBe(1);
+    const acc = await db.account.findUniqueOrThrow({ where: { id: accountId } });
+    expect(acc.priorityScore).not.toBeNull();
+    ok(`Website visit from the email link identified ${c.fullName}; intent and priority updated (priority ${acc.priorityScore})`);
     expect(await recordReply(c.id, "Interested — can we talk next week?")).toBe("positive");
     ok("Click and positive reply recorded and classified");
     const track = await prospectTrack(c.id);

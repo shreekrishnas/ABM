@@ -8,6 +8,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { ReplyAssistant } from "@/components/reply-assistant";
 import { Avatar, Badge, Card, Empty, ago, date } from "@/components/ui";
 import { ProspectTrack } from "./prospect-track";
+import { WebVisitsCard } from "@/components/web-visits";
 import { deletePersonAction, logActivityAction, setStageAction, updatePersonAction } from "../../actions";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -209,6 +210,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
         </div>
 
         <div className="grid min-w-0 content-start gap-5">
+          <WebVisitsCard contactId={c.id} />
           <Card title="Identity & contact">
             <Field k="First name" v={c.firstName} />
             <Field k="Last name" v={c.lastName} />

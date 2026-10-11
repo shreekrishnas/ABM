@@ -51,7 +51,7 @@ export async function industryTrends(now = new Date()): Promise<IndustryTrend[]>
     db.evidence.findMany({ where: { createdAt: { gte: d30 }, status: { in: ["verified", "probable"] } }, select: { accountId: true, key: true } }),
   ]);
   const bucketByAccount = new Map(accounts.map((a) => [a.id, bucketOf(a.industry)]));
-  const triggerLabel = (k: string) => p.triggers.find((t) => t.key === k)?.label ?? "Other buying events";
+  const triggerLabel = (k: string) => p.triggers.find((t) => t.key === k)?.label ?? (k === "hiring" ? "Hiring for the roles that own this" : "Other buying events");
 
   const keys = [...new Set([...p.icp.industries.map((i) => i.key), ...events.map((e) => e.bucket)])];
   const trends = keys.map((key): IndustryTrend => {

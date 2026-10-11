@@ -81,6 +81,7 @@ export const MANCH: SellerProfile = {
       workflow: ["appian", "pega", "power apps", "mendix", "outsystems", "servicenow"],
     },
     weights: { industry: 35, size: 25, geography: 15, partnerNetwork: 15, techStack: 10 },
+    priorityWeights: { intent: 40, fit: 30, value: 20, timing: 10 },
     // Manch's targeting rule: companies located in India with more than 5,000 employees.
     mustHave: { countries: ["IN"], minEmployees: 5001 },
     // No target industries for now: any industry qualifies; research and buying signals decide.

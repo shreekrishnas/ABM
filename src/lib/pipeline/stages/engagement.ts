@@ -1,6 +1,7 @@
 // Stages 12–13: Sequence/Send/Measure and Sales Handoff/Recycle, plus the
 // continuous signal engine (account-level engagement, buying stage, MQA).
 
+import { tagLinks } from "@/lib/web/visits";
 import { readIntent } from "@/lib/brain/intent";
 import type { Account, Prisma, ReplyClass, SignalType } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -91,7 +92,7 @@ export async function sendApproved(ctx: RunContext = newContext()) {
       continue;
     }
     try {
-      const r = await ctx.adapters.email.send({ from: box.address, to: c.email, subject: d.subject, body: d.body, idempotencyKey: d.id });
+      const r = await ctx.adapters.email.send({ from: box.address, to: c.email, subject: d.subject, body: tagLinks(d.body, c.id), idempotencyKey: d.id });
       await db.$transaction([
         db.message.update({ where: { id: msg.id }, data: { status: "delivered", providerId: r.providerId, sentAt: ctx.now } }),
         db.draft.update({ where: { id: d.id }, data: { status: "sent" } }),

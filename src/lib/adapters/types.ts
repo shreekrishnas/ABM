@@ -106,6 +106,8 @@ export interface DraftInput {
   bannedClaims?: string[];
   /** The person's strongest converging intent signals — choose the opening from these. Context, not claims. */
   signals?: string[];
+  /** Topics they looked at on the seller's website — picks the angle; never mentioned in the message. */
+  interest?: string | null;
   /** Rewriter: the previous version and what the critic panel found wrong with it. */
   revise?: { subject: string; body: string; issues: string[] } | null;
   /** email (default) or a LinkedIn message: no subject, no signature or unsubscribe footer. */

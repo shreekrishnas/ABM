@@ -148,6 +148,7 @@ export class OpenRouterLLM implements LLM {
         "Rules:",
         "1. Every sentence about the prospect must come from the FACTS list and be listed in claims with that fact's id.",
         "2. Do not mention anything about the prospect that is not in FACTS. Do not guess numbers.",
+        input.interest ? `WEBSITE INTEREST: ${input.interest}. Use it only to choose which pain, use case or proof point to lead with. Never mention or hint that they visited the website, read a page or looked at pricing.` : "",
         "3. Use the SELLER PITCH for what the seller does; you may shorten it but must not add new claims.",
         `4. End with one ask in the style the PLAY describes (the seller CTA is one way to say it). ${linkedin ? "No signature." : "Do not add a signature, address or unsubscribe line — the system appends them."}`,
         "5. If an ANGLE is given, build the email around that pain and capability for this person's role; the pain is a hypothesis, so phrase it as a question or 'teams like yours often…', never as a fact about them.",
@@ -309,7 +310,7 @@ export class OpenRouterLLM implements LLM {
     const schema = z.object({ items: z.array(z.object({ page: z.number().int(), company: z.string().min(2).max(120), industry: z.string().max(80).nullable(), triggerKey: z.string().max(40), claim: z.string().max(300), quote: z.string().max(400) })).max(30) });
     const out = await this.json(
       schema,
-      `You read news pages and list companies that had a buying event relevant to ${sp.name}. Events: ${sp.triggers.map((t) => `${t.key} = ${t.label}`).join("; ")}. Only companies a page names explicitly; never the publisher, a consultant or a vendor. quote = exact words copied from the page that show the event. triggerKey = one of the keys above, or "other". industry = the company's industry if the page says or makes it obvious, else null.`,
+      `You read news pages and list companies that had a buying event relevant to ${sp.name}. Events: ${sp.triggers.map((t) => `${t.key} = ${t.label}`).join("; ")}. Only companies a page names explicitly; never the publisher, a consultant or a vendor. quote = exact words copied from the page that show the event. triggerKey = one of the keys above, "hiring" for a job post or hiring drive for the roles that own this problem, or "other". industry = the company's industry if the page says or makes it obvious, else null.`,
       `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "company": "...", "industry": "...", "triggerKey": "...", "claim": "...", "quote": "..."}]}`,
       1500,
     );

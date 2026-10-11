@@ -27,7 +27,10 @@ export function bucketLabel(key: string) {
 }
 
 /** Trigger → intent family, so different kinds of events converge rather than pile up. */
-const FAMILY: Record<string, IntentFamily> = { erp_migration: "programme", mdm_replacement: "programme", workforce_scale: "hiring", leadership_change: "leadership" };
+const FAMILY: Record<string, IntentFamily> = { erp_migration: "programme", mdm_replacement: "programme", workforce_scale: "hiring", leadership_change: "leadership", hiring: "hiring" };
+
+/** Hiring for the roles that own the seller's problem is a buying signal of its own. */
+export const HIRING_KEY = "hiring";
 
 /** The searches one scan runs: one per seller trigger, one per industry. */
 export function marketQueries() {
@@ -36,7 +39,10 @@ export function marketQueries() {
   const triggers = p.triggers.map((t) => ({ key: `market:${t.key}`, query: `${country} company (${t.keywords.slice(0, 5).map((k) => `"${k}"`).join(" OR ")})`.trim() }));
   const events = p.triggers.map((t) => `"${t.keywords[0]}"`).join(" OR ");
   const industries = p.icp.industries.map((i) => ({ key: `market:ind:${i.key}`, query: `${country} ${i.match.slice(0, 3).map((k) => `"${k}"`).join(" OR ")} (${events})`.trim() }));
-  return [...triggers, ...industries];
+  // Job posts: the pack's "who owns this" search terms, phrased as hiring.
+  const owner = p.researchQuestions.find((q) => q.key === "owner_function")?.search?.terms.replace(/^careers\s*/i, "");
+  const hiring = owner ? [{ key: `market:${HIRING_KEY}`, query: `${country} (hiring OR "job opening" OR "we are hiring") ${owner}`.trim() }] : [];
+  return [...triggers, ...industries, ...hiring];
 }
 
 export interface ScanResult {
@@ -70,7 +76,7 @@ export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanRe
       if (!`${page.title} ${page.text}`.toLowerCase().includes(f.company.toLowerCase().split(/\s+/)[0])) continue;
       const nameKey = companyNameKey(f.company);
       if (!nameKey) continue;
-      const triggerKey = p.triggers.some((t) => t.key === f.triggerKey) ? f.triggerKey : "other";
+      const triggerKey = p.triggers.some((t) => t.key === f.triggerKey) || f.triggerKey === HIRING_KEY ? f.triggerKey : q.key === `market:${HIRING_KEY}` ? HIRING_KEY : "other";
       const data = { company: f.company, industry: f.industry, bucket: bucketOf(f.industry), triggerKey, claim: f.claim.slice(0, 300), quote: f.quote.slice(0, 400), publishedAt: page.publishedAt };
       await db.marketEvent.upsert({ where: { sellerId_sourceUrl_nameKey: { sellerId: p.id, sourceUrl: page.url, nameKey } }, create: { sellerId: p.id, nameKey, sourceUrl: page.url, ...data }, update: data });
       events++;

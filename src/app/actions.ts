@@ -638,3 +638,14 @@ export async function dismissSuggestionAction(id: string): Promise<ActionState> 
   refresh("/discover");
   return { ok: true, message: "Dismissed" };
 }
+
+export async function addWebVisitorAction(name: string, domain: string | null): Promise<ActionState> {
+  const res = await ingestRows([{ "Company Name": name, ...(domain ? { "Company Website": domain } : {}) }], { source: "website-visitor", filename: `website-visitor-${name}` });
+  const accountId = res.accountIds[0];
+  if (accountId) {
+    // Their earlier visits now belong to the company, so intent counts them from the start.
+    await db.webVisit.updateMany({ where: { accountId: null, OR: [...(domain ? [{ companyDomain: domain }] : []), { companyName: name }] }, data: { accountId } });
+  }
+  refresh("/discover", "/accounts");
+  return { ok: Boolean(accountId), message: accountId ? "Added to companies — research starts on the next run" : "Couldn't add this company" };
+}

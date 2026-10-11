@@ -7,6 +7,7 @@ import { ActionButton } from "@/components/client";
 import { Avatar } from "@/components/ui";
 import { FamilyChip, IntentPill, QueueRow, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
 import { runAllAction } from "./actions";
+import { TopOpportunities } from "./top-opportunities";
 
 export const metadata = { title: "Today" };
 
@@ -57,6 +58,8 @@ export default async function Today() {
         { label: "Emails to approve", value: approvalsCount, meta: approvalsCount ? "oldest first below" : "all clear" },
         { label: "Replies this week", value: repliesWeek, meta: `${sentWeek} emails sent` },
       ]} />
+
+      <TopOpportunities now={now} />
 
       <div className="grid gap-x-6 lg:grid-cols-2">
         <div>

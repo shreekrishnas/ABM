@@ -14,6 +14,7 @@ import { latestBrief } from "@/lib/brain/strategist";
 import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
+import { WebVisitsCard } from "@/components/web-visits";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await ensureSellerPacks();
@@ -115,7 +116,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
         <div className="mt-4">
           <StatStrip items={[
-            { label: "Fit", value: a.fitScore ?? "—", meta: "against the seller's ideal customer" },
+            (() => { const pp = a.priorityParts as { intent: number; fit: number; value: number; timing: number } | null; return { label: "Priority", value: a.priorityScore ?? "—", meta: pp ? `intent ${pp.intent} · fit ${pp.fit} · value ${pp.value} · timing ${pp.timing}` : `fit ${a.fitScore ?? "—"} · scored after research` }; })(),
             { label: "Data we trust", value: a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—", meta: "verified share of fields" },
             { label: "Engagement", value: Math.round(a.engagementScore), meta: `sales-ready at ${CONFIG.engagement.stages.MQA}` },
             { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus },
@@ -324,6 +325,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
       {tab === "activity" && (
         <div className="grid gap-5 xl:grid-cols-2">
+          <div className="xl:col-span-2"><WebVisitsCard accountId={a.id} /></div>
           <Card title="Signals" sub="Account-level: anonymous and uncontacted activity counts at reduced weight">
             {signals.length === 0 ? <Empty title="No signals yet" /> : (
               <ul className="timeline">

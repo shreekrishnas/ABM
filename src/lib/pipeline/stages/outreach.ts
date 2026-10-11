@@ -1,5 +1,6 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
+import { visitSummary } from "@/lib/web/visits";
 import type { Account, Contact, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
 import { db } from "@/lib/db";
@@ -165,7 +166,9 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   const sc = sellerContext();
   // This person's converging signals (their own LinkedIn conversation and engagement + the company's) decide the opening.
   const intent = await readIntent(account.id, ctx.now, contact.id);
-  input.signals = intent.signals.filter((s) => s.strength > 0 && s.family !== "team_context").slice(0, 3).map((s) => s.label);
+  // Website visits pick the angle but are never quoted to the prospect: keep them out of the opening signals.
+  input.signals = intent.signals.filter((s) => s.strength > 0 && s.family !== "team_context" && !/site visit|pricing visit/.test(s.label)).slice(0, 3).map((s) => s.label);
+  input.interest = (await visitSummary({ contactId: contact.id }, ctx.now)).interest ?? (await visitSummary({ accountId: account.id }, ctx.now)).interest;
   if (input.angle && intent.whyNow && intent.level !== "cold") input.angle.whyNow = intent.whyNow;
   input.tone = sp.tone;
   input.bannedClaims = sp.bannedClaims;

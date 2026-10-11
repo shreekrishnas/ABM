@@ -7,7 +7,8 @@ import { bucketLabel } from "@/lib/discover/scan";
 import { ActionButton } from "@/components/client";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
-import { addSuggestionAction, dismissSuggestionAction, scanMarketAction } from "../actions";
+import { addSuggestionAction, addWebVisitorAction, dismissSuggestionAction, scanMarketAction } from "../actions";
+import { unknownVisitors } from "@/lib/web/visits";
 
 export const metadata = { title: "Discover" };
 
@@ -27,7 +28,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const status = (STATUS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "new";
   const p = seller();
-  const [trends, counts, suggestions, lastScan] = await Promise.all([
+  const [visitors, trends, counts, suggestions, lastScan] = await Promise.all([
+    unknownVisitors(),
     industryTrends(),
     db.prospectSuggestion.groupBy({ by: ["status"], where: { sellerId: p.id }, _count: true }),
     db.prospectSuggestion.findMany({ where: { sellerId: p.id, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 60 }),
@@ -98,6 +100,22 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </ul>
         )}
       </Card>
+
+      {visitors.length > 0 && (
+        <Card title={<span className="inline-flex items-center gap-2"><Globe size={18} /> On your website, not in your database</span>} sub="Companies a visitor tool identified in the last 30 days. Pricing and demo pages first.">
+          <ul className="divide-y" style={{ borderColor: "var(--glass-border)" }}>
+            {visitors.map((v) => (
+              <li key={v.domain ?? v.name} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{v.name} {v.strong && <span className="chip ml-1" style={{ ["--c" as string]: "var(--intent-hot)" }}>Pricing / demo</span>}</div>
+                  <div className="muted text-xs">{[v.domain, `${v.visits} page view${v.visits > 1 ? "s" : ""}`, v.topics.join(", "), `last ${ago(v.last)}`].filter(Boolean).join(" · ")}</div>
+                </div>
+                <ActionButton action={addWebVisitorAction.bind(null, v.name, v.domain)} className="btn btn-secondary btn-sm"><Plus size={14} /> Add to companies</ActionButton>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <section>
         <SectionLabel count={suggestions.length}>{sp.industry ? `Companies · ${bucketLabel(sp.industry)}` : "Companies to look at"}</SectionLabel>

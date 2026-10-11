@@ -67,6 +67,8 @@ export interface SellerProfile {
     geos: { primary: string[]; secondary: string[] };
     tech: { erp: string[]; incumbents: string[]; workflow: string[] };
     weights: { industry: number; size: number; geography: number; partnerNetwork: number; techStack: number };
+    /** How the combined priority score weighs intent, fit, company value and timing (default 40/30/20/10). */
+    priorityWeights?: { intent: number; fit: number; value: number; timing: number };
     /** Starting tier from employee count (T1 at or above T1, T2 at or above T2, else T3). Hot buying signals upgrade to T1. */
     tierBySize?: { T1: number; T2: number };
     /** "any" = no target industries: industry neither adds nor removes fit; the list below only helps pick use cases. */

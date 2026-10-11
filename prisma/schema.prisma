@@ -219,6 +219,10 @@ model Account {
   sellerId      String       @default("manch")
   /// Latest multi-signal intent reading: score, level, converging families, signals with evidence, why now.
   intentReading Json?
+  /// Combined priority (0–100): intent, fit, value and timing, weighted by the seller pack.
+  priorityScore Int?
+  /// The four parts behind priorityScore and their weights, for the "why this order" view.
+  priorityParts Json?
   name          String
   domain        String?      @unique
   industry      String?
@@ -1058,4 +1062,32 @@ model KnowledgeChunk {
 
   @@index([sellerId, embedModel])
   @@index([docId])
+}
+
+/// One page view on the seller's website. Known companies and people are matched;
+/// unknown companies (from a reverse-IP tool) are kept so Discover can suggest them.
+model WebVisit {
+  id          String   @id @default(cuid())
+  accountId   String?
+  contactId   String?
+  /// Anonymous browser id from the tracking script (first-party cookie).
+  visitorId   String?
+  /// Company identified by a reverse-IP tool, when the account is not known yet.
+  companyName String?
+  companyDomain String?
+  url         String
+  path        String
+  title       String?
+  /// What the page is about: pricing, case_study, a seller use case or trigger key, or "general".
+  topic       String
+  /// tracking_script | reverse_ip | email_link
+  source      String
+  referrer    String?
+  durationSec Int?
+  occurredAt  DateTime @default(now())
+
+  @@index([accountId, occurredAt])
+  @@index([contactId, occurredAt])
+  @@index([visitorId])
+  @@index([companyDomain])
 }
