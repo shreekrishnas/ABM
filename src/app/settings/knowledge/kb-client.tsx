@@ -129,7 +129,7 @@ function DocFields() {
       </details>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" name="approved" className="mt-1" />
-        <span><b style={{ color: "var(--text-primary)" }}>Approved to state in messages</b><span className="muted block text-xs">Tick only for checked facts about Manch (a public case study, product details). Unticked documents are background: the writer learns from them but never quotes them.</span></span>
+        <span><b style={{ color: "var(--text-primary)" }}>Approved to state in messages</b><span className="muted block text-xs">Tick only for checked facts about the seller (a public case study, product details). Unticked documents are background: the writer learns from them but never quotes them.</span></span>
       </label>
       <SubmitButton className="btn btn-brand justify-self-start">Add to knowledge base</SubmitButton>
     </>

@@ -22,7 +22,7 @@ export default async function AnalyticsPage() {
     db.opportunity.count({ where: { stage: { in: ["won", "lost"] } } }),
   ]);
 
-  // Leading indicator: reply rate by the angle (Manch trigger type) the draft led with.
+  // Leading indicator: reply rate by the angle (the seller's trigger type) the draft led with.
   const sp = seller();
   const leadClaim = new Map(evidence.map((e) => [e.id, e.claim]));
   const angle = (d: { angle: string | null; leadEvidenceId: string | null }) => {

@@ -23,7 +23,7 @@ export interface VisitInput {
   companyDomain?: string | null;
   companyName?: string | null;
   durationSec?: number | null;
-  source: "tracking_script" | "reverse_ip" | "email_link";
+  source: "tracking_script" | "reverse_ip" | "email_link" | "apollo";
   occurredAt?: Date;
 }
 
@@ -132,7 +132,7 @@ export async function recordVisit(input: VisitInput, ctx: RunContext = newContex
     if (!dup) {
       await recordSignal({
         accountId, contactId: contact?.id ?? null, type: topic.key === "pricing" ? "pricing_visit" : "site_visit",
-        source: input.source === "reverse_ip" ? "reverse_ip" : "tracking", occurredAt,
+        source: input.source === "reverse_ip" || input.source === "apollo" ? input.source : "tracking", occurredAt,
         detail: `${topic.label}${input.title ? `: ${input.title}` : ` (${visit.path})`}`.slice(0, 300),
       }, ctx);
       signalled = true;

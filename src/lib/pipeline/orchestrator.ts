@@ -2,6 +2,7 @@
 // signals, replies). Every outcome — pass, stop, budget, crash — is recorded.
 
 import { maybeScanMarket } from "@/lib/discover/scan";
+import { syncApolloVisitors } from "@/lib/web/apollo-sync";
 import type { Account } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -275,7 +276,8 @@ export async function tick(ctx: RunContext = newContext()) {
   const escalated = await escalateOverdue(ctx);
   const insights = await maybeGenerateInsights(ctx);
   const market = await maybeScanMarket(ctx).catch(() => false);
-  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market };
+  const visitors = await syncApolloVisitors(ctx).catch(() => null);
+  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }
 
 export async function budgetSummary(account: Account) {

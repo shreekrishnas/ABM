@@ -36,6 +36,8 @@ export default async function SettingsPage() {
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? "your-app.vercel.app"}`;
   const trackOrigins = Boolean(process.env.TRACK_ORIGINS?.trim());
+  const apolloKey = Boolean(process.env.APOLLO_API_KEY?.trim());
+  const apolloLabel = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
   const visits30 = await db.webVisit.count({ where: { occurredAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } });
   const sp = seller();
   const accounts = await db.account.count();
@@ -92,13 +94,16 @@ export default async function SettingsPage() {
           <Row k="Tiers" v={sp.icp.tierBySize ? `By size: T1 ${sp.icp.tierBySize.T1.toLocaleString()}+ · T2 ${sp.icp.tierBySize.T2.toLocaleString()}+ · hot intent → T1` : `T1 ≥ ${CONFIG.fit.tiers.T1} · T2 ≥ ${CONFIG.fit.tiers.T2}`} />
           <Row k="Lost-deal cooldown" v={`${CONFIG.fit.lostDealCooldownDays} days`} />
         </Card>
-        <Card title="Website tracking" sub="Visits feed intent, priority and the email angle">
-          <Row k={<span>Allowed website<span className="muted block text-xs font-normal">TRACK_ORIGINS · e.g. https://www.manchtech.com</span></span>} v={<Badge color={trackOrigins ? "#059669" : "#B45309"}>{trackOrigins ? "set" : "not set"}</Badge>} />
+        <Card title="Website visitors" sub="Visits feed intent, priority and the email angle">
+          <Row k={<span>Apollo<span className="muted block text-xs font-normal">APOLLO_API_KEY · APOLLO_VISITOR_LIST</span></span>} v={<Badge color={apolloKey && apolloLabel ? "#059669" : apolloKey ? "#B45309" : "#64748B"}>{apolloKey && apolloLabel ? "syncing daily" : apolloKey ? "list not set" : "not connected"}</Badge>} />
           <Row k="Visits recorded (30 days)" v={<span className="tnum">{visits30}</span>} />
-          <p className="secondary mt-3 text-xs">1. Paste this before <code>&lt;/body&gt;</code> on every page of your website:</p>
+          <p className="secondary mt-3 text-xs"><b>With Apollo (recommended):</b> in Apollo, save the companies from Website Visitors to an account list (by hand, or with an Apollo workflow). Put that list&apos;s name in APOLLO_VISITOR_LIST. The app reads it every day: companies you hold get a visit signal; new ones show in Discover.</p>
+          <p className="muted mt-3 text-xs font-semibold">Optional: the app&apos;s own script (shows which pages, and who clicked from an email)</p>
+          <Row k={<span>Allowed website<span className="muted block text-xs font-normal">TRACK_ORIGINS · your website address</span></span>} v={<Badge color={trackOrigins ? "#059669" : "#64748B"}>{trackOrigins ? "set" : "not set"}</Badge>} />
+          <p className="secondary mt-2 text-xs">1. Paste this before <code>&lt;/body&gt;</code> on every page of your website:</p>
           <pre className="mono mt-1 overflow-x-auto rounded-lg p-2 text-[0.7rem]" style={{ background: "var(--surface-card-header)" }}>{`<script src="${origin}/api/v1/track/script" async></script>`}</pre>
           <p className="secondary mt-2 text-xs">2. Set TRACK_ORIGINS in Vercel to your website address. Links to it in emails get a token, so a click identifies the person.</p>
-          <p className="secondary mt-2 text-xs">3. Optional: point a reverse-IP visitor tool (Dealfront, Albacross…) at <code className="break-all">{origin}/api/v1/visitors</code> with your ABM_API_KEY to name anonymous companies.</p>
+          <p className="secondary mt-2 text-xs">Other visitor tools can post to <code className="break-all">{origin}/api/v1/visitors</code> with your ABM_API_KEY.</p>
         </Card>
         <Card title="Approval">
           <Row k="Approval (autonomy)" v={{ review_all: "A person approves every email", auto_t3: "T3 emails that pass every critic go out", auto_all: "Emails that pass every critic go out" }[sp.autonomy]} />

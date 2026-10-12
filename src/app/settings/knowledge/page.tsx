@@ -44,7 +44,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
       <PageHeader
         eyebrow="What the writer knows"
         title="Knowledge base"
-        sub="Researched outreach studies, the writing playbook, buyer personas, objection answers, example messages and Manch's own material, split into chunks and embedded. Every draft pulls the pieces that fit the person, channel and trigger."
+        sub="Researched outreach studies, the writing playbook, buyer personas, objection answers, example messages and the seller's own material, split into chunks and embedded. Every draft pulls the pieces that fit the person, channel and trigger."
         actions={<ActionButton action={reindexAction} className="btn btn-secondary"><RefreshCw size={15} /> Re-index</ActionButton>}
       />
 

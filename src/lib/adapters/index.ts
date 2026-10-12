@@ -1,3 +1,4 @@
+import { ApolloProvider } from "./live/apollo";
 import type { Adapters } from "./types";
 import { createMockAdapters } from "./mock";
 import { WebResearch } from "./live/research";
@@ -35,10 +36,10 @@ export function serviceStatus(): ServiceStatus[] {
     { key: "research", label: "Web research", mode: !off && engines ? "live" : "mock", via: engines || "Exa / Tavily / SerpAPI" },
     { key: "llm", label: "LLM (extract, draft, classify)", mode: !off && llmKey ? "live" : "mock", via: `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` },
     { key: "embedder", label: "Knowledge base embeddings", mode: !off && llmKey ? "live" : "mock", via: !off && llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching (set OPENROUTER_API_KEY for meaning-based search)" },
-    { key: "provider", label: "Contact data provider", mode: off ? "mock" : "live", via: off ? "Sample people" : "None connected — only imported people are used (Apollo later)" },
+    { key: "provider", label: "Contact data provider", mode: off ? "mock" : "live", via: off ? "Sample people" : env("APOLLO_API_KEY") ? "Apollo · people search and email lookup" : "None connected — only imported people are used (set APOLLO_API_KEY)" },
     { key: "mailbox", label: "Email verification", mode: off ? "mock" : "live", via: "Free MX check (domain accepts email)" },
     { key: "email", label: "Email sending", mode: !off && env("SMTP_URL") ? "live" : "mock", via: env("SMTP_URL") ? "SMTP mailbox" : off ? "Sample sender" : "Not connected — approved emails are held (set SMTP_URL)" },
-    { key: "intent", label: "Intent data", mode: "mock", via: "Website visits (planned)" },
+    { key: "intent", label: "Website visitors", mode: !off && env("APOLLO_API_KEY") && (env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")) ? "live" : "mock", via: env("APOLLO_API_KEY") ? ((env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")) ? "Apollo website visitors · synced daily" : "Apollo connected — set APOLLO_VISITOR_LIST to the visitors list name") : "Apollo website visitors (set APOLLO_API_KEY and APOLLO_VISITOR_LIST) · own tracking script" },
     { key: "notifier", label: "Alerts", mode: "mock", via: "Slack / Teams webhook (planned)" },
   ];
 }
@@ -54,7 +55,8 @@ export function createAdapters(): Adapters {
     a.embedder = new OpenRouterEmbedder(llmKey);
   }
   // Real data: never use sample people or a pretend mailbox on real companies.
-  a.provider = new NoProvider();
+  const apollo = env("APOLLO_API_KEY");
+  a.provider = apollo ? new ApolloProvider(apollo) : new NoProvider();
   a.mailbox = new MxVerifier();
   const smtp = env("SMTP_URL");
   a.email = smtp ? new SmtpSender(smtp, env("SMTP_FROM")) : new DisconnectedSender();
