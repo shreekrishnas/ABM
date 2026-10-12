@@ -77,7 +77,18 @@ export interface SellerProfile {
     mustHave?: { countries?: string[]; minEmployees?: number };
   };
   personas: { role: BuyingRoleKey; functions: string[]; titles: string[]; why: string }[];
-  triggers: { key: string; label: string; keywords: string[]; why: string }[];
+  triggers: {
+    key: string;
+    label: string;
+    keywords: string[];
+    why: string;
+    /** The use case to lead with when this trigger is found (a key from useCases). */
+    useCase?: string;
+    /** Lead with that use case even when the company's industry doesn't list it. */
+    leadsAlways?: boolean;
+    /** Intent family this kind of event belongs to (default: trigger), so different kinds converge. */
+    family?: "trigger" | "programme" | "leadership" | "hiring";
+  }[];
   negativeSignals: string[];
   /** core = asked for every company; deep = the deep dive (T1, or anyone engaged on LinkedIn). */
   researchQuestions: ResearchQuestion[];
@@ -109,4 +120,6 @@ export interface ResearchQuestion {
   search?: { terms: string; days: number | null; news: boolean };
   /** What the extractor should pull from pages for this question. */
   extract?: string;
+  /** Intent family an answer counts toward (default: trigger for trigger questions, hiring for owner_function). */
+  family?: "trigger" | "programme" | "leadership" | "hiring";
 }

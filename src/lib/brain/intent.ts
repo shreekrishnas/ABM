@@ -64,8 +64,9 @@ const ENGAGED: Partial<Record<JourneyStage, number>> = { replied_neutral: 0.45, 
 const SIGNAL_STRENGTH: Partial<Record<Signal["type"], number>> = { email_reply: 1, pricing_visit: 0.9, event_attended: 0.8, content_download: 0.6, site_visit: 0.4, email_click: 0.35, email_open: 0.05, intent_surge: 0.7, job_change: 0.3 };
 
 function familyOf(e: Pick<Evidence, "key">): IntentFamily | null {
-  if (e.key === "erp_program") return "programme";
-  if (e.key === "leadership") return "leadership";
+  // The seller pack says which family each research question feeds.
+  const q = seller().researchQuestions.find((x) => x.key === e.key);
+  if (q?.family) return q.family;
   if (e.key === "owner_function") return "hiring";
   if (isTriggerKey(e.key)) return "trigger";
   return null;

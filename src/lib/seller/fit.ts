@@ -61,7 +61,7 @@ export function sellerFit(a: FitInput, p: SellerProfile): SellerFit {
     components.push({ key: "size", label: "Company size", points: pts, max: w.size, reason: `${e.toLocaleString()} employees — ${band}` });
   }
 
-  // Geography: India first; GCC, US/UK and SE Asia second.
+  // Geography: the seller's primary markets first, secondary markets next.
   const c = (a.country ?? "").toUpperCase();
   if (!c) components.push({ key: "geography", label: "Geography", points: null, max: w.geography, reason: "Country unknown" });
   else if (p.icp.geos.primary.includes(c)) components.push({ key: "geography", label: "Geography", points: w.geography, max: w.geography, reason: `${c} — home market` });
@@ -118,8 +118,8 @@ export function classifyTrigger(text: string, p: SellerProfile) {
 
 /** The use case to lead with for an account: from its trigger first, then its industry. */
 export function pickUseCase(industry: string | null | undefined, triggerKey: string | null, p: SellerProfile): string | null {
-  const byTrigger: Record<string, string> = { channel_expansion: "distributor_onboarding", workforce_scale: "gig_onboarding", compliance_mandate: "regulated_kyc", mdm_replacement: "customer_master", erp_migration: "vendor_onboarding", ma_integration: "customer_master" };
   const ind = matchIndustry(industry, p);
-  if (triggerKey && byTrigger[triggerKey] && (!ind || ind.useCases.includes(byTrigger[triggerKey]) || triggerKey === "mdm_replacement")) return byTrigger[triggerKey];
+  const t = triggerKey ? p.triggers.find((x) => x.key === triggerKey) : null;
+  if (t?.useCase && (!ind || ind.useCases.includes(t.useCase) || t.leadsAlways)) return t.useCase;
   return ind?.useCases[0] ?? null;
 }

@@ -26,8 +26,11 @@ export function bucketLabel(key: string) {
   return seller().icp.industries.find((i) => i.key === key)?.label ?? "Other industries";
 }
 
-/** Trigger → intent family, so different kinds of events converge rather than pile up. */
-const FAMILY: Record<string, IntentFamily> = { erp_migration: "programme", mdm_replacement: "programme", workforce_scale: "hiring", leadership_change: "leadership", hiring: "hiring" };
+/** Event → intent family (from the seller pack), so different kinds of events converge rather than pile up. */
+function familyOf(triggerKey: string): IntentFamily {
+  if (triggerKey === HIRING_KEY) return "hiring";
+  return seller().triggers.find((t) => t.key === triggerKey)?.family ?? "trigger";
+}
 
 /** Hiring for the roles that own the seller's problem is a buying signal of its own. */
 export const HIRING_KEY = "hiring";
@@ -35,7 +38,7 @@ export const HIRING_KEY = "hiring";
 /** The searches one scan runs: one per seller trigger, one per industry. */
 export function marketQueries() {
   const p = seller();
-  const country = p.icp.mustHave?.countries?.includes("IN") ? "India" : "";
+  const country = targetCountries();
   const triggers = p.triggers.map((t) => ({ key: `market:${t.key}`, query: `${country} company (${t.keywords.slice(0, 5).map((k) => `"${k}"`).join(" OR ")})`.trim() }));
   const events = p.triggers.map((t) => `"${t.keywords[0]}"`).join(" OR ");
   const industries = p.icp.industries.map((i) => ({ key: `market:ind:${i.key}`, query: `${country} ${i.match.slice(0, 3).map((k) => `"${k}"`).join(" OR ")} (${events})`.trim() }));
@@ -43,6 +46,20 @@ export function marketQueries() {
   const owner = p.researchQuestions.find((q) => q.key === "owner_function")?.search?.terms.replace(/^careers\s*/i, "");
   const hiring = owner ? [{ key: `market:${HIRING_KEY}`, query: `${country} (hiring OR "job opening" OR "we are hiring") ${owner}`.trim() }] : [];
   return [...triggers, ...industries, ...hiring];
+}
+
+/** The seller's required countries as words for a search, e.g. "India" or "(Germany OR France)". */
+export function targetCountries(): string {
+  const codes = seller().icp.mustHave?.countries ?? [];
+  if (!codes.length) return "";
+  let names: string[];
+  try {
+    const dn = new Intl.DisplayNames(["en"], { type: "region" });
+    names = codes.map((c) => dn.of(c.toUpperCase()) ?? c);
+  } catch {
+    names = codes;
+  }
+  return names.length === 1 ? names[0] : `(${names.map((n) => `"${n}"`).join(" OR ")})`;
 }
 
 export interface ScanResult {
@@ -56,7 +73,7 @@ export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanRe
   await ensureSellerPacks();
   const p = seller();
   const mode = ctx.adapters.research.live ? "live" : "mock";
-  const country = p.icp.mustHave?.countries?.includes("IN") ? "India" : "";
+  const country = targetCountries();
   let events = 0;
   const queries = marketQueries();
   for (const q of queries) {
@@ -121,7 +138,7 @@ async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number;
     const industry = evs.find((e) => e.industry)?.industry ?? firmo?.industry ?? null;
     const gate = mustHaveGate({ country: firmo?.country ?? null, employees: firmo?.employees ?? null });
     const signals: IntentSignal[] = evs.map((e) => ({
-      family: FAMILY[e.triggerKey] ?? "trigger",
+      family: familyOf(e.triggerKey),
       label: e.claim,
       strength: 1,
       at: e.publishedAt,

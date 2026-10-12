@@ -52,7 +52,7 @@ export const packSchema = z
       })
       .strict(),
     personas: z.array(z.object({ role: z.enum(["decision_maker", "champion", "influencer", "budget_owner"]), functions: strList, titles: strList.min(1), why: str }).strict()).min(1),
-    triggers: z.array(z.object({ key, label: str, keywords: strList.min(1), why: str }).strict()).min(1),
+    triggers: z.array(z.object({ key, label: str, keywords: strList.min(1), why: str, useCase: z.string().optional(), leadsAlways: z.boolean().optional(), family: z.enum(["trigger", "programme", "leadership", "hiring"]).optional() }).strict()).min(1),
     negativeSignals: strList,
     researchQuestions: z
       .array(
@@ -66,6 +66,7 @@ export const packSchema = z
             trigger: z.boolean().optional(),
             search: z.object({ terms: str, days: z.number().int().min(1).nullable(), news: z.boolean() }).strict().optional(),
             extract: str.optional(),
+            family: z.enum(["trigger", "programme", "leadership", "hiring"]).optional(),
           })
           .strict(),
       )
@@ -93,6 +94,7 @@ export function validatePack(p: SellerProfile): string[] {
   for (const required of ["trigger", "negative", "owner_function"]) if (!q.includes(required)) out.push(`research question "${required}" is required`);
   if (new Set(q).size !== q.length) out.push("research question keys must be unique");
   if (new Set(p.triggers.map((t) => t.key)).size !== p.triggers.length) out.push("trigger keys must be unique");
+  for (const t of p.triggers) if (t.useCase && !keys.has(t.useCase)) out.push(`trigger ${t.key} names unknown use case ${t.useCase}`);
   if (p.icp.tierBySize && p.icp.tierBySize.T1 <= p.icp.tierBySize.T2) out.push("tier by size: the T1 threshold must be above T2");
   const e = p.icp.employees;
   if (!(e.sweetSpot >= e.mid && e.mid >= e.min)) out.push("company size: sweet spot ≥ mid ≥ minimum");

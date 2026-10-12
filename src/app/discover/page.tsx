@@ -139,7 +139,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     <div className="min-w-0">
                       <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name}</h3>
                       <div className="muted text-xs">
-                        {[s.industry, s.country, s.employees != null ? `${s.employees.toLocaleString("en-IN")} employees` : "size unknown"].filter(Boolean).join(" · ")}
+                        {[s.industry, s.country, s.employees != null ? `${s.employees.toLocaleString()} employees` : "size unknown"].filter(Boolean).join(" · ")}
                       </div>
                     </div>
                     <IntentPill level={s.level as IntentLevel} score={s.score} />
