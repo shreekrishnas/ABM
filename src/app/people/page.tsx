@@ -1,3 +1,5 @@
+import { PersonPeek } from "@/components/peek/peek";
+import { ListKeys } from "@/components/peek/list-keys";
 import Link from "next/link";
 import type { JourneyStage, Prisma } from "@prisma/client";
 import { Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
@@ -15,7 +17,7 @@ export const metadata = { title: "People" };
 const PAGE = 50;
 const NOT_CALLABLE: JourneyStage[] = ["not_contacted", "connection_sent", ...CLOSED];
 
-type SP = { q?: string; campaign?: string; sender?: string; stage?: string; call?: string; page?: string; view?: string };
+type SP = { q?: string; campaign?: string; sender?: string; stage?: string; call?: string; page?: string; view?: string; sel?: string };
 
 export default async function PeoplePage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -47,7 +49,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   ]);
   const now = new Date();
   const qs = (patch: Partial<SP>) => {
-    const p = new URLSearchParams(Object.entries({ ...sp, ...patch }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ ...sp, sel: undefined, ...patch }).filter(([, v]) => v) as [string, string][]);
     return `/people${p.toString() ? `?${p}` : ""}`;
   };
   const bulkReady = Boolean(sp.campaign && sp.sender);
@@ -90,7 +92,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         {(sp.q || scoped || stage || sp.call) && <Link href="/people" className="btn btn-ghost">Clear</Link>}
       </form>
 
-      {view === "board" ? <JourneyBoard cards={cards} /> : <Card pad={false}>
+      {view === "board" ? <JourneyBoard cards={cards} /> : <div className={sp.sel ? "split" : undefined}><ListKeys /><Card pad={false}>
         {people.length === 0 ? (
           <div className="card-pad"><Empty icon={<Users size={20} />} title="No people match" sub="Import a CSV of companies and people, or clear the filters." action={<Link href="/import" className="btn btn-primary btn-sm">Import Companies &amp; People</Link>} /></div>
         ) : (
@@ -133,9 +135,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
                     const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact, companyDisqualified: c.account.stage === "DISQUALIFIED" }, j?.stage ?? null);
                     const info = j ? STAGE_INFO[j.stage] : null;
                     return (
-                      <tr key={c.id}>
+                      <tr key={c.id} data-row-select={qs({ sel: c.id })} data-selected={sp.sel === c.id ? "" : undefined}>
                         <td>{bulkReady && <input type="checkbox" name="contactIds" value={c.id} className="h-4 w-4 accent-indigo-500" aria-label={`Select ${c.fullName}`} />}</td>
-                        <td className="strong whitespace-nowrap"><Link href={`/people/${c.id}${sp.sender ? `?sender=${sp.sender}${sp.campaign ? `&campaign=${sp.campaign}` : ""}` : ""}`} className="hover:underline">{c.fullName}</Link></td>
+                        <td className="strong whitespace-nowrap"><Link href={qs({ sel: c.id })} scroll={false} className="hover:underline">{c.fullName}</Link></td>
                         <td className="max-w-[150px] truncate text-xs" title={c.title ?? ""}>{c.title ?? "—"}</td>
                         <td className="max-w-[140px] truncate text-xs" title={c.account.name}><Link href={`/accounts/${c.account.id}`} className="hover:underline">{c.account.name}</Link></td>
                         <td className="mono max-w-[150px] truncate text-[0.7rem]" title={c.email ?? ""}>{c.email ?? "—"}</td>
@@ -163,7 +165,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </div>
           </ActionForm>
         )}
-      </Card>}
+      </Card>{sp.sel && <PersonPeek id={sp.sel} close={qs({})} />}</div>}
 
       {total > PAGE && (
         <div className="mt-4 flex items-center justify-between text-sm">

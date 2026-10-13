@@ -1,3 +1,5 @@
+import { CompanyPeek } from "@/components/peek/peek";
+import { ListKeys } from "@/components/peek/list-keys";
 import Link from "next/link";
 import type { BuyingStage, Prisma, Tier } from "@prisma/client";
 import { Building2, List, Map, Plus, Search, Upload } from "lucide-react";
@@ -20,6 +22,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const tier = sp.tier as Tier | undefined;
   const sort = (sp.sort as keyof typeof SORTS) in SORTS ? (sp.sort as keyof typeof SORTS) : "priority";
   const view = sp.view === "list" ? "list" : "map";
+  const sel = view === "list" ? sp.sel : undefined;
 
   const where: Prisma.AccountWhereInput = {
     mergedIntoId: null,
@@ -40,7 +43,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const accounts = sort === "intent" ? [...rawAccounts].sort((x, y) => intentOf(y) - intentOf(x)) : rawAccounts;
 
   const link = (patch: Record<string, string | undefined>) => {
-    const p = new URLSearchParams(Object.entries({ q, stage, tier, sort, view: view === "list" ? "list" : undefined, ...patch }).filter(([, v]) => v) as [string, string][]);
+    const p = new URLSearchParams(Object.entries({ q, stage, tier, sort, view: view === "list" ? "list" : undefined, sel: undefined as string | undefined, ...patch }).filter(([, v]) => v) as [string, string][]);
     return `/accounts${p.size ? `?${p}` : ""}`;
   };
   const total = stageCounts.reduce((a, s) => a + s._count, 0);
@@ -104,6 +107,8 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
       {view === "map" ? (
         <PriorityMap accounts={accounts.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} />
       ) : (
+      <div className={sel ? "split" : undefined}>
+      <ListKeys />
       <Card pad={false}>
         {accounts.length === 0 ? <Empty icon={<Building2 size={20} />} title="No accounts match" sub="Try clearing filters, or import a CSV to add accounts." action={<Link href="/import" className="btn btn-primary btn-sm">Import accounts</Link>} /> : (
           <div className="table-wrap">
@@ -115,9 +120,9 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                 {accounts.map((a) => {
                   const st = STAGES.find((s) => s.n === a.pipelineStage);
                   return (
-                    <tr key={a.id}>
+                    <tr key={a.id} data-row-select={link({ sel: a.id })} data-selected={sel === a.id ? "" : undefined}>
                       <td className="strong">
-                        <Link href={`/accounts/${a.id}`} className="flex items-center gap-3">
+                        <Link href={link({ sel: a.id })} scroll={false} className="flex items-center gap-3">
                           <Avatar name={a.name} id={a.id} size={34} />
                           <span className="min-w-0">
                             <span className="block truncate hover:underline">{a.name}</span>
@@ -147,6 +152,8 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           </div>
         )}
       </Card>
+      {sel && <CompanyPeek id={sel} close={link({})} />}
+      </div>
       )}
     </div>
   );

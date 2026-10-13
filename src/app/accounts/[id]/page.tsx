@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { PIPELINE_STATUS_LABEL, PROGRESS_LABEL } from "@/lib/stage-docs";
@@ -14,6 +14,9 @@ import { latestBrief } from "@/lib/brain/strategist";
 import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
+import { Crumbs } from "@/components/shell/Crumbs";
+import { PipelineStepper, accountStep } from "@/components/peek/stepper";
+const TAB_LABEL: Record<string, string> = { intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
@@ -65,7 +68,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
   return (
     <div className="page-enter">
-      <Link href="/accounts" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Companies</Link>
+      <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: a.name, href: tab !== "overview" ? `/accounts/${a.id}` : undefined }, ...(tab !== "overview" ? [{ label: TAB_LABEL[tab] ?? tab }] : [])]} />
 
       <div className="glass-card-static read card-pad mb-5 overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-5">
@@ -112,6 +115,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             </div>
           </div>
         )}
+        <div className="mt-4 max-w-2xl"><PipelineStepper current={accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })} stopped={a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null} /></div>
         {brief?.nextBestAction && <div className="mt-4"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
 
         <div className="mt-4">

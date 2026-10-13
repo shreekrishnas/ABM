@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Mail, MessageSquareText, Pencil, Phone, Trash2, UserPlus as Linkedin } from "lucide-react";
+import { ExternalLink, Mail, MessageSquareText, Pencil, Phone, Trash2, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
 import { JOURNEY_STAGES, STAGE_INFO, stageLabel } from "@/lib/journey/stages";
 import { eligibleToCall, nextAction } from "@/lib/journey/engine";
@@ -8,6 +8,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { ReplyAssistant } from "@/components/reply-assistant";
 import { Avatar, Badge, Card, Empty, ago, date } from "@/components/ui";
 import { ProspectTrack } from "./prospect-track";
+import { Crumbs } from "@/components/shell/Crumbs";
 import { WebVisitsCard } from "@/components/web-visits";
 import { deletePersonAction, logActivityAction, setStageAction, updatePersonAction } from "../../actions";
 
@@ -77,7 +78,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
   return (
     <div className="page-enter">
-      <Link href="/people" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> People</Link>
+      <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: c.account.name, href: `/accounts/${c.account.id}?tab=people` }, { label: c.fullName }]} />
 
       <div className="glass-card-static card-pad mb-5" style={{ background: "linear-gradient(155deg, rgba(99,102,241,0.08), var(--surface-card) 55%)" }}>
         <div className="flex flex-wrap items-start justify-between gap-4">

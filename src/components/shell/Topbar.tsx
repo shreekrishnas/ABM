@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Globe, Moon, Search, Sun } from "lucide-react";
+import { GROUPS } from "./Sidebar";
 
 const TITLES: [string, string, string][] = [
   ["/accounts", "Companies", "Who to focus on, and why now"],
@@ -28,9 +29,7 @@ function greeting() {
 
 export function Topbar({ discover = 0 }: { discover?: number }) {
   const path = usePathname();
-  const router = useRouter();
   const [dark, setDark] = useState(false);
-  const [q, setQ] = useState("");
   const [hello, setHello] = useState("Welcome back");
 
   useEffect(() => {
@@ -49,24 +48,23 @@ export function Topbar({ discover = 0 }: { discover?: number }) {
   };
 
   const t: [string, string, string] | undefined = path === "/" ? ["/", "Today", "Only what needs a person"] : TITLES.find(([p]) => path.startsWith(p));
+  const group = GROUPS.find((g) => g.items.some((it) => (it.href === "/" ? path === "/" : path === it.href || path.startsWith(`${it.href}/`))))?.label;
   return (
     <header className="topbar">
       <div className="min-w-0">
+        {group && <div className="topbar-group">{group}</div>}
         <div className="truncate text-[1.05rem] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t ? t[1] : hello}</div>
-        <div className="muted truncate text-xs">{t ? t[2] : "Here is where your target accounts stand today"}</div>
+        {!group && <div className="muted truncate text-xs">{t ? t[2] : "Here is where your target accounts stand today"}</div>}
       </div>
       <div className="flex items-center gap-3">
-        <form
-          className="search-pill hide-sm w-72"
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            router.push(`/accounts?q=${encodeURIComponent(q)}`);
-          }}
-        >
+        <button type="button" className="search-pill hide-sm w-72 text-left" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
           <Search size={16} />
-          <input className="glass-input" placeholder="Search accounts, domains…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search accounts" />
-        </form>
+          <span className="muted text-sm">Search or jump to…</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <button type="button" className="round-control show-sm" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search">
+          <Search size={18} />
+        </button>
         <Link href="/discover" className={`round-control relative${path.startsWith("/discover") ? " is-active" : ""}`} aria-label={`Discover new companies${discover ? ` (${discover} suggested)` : ""}`} title="Discover: new companies and rising industries">
           <Globe size={18} />
           {discover > 0 && <span className="topbar-badge tnum">{discover > 99 ? "99+" : discover}</span>}

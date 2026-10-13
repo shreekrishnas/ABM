@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check, ShieldCheck, X } from "lucide-react";
 import type { Draft } from "@prisma/client";
 import { ActionForm, SubmitButton } from "@/components/client";
+import { ApprovalKeys } from "@/components/peek/approval-keys";
 import { Avatar, TierBadge } from "@/components/ui";
 import { reviewDraftAction } from "../actions";
 
@@ -17,7 +18,9 @@ const CHECK_LABEL: Record<string, string> = {
 type Item = { id: string; contact: { id: string; fullName: string; titleNormalized: string | null; email: string | null } | null; account: { id: string; name: string; tier: "T1" | "T2" | "T3" | null } | null; draft: Draft };
 
 /** Approvals as a stack: one email at a time, the decision right under it, the rest waiting behind. */
-export function ApprovalStack({ items }: { items: Item[] }) {
+export function ApprovalStack({ items: all, pick, hrefFor }: { items: Item[]; pick?: string; hrefFor: (id: string) => string }) {
+  // The picked email comes first; the queue keeps its order.
+  const items = pick && all.some((x) => x.id === pick) ? [all.find((x) => x.id === pick)!, ...all.filter((x) => x.id !== pick)] : all;
   const [top, ...rest] = items;
   const d = top.draft;
   const checks = Array.isArray(d.claimCheck) ? (d.claimCheck as { supported: boolean }[]) : null;
@@ -59,8 +62,8 @@ export function ApprovalStack({ items }: { items: Item[] }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="muted text-xs">Edits are kept and teach the brain. The unsubscribe line and address must stay.</span>
               <div className="flex gap-2">
-                <SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject</SubmitButton>
-                <SubmitButton name="decision" value="approve" className="btn btn-brand"><Check size={15} /> Approve &amp; next</SubmitButton>
+                <span data-reject className="contents"><SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject <kbd>R</kbd></SubmitButton></span>
+                <span data-approve className="contents"><SubmitButton name="decision" value="approve" className="btn btn-brand"><Check size={15} /> Approve &amp; next <kbd>A</kbd></SubmitButton></span>
               </div>
             </div>
           </ActionForm>
@@ -68,12 +71,13 @@ export function ApprovalStack({ items }: { items: Item[] }) {
       </div>
 
       <aside>
-        <div className="micro mb-2">Up next · {rest.length}</div>
-        {rest.length === 0 ? <p className="muted text-xs">This is the last one.</p> : (
+        <div className="micro mb-2">Queue · {all.length}</div>
+        <ApprovalKeys />
+        {all.length <= 1 ? <p className="muted text-xs">This is the last one.</p> : (
           <ol className="grid gap-1.5">
-            {rest.slice(0, 12).map((r, i) => (
-              <li key={r.id} className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs" style={{ background: "var(--surface-card)", border: "1px solid var(--border-subtle)" }}>
-                <span className="tnum muted w-4">{i + 2}</span>
+            {all.slice(0, 15).map((r, i) => (
+              <li key={r.id} data-row-select={hrefFor(r.id)} data-selected={r.id === top.id ? "" : undefined} className="queue-item flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs">
+                <span className="tnum muted w-4">{i + 1}</span>
                 {r.contact && <Avatar name={r.contact.fullName} id={r.contact.id} size={22} round />}
                 <span className="min-w-0"><span className="block truncate font-semibold" style={{ color: "var(--text-primary)" }}>{r.contact?.fullName}</span><span className="muted block truncate">{r.account?.name}</span></span>
               </li>

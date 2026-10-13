@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
+import { CommandPalette } from "@/components/shell/CommandPalette";
 
 export const metadata: Metadata = {
   title: { default: "ABM Intelligence", template: "%s · ABM Intelligence" },
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 // Applied before paint so the theme never flashes.
-const themeScript = `try{var t=localStorage.getItem("abm-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}`;
+const themeScript = `try{if(localStorage.getItem("abm-nav")==="mini")document.documentElement.dataset.nav="mini";var t=localStorage.getItem("abm-theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}`;
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </div>
         <ToastHost />
+        <CommandPalette />
       </body>
     </html>
   );

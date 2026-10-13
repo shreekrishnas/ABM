@@ -3,45 +3,46 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles, Sun,
+  LayoutDashboard, Globe, PanelLeft, Building2, Workflow, ClipboardCheck, Send, Radar, Handshake, Users, BadgeDollarSign, ListTodo, BarChart3, Upload, Settings2, Sparkles, Sun,
 } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; count?: keyof Counts };
 type Counts = { review: number; handoffs: number; tasks: number };
 
-// v2: grouped by the job, not by the system. Daily work first; plumbing last.
-const GROUPS: { label: string; items: Item[] }[] = [
+// Grouped by the job: daily work, the pipeline of companies, outreach, sales, insights.
+export const GROUPS: { label: string; items: Item[] }[] = [
+  { label: "", items: [{ href: "/", label: "Today", icon: Sun }] },
   {
-    label: "Work",
+    label: "Pipeline",
     items: [
-      { href: "/", label: "Today", icon: Sun },
+      { href: "/discover", label: "Discover", icon: Globe },
       { href: "/accounts", label: "Companies", icon: Building2 },
       { href: "/people", label: "People", icon: Users },
+      { href: "/import", label: "Import", icon: Upload },
+    ],
+  },
+  {
+    label: "Outreach",
+    items: [
       { href: "/review", label: "Approvals", icon: ClipboardCheck, count: "review" },
       { href: "/outreach", label: "Emails", icon: Send },
-    ],
-  },
-  {
-    label: "Flow",
-    items: [
-      { href: "/import", label: "Import", icon: Upload },
       { href: "/signals", label: "Signals", icon: Radar },
-      { href: "/handoffs", label: "Hand-offs to sales", icon: Handshake, count: "handoffs" },
-      { href: "/pipeline", label: "Behind the scenes", icon: Workflow },
     ],
   },
   {
-    label: "CRM",
+    label: "Sales",
     items: [
+      { href: "/handoffs", label: "Hand-offs", icon: Handshake, count: "handoffs" },
       { href: "/crm/opportunities", label: "Opportunities", icon: BadgeDollarSign },
       { href: "/crm/tasks", label: "Tasks", icon: ListTodo, count: "tasks" },
     ],
   },
   {
-    label: "Results",
+    label: "Insights",
     items: [
       { href: "/overview", label: "Program overview", icon: LayoutDashboard },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/pipeline", label: "Behind the scenes", icon: Workflow },
       { href: "/settings", label: "Settings", icon: Settings2 },
     ],
   },
@@ -50,6 +51,14 @@ const GROUPS: { label: string; items: Item[] }[] = [
 export function Sidebar({ counts, sellerName }: { counts: Counts; sellerName: string }) {
   const path = usePathname();
   const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
+  const toggle = () => {
+    const mini = document.documentElement.dataset.nav !== "mini";
+    if (mini) document.documentElement.dataset.nav = "mini";
+    else delete document.documentElement.dataset.nav;
+    try {
+      localStorage.setItem("abm-nav", mini ? "mini" : "full");
+    } catch {}
+  };
   return (
     <nav className="sidebar" aria-label="Main">
       <Link href="/" className="brand" aria-label="ABM home">
@@ -58,7 +67,7 @@ export function Sidebar({ counts, sellerName }: { counts: Counts; sellerName: st
       </Link>
       {GROUPS.map((g) => (
         <div key={g.label} className="contents">
-          <span className="sidebar-label">{g.label}</span>
+          {g.label && <span className="sidebar-label">{g.label}</span>}
           {g.items.map((it) => {
             const Icon = it.icon;
             const n = it.count ? counts[it.count] : 0;
@@ -73,6 +82,10 @@ export function Sidebar({ counts, sellerName }: { counts: Counts; sellerName: st
           })}
         </div>
       ))}
+      <button type="button" className="nav-item nav-collapse" onClick={toggle} aria-label="Collapse or expand the menu" title="Collapse / expand menu ( [ )">
+        <PanelLeft size={16} strokeWidth={2} />
+        <span className="lbl">Collapse menu</span>
+      </button>
     </nav>
   );
 }

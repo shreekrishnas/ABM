@@ -12,7 +12,7 @@ import { REVIEW_TYPE_LABEL as TYPE_LABEL } from "@/lib/review-labels";
 export const metadata = { title: "Review queue" };
 
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string }> }) {
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string; pick?: string }> }) {
   const sp = await searchParams;
   const type = sp.type as ReviewType | undefined;
   const view = sp.view === "list" ? "list" : "focus";
@@ -46,7 +46,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         <Card><Empty icon={<ClipboardCheck size={20} />} title="Nothing waiting" sub="When the pipeline needs a decision, it lands here with its reason." /></Card>
       ) : (
         <>
-        {stack.length > 0 && <ApprovalStack items={stack} />}
+        {stack.length > 0 && <ApprovalStack items={stack} pick={sp.pick} hrefFor={(id) => `/review?${new URLSearchParams({ ...(type ? { type } : {}), pick: id })}`} />}
         {view === "focus" && stack.length > 0 && listItems.length > 0 && <div className="section-label"><span>Other decisions</span><span className="n">{listItems.length}</span></div>}
         <div className="stagger grid gap-4">
           {listItems.map((r) => {
