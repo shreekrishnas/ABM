@@ -80,7 +80,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     <div className="page-enter">
       <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: c.account.name, href: `/accounts/${c.account.id}?tab=people` }, { label: c.fullName }]} />
 
-      <div className="glass-card-static card-pad mb-5" style={{ background: "linear-gradient(155deg, rgba(99,102,241,0.08), var(--surface-card) 55%)" }}>
+      <div className="glass-card-static card-pad mb-5" >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
             <Avatar name={c.fullName} id={c.id} size={56} round />
@@ -129,7 +129,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               <div className="grid gap-4">
                 <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Sender profile">
                   {c.journeys.map((x) => (
-                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(99,102,241,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "#4338CA" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "#6366F1" : "transparent"}` }}>
+                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(11,110,95,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "#095a4e" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "#0b6e5f" : "transparent"}` }}>
                       {x.sender.name} · {x.campaign.name} · {stageLabel(x.stage, x.followUpCount)}
                     </Link>
                   ))}

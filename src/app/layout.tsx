@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import "@fontsource-variable/fraunces/opsz.css";
 import "./globals.css";
-import { Sidebar } from "@/components/shell/Sidebar";
-import { Topbar } from "@/components/shell/Topbar";
+import { AppNav } from "@/components/shell/AppNav";
 import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
@@ -29,21 +27,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning style={{ ["--font-fraunces" as string]: '"Fraunces Variable"' }}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <div className="atmosphere" aria-hidden />
-        <div className="app-outer">
-          <div className="app-shell glass-panel">
-            <Sidebar counts={{ review: reviews, handoffs, tasks }} sellerName={seller().name} />
-            <div className="app-content">
-              <Topbar discover={discover} />
-              <main className="app-main" id="main">{children}</main>
-            </div>
-          </div>
-        </div>
+        <a href="#main" className="skip-link">Skip to content</a>
+        <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
+        <main className="app-main" id="main">{children}</main>
         <ToastHost />
         <CommandPalette />
       </body>

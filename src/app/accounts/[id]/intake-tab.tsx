@@ -18,7 +18,7 @@ function Source({ s }: { s: string | null }) {
     try {
       host = new URL(m[1]).hostname;
     } catch {}
-    return <a href={m[1]} target="_blank" rel="noreferrer" className="hover:underline"><Badge color="#7C3AED">research</Badge> <span className="mono text-[0.7rem]">{host}</span></a>;
+    return <a href={m[1]} target="_blank" rel="noreferrer" className="hover:underline"><Badge color="#0b6e5f">research</Badge> <span className="mono text-[0.7rem]">{host}</span></a>;
   }
   return <span className="text-xs"><Badge color="#0D9488">import</Badge> <span className="muted">{s}</span></span>;
 }
@@ -48,8 +48,8 @@ export async function IntakeTab({ account }: { account: Account }) {
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Badge color="#0D9488"><FileInput size={12} className="mr-1 inline" />Import</Badge><ArrowRight size={14} className="muted" />
           <Badge color="#B45309"><Database size={12} className="mr-1 inline" />Intake map · {gaps.length ? `${gaps.length} gap${gaps.length > 1 ? "s" : ""}` : "complete"}</Badge><ArrowRight size={14} className="muted" />
-          <Badge color="#7C3AED"><Search size={12} className="mr-1 inline" />Research · {plan?.depth ?? "not planned yet"}</Badge><ArrowRight size={14} className="muted" />
-          <Badge color="#4F46E5"><Sparkles size={12} className="mr-1 inline" />AI brief</Badge>
+          <Badge color="#0b6e5f"><Search size={12} className="mr-1 inline" />Research · {plan?.depth ?? "not planned yet"}</Badge><ArrowRight size={14} className="muted" />
+          <Badge color="#0b6e5f"><Sparkles size={12} className="mr-1 inline" />AI brief</Badge>
         </div>
         <p className="secondary mt-2 text-sm">Everything the CSV brought in is mapped below. Missing basics are researched before fit and identity run; what the import already answered is not searched again; LinkedIn conversations from the import decide how deep research goes.</p>
       </div>
@@ -99,7 +99,7 @@ export async function IntakeTab({ account }: { account: Account }) {
                     <tr key={q.key}>
                       <td className="strong whitespace-nowrap">{label(q.key)}</td>
                       <td className="max-w-[280px] text-xs secondary">{q.why}</td>
-                      <td className="max-w-[260px] text-xs">{s ? <><Badge color={s.cached ? "#0D9488" : "#4F46E5"}>{s.cached ? "cache" : s.engine}</Badge><div className="mono muted mt-1 truncate" title={s.query}>{s.query}</div></> : <span className="muted">—</span>}</td>
+                      <td className="max-w-[260px] text-xs">{s ? <><Badge color={s.cached ? "#0D9488" : "#0b6e5f"}>{s.cached ? "cache" : s.engine}</Badge><div className="mono muted mt-1 truncate" title={s.query}>{s.query}</div></> : <span className="muted">—</span>}</td>
                       <td className="whitespace-nowrap text-xs">{n ? <Badge color="#059669">{n} fact{n > 1 ? "s" : ""}</Badge> : q.key === "negative" ? <Badge color="#059669">none found (good)</Badge> : <Badge color="#94A3B8">nothing found</Badge>}</td>
                     </tr>
                   );

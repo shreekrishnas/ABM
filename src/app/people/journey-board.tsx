@@ -7,9 +7,9 @@ import { Avatar, ago } from "@/components/ui";
 export const LANES: { id: string; title: string; hint: string; stages: JourneyStage[]; color: string }[] = [
   { id: "new", title: "Not contacted", hint: "Send the request", stages: ["not_contacted"], color: "#64748B" },
   { id: "invited", title: "Invited", hint: "Waiting to accept", stages: ["connection_sent"], color: "#0EA5E9" },
-  { id: "connected", title: "Connected", hint: "Follow up", stages: ["connection_accepted", "follow_up_sent"], color: "#4F46E5" },
-  { id: "talking", title: "Talking", hint: "Answer them", stages: ["replied_neutral", "details_requested", "details_shared", "referred"], color: "#9333EA" },
-  { id: "interested", title: "Interested", hint: "Book the call", stages: ["interested"], color: "#DB2777" },
+  { id: "connected", title: "Connected", hint: "Follow up", stages: ["connection_accepted", "follow_up_sent"], color: "#0b6e5f" },
+  { id: "talking", title: "Talking", hint: "Answer them", stages: ["replied_neutral", "details_requested", "details_shared", "referred"], color: "#1f8a70" },
+  { id: "interested", title: "Interested", hint: "Book the call", stages: ["interested"], color: "#b4632a" },
   { id: "meeting", title: "Meeting", hint: "Run it", stages: ["call_scheduled", "demo_scheduled"], color: "#E11D48" },
   { id: "won", title: "Opportunity", hint: "With sales", stages: ["opportunity", "closed_won"], color: "#059669" },
   { id: "parked", title: "Parked", hint: "Later or closed", stages: ["nurture", "not_interested", "disqualified", "closed_lost"], color: "#94A3B8" },

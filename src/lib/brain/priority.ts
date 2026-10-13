@@ -70,7 +70,7 @@ export interface NextAction {
 export function nextBestAction(s: ActionState): NextAction {
   if (s.disqualified) return { text: "No action", why: "Outside the targeting rule or ruled out", href: "company" };
   if (s.openHandoff) return { text: "Pick up the hand-off", why: "Ready for sales; outreach is paused", href: "handoffs" };
-  if (s.stage === "MQA" || s.stage === "OPPORTUNITY") return { text: "Sales is working it", why: s.strongVisit ? "Handed to sales — and back on pricing or demo pages: tell the rep" : "Handed to sales; automated outreach is paused", href: "company" };
+  if (s.stage === "MQA" || s.stage === "OPPORTUNITY") return { text: "Sales is working it", why: s.strongVisit ? "Handed to sales; back on pricing or demo pages, so tell the rep" : "Handed to sales; automated outreach is paused", href: "company" };
   if (s.replied) return { text: "Answer the reply", why: "They responded", href: "people" };
   if (s.pendingDrafts) return { text: `Approve ${s.pendingDrafts} email${s.pendingDrafts > 1 ? "s" : ""}`, why: "Drafted and checked; waiting for you", href: "review" };
   if (s.strongVisit && s.emailed) return { text: s.visitor ? `Call ${s.visitor}` : "Call the champion", why: "Looked at pricing or demo pages after our email", href: "people" };

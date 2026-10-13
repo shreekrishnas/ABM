@@ -73,9 +73,9 @@ export function Topbar({ discover = 0 }: { discover?: number }) {
           {dark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         <div className="pill-control hide-sm">
-          <span className="grid h-7 w-7 place-items-center rounded-full text-[0.7rem] font-bold text-white" style={{ background: "linear-gradient(135deg,#6366F1,#4F46E5)" }}>JT</span>
+          <span className="grid h-7 w-7 place-items-center rounded-full text-[0.7rem] font-bold text-white" style={{ background: "linear-gradient(135deg,#0b6e5f,#0b6e5f)" }}>JT</span>
           <span style={{ color: "var(--text-primary)" }}>Jess Taylor</span>
-          <span className="text-[0.7rem] font-bold" style={{ backgroundImage: "linear-gradient(135deg,#818CF8,#4F46E5)", WebkitBackgroundClip: "text", color: "transparent" }}>Marketer</span>
+          <span className="text-[0.7rem] font-bold" style={{ backgroundImage: "linear-gradient(135deg,#3fb8a0,#0b6e5f)", WebkitBackgroundClip: "text", color: "transparent" }}>Marketer</span>
         </div>
       </div>
     </header>

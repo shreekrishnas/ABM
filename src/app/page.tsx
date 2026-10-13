@@ -88,7 +88,7 @@ export default async function Today() {
         </div>
 
         <div>
-          <SectionLabel count={hotRaw.length} action={<Link href="/accounts?sort=intent" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All companies</Link>}>Hot companies — act while it is true</SectionLabel>
+          <SectionLabel count={hotRaw.length} action={<Link href="/accounts?sort=intent" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All companies</Link>}>Hot companies to act on now</SectionLabel>
           {hot.length === 0 ? <Clear text="No company is hot yet. Hot needs at least two independent signals agreeing." /> : (
             <div className="queue stagger">
               {hot.map((a) => (

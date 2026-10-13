@@ -113,7 +113,7 @@ export default async function ProgramOverview() {
           {reviewItems.length === 0 ? <Empty title="Queue is clear" sub="Nothing needs a human decision right now." /> : (
             <ul className="grid gap-2.5">
               {reviewItems.map((r) => (
-                <li key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: "var(--surface-card-header)", borderLeft: `3px solid ${r.type === "draft_approval" ? "#8B5CF6" : r.type === "budget_exceeded" ? "#EF4444" : "#F59E0B"}` }}>
+                <li key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: "var(--surface-card-header)", borderLeft: `3px solid ${r.type === "draft_approval" ? "#2f7d6d" : r.type === "budget_exceeded" ? "#EF4444" : "#F59E0B"}` }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="micro">{REVIEW_TYPE_LABEL[r.type] ?? r.type.replaceAll("_", " ")}</span>
                     <span className="muted text-[0.7rem]">{ago(r.createdAt)}</span>

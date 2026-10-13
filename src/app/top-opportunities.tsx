@@ -47,7 +47,7 @@ export async function TopOpportunities({ now }: { now: Date }) {
 
   return (
     <section className="mb-6">
-      <SectionLabel count={rows.length} action={<span className="flex items-center gap-3"><Link href="/accounts?view=list&sort=priority" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All by priority</Link><a href="/accounts/export" className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}><Download size={12} /> Export</a></span>}>Top opportunities — who to work first</SectionLabel>
+      <SectionLabel count={rows.length} action={<span className="flex items-center gap-3"><Link href="/accounts?view=list&sort=priority" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All by priority</Link><a href="/accounts/export" className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}><Download size={12} /> Export</a></span>}>Top opportunities: who to work first</SectionLabel>
       <div className="glass-card-static table-wrap">
         <table className="data">
           <thead><tr><th>Company</th><th>Priority</th><th>Intent</th><th className="hide-sm">Why</th><th>Next best action</th></tr></thead>

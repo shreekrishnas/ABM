@@ -36,8 +36,7 @@ export function FamilyChip({ family }: { family: string }) {
 /** One thing that needs a person, with exactly one action. */
 export function QueueRow({ href, rail, lead, title, sub, action, meta }: { href: string; rail?: string; lead?: ReactNode; title: ReactNode; sub?: ReactNode; action: string; meta?: ReactNode }) {
   return (
-    <Link href={href} className={lead ? "q-row has-lead" : "q-row"} style={{ ["--rail" as string]: rail ?? "var(--accent-indigo)", gridTemplateColumns: lead ? "4px auto 1fr auto" : "4px 1fr auto" }}>
-      <span className="q-rail" aria-hidden />
+    <Link href={href} className={lead ? "q-row has-lead" : "q-row"} style={{ ["--rail" as string]: rail ?? "var(--accent-indigo)", gridTemplateColumns: lead ? "auto 1fr auto" : "1fr auto" }}>
       {lead}
       <span className="min-w-0">
         <span className="q-title block">{title}</span>

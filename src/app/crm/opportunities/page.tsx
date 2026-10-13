@@ -12,7 +12,7 @@ export const metadata = { title: "CRM · Opportunities" };
 const COLUMNS: { id: OppStage; label: string; color: string }[] = [
   { id: "discovery", label: "Discovery", color: "#94A3B8" },
   { id: "qualification", label: "Qualification", color: "#0EA5E9" },
-  { id: "proposal", label: "Proposal", color: "#8B5CF6" },
+  { id: "proposal", label: "Proposal", color: "#2f7d6d" },
   { id: "negotiation", label: "Negotiation", color: "#F59E0B" },
   { id: "won", label: "Won", color: "#10B981" },
   { id: "lost", label: "Lost", color: "#EF4444" },
@@ -53,7 +53,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
       />
       <div className="stagger mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Kpi label="Open pipeline" value={money(open.reduce((a, o) => a + o.amountUsd, 0))} meta={`${open.length} open deals`} />
-        <Kpi label="ABM-sourced" value={money(abm.reduce((a, o) => a + o.amountUsd, 0))} accent="#7C3AED" meta={`${abm.length} deals from the program`} />
+        <Kpi label="ABM-sourced" value={money(abm.reduce((a, o) => a + o.amountUsd, 0))} accent="#0b6e5f" meta={`${abm.length} deals from the program`} />
         <Kpi label="Won" value={money(won.reduce((a, o) => a + o.amountUsd, 0))} accent="#10B981" meta={`${won.length} deals`} />
         <Kpi label="Win rate" value={`${winRate}%`} accent="#0EA5E9" meta={`${won.length} won · ${lost.length} lost`} />
       </div>
@@ -80,7 +80,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <span className="display-num tnum text-lg">{money(o.amountUsd)}</span>
-                        <Badge color={o.source === "abm" ? "#7C3AED" : "#64748B"}>{o.source}</Badge>
+                        <Badge color={o.source === "abm" ? "#0b6e5f" : "#64748B"}>{o.source}</Badge>
                       </div>
                       <div className="muted mt-1 text-[0.7rem]">{o.owner?.name ?? "No owner"} · {o.closedAt ? `closed ${date(o.closedAt)}` : o.closeDate ? `close ${date(o.closeDate)}` : "no close date"}</div>
                       {o.lostReason && <div className="mt-1 text-[0.7rem] text-[#B45309]">{o.lostReason}</div>}
