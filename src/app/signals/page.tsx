@@ -25,7 +25,7 @@ export default async function SignalsPage() {
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Kpi label="Signals (30d)" value={total} meta={`${anon} anonymous`} />
         <Kpi label="Intent surging" value={surging.length} accent="#0EA5E9" meta={`Intent ≥ ${CONFIG.intent.surgeThreshold}`} />
-        <Kpi label="Pricing visits (30d)" value={byType.find((t) => t.type === "pricing_visit")?._count ?? 0} accent="#0b6e5f" meta={`+${CONFIG.engagement.points.pricing_visit} pts each`} />
+        <Kpi label="Pricing visits (30d)" value={byType.find((t) => t.type === "pricing_visit")?._count ?? 0} accent="#7C3AED" meta={`+${CONFIG.engagement.points.pricing_visit} pts each`} />
         <Kpi label="Half-life" value={`${CONFIG.engagement.halfLifeDays}d`} accent="#10B981" meta={`MQA at ${CONFIG.engagement.stages.MQA} points`} />
       </div>
 
@@ -42,7 +42,7 @@ export default async function SignalsPage() {
                       <td>{s.type.replaceAll("_", " ")}{s.detail && <div className="muted max-w-[200px] truncate text-xs">{s.detail}</div>}</td>
                       <td>{s.contact?.fullName ?? <span className="muted">anonymous</span>}</td>
                       <td className="tnum">+{s.points}</td>
-                      <td>{s.attributed && !s.anonymous ? <Badge color="#0b6e5f">person + account</Badge> : <Badge color="#0EA5E9">account (½ weight)</Badge>}</td>
+                      <td>{s.attributed && !s.anonymous ? <Badge color="#7C3AED">person + account</Badge> : <Badge color="#0EA5E9">account (½ weight)</Badge>}</td>
                       <td className="muted whitespace-nowrap text-xs">{ago(s.occurredAt)}</td>
                     </tr>
                   ))}

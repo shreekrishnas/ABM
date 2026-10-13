@@ -139,7 +139,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                       <td>
                         <div className="flex items-center gap-1.5">
                           <Badge color={a.pipelineStatus === "error" ? "#DC2626" : a.pipelineStatus === "blocked" ? "#B45309" : a.pipelineStatus === "done" ? "#059669" : "#64748B"}>{a.pipelineStage ? `${a.pipelineStage} · ${st?.name ?? ""}` : "Not started"}</Badge>
-                          {a._count.reviewItems > 0 && <Badge color="#0b6e5f" title="Open review items">{a._count.reviewItems} review</Badge>}
+                          {a._count.reviewItems > 0 && <Badge color="#7C3AED" title="Open review items">{a._count.reviewItems} review</Badge>}
                         </div>
                       </td>
                       <td>{a.owner ? <span className="flex items-center gap-2"><Avatar name={a.owner.name} size={24} round />{a.owner.name.split(" ")[0]}</span> : <span className="muted">—</span>}</td>

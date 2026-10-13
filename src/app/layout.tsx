@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/fraunces/opsz.css";
 import "./globals.css";
 import { AppNav } from "@/components/shell/AppNav";
 import { db } from "@/lib/db";
@@ -32,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
+        <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
         <main className="app-main" id="main">{children}</main>

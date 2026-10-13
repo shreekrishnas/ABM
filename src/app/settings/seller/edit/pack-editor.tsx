@@ -219,7 +219,7 @@ export function PackEditor({ sellerId, base, builtIn, source, revisions }: { sel
             <Card title="Approval" sub="Enforced in code: a check that couldn't run always sends the email to a person">
               <div className="grid gap-2" role="radiogroup" aria-label="Approval">
                 {AUTONOMY.map((a) => (
-                  <label key={a.value} className={cx("flex cursor-pointer items-start gap-3 rounded-xl px-3.5 py-3", pack.autonomy === a.value && "ring-2")} style={{ background: "var(--surface-card-header)", ["--tw-ring-color" as string]: "rgba(11,110,95,.35)" }}>
+                  <label key={a.value} className={cx("flex cursor-pointer items-start gap-3 rounded-xl px-3.5 py-3", pack.autonomy === a.value && "ring-2")} style={{ background: "var(--surface-card-header)", ["--tw-ring-color" as string]: "rgba(99,102,241,.35)" }}>
                     <input type="radio" name="autonomy" className="mt-1" checked={pack.autonomy === a.value} onChange={() => set((d) => { d.autonomy = a.value; })} />
                     <span><b className="text-sm" style={{ color: "var(--text-primary)" }}>{a.label}</b><span className="muted block text-xs">{a.hint}</span></span>
                   </label>
@@ -309,7 +309,7 @@ export function PackEditor({ sellerId, base, builtIn, source, revisions }: { sel
       <aside className="grid gap-5 xl:sticky xl:top-4">
         <Card title="Save changes">
           {changed.length > 0 ? (
-            <div className="mb-3 flex flex-wrap gap-1.5">{changed.map((c) => <span key={c} className="chip" style={{ ["--c" as string]: "#0b6e5f" }}>{sectionLabel(c)}</span>)}</div>
+            <div className="mb-3 flex flex-wrap gap-1.5">{changed.map((c) => <span key={c} className="chip" style={{ ["--c" as string]: "#4F46E5" }}>{sectionLabel(c)}</span>)}</div>
           ) : (
             <p className="muted mb-3 text-xs">{mode === "json" ? "Check the JSON to see what changes." : "No changes yet."}</p>
           )}

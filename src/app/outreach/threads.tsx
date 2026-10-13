@@ -43,7 +43,7 @@ export async function EmailThreads({ selected }: { selected?: string }) {
             const st = p.drafts[0] ? DRAFT_STATE[p.drafts[0].status] : null;
             return (
               <li key={p.id}>
-                <Link href={`/outreach?view=threads&c=${p.id}`} aria-current={on ? "true" : undefined} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors" style={{ background: on ? "var(--surface-card-elevated)" : undefined, boxShadow: on ? "0 4px 12px rgba(11,110,95,0.15)" : undefined }}>
+                <Link href={`/outreach?view=threads&c=${p.id}`} aria-current={on ? "true" : undefined} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors" style={{ background: on ? "var(--surface-card-elevated)" : undefined, boxShadow: on ? "0 4px 12px rgba(99,102,241,0.15)" : undefined }}>
                   <Avatar name={p.fullName} id={p.id} size={32} round />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold" style={{ color: on ? "var(--accent-indigo)" : "var(--text-primary)" }}>{p.fullName}</span><span className="muted shrink-0 text-[0.68rem]">{ago(p.drafts[0]?.createdAt)}</span></span>
@@ -77,7 +77,7 @@ export async function EmailThreads({ selected }: { selected?: string }) {
                   {b.state && <span className="font-semibold" style={{ color: b.state.color }}>· {b.state.label}</span>}
                 </div>
                 <div className="whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm" style={b.dir === "out"
-                  ? { background: b.channel === "email" ? "var(--teal-soft)" : "var(--surface-card-header)", border: "1px solid color-mix(in srgb, var(--teal) 22%, transparent)", color: "var(--text-primary)", borderTopRightRadius: 6 }
+                  ? { background: b.channel === "email" ? "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(79,70,229,0.08))" : "var(--surface-card-header)", border: "1px solid rgba(124,58,237,0.18)", color: "var(--text-primary)", borderTopRightRadius: 6 }
                   : { background: "var(--surface-card-elevated)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)", borderTopLeftRadius: 6, boxShadow: "var(--shadow-rest)" }}>
                   {b.title && <div className="mb-1.5 font-semibold">{b.title}</div>}
                   <span className="secondary">{b.body}</span>

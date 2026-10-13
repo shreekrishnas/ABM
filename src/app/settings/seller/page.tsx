@@ -5,7 +5,7 @@ import { Badge, Card, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Seller profile" };
 
-const ROLE_COLOR = { decision_maker: "#0b6e5f", champion: "#0D9488", influencer: "#64748B", budget_owner: "#B45309" } as const;
+const ROLE_COLOR = { decision_maker: "#4F46E5", champion: "#0D9488", influencer: "#64748B", budget_owner: "#B45309" } as const;
 
 export default async function SellerPage() {
   await ensureSellerPacks();

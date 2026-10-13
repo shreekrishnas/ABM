@@ -53,11 +53,11 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             const draft = r.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
             const overdue = r.dueAt && r.dueAt < new Date();
             return (
-              <section key={r.id} className="glass-card-static card-pad" style={{ borderLeft: `4px solid ${r.type === "draft_approval" ? "#2f7d6d" : r.type === "budget_exceeded" || r.type === "bounce_breaker" ? "#EF4444" : "#F59E0B"}` }}>
+              <section key={r.id} className="glass-card-static card-pad" style={{ borderLeft: `4px solid ${r.type === "draft_approval" ? "#8B5CF6" : r.type === "budget_exceeded" || r.type === "bounce_breaker" ? "#EF4444" : "#F59E0B"}` }}>
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge color="#0b6e5f">{TYPE_LABEL[r.type] ?? r.type}</Badge>
+                      <Badge color="#7C3AED">{TYPE_LABEL[r.type] ?? r.type}</Badge>
                                             {overdue && <Badge color="#DC2626">overdue</Badge>}
                     </div>
                     <div className="mt-1.5 text-[0.95rem] font-semibold" style={{ color: "var(--text-primary)" }}>{r.reason}</div>

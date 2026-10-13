@@ -20,9 +20,9 @@ export default async function HandoffsPage() {
     <div className="page-enter">
       <PageHeader eyebrow="Stage 13" title="Sales handoffs" sub={`A positive reply or account engagement of ${CONFIG.engagement.stages.MQA} alerts the owner with a fact-checked briefing, pauses automation for the whole account, and escalates after ${CONFIG.handoff.ackSlaHours} hours.`} />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Awaiting acknowledgement" value={open.length} accent="#0b6e5f" />
+        <Kpi label="Awaiting acknowledgement" value={open.length} accent="#7C3AED" />
         <Kpi label="Past SLA" value={overdue.length} accent={overdue.length ? "#DC2626" : "#10B981"} meta={`${CONFIG.handoff.ackSlaHours}h acknowledgement deadline`} />
-        <Kpi label="Total handoffs" value={handoffs.length} accent="#0b6e5f" />
+        <Kpi label="Total handoffs" value={handoffs.length} accent="#4F46E5" />
         <Kpi label="Closed deals" value={`${closed}/${CONFIG.handoff.retuneMinClosedDeals}`} accent="#10B981" meta="Needed before scoring weights retune" />
       </div>
 
@@ -31,12 +31,12 @@ export default async function HandoffsPage() {
           const b = h.briefing as unknown as Brief;
           const late = !h.acknowledgedAt && h.ackDueAt && h.ackDueAt < new Date();
           return (
-            <section key={h.id} className="glass-card-static card-pad" style={{ borderLeft: `4px solid ${h.acknowledgedAt ? "#10B981" : late ? "#EF4444" : "#0b6e5f"}` }}>
+            <section key={h.id} className="glass-card-static card-pad" style={{ borderLeft: `4px solid ${h.acknowledgedAt ? "#10B981" : late ? "#EF4444" : "#7C3AED"}` }}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <Avatar name={h.account.name} id={h.account.id} size={44} />
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><Badge color="#0b6e5f">{h.trigger.replace("_", " ")}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><Badge color="#4F46E5">{h.trigger.replace("_", " ")}</Badge></div>
                     <div className="muted mt-0.5 text-xs">To {h.owner?.name ?? "unassigned queue"} · {ago(h.createdAt)}{h.escalatedAt ? " · escalated to manager" : ""}</div>
                   </div>
                 </div>

@@ -192,7 +192,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <Card title="Inferences" sub="Labelled as inference — never stated as fact in a draft">
                 <ul className="grid gap-2">
                   {twin.inferences.map((i, k) => (
-                    <li key={k} className="flex gap-2.5 text-sm secondary"><Lightbulb size={16} className="mt-0.5 shrink-0" style={{ color: "#2f7d6d" }} /><span>{i.text} <span className="muted text-xs">· based on {i.basedOn.length} fact{i.basedOn.length > 1 ? "s" : ""}</span></span></li>
+                    <li key={k} className="flex gap-2.5 text-sm secondary"><Lightbulb size={16} className="mt-0.5 shrink-0" style={{ color: "#8B5CF6" }} /><span>{i.text} <span className="muted text-xs">· based on {i.basedOn.length} fact{i.basedOn.length > 1 ? "s" : ""}</span></span></li>
                   ))}
                 </ul>
               </Card>
@@ -284,12 +284,12 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                             <div><div><Link href={`/people/${c.id}`} className="hover:underline">{c.fullName}</Link></div><div className="muted text-xs font-normal">{c.titleNormalized ?? c.title ?? "—"}</div><div className="mono muted text-[0.7rem] font-normal">{c.email ?? "no email"}</div></div>
                           </div>
                         </td>
-                        <td><Badge color={c.buyingRole === "decision_maker" ? "#0b6e5f" : c.buyingRole === "champion" ? "#0D9488" : "#64748B"}>{c.buyingRole.replace("_", " ")}</Badge></td>
+                        <td><Badge color={c.buyingRole === "decision_maker" ? "#4F46E5" : c.buyingRole === "champion" ? "#0D9488" : "#64748B"}>{c.buyingRole.replace("_", " ")}</Badge></td>
                         <td><FieldBadge status={fs.email} /></td>
                         <td><FieldBadge status={fs.title} /></td>
                         <td><FieldBadge status={fs.company} /></td>
                         <td className="tnum">{c.identityConfidence != null ? `${Math.round(c.identityConfidence * 100)}%` : "—"}</td>
-                        <td>{c.readiness ? <span title={c.readinessReasons.join("; ")}><Badge color={c.readiness === "ready" ? "#059669" : c.readiness === "human_review" ? "#0b6e5f" : c.readiness === "disqualified" ? "#DC2626" : "#B45309"}>{c.readiness.replaceAll("_", " ")}</Badge></span> : <span className="muted">—</span>}</td>
+                        <td>{c.readiness ? <span title={c.readinessReasons.join("; ")}><Badge color={c.readiness === "ready" ? "#059669" : c.readiness === "human_review" ? "#7C3AED" : c.readiness === "disqualified" ? "#DC2626" : "#B45309"}>{c.readiness.replaceAll("_", " ")}</Badge></span> : <span className="muted">—</span>}</td>
                         <td><span className="text-xs">{c.state.replace("_", " ")}</span>{c.lawfulBasis && <div className="muted max-w-[180px] truncate text-[0.7rem]" title={c.lawfulBasis}>{c.lawfulBasis}</div>}</td>
                       </tr>
                     );
@@ -304,7 +304,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       {tab === "outreach" && (
         <div className="grid gap-4">
           {drafts.length === 0 ? <Card><Empty icon={<FileText size={20} />} title="No drafts yet" sub="Drafts appear once a person passes the readiness gate." /></Card> : drafts.map((d) => (
-            <Card key={d.id} title={d.subject} sub={`${d.contact.fullName} · step ${d.stepOrder} · ${ago(d.createdAt)}`} action={<Badge color={d.status === "sent" ? "#059669" : d.status === "approved" ? "#0EA5E9" : d.status === "pending_review" ? "#2f7d6d" : "#DC2626"}>{d.status.replace("_", " ")}</Badge>}>
+            <Card key={d.id} title={d.subject} sub={`${d.contact.fullName} · step ${d.stepOrder} · ${ago(d.createdAt)}`} action={<Badge color={d.status === "sent" ? "#059669" : d.status === "approved" ? "#0EA5E9" : d.status === "pending_review" ? "#8B5CF6" : "#DC2626"}>{d.status.replace("_", " ")}</Badge>}>
               {(d.painPoint || d.useCase) && (
                 <div className="mb-3 rounded-xl px-3 py-2 text-xs secondary" style={{ background: "var(--surface-card-header)" }}>
                   <b style={{ color: "var(--text-primary)" }}>Angle:</b> {d.useCase ? (sp.useCases.find((u) => u.key === d.useCase)?.name ?? d.useCase) : "—"}{d.painPoint ? ` · ${d.painPoint}` : ""}
@@ -334,7 +334,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             {signals.length === 0 ? <Empty title="No signals yet" /> : (
               <ul className="timeline">
                 {signals.map((s) => (
-                  <li key={s.id} className="tl-item" style={{ ["--tl" as string]: s.anonymous ? "#0EA5E9" : s.attributed ? "#0b6e5f" : "#94A3B8" }}>
+                  <li key={s.id} className="tl-item" style={{ ["--tl" as string]: s.anonymous ? "#0EA5E9" : s.attributed ? "#7C3AED" : "#94A3B8" }}>
                     <div className="flex justify-between gap-2 text-sm">
                       <span style={{ color: "var(--text-primary)" }}><b>{s.type.replaceAll("_", " ")}</b> <span className="secondary">{s.contact ? `· ${s.contact.fullName}` : "· anonymous"}{s.detail ? ` · ${s.detail}` : ""}</span></span>
                       <span className="mono muted whitespace-nowrap">+{s.points} · {ago(s.occurredAt)}</span>
@@ -370,7 +370,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 {a.opportunities.map((o) => (
                   <li key={o.id} className="flex items-center justify-between rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)" }}>
                     <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{o.name}</span>
-                    <span className="flex items-center gap-3"><span className="tnum text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{money(o.amountUsd)}</span><Badge color={o.stage === "won" ? "#059669" : o.stage === "lost" ? "#DC2626" : "#0b6e5f"}>{o.stage}</Badge></span>
+                    <span className="flex items-center gap-3"><span className="tnum text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{money(o.amountUsd)}</span><Badge color={o.stage === "won" ? "#059669" : o.stage === "lost" ? "#DC2626" : "#4F46E5"}>{o.stage}</Badge></span>
                   </li>
                 ))}
               </ul>
