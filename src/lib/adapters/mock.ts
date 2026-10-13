@@ -25,6 +25,7 @@ import type {
   ProviderPerson,
   ResearchPage,
   MarketEventExtract,
+  SimilarCompanyExtract,
   ResearchPass,
   ResearchSource,
   SearchHint,
@@ -228,6 +229,10 @@ class MockResearch implements ResearchSource {
       const m = MARKET_BY_NAME.get(companyName.toLowerCase())!;
       return [{ url: `https://companies.example.org/${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news", publishedAt: daysAgo(30), title: `About ${companyName}`, text: `${companyName} is a ${m.industry} company headquartered in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees.` }];
     }
+    if (key === "lookalike") {
+      // A "companies like X" page naming peers from the sample market.
+      return [{ url: `https://peerlist.example.com/${(domain || companyName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news" as const, publishedAt: daysAgo(40), title: `Companies similar to ${companyName}`, text: MOCK_MARKET.map((m) => `${m.name} is a ${m.industry} company and a peer of ${companyName}.`).join(" ") }];
+    }
     if (key.startsWith("market")) {
       return MOCK_MARKET.map((m) => ({ url: `https://marketwire.example.com/${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${m.trigger}`, sourceType: "news" as const, publishedAt: daysAgo(m.days), title: `${m.name} ${m.claim}`, text: `${m.name} ${m.claim}. The ${m.industry} company is based in ${m.country}.` }));
     }
@@ -316,6 +321,13 @@ class MockLLM implements LLM {
       const m = MOCK_MARKET.find((x) => p.title.startsWith(x.name));
       if (m) out.push({ page: i, company: m.name, industry: m.industry, triggerKey: m.trigger, claim: `${m.name} ${m.claim}`, quote: `${m.name} ${m.claim}` });
     }
+    return out;
+  }
+
+  async extractSimilarCompanies(pages: ResearchPage[], seed: { name: string }): Promise<SimilarCompanyExtract[]> {
+    const out: SimilarCompanyExtract[] = [];
+    for (const [i, p] of pages.entries())
+      for (const m of MOCK_MARKET) if (p.text.includes(`${m.name} is a`) && m.name !== seed.name) out.push({ page: i, name: m.name, domain: null, reason: `${m.industry} peer`, quote: `${m.name} is a ${m.industry} company` });
     return out;
   }
 

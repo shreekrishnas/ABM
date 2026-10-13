@@ -79,11 +79,13 @@ describe("Apollo website visitors", () => {
     delete process.env.ADAPTER_MODE;
     fakeApollo(routes);
     const out = await syncApolloVisitors(newContext());
-    expect(out).toEqual({ companies: 2, recorded: 2 });
+    expect(out).toMatchObject({ companies: 2, recorded: 2 });
     const sig = await db.signal.findMany({ where: { accountId: r.accountIds[0] } });
     expect(sig).toHaveLength(1);
     expect(sig[0]).toMatchObject({ type: "site_visit", source: "apollo" });
     expect((await unknownVisitors()).map((v) => v.name)).toEqual(["Nilgiri Dairy"]);
+    const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Nilgiri Dairy" } });
+    expect(s.origin).toBe("website_visitor");
     expect(await syncApolloVisitors(newContext())).toBeNull(); // already ran today
     if (mode !== undefined) process.env.ADAPTER_MODE = mode;
   });

@@ -625,11 +625,47 @@ export async function scanMarketAction(): Promise<ActionState> {
   return { ok: true, message: `Scanned ${r.searches} searches · ${r.events} buying events · ${r.suggestions} companies suggested · ${r.excluded} outside your targeting rule` };
 }
 
+/** Approve one suggested company: it becomes a company, research starts now, and you land on its page. */
 export async function addSuggestionAction(id: string): Promise<ActionState> {
   const { addSuggestion } = await import("@/lib/discover/scan");
   const accountId = await addSuggestion(id);
+  if (!accountId) return { ok: false, message: "Couldn't add this company" };
+  await startBackgroundQueue();
   refresh("/discover", "/accounts");
-  return { ok: !!accountId, message: accountId ? "Added to companies — research starts on the next run" : "Couldn't add this company" };
+  redirect(`/accounts/${accountId}`);
+}
+
+/** Approve several suggested companies at once; research starts in the background. */
+export async function approveSuggestionsAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string");
+  if (!ids.length) return { ok: false, message: "Select at least one company" };
+  const { addSuggestion } = await import("@/lib/discover/scan");
+  let added = 0;
+  for (const id of ids.slice(0, 100)) if (await addSuggestion(id)) added++;
+  await startBackgroundQueue();
+  refresh("/discover", "/accounts");
+  return { ok: added > 0, message: `Approved ${added} compan${added === 1 ? "y" : "ies"} — research has started; they appear under Companies` };
+}
+
+/** Find companies similar to one website; results wait in Discover for approval. */
+export async function findLookalikesAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const site = str(fd, "website");
+  if (!site || site.length > 200) return { ok: false, message: "Enter a company website, e.g. example.com" };
+  const { findLookalikes } = await import("@/lib/discover/lookalike");
+  const r = await findLookalikes(site, newContext());
+  refresh("/discover");
+  if (!r.found) return { ok: false, message: `No similar companies found for ${r.seed} — try its main website` };
+  redirect(`/discover?origin=lookalike&seed=${encodeURIComponent(r.seed)}`);
+}
+
+/** Pull website visitors from Apollo now (normally daily); new companies wait in Discover for approval. */
+export async function fetchApolloVisitorsAction(): Promise<ActionState> {
+  const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
+  const r = await syncApolloVisitors(newContext(), { force: true });
+  if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY and APOLLO_VISITOR_LIST in Vercel" };
+  refresh("/discover", "/accounts");
+  if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — check the list name, or see Behind the scenes for the error" };
+  redirect("/discover?origin=website_visitor");
 }
 
 export async function dismissSuggestionAction(id: string): Promise<ActionState> {
@@ -639,13 +675,3 @@ export async function dismissSuggestionAction(id: string): Promise<ActionState> 
   return { ok: true, message: "Dismissed" };
 }
 
-export async function addWebVisitorAction(name: string, domain: string | null): Promise<ActionState> {
-  const res = await ingestRows([{ "Company Name": name, ...(domain ? { "Company Website": domain } : {}) }], { source: "website-visitor", filename: `website-visitor-${name}` });
-  const accountId = res.accountIds[0];
-  if (accountId) {
-    // Their earlier visits now belong to the company, so intent counts them from the start.
-    await db.webVisit.updateMany({ where: { accountId: null, OR: [...(domain ? [{ companyDomain: domain }] : []), { companyName: name }] }, data: { accountId } });
-  }
-  refresh("/discover", "/accounts");
-  return { ok: Boolean(accountId), message: accountId ? "Added to companies — research starts on the next run" : "Couldn't add this company" };
-}

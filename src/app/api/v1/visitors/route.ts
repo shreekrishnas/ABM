@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { authorize, json, parseBody } from "@/lib/api";
 import { recordVisit } from "@/lib/web/visits";
+import { suggestFromVisitors } from "@/lib/discover/visitors";
+import { newContext } from "@/lib/pipeline/context";
 
 // Webhook for reverse-IP visitor tools (Dealfront/Leadfeeder, Albacross, RB2B…): they name the
 // company behind an anonymous visit. Known companies get a signal; unknown ones show in Discover.
@@ -22,5 +24,6 @@ export async function POST(req: Request) {
   const visits = "visits" in b.data ? b.data.visits : [b.data];
   let matched = 0;
   for (const v of visits) if ((await recordVisit({ ...v, source: "reverse_ip" })).accountId) matched++;
-  return json({ received: visits.length, matched, unknown: visits.length - matched }, 202);
+  const s = matched < visits.length ? await suggestFromVisitors(newContext()) : { suggested: 0, excluded: 0 };
+  return json({ received: visits.length, matched, unknown: visits.length - matched, ...s }, 202);
 }

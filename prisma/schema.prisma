@@ -965,6 +965,10 @@ model MarketEvent {
 model ProspectSuggestion {
   id        String   @id @default(cuid())
   sellerId  String
+  /// Where it came from: market (news scan) | lookalike (similar to a company you entered) | website_visitor (Apollo or tracking)
+  origin    String   @default("market")
+  /// For lookalikes: the company they resemble.
+  seed      String?
   name      String
   nameKey   String
   domain    String?

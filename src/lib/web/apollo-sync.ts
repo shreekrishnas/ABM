@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
 import { logEvent, type RunContext } from "@/lib/pipeline/context";
 import { recordVisit } from "./visits";
+import { suggestFromVisitors } from "@/lib/discover/visitors";
 
 const DAY = 86_400_000;
 const env = (name: string) => process.env[name]?.trim() || undefined;
@@ -16,19 +17,19 @@ export function apolloVisitorsConfigured() {
   return Boolean(env("APOLLO_API_KEY") && (env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")));
 }
 
-export async function syncApolloVisitors(ctx: RunContext): Promise<{ companies: number; recorded: number } | null> {
+export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolean } = {}): Promise<{ companies: number; recorded: number; suggested: number; excluded: number } | null> {
   const key = env("APOLLO_API_KEY");
   const list = { id: env("APOLLO_VISITOR_LABEL_ID"), name: env("APOLLO_VISITOR_LIST") };
   if (!key || !(list.id || list.name) || process.env.ADAPTER_MODE === "mock") return null;
   // Once a day is enough: Apollo updates visitors in batches.
   const last = await db.pipelineEvent.findFirst({ where: { step: "apollo.visitors", createdAt: { gte: new Date(ctx.now.getTime() - DAY + 3_600_000) } }, select: { id: true } });
-  if (last) return null;
+  if (last && !opts.force) return null;
   let companies;
   try {
     companies = await apolloVisitorCompanies(key, list);
   } catch (e) {
     await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 300) : "Apollo request failed" });
-    return { companies: 0, recorded: 0 };
+    return { companies: 0, recorded: 0, suggested: 0, excluded: 0 };
   }
   let recorded = 0;
   const since = new Date(ctx.now.getTime() - RECOUNT_DAYS * DAY);
@@ -38,6 +39,8 @@ export async function syncApolloVisitors(ctx: RunContext): Promise<{ companies: 
     await recordVisit({ url: "https://apollo.io/website-visitors", title: "Visited the website (seen by Apollo)", companyName: c.name, companyDomain: c.domain, source: "apollo" }, ctx);
     recorded++;
   }
-  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded` });
-  return { companies: companies.length, recorded };
+  // Visitors not in the database become suggestions (checked against the targeting rule) for approval.
+  const s = await suggestFromVisitors(ctx);
+  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded, ${s.suggested} new companies suggested, ${s.excluded} outside the targeting rule` });
+  return { companies: companies.length, recorded, ...s };
 }

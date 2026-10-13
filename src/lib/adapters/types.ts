@@ -181,6 +181,8 @@ export interface LLM {
   extractFirmographics(pages: ResearchPage[], company: string): Promise<{ industry: string | null; employees: number | null; country: string | null; page: number } | null>;
   /** Market scan: companies named in news pages with a buying event. `quote` must be exact words from the page. */
   extractMarketEvents(pages: ResearchPage[]): Promise<MarketEventExtract[]>;
+  /** Lookalikes: companies the pages name as similar to / competing with the seed. `quote` must be exact words from the page. */
+  extractSimilarCompanies(pages: ResearchPage[], seed: { name: string; industry: string | null }): Promise<SimilarCompanyExtract[]>;
   /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
   classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
 }
@@ -192,6 +194,15 @@ export interface MarketEventExtract {
   /** Seller trigger key (e.g. erp_migration) or "other". */
   triggerKey: string;
   claim: string;
+  quote: string;
+}
+
+export interface SimilarCompanyExtract {
+  page: number;
+  name: string;
+  domain: string | null;
+  /** Why it resembles the seed, in a few words (same industry, competitor, same customers…). */
+  reason: string;
   quote: string;
 }
 

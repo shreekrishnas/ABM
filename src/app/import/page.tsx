@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { ImportWizard } from "@/components/import-wizard";
 import { Badge, Card, Empty, PageHeader, ago } from "@/components/ui";
 import { QueuePanel } from "@/components/queue-panel";
+import Link from "next/link";
+import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
+import { fetchApolloVisitorsAction, findLookalikesAction } from "../actions";
 
 export const metadata = { title: "Import" };
 // Each upload step is a short request; processing steps can take a while.
@@ -11,6 +14,8 @@ export const maxDuration = 300;
 type Stats = Partial<Record<"accountsCreated" | "accountsUpdated" | "accountsUnchanged" | "contactsCreated" | "contactsUpdated" | "contactsUnchanged" | "skippedErased" | "journeysCreated" | "journeysUpdated", number>>;
 
 export default async function ImportPage() {
+  const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
+  const visitorList = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
   const [batches, campaigns, senders] = await Promise.all([
     db.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 25, include: { campaign: true, sender: true } }),
     db.campaign.findMany({ where: { active: true }, orderBy: { createdAt: "desc" }, select: { id: true, name: true } }),
@@ -25,7 +30,37 @@ export default async function ImportPage() {
         actions={<a href="/import/template" className="btn btn-secondary"><Download size={15} /> Download template</a>}
       />
 
-      <div className="grid gap-5 xl:grid-cols-3">
+      <section id="sources" className="mb-6">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="glass-card-static card-pad">
+            <div className="eyebrow">1 · From a file</div>
+            <h3 className="mt-1 font-semibold" style={{ color: "var(--text-primary)" }}>Upload companies &amp; people</h3>
+            <p className="secondary mt-1 text-sm">CSV or Excel below. Your own list, so it goes straight into research.</p>
+            <a href="#upload" className="btn btn-secondary btn-sm mt-3">Go to upload ↓</a>
+          </div>
+          <div className="glass-card-static card-pad">
+            <div className="eyebrow">2 · Similar companies</div>
+            <h3 className="mt-1 font-semibold" style={{ color: "var(--text-primary)" }}>Find companies like one website</h3>
+            <p className="secondary mt-1 text-sm">Enter a customer or a great prospect. {apollo ? "Apollo's company database and the web find" : "A web search finds"} similar companies; each is checked against your targeting rule.</p>
+            <ActionForm action={findLookalikesAction} className="mt-3 flex flex-wrap gap-2">
+              <input name="website" className="glass-input min-w-0 flex-1" placeholder="company.com" aria-label="Company website" required />
+              <SubmitButton className="btn btn-primary btn-sm">Find similar</SubmitButton>
+            </ActionForm>
+          </div>
+          <div className="glass-card-static card-pad">
+            <div className="eyebrow">3 · Website visitors</div>
+            <h3 className="mt-1 font-semibold" style={{ color: "var(--text-primary)" }}>Companies visiting your website</h3>
+            <p className="secondary mt-1 text-sm">{apollo && visitorList ? "From Apollo, every day. New companies that meet your targeting rule wait for approval." : "Connect Apollo: set APOLLO_API_KEY and APOLLO_VISITOR_LIST (the Apollo account list your website visitors are saved to) in Vercel."}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {apollo && visitorList && <ActionButton action={fetchApolloVisitorsAction} className="btn btn-primary btn-sm">Fetch from Apollo now</ActionButton>}
+              <Link href="/discover?origin=website_visitor" className="btn btn-secondary btn-sm">Review visitors</Link>
+            </div>
+          </div>
+        </div>
+        <p className="muted mt-2 text-xs">Similar companies and website visitors are suggestions: they wait in <Link href="/discover" className="underline">Discover</Link> until you approve them. Approved companies go through research, scoring and drafting like any upload.</p>
+      </section>
+
+      <div id="upload" className="grid gap-5 xl:grid-cols-3">
         <Card title="Upload" className="xl:col-span-2">
           <ImportWizard campaigns={campaigns} senders={senders} />
         </Card>

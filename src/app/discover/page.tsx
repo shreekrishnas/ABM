@@ -4,11 +4,10 @@ import { db } from "@/lib/db";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { industryTrends, type Momentum } from "@/lib/discover/trends";
 import { bucketLabel } from "@/lib/discover/scan";
-import { ActionButton } from "@/components/client";
+import { ActionButton, ActionForm, SelectAll, SubmitButton } from "@/components/client";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
-import { addSuggestionAction, addWebVisitorAction, dismissSuggestionAction, scanMarketAction } from "../actions";
-import { unknownVisitors } from "@/lib/web/visits";
+import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction, scanMarketAction } from "../actions";
 
 export const metadata = { title: "Discover" };
 
@@ -23,23 +22,28 @@ const STATUS_WORD: Record<string, string> = { new: "Suggested", added: "Added", 
 
 type Source = { url: string; quote: string; at: string; trigger: string };
 
-export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string }> }) {
+const ORIGINS = ["market", "lookalike", "website_visitor"] as const;
+const ORIGIN_WORD: Record<string, string> = { market: "News & hiring", lookalike: "Similar companies", website_visitor: "Website visitors" };
+
+export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string; origin?: string; seed?: string }> }) {
   await ensureSellerPacks();
   const sp = await searchParams;
   const status = (STATUS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "new";
   const p = seller();
-  const [visitors, trends, counts, suggestions, lastScan] = await Promise.all([
-    unknownVisitors(),
+  const origin = (ORIGINS as readonly string[]).includes(sp.origin ?? "") ? sp.origin! : undefined;
+  const scope = { sellerId: p.id, ...(origin ? { origin } : {}), ...(origin === "lookalike" && sp.seed ? { seed: sp.seed } : {}) };
+  const [trends, counts, byOrigin, suggestions, lastScan] = await Promise.all([
     industryTrends(),
-    db.prospectSuggestion.groupBy({ by: ["status"], where: { sellerId: p.id }, _count: true }),
-    db.prospectSuggestion.findMany({ where: { sellerId: p.id, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 60 }),
+    db.prospectSuggestion.groupBy({ by: ["status"], where: scope, _count: true }),
+    db.prospectSuggestion.groupBy({ by: ["origin"], where: { sellerId: p.id, status: "new" }, _count: true }),
+    db.prospectSuggestion.findMany({ where: { ...scope, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 60 }),
     db.marketEvent.findFirst({ where: { sellerId: p.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
   ]);
   const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
   const rising = trends.filter((t) => t.momentum === "rising");
   const under = trends.filter((t) => t.underCovered);
   const maxHeat = Math.max(1, ...trends.map((t) => t.heat));
-  const link = (q: Record<string, string | undefined>) => `/discover?${new URLSearchParams(Object.entries({ status, industry: sp.industry, ...q }).filter(([, v]) => v) as [string, string][])}`;
+  const link = (q: Record<string, string | undefined>) => `/discover?${new URLSearchParams(Object.entries({ status, industry: sp.industry, origin, seed: origin === "lookalike" ? sp.seed : undefined, ...q }).filter(([, v]) => v) as [string, string][])}`;
 
   return (
     <div className="space-y-6">
@@ -101,24 +105,18 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         )}
       </Card>
 
-      {visitors.length > 0 && (
-        <Card title={<span className="inline-flex items-center gap-2"><Globe size={18} /> On your website, not in your database</span>} sub="Companies a visitor tool identified in the last 30 days. Pricing and demo pages first.">
-          <ul className="divide-y" style={{ borderColor: "var(--glass-border)" }}>
-            {visitors.map((v) => (
-              <li key={v.domain ?? v.name} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold" style={{ color: "var(--text-primary)" }}>{v.name} {v.strong && <span className="chip ml-1" style={{ ["--c" as string]: "var(--intent-hot)" }}>Pricing / demo</span>}</div>
-                  <div className="muted text-xs">{[v.domain, `${v.visits} page view${v.visits > 1 ? "s" : ""}`, v.topics.join(", "), `last ${ago(v.last)}`].filter(Boolean).join(" · ")}</div>
-                </div>
-                <ActionButton action={addWebVisitorAction.bind(null, v.name, v.domain)} className="btn btn-secondary btn-sm"><Plus size={14} /> Add to companies</ActionButton>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
       <section>
         <SectionLabel count={suggestions.length}>{sp.industry ? `Companies · ${bucketLabel(sp.industry)}` : "Companies to look at"}</SectionLabel>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Link href={link({ origin: undefined, seed: undefined })} className={cx("chip", !origin && "chip-active")} style={!origin ? { ["--c" as string]: "var(--accent-section)" } : undefined}>All sources</Link>
+          {ORIGINS.map((o) => (
+            <Link key={o} href={link({ origin: o, seed: undefined })} className={cx("chip", origin === o && "chip-active")} style={origin === o ? { ["--c" as string]: "var(--accent-section)" } : undefined}>
+              {ORIGIN_WORD[o]} <span className="tnum">{byOrigin.find((b) => b.origin === o)?._count ?? 0}</span>
+            </Link>
+          ))}
+          {origin === "lookalike" && sp.seed && <Link href={link({ seed: undefined })} className="chip"><X size={12} /> like {sp.seed}</Link>}
+          <Link href="/import#sources" className="ml-auto text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>Find more →</Link>
+        </div>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {STATUS.map((s) => (
             <Link key={s} href={link({ status: s })} className={cx("chip", s === status && "chip-active")} style={s === status ? { ["--c" as string]: "var(--accent-section)" } : undefined}>
@@ -128,23 +126,34 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {sp.industry && <Link href={link({ industry: undefined })} className="chip"><X size={12} /> {bucketLabel(sp.industry)}</Link>}
         </div>
         {suggestions.length === 0 ? (
-          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? "No suggestions yet" : `Nothing ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "Run a scan: companies with fresh buying events that you don't hold yet show up here." : undefined} /></Card>
+          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? "No suggestions yet" : `Nothing ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "Scan the news here, find companies similar to one website on Import, or connect Apollo website visitors. Suggestions wait here for your approval." : undefined} /></Card>
         ) : (
+          <ActionForm action={approveSuggestionsAction}>
+          {status === "new" && (
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-semibold"><SelectAll name="ids" label="Select all" /> Select all</label>
+              <SubmitButton className="btn btn-primary btn-sm">Approve selected — start research</SubmitButton>
+              <span className="muted text-xs">Nothing is researched or contacted until you approve it.</span>
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
             {suggestions.map((s) => {
               const sources = (s.sources as Source[]) ?? [];
               return (
                 <article key={s.id} className="glass-card-static card-pad min-w-0">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name}</h3>
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      {s.status === "new" && <input type="checkbox" name="ids" value={s.id} className="mt-1" aria-label={`Select ${s.name}`} />}
+                      <div className="min-w-0">
+                      <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <span className="chip ml-1 align-middle">{ORIGIN_WORD[s.origin] ?? s.origin}</span></h3>
                       <div className="muted text-xs">
-                        {[s.industry, s.country, s.employees != null ? `${s.employees.toLocaleString()} employees` : "size unknown"].filter(Boolean).join(" · ")}
+                        {[s.domain, s.industry, s.country, s.employees != null ? `${s.employees.toLocaleString()} employees` : "size unknown"].filter(Boolean).join(" · ")}
+                      </div>
                       </div>
                     </div>
                     <IntentPill level={s.level as IntentLevel} score={s.score} />
                   </div>
-                  <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}><span className="font-semibold" style={{ color: "var(--text-primary)" }}>Why now: </span>{s.whyNow}</p>
+                  <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.origin === "lookalike" ? "Why: " : "Why now: "}</span>{s.whyNow}</p>
                   {s.families.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{s.families.map((f) => <FamilyChip key={f} family={f} />)}</div>}
                   {s.reason && <p className="mt-2 text-xs" style={{ color: "var(--intent-hot)" }}>{s.reason}</p>}
                   {sources.length > 0 && (
@@ -165,7 +174,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       <Link href={`/accounts/${s.accountId}`} className="btn btn-secondary">Open company</Link>
                     ) : s.status !== "added" ? (
                       <>
-                        {s.status !== "excluded" && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Add to companies</ActionButton>}
+                        {s.status !== "excluded" && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Approve &amp; start</ActionButton>}
                         {s.status !== "dismissed" && <ActionButton action={dismissSuggestionAction.bind(null, s.id)} className="btn btn-secondary">Dismiss</ActionButton>}
                       </>
                     ) : null}
@@ -174,6 +183,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               );
             })}
           </div>
+          </ActionForm>
         )}
       </section>
     </div>

@@ -184,10 +184,12 @@ export async function addSuggestion(id: string) {
   if (s.status === "added" && s.accountId) return s.accountId;
   const res = await ingestRows(
     [{ "Company Name": s.name, ...(s.domain ? { "Company Website": s.domain } : {}), ...(s.industry ? { Industry: s.industry } : {}), ...(s.employees != null ? { "Employee Size": String(s.employees) } : {}), ...(s.country ? { Country: s.country } : {}) }],
-    { source: "discover", filename: `discover-${s.name}` },
+    { source: s.origin === "lookalike" ? "lookalike" : s.origin === "website_visitor" ? "website-visitor" : "discover", filename: `${s.origin}-${s.name}` },
   );
   const accountId = res.accountIds[0] ?? null;
   await db.prospectSuggestion.update({ where: { id }, data: { status: "added", accountId } });
+  // Earlier website visits by this company now count for it.
+  if (accountId) await db.webVisit.updateMany({ where: { accountId: null, OR: [...(s.domain ? [{ companyDomain: s.domain }] : []), { companyName: s.name }] }, data: { accountId } });
   return accountId;
 }
 

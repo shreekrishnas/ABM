@@ -12,6 +12,7 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
   const c = `"${company}"`;
   if (key === "website") return { q: `${c} official website`, days: null, news: false };
   if (key === "firmographics") return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
+  if (key === "lookalike") return { q: "", days: null, news: false };
   if (key === "market:hiring") return { q: "", days: 60, news: false };
   if (key.startsWith("market")) return { q: "", days: 90, news: true };
   const s = seller().researchQuestions.find((x) => x.key === key)?.search;

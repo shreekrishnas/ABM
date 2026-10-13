@@ -140,3 +140,51 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
   }
   return out;
 }
+
+// ── Companies ──
+
+export interface ApolloOrg {
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  employees: number | null;
+  country: string | null;
+  keywords: string[];
+}
+
+interface RawOrg {
+  name?: string | null;
+  primary_domain?: string | null;
+  website_url?: string | null;
+  industry?: string | null;
+  estimated_num_employees?: number | null;
+  country?: string | null;
+  keywords?: string[] | null;
+}
+
+const cleanDomain = (raw: string | null | undefined) => (raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null);
+const toOrg = (o: RawOrg): ApolloOrg | null =>
+  o.name ? { name: o.name, domain: cleanDomain(o.primary_domain ?? o.website_url), industry: o.industry ?? null, employees: o.estimated_num_employees ?? null, country: o.country ?? null, keywords: (o.keywords ?? []).slice(0, 12) } : null;
+
+/** One company's profile by its website (no credits for basic firmographics). */
+export async function apolloOrgEnrich(key: string, domain: string): Promise<ApolloOrg | null> {
+  const r = await new ApolloClient(key).get<{ organization?: RawOrg | null }>(`/organizations/enrich?domain=${encodeURIComponent(domain)}`);
+  return r.organization ? toOrg(r.organization) : null;
+}
+
+/** Apollo's employee-range buckets that cover a minimum size. */
+export function employeeRanges(min: number | null | undefined): string[] {
+  const buckets: [number, number | null][] = [[1, 10], [11, 20], [21, 50], [51, 100], [101, 200], [201, 500], [501, 1000], [1001, 2000], [2001, 5000], [5001, 10000], [10001, null]];
+  return buckets.filter(([, hi]) => !min || hi === null || hi >= min).map(([lo, hi]) => `${lo},${hi ?? ""}`);
+}
+
+/** Companies matching keywords, size and locations (Apollo's company database). */
+export async function apolloOrgSearch(key: string, q: { keywords: string[]; minEmployees?: number | null; locations?: string[]; perPage?: number }): Promise<ApolloOrg[]> {
+  const r = await new ApolloClient(key).post<{ organizations?: RawOrg[]; accounts?: RawOrg[] }>("/mixed_companies/search", {
+    q_organization_keyword_tags: q.keywords.slice(0, 5),
+    organization_num_employees_ranges: employeeRanges(q.minEmployees),
+    ...(q.locations?.length ? { organization_locations: q.locations } : {}),
+    page: 1, per_page: Math.min(q.perPage ?? 25, 100),
+  });
+  return [...(r.organizations ?? []), ...(r.accounts ?? [])].map(toOrg).filter((o): o is ApolloOrg => Boolean(o));
+}

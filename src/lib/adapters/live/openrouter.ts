@@ -4,7 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
-import type { MarketEventExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
+import type { MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
 import { inferFunction } from "@/lib/pipeline/normalize";
@@ -312,6 +312,18 @@ export class OpenRouterLLM implements LLM {
       schema,
       `You read news pages and list companies that had a buying event relevant to ${sp.name}. Events: ${sp.triggers.map((t) => `${t.key} = ${t.label}`).join("; ")}. Only companies a page names explicitly; never the publisher, a consultant or a vendor. quote = exact words copied from the page that show the event. triggerKey = one of the keys above, "hiring" for a job post or hiring drive for the roles that own this problem, or "other". industry = the company's industry if the page says or makes it obvious, else null.`,
       `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "company": "...", "industry": "...", "triggerKey": "...", "claim": "...", "quote": "..."}]}`,
+      1500,
+    );
+    return out.items.filter((x) => pages[x.page]);
+  }
+
+  async extractSimilarCompanies(pages: ResearchPage[], seed: { name: string; industry: string | null }): Promise<SimilarCompanyExtract[]> {
+    if (!pages.length) return [];
+    const schema = z.object({ items: z.array(z.object({ page: z.number().int(), name: z.string().min(2).max(120), domain: z.string().max(120).nullable(), reason: z.string().max(160), quote: z.string().max(400) })).max(40) });
+    const out = await this.json(
+      schema,
+      `You read web pages and list real companies that are similar to ${seed.name}${seed.industry ? ` (${seed.industry})` : ""}: direct competitors or peers in the same business. Only companies a page names explicitly. Never ${seed.name} itself, never publishers, consultants, investors or software vendors serving them. quote = exact words copied from the page that name the company. reason = a few words on why it is similar.`,
+      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "name": "...", "domain": null, "reason": "...", "quote": "..."}]}`,
       1500,
     );
     return out.items.filter((x) => pages[x.page]);
