@@ -21,7 +21,7 @@ export default async function Landing() {
       title="Where do you want to start?"
       cards={[
         { href: "/import", icon: Upload, title: "Import", text: "Bring companies in: upload a CSV, find lookalikes of one website, or pull website visitors from Apollo.", meta: waiting ? `${waiting} waiting for approval` : "3 ways in", alert: waiting > 0 },
-        { href: "/work", icon: LayoutGrid, title: "Workspace", text: "Work on what you have: today's list, research, email drafting, sales and insights.", meta: [`${companies} compan${companies === 1 ? "y" : "ies"}`, approvals ? `${approvals} to approve` : ""].filter(Boolean).join(" · "), alert: approvals > 0 },
+        { href: "/work/today", icon: LayoutGrid, title: "Workspace", text: "Work on what you have: today's list, research, email drafting, sales and insights.", meta: [`${companies} compan${companies === 1 ? "y" : "ies"}`, approvals ? `${approvals} to approve` : ""].filter(Boolean).join(" · "), alert: approvals > 0 },
       ]}
     />
   );

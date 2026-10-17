@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
-import { IMPORT_PAGES, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
+import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
- * Top bar for the drill-down: Home › Import data | Workspace › section › page.
- * The trail is the way up; the row underneath holds the pages next to this one.
+ * Top bar. Import data: a trail (Home › Import data › option) and the options underneath.
+ * Workspace: section tabs, with the section's pages underneath.
  * Everything opens in this tab; only the URL changes.
  */
 export function AppNav({ counts, discover, sellerName }: { counts: Counts; discover: number; sellerName: string }) {
@@ -30,12 +30,9 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
   if (at.area === "import") {
     trail.push({ label: "Import data", href: "/import" });
     if (at.page) trail.push({ label: at.page.label, href: at.page.href });
-  } else if (at.area === "work") {
-    trail.push({ label: "Workspace", href: "/work" });
-    if (at.section) trail.push({ label: at.section.label, href: sectionHref(at.section) });
-    if (at.page && at.section && at.section.items.length > 1) trail.push({ label: at.page.label, href: at.page.href });
   }
-  const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 && at.page ? at.section.items : [];
+  const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 ? at.section.items : [];
+  const sectionCount = (items: (typeof SECTIONS)[number]["items"]) => items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
   const initials = sellerName.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -60,6 +57,21 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
                 </li>
               ))}
             </ol>
+          </nav>
+        )}
+
+        {at.area === "work" && (
+          <nav className="nav-sections" aria-label="Workspace sections">
+            {SECTIONS.map((g) => {
+              const on = g === at.section;
+              const n = sectionCount(g.items);
+              return (
+                <Link key={g.key} href={sectionHref(g)} className={`nav-section${on ? " on" : ""}`} aria-current={on ? "true" : undefined}>
+                  {g.label}
+                  {n > 0 && <span className="nav-count tnum">{n > 99 ? "99+" : n}</span>}
+                </Link>
+              );
+            })}
           </nav>
         )}
 

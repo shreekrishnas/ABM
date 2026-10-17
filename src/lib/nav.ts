@@ -69,4 +69,4 @@ export function locate(path: string): { area: "home" | "import" | "work"; sectio
 }
 
 /** Where a section card goes: straight to the page when the section has one, else the section's hub. */
-export const sectionHref = (s: NavSection) => (s.items.length === 1 ? s.items[0].href : `/work/${s.key}`);
+export const sectionHref = (s: NavSection) => s.items[0].href;
