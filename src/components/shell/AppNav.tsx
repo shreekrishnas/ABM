@@ -3,21 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FileSpreadsheet, Globe, Globe2, Moon, Search, Sparkles, Sun } from "lucide-react";
-import { GROUPS } from "./Sidebar";
-
-type Counts = { review: number; handoffs: number; tasks: number };
-
-const isOn = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
-
-const IMPORT_PAGES = [
-  { href: "/import/upload", label: "Upload CSV", icon: FileSpreadsheet },
-  { href: "/import/lookalikes", label: "Lookalikes", icon: Sparkles },
-  { href: "/import/apollo", label: "Via Apollo", icon: Globe2 },
-];
+import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
+import { IMPORT_PAGES, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
- * Layered top navigation: Home (/) › Import data or Workspace › section › page › item.
+ * Top bar for the drill-down: Home › Import data | Workspace › section › page.
+ * The trail is the way up; the row underneath holds the pages next to this one.
  * Everything opens in this tab; only the URL changes.
  */
 export function AppNav({ counts, discover, sellerName }: { counts: Counts; discover: number; sellerName: string }) {
@@ -34,10 +25,17 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
     } catch {}
   };
 
-  const home = path === "/";
-  const importing = isOn(path, "/import");
-  const group = GROUPS.find((g) => g.items.some((it) => isOn(path, it.href))) ?? GROUPS[0];
-  const groupCount = (g: (typeof GROUPS)[number]) => g.items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
+  const at = locate(path);
+  const trail: { label: string; href: string }[] = [];
+  if (at.area === "import") {
+    trail.push({ label: "Import data", href: "/import" });
+    if (at.page) trail.push({ label: at.page.label, href: at.page.href });
+  } else if (at.area === "work") {
+    trail.push({ label: "Workspace", href: "/work" });
+    if (at.section) trail.push({ label: at.section.label, href: sectionHref(at.section) });
+    if (at.page && at.section && at.section.items.length > 1) trail.push({ label: at.page.label, href: at.page.href });
+  }
+  const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 && at.page ? at.section.items : [];
   const initials = sellerName.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -51,27 +49,19 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
           </span>
         </Link>
 
-        {!home && (
-          <nav className="nav-modes" aria-label="Areas">
-            <Link href="/import" className={`nav-mode${importing ? " on" : ""}`} aria-current={importing ? "true" : undefined}>Import data</Link>
-            <Link href="/work" className={`nav-mode${!importing ? " on" : ""}`} aria-current={!importing ? "true" : undefined}>Workspace</Link>
+        {trail.length > 0 && (
+          <nav className="nav-trail" aria-label="You are here">
+            <ol>
+              <li><Link href="/">Home</Link></li>
+              {trail.map((t, i) => (
+                <li key={t.href}>
+                  <ChevronRight size={14} aria-hidden />
+                  {i === trail.length - 1 && t.href === path ? <span aria-current="page">{t.label}</span> : <Link href={t.href}>{t.label}</Link>}
+                </li>
+              ))}
+            </ol>
           </nav>
         )}
-
-        {!home && !importing && <nav className="nav-sections" aria-label="Sections">
-          {GROUPS.map((g) => {
-            const label = g.label || "Today";
-            const href = g.items[0].href;
-            const on = g === group;
-            const n = groupCount(g);
-            return (
-              <Link key={label} href={href} className={`nav-section${on ? " on" : ""}`} aria-current={on ? "true" : undefined}>
-                {label}
-                {n > 0 && <span className="nav-count tnum">{n > 99 ? "99+" : n}</span>}
-              </Link>
-            );
-          })}
-        </nav>}
 
         <div className="nav-tools">
           <button type="button" className="nav-search" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
@@ -89,29 +79,14 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
         </div>
       </div>
 
-      {importing && (
-        <nav className="nav-sub" aria-label="Import options">
-          {IMPORT_PAGES.map((it) => {
+      {siblings.length > 0 && (
+        <nav className="nav-sub" aria-label="Pages here">
+          {siblings.map((it) => {
             const on = isOn(path, it.href);
+            const n = it.count ? counts[it.count] : 0;
             return (
               <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
                 <it.icon size={15} strokeWidth={1.75} />
-                {it.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
-
-      {!home && !importing && group.items.length > 1 && (
-        <nav className="nav-sub" aria-label={`${group.label} pages`}>
-          {group.items.map((it) => {
-            const on = isOn(path, it.href);
-            const n = it.count ? counts[it.count] : 0;
-            const Icon = it.icon;
-            return (
-              <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
-                <Icon size={15} strokeWidth={1.75} />
                 {it.label}
                 {n > 0 && <span className={`nav-count tnum${it.count === "review" ? " alert" : ""}`}>{n}</span>}
               </Link>

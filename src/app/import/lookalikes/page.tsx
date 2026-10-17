@@ -1,6 +1,6 @@
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
-import { ImportCrumbs, SuggestionReview } from "@/components/import-layers";
+import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
 import { findLookalikesAction } from "../../actions";
 
@@ -13,7 +13,6 @@ export default async function LookalikesPage({ searchParams }: { searchParams: P
   const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
   return (
     <div className="page-enter">
-      <ImportCrumbs here="Lookalikes" />
       <PageHeader eyebrow="Import data · Lookalikes" title="Find companies like one website" sub={`Enter a customer or a great prospect. ${apollo ? "Apollo's company database and the web find" : "A web search finds"} similar companies, and each is sorted by your targeting rule.`} />
       <Card className="mb-5">
         <ActionForm action={findLookalikesAction} className="flex flex-wrap gap-2">

@@ -20,7 +20,7 @@ import { kickDrain } from "@/lib/queue/drain";
 export type ActionState = { ok: boolean; message: string } | null;
 
 const refresh = (...paths: string[]) => {
-  for (const p of ["/", "/work", ...paths]) revalidatePath(p);
+  for (const p of ["/", "/work/today", ...paths]) revalidatePath(p);
 };
 
 /** This deployment's own origin, so the background queue can call its route. */

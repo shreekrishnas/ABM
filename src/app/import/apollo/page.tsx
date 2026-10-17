@@ -1,6 +1,6 @@
 import { ActionButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
-import { ImportCrumbs, SuggestionReview } from "@/components/import-layers";
+import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
 import { fetchApolloVisitorsAction } from "../../actions";
 
@@ -14,7 +14,6 @@ export default async function ApolloImportPage() {
   const ready = apollo && list;
   return (
     <div className="page-enter">
-      <ImportCrumbs here="Via Apollo" />
       <PageHeader
         eyebrow="Import data · Via Apollo"
         title="Companies visiting your website"

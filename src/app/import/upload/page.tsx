@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ImportWizard } from "@/components/import-wizard";
 import { Badge, Card, Empty, PageHeader, ago } from "@/components/ui";
 import { QueuePanel } from "@/components/queue-panel";
-import { ImportCrumbs, ImportRequirements } from "@/components/import-layers";
+import { ImportRequirements } from "@/components/import-layers";
 
 export const metadata = { title: "Upload CSV · Import" };
 // Each upload step is a short request; processing steps can take a while.
@@ -19,7 +19,6 @@ export default async function UploadPage() {
   ]);
   return (
     <div className="page-enter">
-      <ImportCrumbs here="Upload CSV" />
       <PageHeader
         eyebrow="Import data · Upload CSV"
         title="Import Companies & People"

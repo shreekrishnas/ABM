@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Building2, CornerDownLeft, Search, User, Zap } from "lucide-react";
-import { GROUPS } from "./Sidebar";
+import { SECTIONS, IMPORT_PAGES } from "@/lib/nav";
 
 type Hit = { id: string; label: string; sub?: string; href: string; kind: "page" | "action" | "company" | "person" };
 
@@ -15,7 +15,7 @@ const ACTIONS: Hit[] = [
   { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Discover → Website visitors", href: "/discover?origin=website_visitor" },
   { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?view=list&sort=priority" },
 ];
-const PAGES: Hit[] = GROUPS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label || "Home", href: it.href })));
+const PAGES: Hit[] = [...IMPORT_PAGES.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: "Import data", href: it.href })), ...SECTIONS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label, href: it.href })))];
 
 /** ⌘K / Ctrl+K (or "/"): jump to any page, company or person, or start a common action. */
 export function CommandPalette() {

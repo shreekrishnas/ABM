@@ -3,7 +3,6 @@
 // into "will be used", "needs a check" and "not considered" before anything is researched.
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { db } from "@/lib/db";
 import { seller } from "@/lib/seller";
 import { IMPORT_FIELDS } from "@/lib/import/fields";
@@ -16,17 +15,6 @@ export function ruleText(): string | null {
   const mh = seller().icp.mustHave;
   if (!mh) return null;
   return [mh.countries?.length ? mh.countries.join(" or ") : null, mh.minEmployees ? `more than ${(mh.minEmployees - 1).toLocaleString()} employees` : null].filter(Boolean).join(", ") || null;
-}
-
-export function ImportCrumbs({ here }: { here?: string }) {
-  return (
-    <nav className="crumbs mb-3 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <Link href="/" className="muted hover:underline">Home</Link>
-      <ChevronRight size={12} className="muted" />
-      {here ? <Link href="/import" className="muted hover:underline">Import data</Link> : <span aria-current="page">Import data</span>}
-      {here && <><ChevronRight size={12} className="muted" /><span aria-current="page" style={{ color: "var(--text-primary)" }}>{here}</span></>}
-    </nav>
-  );
 }
 
 const REQ_WORD = { required: "Required", recommended: "Recommended", optional: "Optional" } as const;
