@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Globe, Moon, Search, Sun } from "lucide-react";
+import { FileSpreadsheet, Globe, Globe2, Moon, Search, Sparkles, Sun } from "lucide-react";
 import { GROUPS } from "./Sidebar";
 
 type Counts = { review: number; handoffs: number; tasks: number };
 
 const isOn = (path: string, href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
 
+const IMPORT_PAGES = [
+  { href: "/import/upload", label: "Upload CSV", icon: FileSpreadsheet },
+  { href: "/import/lookalikes", label: "Lookalikes", icon: Sparkles },
+  { href: "/import/apollo", label: "Via Apollo", icon: Globe2 },
+];
+
 /**
- * Two-level top navigation: sections across the top, the section's pages underneath.
- * Section › page › item (breadcrumbs on detail pages) is the whole drill-down.
+ * Layered top navigation: Home (/) › Import data or Workspace › section › page › item.
+ * Everything opens in this tab; only the URL changes.
  */
 export function AppNav({ counts, discover, sellerName }: { counts: Counts; discover: number; sellerName: string }) {
   const path = usePathname();
@@ -28,6 +34,8 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
     } catch {}
   };
 
+  const home = path === "/";
+  const importing = isOn(path, "/import");
   const group = GROUPS.find((g) => g.items.some((it) => isOn(path, it.href))) ?? GROUPS[0];
   const groupCount = (g: (typeof GROUPS)[number]) => g.items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
   const initials = sellerName.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -43,7 +51,14 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
           </span>
         </Link>
 
-        <nav className="nav-sections" aria-label="Sections">
+        {!home && (
+          <nav className="nav-modes" aria-label="Areas">
+            <Link href="/import" className={`nav-mode${importing ? " on" : ""}`} aria-current={importing ? "true" : undefined}>Import data</Link>
+            <Link href="/work" className={`nav-mode${!importing ? " on" : ""}`} aria-current={!importing ? "true" : undefined}>Workspace</Link>
+          </nav>
+        )}
+
+        {!home && !importing && <nav className="nav-sections" aria-label="Sections">
           {GROUPS.map((g) => {
             const label = g.label || "Today";
             const href = g.items[0].href;
@@ -56,7 +71,7 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
               </Link>
             );
           })}
-        </nav>
+        </nav>}
 
         <div className="nav-tools">
           <button type="button" className="nav-search" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
@@ -74,7 +89,21 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
         </div>
       </div>
 
-      {group.items.length > 1 && (
+      {importing && (
+        <nav className="nav-sub" aria-label="Import options">
+          {IMPORT_PAGES.map((it) => {
+            const on = isOn(path, it.href);
+            return (
+              <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
+                <it.icon size={15} strokeWidth={1.75} />
+                {it.label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+
+      {!home && !importing && group.items.length > 1 && (
         <nav className="nav-sub" aria-label={`${group.label} pages`}>
           {group.items.map((it) => {
             const on = isOn(path, it.href);

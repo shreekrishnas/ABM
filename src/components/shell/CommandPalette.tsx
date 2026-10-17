@@ -9,8 +9,8 @@ type Hit = { id: string; label: string; sub?: string; href: string; kind: "page"
 
 const ACTIONS: Hit[] = [
   { id: "a-approve", kind: "action", label: "Approve emails", sub: "Open the approval queue", href: "/review" },
-  { id: "a-similar", kind: "action", label: "Find companies similar to a website", sub: "Import → Similar companies", href: "/import#sources" },
-  { id: "a-import", kind: "action", label: "Import a file", sub: "CSV or Excel of companies and people", href: "/import#upload" },
+  { id: "a-similar", kind: "action", label: "Find companies similar to a website", sub: "Import → Similar companies", href: "/import/lookalikes" },
+  { id: "a-import", kind: "action", label: "Import a file", sub: "CSV or Excel of companies and people", href: "/import/upload" },
   { id: "a-scan", kind: "action", label: "Scan the market for new companies", sub: "Discover", href: "/discover" },
   { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Discover → Website visitors", href: "/discover?origin=website_visitor" },
   { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?view=list&sort=priority" },

@@ -20,7 +20,7 @@ import { kickDrain } from "@/lib/queue/drain";
 export type ActionState = { ok: boolean; message: string } | null;
 
 const refresh = (...paths: string[]) => {
-  for (const p of ["/", ...paths]) revalidatePath(p);
+  for (const p of ["/", "/work", ...paths]) revalidatePath(p);
 };
 
 /** This deployment's own origin, so the background queue can call its route. */
@@ -297,7 +297,7 @@ export async function importChunkAction(batchId: string, rows: Record<string, st
 
 /** Preview: which companies, people and sender journeys already exist (nothing is written). */
 export async function previewMatchesAction(input: {
-  companies: { domain: string | null; companyLinkedin: string | null; nameKey: string }[];
+  companies: { domain: string | null; companyLinkedin: string | null; nameKey: string; name?: string; country?: string | null; employees?: number | null }[];
   people: { linkedinUrl: string | null; email: string | null; fullName: string; company: number }[];
   campaignId: string;
   senderId: string;
@@ -336,7 +336,29 @@ export async function previewMatchesAction(input: {
     }
   }
   const companiesExisting = companyIds.filter(Boolean).length;
-  return { companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
+  // Sort companies by the seller's targeting rule, so people see what will be used before importing.
+  const { mustHaveGate } = await import("@/lib/pipeline/gates");
+  const { normalizeCountry } = await import("@/lib/pipeline/normalize");
+  const { ensureSellerPacks, seller } = await import("@/lib/seller");
+  await ensureSellerPacks();
+  const mh = seller().icp.mustHave;
+  const rule = mh ? [mh.countries?.length ? mh.countries.join(" or ") : null, mh.minEmployees ? `more than ${(mh.minEmployees - 1).toLocaleString()} employees` : null].filter(Boolean).join(", ") : null;
+  let fit = 0, outside = 0, missing = 0;
+  const outsideReasons: Record<string, string[]> = {};
+  const missingNames: string[] = [];
+  for (const c of companies) {
+    const g = mustHaveGate({ country: normalizeCountry(c.country ?? null), employees: c.employees ?? null });
+    if (g.pass) fit++;
+    else if (g.unknown) {
+      missing++;
+      if (missingNames.length < 6 && c.name) missingNames.push(c.name);
+    } else {
+      outside++;
+      const why = g.reason.startsWith("Too small") ? "Too small" : g.reason.startsWith("Outside target countries") ? "Outside your countries" : g.reason;
+      outsideReasons[why] = [...(outsideReasons[why] ?? []), ...(c.name ? [c.name] : [])].slice(0, 6);
+    }
+  }
+  return { rule, fit, outside, missing, outsideReasons, missingNames, companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
 }
 
 export async function createCampaignAction(name: string, description?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {
@@ -643,7 +665,7 @@ export async function approveSuggestionsAction(_: ActionState, fd: FormData): Pr
   let added = 0;
   for (const id of ids.slice(0, 100)) if (await addSuggestion(id)) added++;
   await startBackgroundQueue();
-  refresh("/discover", "/accounts");
+  refresh("/discover", "/accounts", "/import/lookalikes", "/import/apollo");
   return { ok: added > 0, message: `Approved ${added} compan${added === 1 ? "y" : "ies"} — research has started; they appear under Companies` };
 }
 
@@ -655,7 +677,7 @@ export async function findLookalikesAction(_: ActionState, fd: FormData): Promis
   const r = await findLookalikes(site, newContext());
   refresh("/discover");
   if (!r.found) return { ok: false, message: `No similar companies found for ${r.seed} — try its main website` };
-  redirect(`/discover?origin=lookalike&seed=${encodeURIComponent(r.seed)}`);
+  redirect(`/import/lookalikes?seed=${encodeURIComponent(r.seed)}`);
 }
 
 /** Pull website visitors from Apollo now (normally daily); new companies wait in Discover for approval. */
@@ -665,7 +687,7 @@ export async function fetchApolloVisitorsAction(): Promise<ActionState> {
   if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY and APOLLO_VISITOR_LIST in Vercel" };
   refresh("/discover", "/accounts");
   if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — check the list name, or see Behind the scenes for the error" };
-  redirect("/discover?origin=website_visitor");
+  redirect("/import/apollo");
 }
 
 export async function dismissSuggestionAction(id: string): Promise<ActionState> {

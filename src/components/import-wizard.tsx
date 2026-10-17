@@ -30,6 +30,12 @@ interface Preview {
   journeysNew: number;
   journeysExisting: number;
   withActivity: number;
+  fit: number;
+  outside: number;
+  missing: number;
+  outsideReasons: Record<string, string[]>;
+  missingNames: string[];
+  rule: string | null;
 }
 
 interface Summary {
@@ -164,7 +170,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
       let withActivity = 0;
       const sampleErrors: { row: number; error: string }[] = [];
       const companyIndex = new Map<string, number>();
-      const companies: { domain: string | null; companyLinkedin: string | null; nameKey: string }[] = [];
+      const companies: { domain: string | null; companyLinkedin: string | null; nameKey: string; name: string; country: string | null; employees: number | null }[] = [];
       const seenPeople = new Set<string>();
       const people: { linkedinUrl: string | null; email: string | null; fullName: string; company: number }[] = [];
       parsed.rows.forEach((r, i) => {
@@ -183,10 +189,12 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         }
         if (ci == null) {
           ci = companies.length;
-          companies.push({ domain: k.domain, companyLinkedin: k.companyLinkedin, nameKey: k.nameKey });
+          companies.push({ domain: k.domain, companyLinkedin: k.companyLinkedin, nameKey: k.nameKey, name: v.row.company, country: v.row.country, employees: v.row.employees });
         }
         const c = companies[ci];
         if (k.domain && !c.domain) c.domain = k.domain;
+        if (v.row.country && !c.country) c.country = v.row.country;
+        if (v.row.employees != null && c.employees == null) c.employees = v.row.employees;
         if (k.companyLinkedin && !c.companyLinkedin) c.companyLinkedin = k.companyLinkedin;
         if (k.domain) companyIndex.set(`d:${k.domain}`, ci);
         if (k.companyLinkedin) companyIndex.set(`l:${k.companyLinkedin}`, ci);
@@ -200,16 +208,22 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
           if (v.row.activity) withActivity++;
         }
       });
-      const totals = { companiesNew: 0, companiesExisting: 0, peopleNew: 0, peopleExisting: 0, journeysNew: 0, journeysExisting: 0 };
+      const totals = { companiesNew: 0, companiesExisting: 0, peopleNew: 0, peopleExisting: 0, journeysNew: 0, journeysExisting: 0, fit: 0, outside: 0, missing: 0 };
+      const outsideReasons: Record<string, string[]> = {};
+      const missingNames: string[] = [];
       // Companies and their people go together so people can be matched by name within a company.
+      let r0: Awaited<ReturnType<typeof previewMatchesAction>> | null = null;
       for (let i = 0; i < companies.length; i += PREVIEW_CHUNK) {
         const cSlice = companies.slice(i, i + PREVIEW_CHUNK);
         const pSlice = people.filter((p) => p.company >= i && p.company < i + PREVIEW_CHUNK).map((p) => ({ ...p, company: p.company - i }));
         if (!cSlice.length && !pSlice.length) continue;
         const r = await previewMatchesAction({ companies: cSlice, people: pSlice, campaignId, senderId });
+        r0 = r0 ?? r;
         for (const k of Object.keys(totals) as (keyof typeof totals)[]) totals[k] += r[k];
+        for (const [why, names] of Object.entries(r.outsideReasons)) outsideReasons[why] = [...(outsideReasons[why] ?? []), ...names].slice(0, 6);
+        missingNames.push(...r.missingNames.slice(0, 6 - missingNames.length));
       }
-      setPhase({ k: "preview", busy: false, data: { valid: parsed.rows.length - invalid, invalid, sampleErrors, duplicates, companies: companies.length, people: people.length, withActivity, ...totals } });
+      setPhase({ k: "preview", busy: false, data: { valid: parsed.rows.length - invalid, invalid, sampleErrors, duplicates, companies: companies.length, people: people.length, withActivity, ...totals, outsideReasons, missingNames, rule: r0?.rule ?? null } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Preview failed");
       setPhase({ k: "map" });
@@ -382,6 +396,17 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
             <div className="flex items-center gap-2 text-sm secondary"><Loader2 size={16} className="spin" /> Validating rows and checking matches…</div>
           ) : (
             <>
+              <div className="micro">What will be used{phase.data.rule ? ` · your rule: ${phase.data.rule}` : ""}</div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="sort-box ok"><div className="sort-n tnum">{phase.data.fit.toLocaleString()}</div><div className="sort-t">Will be researched</div><div className="sort-s">Meet your targeting rule. Research, scoring and drafting start after import.</div></div>
+                <div className="sort-box wait"><div className="sort-n tnum">{phase.data.missing.toLocaleString()}</div><div className="sort-t">Missing country or size</div><div className="sort-s">Imported and kept, but not researched until the missing data arrives.{phase.data.missingNames.length ? ` For example: ${phase.data.missingNames.slice(0, 3).join(", ")}.` : ""}</div></div>
+                <div className="sort-box no"><div className="sort-n tnum">{phase.data.outside.toLocaleString()}</div><div className="sort-t">Outside your rule</div><div className="sort-s">Imported for the record, never researched or contacted.</div></div>
+              </div>
+              {Object.keys(phase.data.outsideReasons).length > 0 && (
+                <details className="more"><summary>Why companies fall outside the rule</summary>
+                  <ul className="mt-2 grid gap-1 text-xs secondary">{Object.entries(phase.data.outsideReasons).map(([why, names]) => <li key={why}><b style={{ color: "var(--text-primary)" }}>{why}</b>: {names.join(", ")}{names.length >= 6 ? "…" : ""}</li>)}</ul>
+                </details>
+              )}
               <div className="micro">Companies</div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat label="New companies" value={phase.data.companiesNew} tone="good" />

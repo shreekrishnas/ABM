@@ -11,14 +11,13 @@ type Counts = { review: number; handoffs: number; tasks: number };
 
 // Grouped by the job: daily work, the pipeline of companies, outreach, sales, insights.
 export const GROUPS: { label: string; items: Item[] }[] = [
-  { label: "", items: [{ href: "/", label: "Today", icon: Sun }] },
+  { label: "", items: [{ href: "/work", label: "Today", icon: Sun }] },
   {
     label: "Pipeline",
     items: [
       { href: "/discover", label: "Discover", icon: Globe },
       { href: "/accounts", label: "Companies", icon: Building2 },
       { href: "/people", label: "People", icon: Users },
-      { href: "/import", label: "Import", icon: Upload },
     ],
   },
   {

@@ -115,7 +115,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </Link>
           ))}
           {origin === "lookalike" && sp.seed && <Link href={link({ seed: undefined })} className="chip"><X size={12} /> like {sp.seed}</Link>}
-          <Link href="/import#sources" className="ml-auto text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>Find more →</Link>
+          <Link href="/import" className="ml-auto text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>Find more →</Link>
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {STATUS.map((s) => (
