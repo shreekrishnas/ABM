@@ -26,6 +26,8 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
   };
 
   const at = locate(path);
+  // Home draws its own shell (rail + topbar).
+  if (at.area === "home") return null;
   const trail: { label: string; href: string }[] = [];
   if (at.area === "import") {
     trail.push({ label: "Import data", href: "/import" });
