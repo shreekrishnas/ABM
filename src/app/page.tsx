@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUp, BarChart3, Building2, ChevronDown, ChevronRight, FileSpreadsheet, Home as HomeIcon, LayoutGrid, Radar, Send, Settings2, Sparkles, Upload } from "lucide-react";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
+import { signOutAction } from "./login/actions";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
 import { CountUp, RailLink, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
@@ -61,7 +64,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     return "New";
   };
   const weekDelta = importedWeek - importedPrevWeek;
-  const userName = process.env.APP_USER_NAME?.trim() || "";
+  const secret = authSecret();
+  const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
+  const fromEmail = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
+  const userName = process.env.APP_USER_NAME?.trim() || (fromEmail ? fromEmail[0].toUpperCase() + fromEmail.slice(1) : "");
   const initial = (userName || p.name)[0]?.toUpperCase() ?? "A";
 
   const kpis = [
@@ -96,11 +102,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <div className="hs-tools">
               <SearchPill />
               <ThemePill />
-              <Link href="/settings" className="hs-user" aria-label="Settings">
-                <span className="hs-avatar">{initial}</span>
-                <span className="hs-user-name">{userName || "You"}</span>
-                <ChevronDown size={15} strokeWidth={2} />
-              </Link>
+              <details className="hs-usermenu">
+                <summary className="hs-user" aria-label="Account menu">
+                  <span className="hs-avatar">{initial}</span>
+                  <span className="hs-user-name">{userName || "You"}</span>
+                  <ChevronDown size={15} strokeWidth={2} />
+                </summary>
+                <div className="hs-usermenu-pop">
+                  {session?.email && <div className="who">Signed in as {session.email}</div>}
+                  <Link href="/settings">Settings</Link>
+                  <form action={signOutAction}><button type="submit">Sign out</button></form>
+                </div>
+              </details>
             </div>
           </header>
 

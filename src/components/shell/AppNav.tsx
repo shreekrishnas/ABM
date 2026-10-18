@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
+import { ChevronRight, Globe, LogOut, Moon, Search, Sun } from "lucide-react";
+import { signOutAction } from "@/app/login/actions";
 import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
@@ -27,7 +28,7 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
 
   const at = locate(path);
   // Home draws its own shell (rail + topbar).
-  if (at.area === "home") return null;
+  if (at.area === "home" || path.startsWith("/login")) return null;
   const trail: { label: string; href: string }[] = [];
   if (at.area === "import") {
     trail.push({ label: "Import data", href: "/import" });
@@ -90,6 +91,9 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
           <button type="button" className="nav-icon" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
             {dark ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>
+          <form action={signOutAction}>
+            <button type="submit" className="nav-icon" aria-label="Sign out" title="Sign out"><LogOut size={17} strokeWidth={1.75} /></button>
+          </form>
         </div>
       </div>
 
