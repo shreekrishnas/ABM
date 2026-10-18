@@ -1,30 +1,51 @@
-// The mark: "t." — a drawn lowercase t on an ink tile, with the full stop as a square.
-// The crossbar ends in a 45° cut (the trilliant cut); the foot of the t turns toward the
-// full stop: many signals, one account, found. Flat, two colours, no effects, so it holds
-// up at 16px and on paper.
+// The mark: "ABM" drawn as one piece. The A and the B share a single upright, set in
+// violet and standing slightly taller than the letters: the account that marketing and
+// sales both build around. Flat geometry, two colours, no effects.
 
-export function LogoMark({ size = 40, className, tone = "ink" }: { size?: number; className?: string; tone?: "ink" | "paper" }) {
-  const tile = tone === "ink" ? "#1E1240" : "#F4F1FB";
-  const glyph = tone === "ink" ? "#F4F1FB" : "#1E1240";
+const GLYPH = [
+  "M2 36L15 4h4v10.2L8.6 36z",
+  "M11.6 24H19v6h-9.9z",
+  "M25 4h4.5a9 9 0 0 1 6.2 15.5A9 9 0 0 1 31 36h-6v-6h6a3 3 0 0 0 0-6h-6v-6h4.5a3 3 0 0 0 0-6H25z",
+  "M42 36V4h6.2L55 17.6 61.8 4H68v32h-6V16.6l-4.4 9.2h-5.2L48 16.6V36z",
+];
+export const INK = "#1E1240";
+export const PAPER = "#F4F1FB";
+export const ACCENT = "#A855F7";
+
+function Glyph({ color }: { color: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden>
-      <rect width="48" height="48" rx="12" fill={tile} />
-      <path d="M15.5 8h7v21a4 4 0 0 0 4 4h3v7h-3c-6.08 0-11-4.92-11-11V8z" fill={glyph} />
-      <path d="M10.5 15h22l-6 7h-16z" fill={glyph} />
-      <rect x="32.5" y="33" width="7" height="7" fill="#A855F7" />
+    <>
+      <g fill={color}>{GLYPH.map((d) => <path key={d} d={d} />)}</g>
+      <rect x="19" y="1" width="6" height="38" fill={ACCENT} />
+    </>
+  );
+}
+
+/** The letters alone, for lockups. Height sets the size. */
+export function LogoType({ height = 28, tone = "ink" }: { height?: number; tone?: "ink" | "paper" }) {
+  return (
+    <svg height={height} width={(height * 68) / 40} viewBox="0 0 68 40" aria-hidden className="brand-type">
+      <Glyph color={tone === "ink" ? "var(--brand-ink, #1E1240)" : PAPER} />
     </svg>
   );
 }
 
-/** Mark + wordmark. `tone="light"` for dark backgrounds. */
-export function Logo({ size = 36, sub, tone = "auto", className }: { size?: number; sub?: string; tone?: "auto" | "light"; className?: string }) {
+/** Square app mark (rail, favicon): the letters on an ink tile. */
+export function LogoMark({ size = 40, className }: { size?: number; className?: string }) {
   return (
-    <span className={`brand-lockup${tone === "light" ? " light" : ""}${className ? ` ${className}` : ""}`}>
-      <LogoMark size={size} tone={tone === "light" ? "paper" : "ink"} />
-      <span className="brand-words">
-        <span className="brand-name">trilliant<span className="brand-dot" aria-hidden /></span>
-        {sub && <span className="brand-sub">{sub}</span>}
-      </span>
+    <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden>
+      <rect width="48" height="48" rx="11" fill={INK} />
+      <g transform="translate(7 13.4) scale(0.5)"><Glyph color={PAPER} /></g>
+    </svg>
+  );
+}
+
+/** Letters + descriptor. `tone="light"` for dark backgrounds. */
+export function Logo({ height = 24, sub, tone = "auto", className }: { height?: number; sub?: string; tone?: "auto" | "light"; className?: string }) {
+  return (
+    <span className={`brand-lockup${tone === "light" ? " light" : ""}${className ? ` ${className}` : ""}`} aria-label="ABM">
+      <LogoType height={height} tone={tone === "light" ? "paper" : "ink"} />
+      {sub && <span className="brand-sub">{sub}</span>}
     </span>
   );
 }

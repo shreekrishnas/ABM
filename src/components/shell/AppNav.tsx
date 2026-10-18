@@ -42,7 +42,7 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
     <header className="nav">
       <div className="nav-row">
         <Link href="/" className="nav-brand" aria-label="Home">
-          <Logo size={34} sub="Account intelligence" />
+          <Logo height={26} sub="Account intelligence" />
         </Link>
 
         {trail.length > 0 && (
