@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Globe, LogOut, Moon, Search, Sun } from "lucide-react";
 import { signOutAction } from "@/app/login/actions";
+import { Logo } from "@/components/brand/Logo";
 import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
@@ -36,17 +37,12 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
   }
   const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 ? at.section.items : [];
   const sectionCount = (items: (typeof SECTIONS)[number]["items"]) => items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
-  const initials = sellerName.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <header className="nav">
       <div className="nav-row">
         <Link href="/" className="nav-brand" aria-label="Home">
-          <span className="nav-mark" aria-hidden>{initials}</span>
-          <span className="nav-brand-text">
-            <span className="nav-brand-name">{sellerName}</span>
-            <span className="nav-brand-sub">Account intelligence</span>
-          </span>
+          <Logo size={34} sub="Account intelligence" />
         </Link>
 
         {trail.length > 0 && (

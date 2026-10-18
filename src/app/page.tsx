@@ -6,6 +6,7 @@ import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { signOutAction } from "./login/actions";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
+import { LogoMark } from "@/components/brand/Logo";
 import { CountUp, RailLink, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
@@ -19,15 +20,6 @@ const avatarColor = (s: string) => AVATAR[[...s].reduce((h, c) => (h * 31 + c.ch
 function greeting(d: Date) {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(d));
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
-
-function SparkleMark() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9L12 2.5z" fill="#fff" />
-      <path d="M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" fill="#fff" opacity=".8" />
-    </svg>
-  );
 }
 
 /** Home: live numbers first, then the two ways in (Workspace, Import), then what just happened. */
@@ -81,7 +73,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     <div className="hs-outer">
       <div className="hs-shell glass-panel">
         <nav className="hs-rail" aria-label="Main">
-          <Link href="/" className="hs-logo" aria-label="Home"><SparkleMark /></Link>
+          <Link href="/" className="hs-logo" aria-label="Home"><LogoMark size={40} /></Link>
           <div className="hs-rail-items">
             <RailLink href="/" label="Home"><HomeIcon size={20} strokeWidth={2} /></RailLink>
             <RailLink href="/import" label="Import"><Upload size={20} strokeWidth={2} /></RailLink>

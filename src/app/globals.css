@@ -1174,3 +1174,15 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 .hs-usermenu-pop .who { padding: 0.5rem 0.65rem 0.6rem; font-size: 0.78rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.35rem; word-break: break-all; }
 .hs-usermenu-pop a, .hs-usermenu-pop button { display: block; width: 100%; text-align: left; padding: 0.5rem 0.65rem; border-radius: 0.6rem; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
 .hs-usermenu-pop a:hover, .hs-usermenu-pop button:hover { background: var(--surface-hover); }
+
+/* ── Brand lockup: "t." mark + wordmark. Flat: no gradients, glows or shadows. ── */
+.brand-lockup { display: inline-flex; align-items: center; gap: 0.65rem; min-width: 0; }
+.brand-lockup svg { flex-shrink: 0; }
+.brand-words { display: flex; flex-direction: column; min-width: 0; line-height: 1.05; }
+.brand-name { display: inline-flex; align-items: baseline; font-family: var(--font-ui); font-size: 1.2rem; font-weight: 800; letter-spacing: -0.055em; color: var(--text-primary); }
+.brand-dot { display: inline-block; width: 0.26em; height: 0.26em; margin-left: 0.07em; background: #A855F7; }
+.brand-sub { margin-top: 3px; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.04em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.brand-lockup.light .brand-name { color: #F4F1FB; font-size: 1.45rem; }
+.brand-lockup.light .brand-sub { color: #a5a1d6; }
+.hs-logo { background: none !important; box-shadow: none !important; width: auto !important; height: auto !important; }
+@media (max-width: 640px) { .nav-brand .brand-words { display: none; } }

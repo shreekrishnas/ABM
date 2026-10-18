@@ -1,5 +1,6 @@
 import { allowedDomains, authSecret } from "@/lib/auth";
 import { LoginForm } from "./form";
+import { Logo } from "@/components/brand/Logo";
 
 export const metadata = { title: "Sign in" };
 
@@ -31,12 +32,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
       <main className="lg-wrap">
         <section className="lg-hero">
-          <div className="lg-brand">
-            <span className="lg-mark" aria-hidden>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9L12 2.5z" fill="#fff" /><path d="M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" fill="#fff" opacity=".8" /></svg>
-            </span>
-            <span><b>Trilliant Digital</b><small>Account intelligence</small></span>
-          </div>
+          <div className="lg-brand"><Logo size={46} tone="light" sub="Account intelligence" /></div>
           <h1 className="lg-headline">Know who&apos;s ready to buy <span>before they raise their hand.</span></h1>
           <p className="lg-lede">Research, buying signals, website visitors and drafted outreach for every target account, in one place.</p>
           <ul className="lg-points">
