@@ -43,7 +43,6 @@ export function authorize(req: Request, opts: { alsoAccept?: (string | undefined
 export function securityStatus() {
   return {
     signIn: Boolean(env("AUTH_SECRET") || env("CRON_SECRET")),
-    signInCodes: Boolean(env("SMTP_URL")),
     apiKey: Boolean(env("ABM_API_KEY")),
     cronSecret: Boolean(env("CRON_SECRET")),
     apiOpen: !env("ABM_API_KEY") && apiMayBeOpen(),

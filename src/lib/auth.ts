@@ -1,12 +1,8 @@
 // Sign-in for the team: only addresses on the allowed domain(s) get in.
-// With SMTP_URL set, a 6-digit code is emailed and must be entered (proves the inbox).
-// Sessions and pending codes are HMAC-signed cookies (Web Crypto, so the proxy can read them).
+// Sessions are HMAC-signed cookies (Web Crypto, so the proxy can read them).
 
 export const SESSION_COOKIE = "abm_session";
-export const CODE_COOKIE = "abm_code";
 export const SESSION_DAYS = 14;
-const CODE_MINUTES = 10;
-export const MAX_CODE_TRIES = 5;
 
 /** Allowed email domains, from AUTH_EMAIL_DOMAINS (comma-separated). */
 export function allowedDomains(): string[] {
@@ -67,14 +63,5 @@ export async function verify<T extends { exp: number }>(token: string | undefine
 }
 
 export type Session = { email: string; exp: number };
-export type PendingCode = { email: string; hash: string; tries: number; exp: number };
 
 export const sessionToken = (email: string, secret: string) => sign({ email, exp: Date.now() + SESSION_DAYS * 86_400_000 } satisfies Session, secret);
-
-export async function codeHash(code: string, email: string, secret: string) {
-  return hmac(secret, `code:${email}:${code}`);
-}
-
-export const newCode = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
-export const codeExpiry = () => Date.now() + CODE_MINUTES * 60_000;
-export const CODE_MINUTES_LEFT = CODE_MINUTES;

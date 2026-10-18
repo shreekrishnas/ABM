@@ -1140,18 +1140,14 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 .lg-sub b { color: #e9e7ff; font-weight: 600; }
 .lg-field { display: block; margin-top: 1.75rem; }
 .lg-field span { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a5a1d6; }
-.lg-field input, .lg-code input { width: 100%; height: 52px; padding: 0 1rem; border-radius: 0.9rem; background: rgba(7, 6, 26, 0.55); border: 1px solid rgba(196, 181, 253, 0.22); color: #fff; font-size: 1rem; outline: none; transition: border-color 150ms, box-shadow 150ms, background 150ms; }
+.lg-field input { width: 100%; height: 52px; padding: 0 1rem; border-radius: 0.9rem; background: rgba(7, 6, 26, 0.55); border: 1px solid rgba(196, 181, 253, 0.22); color: #fff; font-size: 1rem; outline: none; transition: border-color 150ms, box-shadow 150ms, background 150ms; }
 .lg-field input::placeholder { color: #6e6a9e; }
-.lg-field input:focus, .lg-code input:focus { border-color: #a78bfa; background: rgba(7, 6, 26, 0.75); box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.18); }
-.lg-code { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.6rem; margin-top: 1.75rem; }
-.lg-code input { height: 60px; padding: 0; text-align: center; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lg-field input:focus { border-color: #a78bfa; background: rgba(7, 6, 26, 0.75); box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.18); }
 .lg-btn { margin-top: 1.25rem; width: 100%; height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 0.9rem; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; font-size: 0.975rem; font-weight: 700; box-shadow: 0 12px 30px -8px rgba(124, 58, 237, 0.7); transition: transform 200ms, box-shadow 200ms, opacity 150ms; }
 .lg-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 36px -8px rgba(124, 58, 237, 0.9); }
 .lg-btn:disabled { opacity: 0.75; }
 .lg-spin { animation: spin 0.8s linear infinite; }
 .lg-error { margin-top: 0.9rem; padding: 0.65rem 0.85rem; border-radius: 0.7rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #fecaca; font-size: 0.85rem; }
-.lg-link { margin-top: 1rem; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; color: #c4b5fd; }
-.lg-link:hover { color: #fff; }
 .lg-fine { margin-top: 1rem; font-size: 0.8rem; color: #8b87bd; text-align: center; }
 
 @media (max-width: 900px) {
@@ -1160,7 +1156,6 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
   .lg-points, .lg-lede { display: none; }
   .lg-headline { font-size: 2rem; }
   .lg-card { padding: 1.75rem 1.25rem; }
-  .lg-code { gap: 0.4rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lg-aurora, .lg-grid, .lg-net line, .lg-node, .lg-headline span, .lg-pulse::after, .lg-card::before, .lg-form { animation: none !important; }

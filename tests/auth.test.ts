@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codeHash, domainAllowed, normalizeEmail, sessionToken, sign, verify, type Session } from "@/lib/auth";
+import { domainAllowed, normalizeEmail, sessionToken, sign, verify, type Session } from "@/lib/auth";
 
 describe("sign-in", () => {
   it("only lets the allowed domain in", () => {
@@ -21,10 +21,5 @@ describe("sign-in", () => {
     expect(await verify<Session>(`${forged}.${sig}`, "s1")).toBeNull();
     expect(await verify<Session>(`${body}x.${sig}`, "s1")).toBeNull();
     expect(await verify(await sign({ email: "a", exp: Date.now() - 1 }, "s1"), "s1")).toBeNull();
-  });
-
-  it("ties a code to one email", async () => {
-    expect(await codeHash("123456", "a@x.com", "s")).toBe(await codeHash("123456", "a@x.com", "s"));
-    expect(await codeHash("123456", "a@x.com", "s")).not.toBe(await codeHash("123456", "b@x.com", "s"));
   });
 });

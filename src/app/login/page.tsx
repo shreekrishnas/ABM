@@ -11,7 +11,6 @@ const LINKS: [number, number][] = [[0, 2], [2, 1], [1, 3], [2, 9], [9, 4], [9, 6
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;
   const domains = allowedDomains();
-  const codes = Boolean(process.env.SMTP_URL?.trim());
   return (
     <div className="lg-root">
       <div className="lg-bg" aria-hidden>
@@ -43,7 +42,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </section>
 
         <section className="lg-card" aria-label="Sign in">
-          <LoginForm next={next ?? ""} domains={domains} codes={codes} ready={Boolean(authSecret())} />
+          <LoginForm next={next ?? ""} domains={domains} ready={Boolean(authSecret())} />
         </section>
       </main>
     </div>
