@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { CheckCircle2, Upload } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Flame, HelpCircle, MessageSquareReply, Repeat, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { nextAction } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import { ActionButton } from "@/components/client";
 import { Avatar } from "@/components/ui";
-import { FamilyChip, IntentPill, QueueRow, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
+import { FamilyChip, IntentPill, QueueRow, StatStrip, type IntentLevel } from "@/components/v2";
 import { runAllAction } from "../../actions";
 import { TopOpportunities } from "./top-opportunities";
 
@@ -38,19 +38,36 @@ export default async function Today() {
   const total = replies.length + approvalsCount + followUps.length + decisions.length;
   const hour = now.getHours();
 
+  const lanes = [
+    { id: "replies", label: "Replies", n: replies.length, icon: MessageSquareReply, tone: "emerald" },
+    { id: "approvals", label: "To approve", n: approvalsCount, icon: ClipboardCheck, tone: "amber" },
+    { id: "followups", label: "Follow-ups", n: followUps.length, icon: Repeat, tone: "sky" },
+    { id: "decisions", label: "Decisions", n: decisions.length, icon: HelpCircle, tone: "violet" },
+  ];
+  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="page-enter mx-auto max-w-[1180px]">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="eyebrow">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
-          <h1 className="page-title mt-1">{hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"}. {total ? `${total} thing${total > 1 ? "s" : ""} need you today.` : "Nothing needs you right now."}</h1>
-          <p className="secondary mt-1.5 text-sm">Research, scoring and drafting run on their own. This page shows only what a person has to do.</p>
+    <div className="page-enter td">
+      <section className="td-hero">
+        <div className="td-hero-main">
+          <div className="td-date">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
+          <h1 className="td-title">{greet}.</h1>
+          <p className="td-lede">{total ? <><b>{total} thing{total > 1 ? "s" : ""}</b> need a person today. Everything else runs on its own.</> : "Nothing needs you right now. Research, scoring and drafting are running on their own."}</p>
+          <div className="td-actions">
+            <ActionButton action={runAllAction} className="td-btn-primary">Process new companies</ActionButton>
+            <Link href="/import" className="td-btn-ghost"><Upload size={15} /> Import</Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Link href="/import" className="btn btn-secondary"><Upload size={15} /> Import</Link>
-          <ActionButton action={runAllAction} className="btn btn-brand">Process new companies</ActionButton>
+        <div className="td-lanes">
+          {lanes.map((l) => (
+            <a key={l.id} href={`#${l.id}`} className={`td-lane t-${l.tone}${l.n ? " has" : ""}`}>
+              <span className="td-lane-ic"><l.icon size={17} strokeWidth={2} /></span>
+              <span className="td-lane-n tnum">{l.n}</span>
+              <span className="td-lane-l">{l.label}</span>
+            </a>
+          ))}
         </div>
-      </div>
+      </section>
 
       <StatStrip items={[
         { label: "Hot companies", value: hotRaw.length, meta: "signals converging" },
@@ -61,9 +78,8 @@ export default async function Today() {
 
       <TopOpportunities now={now} />
 
-      <div className="grid gap-x-6 lg:grid-cols-2">
-        <div>
-          <SectionLabel count={replies.length}>Reply to people who answered</SectionLabel>
+      <div className="td-grid">
+        <Panel id="replies" icon={MessageSquareReply} tone="emerald" title="Reply to people who answered" count={replies.length}>
           {replies.length === 0 ? <Clear text="No open replies." /> : (
             <div className="queue stagger">
               {replies.map((j) => (
@@ -76,19 +92,9 @@ export default async function Today() {
               ))}
             </div>
           )}
+        </Panel>
 
-          <SectionLabel count={followUps.length}>Follow-ups due on LinkedIn</SectionLabel>
-          {followUps.length === 0 ? <Clear text="No follow-ups due." /> : (
-            <div className="queue">
-              {followUps.map(({ j, n }) => (
-                <QueueRow key={j.id} href={`/people/${j.contactId}`} rail="var(--fam-conversation)" title={`${j.contact.fullName} · ${j.contact.account.name}`} sub={`${n.text} · ${j.sender.name}`} action="Do it" />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <SectionLabel count={hotRaw.length} action={<Link href="/accounts?sort=intent" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All companies</Link>}>Hot companies to act on now</SectionLabel>
+        <Panel id="hot" icon={Flame} tone="rose" title="Hot companies to act on now" count={hotRaw.length} action={<Link href="/accounts?sort=intent" className="td-link">All companies</Link>}>
           {hot.length === 0 ? <Clear text="No company is hot yet. Hot needs at least two independent signals agreeing." /> : (
             <div className="queue stagger">
               {hot.map((a) => (
@@ -101,8 +107,9 @@ export default async function Today() {
               ))}
             </div>
           )}
+        </Panel>
 
-          <SectionLabel count={approvalsCount} action={approvalsCount > approvals.length ? <Link href="/review" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All {approvalsCount}</Link> : undefined}>Emails waiting for your approval</SectionLabel>
+        <Panel id="approvals" icon={ClipboardCheck} tone="amber" title="Emails waiting for your approval" count={approvalsCount} action={approvalsCount > approvals.length ? <Link href="/review" className="td-link">All {approvalsCount}</Link> : undefined}>
           {approvals.length === 0 ? <Clear text="Nothing to approve." /> : (
             <div className="queue">
               {approvals.map((d) => (
@@ -110,8 +117,19 @@ export default async function Today() {
               ))}
             </div>
           )}
+        </Panel>
 
-          <SectionLabel count={decisions.length}>Needs a decision</SectionLabel>
+        <Panel id="followups" icon={Repeat} tone="sky" title="Follow-ups due on LinkedIn" count={followUps.length}>
+          {followUps.length === 0 ? <Clear text="No follow-ups due." /> : (
+            <div className="queue">
+              {followUps.map(({ j, n }) => (
+                <QueueRow key={j.id} href={`/people/${j.contactId}`} rail="var(--fam-conversation)" title={`${j.contact.fullName} · ${j.contact.account.name}`} sub={`${n.text} · ${j.sender.name}`} action="Do it" />
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel id="decisions" icon={HelpCircle} tone="violet" title="Needs a decision" count={decisions.length}>
           {decisions.length === 0 ? <Clear text="No open questions." /> : (
             <div className="queue">
               {decisions.map((r) => (
@@ -119,12 +137,26 @@ export default async function Today() {
               ))}
             </div>
           )}
-        </div>
+        </Panel>
       </div>
     </div>
   );
 }
 
+function Panel({ id, icon: Icon, tone, title, count, action, children }: { id: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; tone: string; title: string; count: number; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section id={id} className={`td-panel t-${tone}`}>
+      <header className="td-panel-head">
+        <span className="td-panel-ic"><Icon size={17} strokeWidth={2} /></span>
+        <h2>{title}</h2>
+        <span className={`td-count tnum${count ? " has" : ""}`}>{count}</span>
+        {action && <span className="ml-auto">{action}</span>}
+      </header>
+      <div className="td-panel-body">{children}</div>
+    </section>
+  );
+}
+
 function Clear({ text }: { text: string }) {
-  return <div className="flex items-center gap-2 rounded-2xl px-4 py-3 text-sm secondary read-surface" style={{ border: "1px dashed var(--border-default)" }}><CheckCircle2 size={16} style={{ color: "var(--ok)" }} /> {text}</div>;
+  return <div className="td-clear"><CheckCircle2 size={16} /> {text}</div>;
 }

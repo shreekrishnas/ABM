@@ -19,6 +19,29 @@ import { PipelineStepper, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
 
+const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
+function brandColor(id: string) {
+  let h = 0;
+  for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h);
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+
+/** Priority 0–100 as a ring: purple→indigo arc on a soft track, the number in Fraunces. */
+function PriorityRing({ score }: { score: number | null }) {
+  const r = 46, c = 2 * Math.PI * r, v = score ?? 0;
+  return (
+    <div className="co-ring-svg">
+      <svg viewBox="0 0 108 108" width="108" height="108" aria-hidden>
+        <defs><linearGradient id="co-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7C3AED" /><stop offset="1" stopColor="#4F46E5" /></linearGradient></defs>
+        <circle cx="54" cy="54" r={r} fill="none" stroke="var(--accent-primary-soft, rgba(124,58,237,0.1))" strokeWidth="9" />
+        {v > 0 && <circle cx="54" cy="54" r={r} fill="none" stroke="url(#co-ring)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${(c * v) / 100} ${c}`} transform="rotate(-90 54 54)" />}
+      </svg>
+      <span className="co-ring-n tnum">{score ?? "—"}</span>
+      <span className="co-ring-l">Priority</span>
+    </div>
+  );
+}
+
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await ensureSellerPacks();
   const { id } = await params;
@@ -70,63 +93,72 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     <div className="page-enter">
       <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: a.name, href: tab !== "overview" ? `/accounts/${a.id}` : undefined }, ...(tab !== "overview" ? [{ label: TAB_LABEL[tab] ?? tab }] : [])]} />
 
-      <div className="glass-card-static read card-pad mb-5 overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar name={a.name} id={a.id} size={56} />
+      <section className="co-hero" style={{ ["--co" as string]: brandColor(a.id) }}>
+        <div className="co-top">
+          <div className="co-id">
+            <Avatar name={a.name} id={a.id} size={64} />
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="page-title truncate">{a.name}</h1>
+              <div className="co-kicker">{[a.industry ?? "Industry unknown", [a.city, a.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</div>
+              <h1 className="co-name">{a.name}</h1>
+              <div className="co-badges">
                 <StageBadge stage={a.stage} />
                 <TierBadge tier={a.tier} />
                 {a.relationship !== "prospect" && <Badge color="#475569">{a.relationship}</Badge>}
+                {a.domain && <a href={`https://${a.domain}`} target="_blank" rel="noreferrer" className="co-link">{a.domain}<ExternalLink size={11} /></a>}
+                {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer" className="co-link">LinkedIn<ExternalLink size={11} /></a>}
               </div>
-              <div className="mono muted mt-1 flex flex-wrap gap-x-3">
-                {a.domain ? <a href={`https://${a.domain}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">{a.domain}<ExternalLink size={11} /></a> : <span>no domain</span>}
-                <span>{a.industry ?? "industry unknown"}</span>
-                <span>{a.employees ? `${a.employees.toLocaleString()} employees` : "size unknown"}</span>
-                <span>{[a.city, a.country].filter(Boolean).join(", ") || "—"}</span>
-                {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">LinkedIn<ExternalLink size={11} /></a>}
-                <span>owner: {a.owner?.name ?? "unassigned"}</span>
-                {a.technologies.length > 0 && <span>stack: {a.technologies.join(", ")}</span>}
-              </div>
-              {a.keywords.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{a.keywords.slice(0, 12).map((k) => <Badge key={k} color="#64748B">{k}</Badge>)}</div>}
-              {a.companyNotes && <div className="secondary mt-2 text-xs">{a.companyNotes}</div>}
-              {a.disqualifyReason && <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#B45309" }}><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
-              {a.watchlist[0] && <div className="mt-2 text-xs secondary">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="co-actions">
             <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-brand" title="Continue from the next stage"><Play size={15} /> Run pipeline</ActionButton>
             <ActionButton action={runAccountAction.bind(null, a.id, 5)} className="btn btn-secondary" title="Re-plan and re-research (loop counters are kept)"><RotateCcw size={15} /> Re-research</ActionButton>
             <ActionButton action={manualHandoffAction.bind(null, a.id)} className="btn btn-secondary" confirm="Hand this account to its owner now? Automated outreach will pause."><Handshake size={15} /> Hand off</ActionButton>
           </div>
         </div>
 
-        {reading && (
-          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="micro">Buying intent</span>
-                <IntentPill level={reading.level} score={reading.score} title={reading.explain} />
-                {reading.families.map((f) => <FamilyChip key={f} family={f} />)}
-              </div>
-              {reading.whyNow && <p className="secondary mt-2 text-sm"><b style={{ color: "var(--text-primary)" }}>Why now:</b> {reading.whyNow}</p>}
-            </div>
+        <div className="co-body">
+          <div className="co-ring" title="Priority: intent, fit, value and timing">
+            <PriorityRing score={a.priorityScore} />
+            {(() => { const pp = a.priorityParts as { intent: number; fit: number; value: number; timing: number } | null; return pp ? (
+              <ul className="co-parts">
+                {([["Intent", pp.intent, "#F43F5E"], ["Fit", pp.fit, "#6366F1"], ["Value", pp.value, "#10B981"], ["Timing", pp.timing, "#F59E0B"]] as const).map(([l, v, c]) => (
+                  <li key={l}><span>{l}</span><span className="co-part-bar"><i style={{ width: `${v}%`, background: c }} /></span><b className="tnum">{v}</b></li>
+                ))}
+              </ul>
+            ) : <p className="co-muted">Scored after research · fit {a.fitScore ?? "—"}</p>; })()}
+          </div>
+
+          <div className="co-intent">
+            <div className="co-label">Buying intent</div>
+            {reading ? (
+              <>
+                <div className="co-intent-row"><IntentPill level={reading.level} score={reading.score} title={reading.explain} />{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</div>
+                {reading.whyNow && <p className="co-why"><b>Why now:</b> {reading.whyNow}</p>}
+              </>
+            ) : <p className="co-muted">No buying signals read yet.</p>}
+            {brief?.nextBestAction && <div className="mt-3"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
+            {a.disqualifyReason && <div className="co-warn"><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
+            {a.watchlist[0] && <div className="co-muted mt-2">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
+          </div>
+
+          <dl className="co-facts">
+            <div><dt>Employees</dt><dd className="tnum">{a.employees ? a.employees.toLocaleString() : "—"}</dd></div>
+            <div><dt>Owner</dt><dd>{a.owner?.name ?? "Unassigned"}</dd></div>
+            <div><dt>Data we trust</dt><dd className="tnum">{a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—"}</dd></div>
+            <div><dt>Engagement</dt><dd className="tnum">{Math.round(a.engagementScore)}<small> / {CONFIG.engagement.stages.MQA} to sales</small></dd></div>
+            <div><dt>Progress</dt><dd>{stageName}<small>{PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus}</small></dd></div>
+            {a.technologies.length > 0 && <div className="wide"><dt>Stack</dt><dd>{a.technologies.join(", ")}</dd></div>}
+          </dl>
+        </div>
+
+        {(a.keywords.length > 0 || a.companyNotes) && (
+          <div className="co-foot">
+            {a.keywords.slice(0, 14).map((k) => <span key={k} className="co-tag">{k}</span>)}
+            {a.companyNotes && <p className="co-muted w-full">{a.companyNotes}</p>}
           </div>
         )}
-        <div className="mt-4 max-w-2xl"><PipelineStepper current={accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })} stopped={a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null} /></div>
-        {brief?.nextBestAction && <div className="mt-4"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
-
-        <div className="mt-4">
-          <StatStrip items={[
-            (() => { const pp = a.priorityParts as { intent: number; fit: number; value: number; timing: number } | null; return { label: "Priority", value: a.priorityScore ?? "—", meta: pp ? `intent ${pp.intent} · fit ${pp.fit} · value ${pp.value} · timing ${pp.timing}` : `fit ${a.fitScore ?? "—"} · scored after research` }; })(),
-            { label: "Data we trust", value: a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—", meta: "verified share of fields" },
-            { label: "Engagement", value: Math.round(a.engagementScore), meta: `sales-ready at ${CONFIG.engagement.stages.MQA}` },
-            { label: "Progress", value: <span style={{ fontSize: "1.05rem" }}>{stageName}</span>, meta: PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus },
-          ]} />
-        </div>
-      </div>
+        <div className="co-stepper"><PipelineStepper current={accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })} stopped={a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null} /></div>
+      </section>
 
       <TabLinks
         base={`/accounts/${a.id}`}
