@@ -4,7 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
-import type { MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
+import type { BrainSuggestInput, MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
 import { inferFunction } from "@/lib/pipeline/normalize";
@@ -327,5 +327,18 @@ export class OpenRouterLLM implements LLM {
       1500,
     );
     return out.items.filter((x) => pages[x.page]);
+  }
+
+  async suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]> {
+    if (!input.context.length) return [];
+    const schema = z.object({ items: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v.join(", ") : String(v))))).max(input.single ? 1 : 8) });
+    const fields = input.fields.map((f) => `${f.key} (${f.label}${f.kind === "list" ? ", comma-separated" : ""}${f.options ? `, one of: ${f.options.join("/")}` : ""}${f.kind === "bool" ? ", true or false" : ""})`).join("; ");
+    const out = await this.json(
+      schema,
+      `You help fill in an account-based marketing brain for ${input.account}. Section: ${input.section}. Find ${input.ask}. Use ONLY what the pages and files below say; never invent customers, numbers or claims. Skip anything already listed. Write plainly and briefly. Each item has these fields: ${fields}.`,
+      `Already in this section:\n${input.existing.slice(0, 30).map((e) => `- ${e}`).join("\n") || "- nothing yet"}\n\n${input.context.map((c, i) => `[source ${i}] ${c.title}${c.url ? ` (${c.url})` : ""}\n${c.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items": [{...}]}${input.single ? " with exactly one item" : " with up to 8 items"}.`,
+      1500,
+    );
+    return out.items;
   }
 }

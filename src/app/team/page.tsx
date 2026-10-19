@@ -3,7 +3,7 @@ import { ShieldCheck, UserPlus, Building2, History } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { allowedDomains } from "@/lib/auth";
-import { SELLERS } from "@/lib/seller";
+import Link from "next/link";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
 import { addClientAction, addUserAction, setAssignmentAction, setUserStatusAction } from "./actions";
@@ -74,18 +74,25 @@ export default async function TeamPage() {
             <SubmitButton className="btn btn-primary">Add</SubmitButton>
           </ActionForm>
         </Card>
-        <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Clients</span>} sub="Each client is its own workspace.">
+        <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Accounts</span>} sub="Each account is its own workspace with its own brain.">
           <ul className="mb-3 grid gap-1.5 text-sm">
             {clients.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{c.name}</span>
-                <span className="muted text-xs">{c._count.users} user{c._count.users === 1 ? "" : "s"}{SELLERS[c.id] ? "" : " · needs a seller pack before research"}</span>
+                <span className="muted text-xs"><Link href={`/brain?client=${c.id}`} className="underline">Brain</Link> · {c._count.users} user{c._count.users === 1 ? "" : "s"}</span>
               </li>
             ))}
           </ul>
-          <ActionForm action={addClientAction} className="flex gap-2">
-            <input name="name" className="glass-input min-w-0 flex-1" placeholder="Client name" aria-label="Client name" required />
-            <SubmitButton className="btn btn-secondary">Add client</SubmitButton>
+          <ActionForm action={addClientAction} className="grid gap-3">
+            <label className="grid gap-1.5"><span className="text-xs font-semibold">Account name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
+            <fieldset className="grid gap-1.5"><legend className="mb-1 text-xs font-semibold">Assigned people</legend>
+              <div className="flex flex-wrap gap-2">
+                {users.filter((u) => u.status === "active").map((u) => (
+                  <label key={u.id} className="tm-pick"><input type="checkbox" name="users" value={u.id} /> {u.name}</label>
+                ))}
+              </div>
+            </fieldset>
+            <SubmitButton className="btn btn-primary justify-self-start">Add account</SubmitButton>
           </ActionForm>
         </Card>
       </div>

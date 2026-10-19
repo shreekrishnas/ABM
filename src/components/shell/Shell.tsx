@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, Handshake, Home as HomeIcon, LogOut, Send, Settings2, ShieldCheck, Sun, Upload, Users } from "lucide-react";
+import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LogOut, Send, Settings2, ShieldCheck, Sun, Upload, Users } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchModeAction } from "@/app/login/actions";
 import { isOn, locate, type Counts } from "@/lib/nav";
@@ -12,6 +12,7 @@ import { isOn, locate, type Counts } from "@/lib/nav";
 const RAIL = [
   { key: "home", href: "/", label: "Home", icon: HomeIcon },
   { key: "import", href: "/import", label: "Import", icon: Upload },
+  { key: "brain", href: "/brain", label: "Account Brain", icon: Brain },
   { key: "today", href: "/work/today", label: "Today", icon: Sun },
   { key: "research", href: "/accounts", label: "Research", icon: Building2 },
   { key: "outreach", href: "/review", label: "Email drafting", icon: Send, count: "review" as const },
@@ -28,7 +29,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   if (access?.state === "removed") return <Gate title="Your access has been removed" text="Ask ShreeKrishna if you think this is a mistake." />;
   if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text="You're on the team, but no client is assigned to you yet. ShreeKrishna will assign one; this page opens up as soon as he does." />;
   const at = locate(path);
-  const active = isOn(path, "/team") ? "team" : at.area === "home" ? "home" : at.area === "import" ? "import" : isOn(path, "/settings") ? "settings" : (at.section?.key ?? "");
+  const active = isOn(path, "/team") ? "team" : isOn(path, "/brain") ? "brain" : at.area === "home" ? "home" : at.area === "import" ? "import" : isOn(path, "/settings") ? "settings" : (at.section?.key ?? "");
   const sup = Boolean(access?.superAdmin);
   return (
     <div className="sh-outer">

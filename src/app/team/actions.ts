@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { allowedDomains, domainAllowed, normalizeEmail } from "@/lib/auth";
 import { audit, requireSuperAdmin } from "@/lib/me";
 import type { ActionState } from "../actions";
+import type { Prisma } from "@prisma/client";
+import { starterPack } from "@/lib/seller/brain";
+import { hashPack } from "@/lib/seller";
 
 const fail = (e: unknown): ActionState => ({ ok: false, message: e instanceof Error ? e.message : "Something went wrong" });
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -61,14 +64,19 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
   try {
     const me = await requireSuperAdmin();
     const name = text(fd, "name");
-    if (!name || name.length > 80) return { ok: false, message: "Enter the client's name" };
+    if (!name || name.length > 80) return { ok: false, message: "Enter the account name" };
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
     if (!id) return { ok: false, message: "Use letters or numbers in the name" };
     if (await db.client.findUnique({ where: { id } })) return { ok: false, message: `${name} already exists` };
-    await db.client.create({ data: { id, name } });
-    await audit(me.email, "client.add", { target: name, clientId: id, after: { id, name } });
+    const userIds = fd.getAll("users").filter((v): v is string => typeof v === "string");
+    const people = await db.user.findMany({ where: { id: { in: userIds }, status: "active" }, select: { id: true, email: true, name: true } });
+    await db.client.create({ data: { id, name, users: { create: people.map((u) => ({ userId: u.id })) } } });
+    // A blank brain to fill in; research waits until it is complete.
+    const pack = starterPack(id, name);
+    await db.sellerPackRevision.create({ data: { sellerId: id, pack: pack as unknown as Prisma.InputJsonValue, version: hashPack(pack), changed: ["created"], note: `Created by ${me.email}` } });
+    await audit(me.email, "client.add", { target: name, clientId: id, after: { id, name, assigned: people.map((u) => u.email) } });
     revalidatePath("/team");
-    return { ok: true, message: `${name} added. Assign people to it below.` };
+    return { ok: true, message: `${name} added${people.length ? ` with ${people.map((u) => u.name.split(" ")[0]).join(", ")}` : ""}. Fill in its brain next.` };
   } catch (e) {
     return fail(e);
   }

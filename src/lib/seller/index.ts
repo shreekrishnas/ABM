@@ -63,10 +63,12 @@ const rejected = new Map<string, { revisionId: string; problems: string[] }>();
 export async function ensureSellerPacks(): Promise<void> {
   let latest: { id: string; sellerId: string; pack: unknown; createdAt: Date }[];
   try {
+    // Built-in packs plus every client workspace created in the app.
+    const clients = await db.client.findMany({ select: { id: true } }).catch(() => [] as { id: string }[]);
     latest = await db.sellerPackRevision.findMany({
-      where: { sellerId: { in: Object.keys(SELLERS) } },
+      where: { sellerId: { in: [...new Set([...Object.keys(SELLERS), ...clients.map((c) => c.id)])] } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      distinct: ["sellerId"],
+      take: 300,
       select: { id: true, sellerId: true, pack: true, createdAt: true },
     });
   } catch {
@@ -74,15 +76,20 @@ export async function ensureSellerPacks(): Promise<void> {
   }
   overrides.clear();
   rejected.clear();
+  // Newest first: the first complete revision per seller wins. A newer incomplete one (a brain
+  // being filled in) is reported but never replaces the last complete version in runs.
+  const decided = new Set<string>();
   for (const r of latest) {
-    if (r.pack == null) continue; // reset to the built-in pack
+    if (decided.has(r.sellerId)) continue;
+    if (r.pack == null) { decided.add(r.sellerId); continue; } // reset to the built-in pack
     const pack = r.pack as SellerProfile;
     const problems = pack.id === r.sellerId ? validatePack(pack) : [`pack id "${pack.id}" does not match seller "${r.sellerId}"`];
     if (problems.length) {
-      rejected.set(r.sellerId, { revisionId: r.id, problems });
+      if (!rejected.has(r.sellerId)) rejected.set(r.sellerId, { revisionId: r.id, problems });
       continue;
     }
     overrides.set(r.sellerId, { revisionId: r.id, pack, savedAt: r.createdAt });
+    decided.add(r.sellerId);
   }
 }
 

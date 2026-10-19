@@ -9,6 +9,7 @@ import { classifyReplyRules } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import type { BrainStats, BriefInput, ClaimToCheck, PlanResearchInput } from "@/lib/brain/types";
 import type {
+  BrainSuggestInput,
   CritiqueInput,
   CritiqueOutput,
   Adapters,
@@ -329,6 +330,12 @@ class MockLLM implements LLM {
     for (const [i, p] of pages.entries())
       for (const m of MOCK_MARKET) if (p.text.includes(`${m.name} is a`) && m.name !== seed.name) out.push({ page: i, name: m.name, domain: null, reason: `${m.industry} peer`, quote: `${m.name} is a ${m.industry} company` });
     return out;
+  }
+
+  async suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]> {
+    if (!input.context.length) return [];
+    const item = Object.fromEntries(input.fields.map((f) => [f.key, f.kind === "bool" ? "false" : f.options ? f.options[0] : f.kind === "number" ? "100" : `Suggested ${f.label.toLowerCase()} from ${input.context[0].title}`]));
+    return [item];
   }
 
   classifyJourneyReply(text: string) {

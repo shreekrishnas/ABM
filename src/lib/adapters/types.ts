@@ -183,6 +183,8 @@ export interface LLM {
   extractMarketEvents(pages: ResearchPage[]): Promise<MarketEventExtract[]>;
   /** Lookalikes: companies the pages name as similar to / competing with the seed. `quote` must be exact words from the page. */
   extractSimilarCompanies(pages: ResearchPage[], seed: { name: string; industry: string | null }): Promise<SimilarCompanyExtract[]>;
+  /** Account Brain "AI fill": suggest items for one section from the account's pages and files. A person accepts or skips each. */
+  suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]>;
   /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
   classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
 }
@@ -239,4 +241,16 @@ export interface Adapters {
   intent: IntentProvider;
   notifier: Notifier;
   embedder: Embedder;
+}
+
+export interface BrainSuggestInput {
+  account: string;
+  section: string;
+  ask: string;
+  fields: { key: string; label: string; kind: string; options?: string[] }[];
+  /** What the brain already holds in this section, so suggestions add rather than repeat. */
+  existing: string[];
+  /** The account's website pages and uploaded files. */
+  context: { title: string; url?: string | null; text: string }[];
+  single: boolean;
 }

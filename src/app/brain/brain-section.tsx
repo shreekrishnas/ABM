@@ -1,0 +1,136 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Check, Loader2, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { toast } from "@/components/client";
+import type { BrainField, BrainItem, BrainSection as Spec } from "@/lib/seller/brain";
+import { saveBrainSectionAction, suggestBrainAction } from "./actions";
+
+const blank = (fields: BrainField[]): BrainItem => Object.fromEntries(fields.map((f) => [f.key, f.kind === "list" || f.kind === "lines" ? [] : f.kind === "bool" ? false : f.kind === "number" ? null : f.kind === "select" ? f.options?.[0]?.value ?? "" : ""]));
+const summary = (it: BrainItem, fields: BrainField[]) => {
+  const first = fields.find((f) => f.kind === "text" || f.kind === "select" || f.kind === "long");
+  const v = first ? it[first.key] : "";
+  const label = first?.kind === "select" ? first.options?.find((o) => o.value === v)?.label : v;
+  return String(label ?? "").trim() || "Untitled";
+};
+
+function Input({ field, value, onChange }: { field: BrainField; value: BrainItem[string]; onChange: (v: BrainItem[string]) => void }) {
+  if (field.kind === "long") return <textarea className="glass-input br-area" rows={3} value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
+  if (field.kind === "lines") return <textarea className="glass-input br-area" rows={3} value={Array.isArray(value) ? value.join("\n") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split("\n"))} onBlur={(e) => onChange(e.target.value.split("\n").map((x) => x.trim()).filter(Boolean))} />;
+  if (field.kind === "list") return <input className="glass-input" value={Array.isArray(value) ? value.join(", ") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split(",").map((x) => x.trimStart()))} onBlur={(e) => onChange(e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} />;
+  if (field.kind === "number") return <input className="glass-input tnum" type="number" inputMode="numeric" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
+  if (field.kind === "bool") return <label className="br-check"><input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} /> Yes</label>;
+  if (field.kind === "select") return <select className="glass-input" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>{field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+  return <input className="glass-input" value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
+}
+
+function Fields({ fields, item, onChange }: { fields: BrainField[]; item: BrainItem; onChange: (it: BrainItem) => void }) {
+  return (
+    <div className="br-fields">
+      {fields.map((f) => (
+        <label key={f.key} className={`br-field${f.kind === "long" || f.kind === "lines" ? " wide" : ""}`}>
+          <span>{f.label}</span>
+          <Input field={f} value={item[f.key]} onChange={(v) => onChange({ ...item, [f.key]: v })} />
+          {f.hint && <small>{f.hint}</small>}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** One brain section: edit, add, remove, replace; AI fill suggests items a person accepts or skips. */
+export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: string; spec: Spec; initial: BrainItem[]; canEdit: boolean }) {
+  const [items, setItems] = useState<BrainItem[]>(spec.single ? (initial.length ? initial : [blank(spec.fields)]) : initial);
+  const [open, setOpen] = useState<number | null>(spec.single ? 0 : null);
+  const [dirty, setDirty] = useState(false);
+  const [suggestions, setSuggestions] = useState<BrainItem[]>([]);
+  const [saving, startSave] = useTransition();
+  const [thinking, startThink] = useTransition();
+  const edit = (next: BrainItem[]) => { setItems(next); setDirty(true); };
+
+  const save = () => startSave(async () => {
+    const r = await saveBrainSectionAction(clientId, spec.key, items);
+    toast(r);
+    if (r?.ok) setDirty(false);
+  });
+  const fill = () => startThink(async () => {
+    const r = await suggestBrainAction(clientId, spec.key);
+    if (!r.ok) return toast({ ok: false, message: r.message });
+    setSuggestions(r.items);
+    toast({ ok: true, message: `${r.items.length} suggestion${r.items.length === 1 ? "" : "s"} below: accept or skip each` });
+  });
+  const accept = (s: BrainItem, i: number) => {
+    if (spec.single) {
+      const cur = items[0] ?? blank(spec.fields);
+      const merged = Object.fromEntries(spec.fields.map((f) => {
+        const old = cur[f.key];
+        const empty = old == null || old === "" || (Array.isArray(old) && !old.length);
+        return [f.key, empty ? s[f.key] : old];
+      })) as BrainItem;
+      edit([merged]);
+    } else edit([...items, s]);
+    setSuggestions(suggestions.filter((_, j) => j !== i));
+  };
+
+  return (
+    <section className="br-card" id={`brain-${spec.key}`}>
+      <header className="br-head">
+        <div className="min-w-0">
+          <h2>{spec.label}{!spec.single && <span className="br-count tnum">{items.length}</span>}</h2>
+          <p>{spec.help}</p>
+        </div>
+        {canEdit && (
+          <button type="button" className="br-ai" onClick={fill} disabled={thinking} title="Suggest items from the website and uploaded files">
+            {thinking ? <Loader2 size={15} className="lg-spin" /> : <Sparkles size={15} />} {spec.single ? "AI fill" : "AI suggest"}
+          </button>
+        )}
+      </header>
+
+      {spec.single ? (
+        <div className="br-body"><Fields fields={spec.fields} item={items[0]} onChange={(it) => canEdit && edit([it])} /></div>
+      ) : (
+        <ul className="br-list">
+          {items.length === 0 && <li className="br-empty">Nothing here yet. Add one, or let the AI suggest from the website and files.</li>}
+          {items.map((it, i) => (
+            <li key={i} className={`br-item${open === i ? " open" : ""}`}>
+              <div className="br-item-row">
+                <button type="button" className="br-item-title" onClick={() => setOpen(open === i ? null : i)}>{summary(it, spec.fields)}</button>
+                {canEdit && <button type="button" className="br-icon" aria-label="Remove" title="Remove" onClick={() => { edit(items.filter((_, j) => j !== i)); setOpen(null); }}><Trash2 size={15} /></button>}
+              </div>
+              {open === i && <Fields fields={spec.fields} item={it} onChange={(next) => canEdit && edit(items.map((x, j) => (j === i ? next : x)))} />}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="br-sugg">
+          <div className="br-sugg-head"><Sparkles size={14} /> AI suggestions <span>from the website and files: check before saving</span>
+            {!spec.single && <button type="button" className="br-link" onClick={() => { edit([...items, ...suggestions]); setSuggestions([]); }}>Accept all</button>}
+          </div>
+          {suggestions.map((sg, i) => (
+            <div key={i} className="br-sugg-item">
+              <div className="min-w-0 flex-1">
+                <b>{summary(sg, spec.fields)}</b>
+                <span>{spec.fields.slice(1).map((f) => (Array.isArray(sg[f.key]) ? (sg[f.key] as string[]).join(", ") : String(sg[f.key] ?? ""))).filter(Boolean).join(" · ").slice(0, 220)}</span>
+              </div>
+              <button type="button" className="br-icon ok" aria-label="Accept" title={spec.single ? "Fill the empty fields" : "Add to the list"} onClick={() => accept(sg, i)}><Check size={15} /></button>
+              <button type="button" className="br-icon" aria-label="Skip" title="Skip" onClick={() => setSuggestions(suggestions.filter((_, j) => j !== i))}><X size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canEdit && (
+        <footer className="br-foot">
+          {!spec.single && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { edit([...items, blank(spec.fields)]); setOpen(items.length); }}><Plus size={14} /> Add</button>}
+          {dirty && <span className="br-dirty">Unsaved changes</span>}
+          <span className="ml-auto flex gap-2">
+            {dirty && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setItems(spec.single ? (initial.length ? initial : [blank(spec.fields)]) : initial); setDirty(false); setSuggestions([]); }}><RotateCcw size={14} /> Discard</button>}
+            <button type="button" className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={14} className="lg-spin" /> : <Check size={14} />} Save</button>
+          </span>
+        </footer>
+      )}
+    </section>
+  );
+}
