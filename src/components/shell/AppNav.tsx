@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, Globe, LogOut, Moon, Search, Sun } from "lucide-react";
-import { signOutAction } from "@/app/login/actions";
-import { Logo } from "@/components/brand/Logo";
+import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
 import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
@@ -41,9 +39,10 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
   return (
     <header className="nav">
       <div className="nav-row">
-        <Link href="/" className="nav-brand" aria-label="Home">
-          <Logo height={26} sub="Account intelligence" />
-        </Link>
+        <div className="nav-title">
+          <span className="nav-eyebrow">{at.area === "import" ? "Import data" : "Workspace"}</span>
+          <span className="nav-heading">{at.page?.label ?? at.section?.label ?? (at.area === "import" ? "Import data" : "Workspace")}</span>
+        </div>
 
         {trail.length > 0 && (
           <nav className="nav-trail" aria-label="You are here">
@@ -87,9 +86,6 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
           <button type="button" className="nav-icon" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
             {dark ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>
-          <form action={signOutAction}>
-            <button type="submit" className="nav-icon" aria-label="Sign out" title="Sign out"><LogOut size={17} strokeWidth={1.75} /></button>
-          </form>
         </div>
       </div>
 

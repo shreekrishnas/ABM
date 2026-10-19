@@ -6,6 +6,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces/opsz.css";
 import "./globals.css";
 import { AppNav } from "@/components/shell/AppNav";
+import { Shell } from "@/components/shell/Shell";
 import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
@@ -36,8 +37,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
-        <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
-        <main className="app-main" id="main">{children}</main>
+        <Shell counts={{ review: reviews, handoffs, tasks }}>
+          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
+          <main className="app-main" id="main">{children}</main>
+        </Shell>
         <ToastHost />
         <CommandPalette />
       </body>

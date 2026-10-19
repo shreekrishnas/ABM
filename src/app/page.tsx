@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, ArrowUpRight, BarChart3, Building2, FileSpreadsheet, Home as HomeIcon, LayoutGrid, LogOut, Radar, Send, Settings2, Sparkles, Upload } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
-import { LogoMark } from "@/components/brand/Logo";
-import { CountUp, RailLink, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
-import { signOutAction } from "./login/actions";
+import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
 
@@ -90,25 +88,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   ];
 
   return (
-    <div className="hm-outer">
-    <div className="hm">
-      <nav className="hm-rail" aria-label="Main">
-        <Link href="/" className="hm-logo" aria-label="ABM home"><LogoMark size={40} /></Link>
-        <div className="hm-rail-items">
-          <RailLink href="/" label="Home"><HomeIcon size={19} strokeWidth={1.8} /></RailLink>
-          <RailLink href="/import" label="Import"><Upload size={19} strokeWidth={1.8} /></RailLink>
-          <RailLink href="/work" label="Workspace"><LayoutGrid size={19} strokeWidth={1.8} /></RailLink>
-          <RailLink href="/accounts" label="Research"><Building2 size={19} strokeWidth={1.8} /></RailLink>
-          <RailLink href="/outreach" label="Emails"><Send size={19} strokeWidth={1.8} /></RailLink>
-          <RailLink href="/overview" label="Insights"><BarChart3 size={19} strokeWidth={1.8} /></RailLink>
-        </div>
-        <div className="hm-rail-foot">
-          <RailLink href="/settings" label="Settings"><Settings2 size={19} strokeWidth={1.8} /></RailLink>
-          <form action={signOutAction}><button type="submit" className="hs-rail-item" data-tip="Sign out" aria-label="Sign out"><LogOut size={19} strokeWidth={1.8} /></button></form>
-        </div>
-      </nav>
-
-      <div className="hm-main">
+    <div className="hm-main">
         <header className="hm-top">
           <div className="min-w-0">
             <div className="hm-date">{dateLine}</div>
@@ -220,8 +200,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         </section>
 
         <footer className="hm-foot">{p.name} · ABM account intelligence</footer>
-      </div>
-    </div>
     </div>
   );
 }
