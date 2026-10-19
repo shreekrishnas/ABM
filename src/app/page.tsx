@@ -1,28 +1,43 @@
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUp, BarChart3, Building2, ChevronDown, ChevronRight, FileSpreadsheet, Home as HomeIcon, LayoutGrid, Radar, Send, Settings2, Sparkles, Upload } from "lucide-react";
 import { cookies } from "next/headers";
+import { ArrowRight, ArrowUpRight, BarChart3, Building2, FileSpreadsheet, Home as HomeIcon, LayoutGrid, LogOut, Radar, Send, Settings2, Sparkles, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
-import { signOutAction } from "./login/actions";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
 import { LogoMark } from "@/components/brand/Logo";
 import { CountUp, RailLink, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
+import { signOutAction } from "./login/actions";
 
 export const metadata = { title: "Home" };
 
 const DAY = 86_400_000;
-type Status = "Researching" | "Awaiting approval" | "Draft ready" | "Approved" | "New" | "Researched";
-const STATUS_TONE: Record<Status, string> = { Researching: "sky", "Awaiting approval": "amber", "Draft ready": "violet", Approved: "emerald", New: "neutral", Researched: "neutral" };
-const AVATAR = ["#6366F1", "#7C3AED", "#0EA5E9", "#10B981", "#F59E0B", "#EC4899", "#14B8A6", "#8B5CF6"];
-const avatarColor = (s: string) => AVATAR[[...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % AVATAR.length];
+type Status = "Researching" | "Awaiting approval" | "Draft ready" | "Researched" | "New";
+const STATUS_TONE: Record<Status, string> = { Researching: "sky", "Awaiting approval": "amber", "Draft ready": "violet", Researched: "ink", New: "muted" };
+// The buying journey, in order. Watch / recycled / disqualified sit outside it.
+const STAGES = [
+  { key: "UNAWARE", label: "Unaware" },
+  { key: "AWARE", label: "Aware" },
+  { key: "ENGAGED", label: "Engaged" },
+  { key: "MQA", label: "Ready for sales" },
+  { key: "OPPORTUNITY", label: "Opportunity" },
+  { key: "CUSTOMER", label: "Customer" },
+] as const;
+
+const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
+function brandColor(id: string) {
+  let h = 0;
+  for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h);
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 function greeting(d: Date) {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(d));
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** Home: live numbers first, then the two ways in (Workspace, Import), then what just happened. */
+/** Home: the numbers, where accounts stand, the two ways in, and what just changed. */
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   await ensureSellerPacks();
   const p = seller();
@@ -33,17 +48,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const [companies, companiesSinceMonday, toApprove, draftsReady, importedWeek, importedPrevWeek, recent] = await Promise.all([
+  const [companies, companiesSinceMonday, toApprove, draftsReady, importedWeek, importedPrevWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: monday } } }),
     db.draft.count({ where: { status: "pending_review" } }),
     db.draft.count({ where: { status: "approved", message: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 7 * DAY) } } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 14 * DAY), lt: new Date(now.getTime() - 7 * DAY) } } }),
+    db.account.groupBy({ by: ["stage"], where: { mergedIntoId: null }, _count: true }),
     db.account.findMany({
       where: { mergedIntoId: null, ...(since ? { updatedAt: { gte: since } } : {}) },
       orderBy: { updatedAt: "desc" },
-      take: 5,
+      take: 6,
       select: { id: true, name: true, domain: true, pipelineStatus: true, updatedAt: true, owner: { select: { name: true } }, contacts: { select: { drafts: { where: { status: { in: ["pending_review", "approved"] }, message: null }, select: { status: true } } } } },
     }),
   ]);
@@ -55,155 +71,157 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     if (a.pipelineStatus === "done") return "Researched";
     return "New";
   };
+  const stageCount = (k: string) => byStage.find((s) => s.stage === k)?._count ?? 0;
+  const inJourney = STAGES.reduce((n, s) => n + stageCount(s.key), 0);
+  const outside = companies - inJourney;
   const weekDelta = importedWeek - importedPrevWeek;
+
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
-  const fromEmail = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
-  const userName = process.env.APP_USER_NAME?.trim() || (fromEmail ? fromEmail[0].toUpperCase() + fromEmail.slice(1) : "");
-  const initial = (userName || p.name)[0]?.toUpperCase() ?? "A";
+  const first = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
+  const userName = process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
+  const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
 
   const kpis = [
-    { label: "Companies", value: companies, tone: "indigo", meta: companiesSinceMonday ? { up: true, text: `+${companiesSinceMonday} since Monday` } : { text: "No new ones since Monday" } },
-    { label: "To approve", value: toApprove, tone: "amber", href: "/review", meta: { text: toApprove ? "Drafts waiting for you" : "All clear" } },
-    { label: "Drafts ready", value: draftsReady, tone: "violet", meta: { text: "Approved, not sent yet" } },
-    { label: "Imported this week", value: importedWeek, tone: "sky", meta: weekDelta ? { up: weekDelta > 0, text: `${weekDelta > 0 ? "+" : ""}${weekDelta} vs last week` } : { text: "Same as last week" } },
+    { label: "Companies", accent: "indigo", value: companies, note: companiesSinceMonday ? `+${companiesSinceMonday} since Monday` : "None new since Monday", tone: companiesSinceMonday ? "up" : "" },
+    { label: "To approve", accent: "amber", value: toApprove, note: toApprove ? "Drafts waiting for you" : "Nothing waiting", href: "/review", tone: toApprove ? "warn" : "" },
+    { label: "Drafts ready", accent: "violet", value: draftsReady, note: "Approved, not sent", tone: "" },
+    { label: "Imported this week", accent: "sky", value: importedWeek, note: weekDelta ? `${weekDelta > 0 ? "+" : ""}${weekDelta} on last week` : "Same as last week", tone: weekDelta > 0 ? "up" : weekDelta < 0 ? "down" : "" },
   ];
 
   return (
-    <div className="hs-outer">
-      <div className="hs-shell glass-panel">
-        <nav className="hs-rail" aria-label="Main">
-          <Link href="/" className="hs-logo" aria-label="Home"><LogoMark size={40} /></Link>
-          <div className="hs-rail-items">
-            <RailLink href="/" label="Home"><HomeIcon size={20} strokeWidth={2} /></RailLink>
-            <RailLink href="/import" label="Import"><Upload size={20} strokeWidth={2} /></RailLink>
-            <RailLink href="/work" label="Workspace"><LayoutGrid size={20} strokeWidth={2} /></RailLink>
-            <RailLink href="/accounts" label="Research"><Building2 size={20} strokeWidth={2} /></RailLink>
-            <RailLink href="/outreach" label="Emails"><Send size={20} strokeWidth={2} /></RailLink>
-            <RailLink href="/overview" label="Insights"><BarChart3 size={20} strokeWidth={2} /></RailLink>
-          </div>
-          <div className="hs-rail-foot"><RailLink href="/settings" label="Settings"><Settings2 size={20} strokeWidth={2} /></RailLink></div>
-        </nav>
-
-        <div className="hs-body">
-          <header className="hs-top">
-            <div className="min-w-0">
-              <div className="hs-micro">{p.name} · Account intelligence</div>
-              <h1 className="hs-title">{greeting(now)}{userName ? `, ${userName}` : ""}</h1>
-            </div>
-            <div className="hs-tools">
-              <SearchPill />
-              <ThemePill />
-              <details className="hs-usermenu">
-                <summary className="hs-user" aria-label="Account menu">
-                  <span className="hs-avatar">{initial}</span>
-                  <span className="hs-user-name">{userName || "You"}</span>
-                  <ChevronDown size={15} strokeWidth={2} />
-                </summary>
-                <div className="hs-usermenu-pop">
-                  {session?.email && <div className="who">Signed in as {session.email}</div>}
-                  <Link href="/settings">Settings</Link>
-                  <form action={signOutAction}><button type="submit">Sign out</button></form>
-                </div>
-              </details>
-            </div>
-          </header>
-
-          <div className="hs-content page-enter">
-            <section className="hs-kpis stagger" aria-label="Key numbers">
-              {kpis.map((k) => {
-                const inner = (
-                  <>
-                    <div className="hs-kpi-label">{k.label}{k.href && k.value > 0 && <span className="hs-pop" aria-hidden />}</div>
-                    <div className="hs-kpi-value tnum"><CountUp value={k.value} /></div>
-                    <div className="hs-kpi-meta">
-                      {"up" in k.meta && k.meta.up !== undefined && (k.meta.up ? <ArrowUp size={12} className="up" /> : <ArrowDown size={12} className="down" />)}
-                      {k.meta.text}
-                    </div>
-                  </>
-                );
-                return k.href ? (
-                  <Link key={k.label} href={k.href} className={`hs-kpi tone-${k.tone} clickable`}>{inner}</Link>
-                ) : (
-                  <div key={k.label} className={`hs-kpi tone-${k.tone}`}>{inner}</div>
-                );
-              })}
-            </section>
-
-            <section className="hs-actions stagger">
-              <article className="hs-work">
-                <div className="hs-work-top">
-                  <span className="hs-work-icon" aria-hidden><LayoutGrid size={26} strokeWidth={2} /></span>
-                  <span className="hs-live"><span className="dot" /> Live</span>
-                </div>
-                <h2 className="hs-work-title">Workspace</h2>
-                <p className="hs-work-text">Today&apos;s list, research, email drafting, sales and insights.</p>
-                <div className="hs-chips">
-                  <span className="hs-chip">{companies} compan{companies === 1 ? "y" : "ies"}</span>
-                  <span className="hs-chip amber">{toApprove} to approve</span>
-                  <span className="hs-chip violet">{draftsReady} draft{draftsReady === 1 ? "" : "s"}</span>
-                </div>
-                <Link href="/work" className="hs-cta">Open workspace <ArrowRight size={16} strokeWidth={2.2} /></Link>
-              </article>
-
-              <article className="hs-import glass-card">
-                <h2 className="hs-import-title">Import</h2>
-                <p className="hs-import-sub">Add companies</p>
-                <ul className="hs-rows">
-                  {[
-                    { href: "/import/upload", icon: FileSpreadsheet, label: "Upload CSV", hint: "Drag a file or browse" },
-                    { href: "/import/lookalikes", icon: Sparkles, label: "Find lookalikes", hint: "From one website" },
-                    { href: "/import/apollo", icon: Radar, label: "Apollo visitors", hint: "Companies visiting your site" },
-                  ].map((r) => (
-                    <li key={r.href}>
-                      <Link href={r.href} className="hs-row">
-                        <span className="hs-row-tile" aria-hidden><r.icon size={18} strokeWidth={2} /></span>
-                        <span className="min-w-0 flex-1"><span className="hs-row-label">{r.label}</span><span className="hs-row-hint">{r.hint}</span></span>
-                        <ChevronRight size={16} className="hs-row-chev" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            </section>
-
-            <section className="hs-activity glass-card-static" aria-label="Recent activity">
-              <div className="hs-act-head">
-                <h2>Recent activity</h2>
-                <div className="flex items-center gap-3">
-                  <RangeToggle />
-                  <Link href="/accounts?sort=updated" className="hs-ghost">View all</Link>
-                </div>
-              </div>
-              {recent.length === 0 ? (
-                <p className="hs-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. Import companies to get started.</p>
-              ) : (
-                <table className="hs-table">
-                  <thead><tr><th>Company</th><th>Status</th><th>Owner</th><th>Updated</th></tr></thead>
-                  <tbody>
-                    {recent.map((a) => {
-                      const s = statusOf(a);
-                      return (
-                        <tr key={a.id}>
-                          <td data-l="Company">
-                            <Link href={`/accounts/${a.id}`} className="hs-co">
-                              <span className="hs-co-av" style={{ background: avatarColor(a.name) }} aria-hidden>{a.name[0]?.toUpperCase()}</span>
-                              <span className="min-w-0"><span className="hs-co-name">{a.name}</span>{a.domain && <span className="hs-co-domain">{a.domain}</span>}</span>
-                            </Link>
-                          </td>
-                          <td data-l="Status"><span className={`hs-status ${STATUS_TONE[s]}`}>{s}</span></td>
-                          <td data-l="Owner" className="hs-muted">{a.owner?.name ?? "Unassigned"}</td>
-                          <td data-l="Updated" className="hs-muted">{ago(a.updatedAt)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          </div>
+    <div className="hm-outer">
+    <div className="hm">
+      <nav className="hm-rail" aria-label="Main">
+        <Link href="/" className="hm-logo" aria-label="ABM home"><LogoMark size={40} /></Link>
+        <div className="hm-rail-items">
+          <RailLink href="/" label="Home"><HomeIcon size={19} strokeWidth={1.8} /></RailLink>
+          <RailLink href="/import" label="Import"><Upload size={19} strokeWidth={1.8} /></RailLink>
+          <RailLink href="/work" label="Workspace"><LayoutGrid size={19} strokeWidth={1.8} /></RailLink>
+          <RailLink href="/accounts" label="Research"><Building2 size={19} strokeWidth={1.8} /></RailLink>
+          <RailLink href="/outreach" label="Emails"><Send size={19} strokeWidth={1.8} /></RailLink>
+          <RailLink href="/overview" label="Insights"><BarChart3 size={19} strokeWidth={1.8} /></RailLink>
         </div>
+        <div className="hm-rail-foot">
+          <RailLink href="/settings" label="Settings"><Settings2 size={19} strokeWidth={1.8} /></RailLink>
+          <form action={signOutAction}><button type="submit" className="hs-rail-item" data-tip="Sign out" aria-label="Sign out"><LogOut size={19} strokeWidth={1.8} /></button></form>
+        </div>
+      </nav>
+
+      <div className="hm-main">
+        <header className="hm-top">
+          <div className="min-w-0">
+            <div className="hm-date">{dateLine}</div>
+            <h1 className="hm-title">{greeting(now)}{userName ? `, ${userName}` : ""}</h1>
+            <p className="hm-brief">{toApprove ? <><b>{toApprove} draft{toApprove === 1 ? "" : "s"}</b> waiting for your approval</> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
+          </div>
+          <div className="hm-tools">
+            <SearchPill />
+            <ThemePill />
+            {session?.email && <span className="hm-who" title={session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
+          </div>
+        </header>
+
+        <section className="hm-kpis" aria-label="Key numbers">
+          {kpis.map((k) => {
+            const body = (
+              <>
+                <span className="hm-k-label">{k.label}</span>
+                <span className="hm-k-value tnum"><CountUp value={k.value} /></span>
+                <span className={`hm-k-note ${k.tone}`}>{k.note}</span>
+                {k.href && <ArrowUpRight size={16} className="hm-k-go" />}
+              </>
+            );
+            return k.href ? <Link key={k.label} href={k.href} className={`hm-k link a-${k.accent}`}>{body}</Link> : <div key={k.label} className={`hm-k a-${k.accent}`}>{body}</div>;
+          })}
+        </section>
+
+        <section className="hm-journey" aria-label="Where your accounts are">
+          <div className="hm-sec-head">
+            <h2>Where your accounts are</h2>
+            <span className="hm-sec-meta">{inJourney} in the buying journey{outside > 0 ? ` · ${outside} watched or ruled out` : ""}</span>
+          </div>
+          <ol className="hm-stages">
+            {STAGES.map((s, i) => {
+              const n = stageCount(s.key);
+              const share = inJourney ? n / inJourney : 0;
+              return (
+                <li key={s.key} className={n ? "has" : ""}>
+                  <Link href={`/accounts?stage=${s.key}`}>
+                    <span className="hm-st-n tnum">{n}</span>
+                    <span className="hm-st-l"><span className="hm-st-i">{String(i + 1).padStart(2, "0")}</span>{s.label}</span>
+                    <span className="hm-st-bar"><span style={{ width: `${Math.max(n ? 6 : 0, Math.round(share * 100))}%` }} /></span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
+        <section className="hm-doors">
+          <Link href="/work" className="hm-work">
+            <span className="hm-work-kicker">Workspace</span>
+            <span className="hm-work-title">Pick up where the work is.</span>
+            <span className="hm-work-text">Today&apos;s list, research, email drafting, sales hand-offs and insights.</span>
+            <span className="hm-work-facts">
+              <span><b className="tnum">{companies}</b> compan{companies === 1 ? "y" : "ies"}</span>
+              <span><b className="tnum">{toApprove}</b> to approve</span>
+              <span><b className="tnum">{draftsReady}</b> ready to send</span>
+            </span>
+            <span className="hm-work-go">Open workspace <ArrowRight size={17} strokeWidth={2} /></span>
+          </Link>
+
+          <div className="hm-import">
+            <div className="hm-sec-head"><h2>Import</h2><Link href="/import" className="hm-sec-link">All options</Link></div>
+            <ul>
+              {[
+                { href: "/import/upload", icon: FileSpreadsheet, label: "Upload a CSV", hint: "Map columns, preview, import" },
+                { href: "/import/lookalikes", icon: Sparkles, label: "Find lookalikes", hint: "Companies like one website" },
+                { href: "/import/apollo", icon: Radar, label: "Website visitors", hint: "Identified by Apollo" },
+              ].map((r, i) => (
+                <li key={r.href}>
+                  <Link href={r.href} className="hm-imp-row">
+                    <span className="hm-imp-i">{String(i + 1).padStart(2, "0")}</span>
+                    <r.icon size={18} strokeWidth={1.8} className="hm-imp-ic" />
+                    <span className="min-w-0 flex-1"><span className="hm-imp-l">{r.label}</span><span className="hm-imp-h">{r.hint}</span></span>
+                    <ArrowRight size={16} className="hm-imp-go" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="hm-activity" aria-label="Recent activity">
+          <div className="hm-sec-head">
+            <h2>Recent activity</h2>
+            <div className="flex items-center gap-4"><RangeToggle /><Link href="/accounts" className="hm-sec-link">View all</Link></div>
+          </div>
+          {recent.length === 0 ? (
+            <p className="hm-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. <Link href="/import">Import companies</Link> to get started.</p>
+          ) : (
+            <table className="hm-table">
+              <thead><tr><th>Company</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
+              <tbody>
+                {recent.map((a) => {
+                  const s = statusOf(a);
+                  return (
+                    <tr key={a.id}>
+                      <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: `linear-gradient(135deg, ${brandColor(a.id)}, ${brandColor(a.id)}CC)`, boxShadow: `0 6px 14px ${brandColor(a.id)}40` }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
+                      <td data-l="Status"><span className={`hm-status ${STATUS_TONE[s]}`}><i />{s}</span></td>
+                      <td data-l="Owner" className="hm-dim">{a.owner?.name ?? "Unassigned"}</td>
+                      <td data-l="Updated" className="hm-dim r tnum">{ago(a.updatedAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <footer className="hm-foot">{p.name} · ABM account intelligence</footer>
       </div>
+    </div>
     </div>
   );
 }
