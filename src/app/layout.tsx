@@ -7,6 +7,7 @@ import "@fontsource-variable/fraunces/opsz.css";
 import "./globals.css";
 import { AppNav } from "@/components/shell/AppNav";
 import { Shell } from "@/components/shell/Shell";
+import { getMe, signedOutOrRemoved } from "@/lib/me";
 import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
@@ -29,6 +30,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     db.task.count({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lte: new Date() } } }),
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
+  const me = await getMe();
+  const access = me
+    ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const) }
+    : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const } : null;
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
@@ -37,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
-        <Shell counts={{ review: reviews, handoffs, tasks }}>
+        <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
           <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
           <main className="app-main" id="main">{children}</main>
         </Shell>

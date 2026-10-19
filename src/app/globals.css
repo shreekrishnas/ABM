@@ -1428,3 +1428,22 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
   .co-ring-svg { align-self: center; }
   .sh .tabs { border-radius: 1rem; }
 }
+
+/* ── Team & Access ── */
+.sh-mode.on { background: #F59E0B !important; color: #fff !important; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important; }
+.sh-super { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.55rem 2rem; background: #FFFBEB; border-bottom: 1px solid #FCD34D; color: #92400E; font-size: 0.82rem; }
+:root[data-theme="dark"] .sh-super { background: rgba(245, 158, 11, 0.14); border-color: rgba(245, 158, 11, 0.35); color: #FCD34D; }
+.sh-super .sh-super-link { margin-left: auto; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.sh-super-btn { padding: 4px 12px; border-radius: 9999px; background: #F59E0B; color: #fff; font-weight: 700; font-size: 0.78rem; }
+.sh-super ~ .nav { top: 38px; }
+.sh-gate { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
+.sh-gate-card { max-width: 440px; text-align: center; padding: 2.25rem; border-radius: 1.5rem; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+:root[data-theme="dark"] .sh-gate-card { background: rgba(30, 41, 59, 0.7); border-color: rgba(255, 255, 255, 0.08); }
+.sh-gate-card h1 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+.sh-gate-card p { font-size: 0.9rem; line-height: 1.55; color: var(--text-secondary); }
+.tm-role { display: inline-flex; padding: 3px 10px; border-radius: 9999px; background: var(--surface-hover); font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+.tm-role.super { background: #FFFBEB; color: #B45309; }
+.tm-chip { padding: 4px 11px; border-radius: 9999px; border: 1px dashed var(--border-default, rgba(0,0,0,0.15)); font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); background: transparent; }
+.tm-chip:hover { border-color: #A5B4FC; color: #4F46E5; }
+.tm-chip.on { border-style: solid; border-color: transparent; background: var(--accent-primary-soft, rgba(124,58,237,0.08)); color: #6D28D9; }
+:root[data-theme="dark"] .tm-chip.on { color: #C4B5FD; }

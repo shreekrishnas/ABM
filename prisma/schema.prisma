@@ -204,8 +204,13 @@ model User {
   name      String
   email     String   @unique
   role      UserRole @default(rep)
+  /// active = may sign in; removed = access withdrawn (history kept).
+  status     String   @default("active")
+  /// Entitled to switch into Super Admin (team, clients, access). Switching never removes it.
+  superAdmin Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  clients       UserClient[]
   ownedAccounts Account[]     @relation("AccountOwner")
   opportunities Opportunity[]
   tasks         Task[]        @relation("TaskAssignee")
@@ -1094,4 +1099,37 @@ model WebVisit {
   @@index([contactId, occurredAt])
   @@index([visitorId])
   @@index([companyDomain])
+}
+
+/// A client workspace Trilliant runs ABM for. Its id is the seller pack id (e.g. "manch").
+model Client {
+  id        String       @id
+  name      String
+  createdAt DateTime     @default(now())
+  users     UserClient[]
+}
+
+/// Which user works on which client. A user sees only the clients assigned here.
+model UserClient {
+  userId    String
+  clientId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, clientId])
+}
+
+/// Every Super Admin action (and mode switch): who, what, before -> after. Never edited.
+model AuditEntry {
+  id         String   @id @default(cuid())
+  actorEmail String
+  action     String
+  target     String?
+  clientId   String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

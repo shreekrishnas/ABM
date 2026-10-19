@@ -30,7 +30,7 @@ export function LoginForm({ next, domains, ready }: { next: string; domains: str
         {state.error && <p className="lg-error" role="alert">{state.error}</p>}
         {!ready && <p className="lg-error" role="alert">Sign-in isn&apos;t set up yet: add AUTH_SECRET in Vercel.</p>}
         <Submit />
-        <p className="lg-fine">Access is limited to Trilliant Digital email addresses.</p>
+        <p className="lg-fine">Only people on the Trilliant team list can sign in.</p>
       </form>
     </div>
   );

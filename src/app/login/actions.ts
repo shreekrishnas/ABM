@@ -2,6 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { MODE_COOKIE, audit, getMe } from "@/lib/me";
 import { SESSION_COOKIE, SESSION_DAYS, allowedDomains, authSecret, domainAllowed, normalizeEmail, sessionToken } from "@/lib/auth";
 
 export type LoginState = { email?: string; error?: string };
@@ -15,11 +17,27 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
   const email = normalizeEmail(String(fd.get("email") ?? ""));
   if (!email) return { error: "Enter your work email address." };
   if (!domainAllowed(email)) return { email, error: `Only @${allowedDomains().join(" or @")} addresses can sign in.` };
+  // Only people on the team list get in; Super Admin adds them on Team & Access.
+  const member = await db.user.findUnique({ where: { email }, select: { status: true } });
+  if (!member || member.status !== "active") return { email, error: "You're not on the team yet. Ask ShreeKrishna to add you." };
   (await cookies()).set(SESSION_COOKIE, await sessionToken(email, secret), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
   redirect(safeNext(fd.get("next")));
 }
 
 export async function signOutAction() {
-  (await cookies()).delete(SESSION_COOKIE);
+  const jar = await cookies();
+  jar.delete(SESSION_COOKIE);
+  jar.delete(MODE_COOKIE);
   redirect("/login");
+}
+
+/** Sri Krishna's switch: Super Admin on or off for this session. The entitlement itself never changes here. */
+export async function switchModeAction(to: "super" | "user") {
+  const me = await getMe();
+  if (!me?.canSuperAdmin) return;
+  const jar = await cookies();
+  if (to === "super") jar.set(MODE_COOKIE, "super", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 8 * 3600 });
+  else jar.delete(MODE_COOKIE);
+  await audit(me.email, to === "super" ? "mode.super_admin" : "mode.user");
+  redirect(to === "super" ? "/team" : "/");
 }

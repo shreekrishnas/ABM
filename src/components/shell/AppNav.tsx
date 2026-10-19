@@ -40,8 +40,8 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
     <header className="nav">
       <div className="nav-row">
         <div className="nav-title">
-          <span className="nav-eyebrow">{at.area === "import" ? "Import data" : "Workspace"}</span>
-          <span className="nav-heading">{at.page?.label ?? at.section?.label ?? (at.area === "import" ? "Import data" : "Workspace")}</span>
+          <span className="nav-eyebrow">{path.startsWith("/team") ? "Super Admin" : at.area === "import" ? "Import data" : "Workspace"}</span>
+          <span className="nav-heading">{path.startsWith("/team") ? "Team & Access" : at.page?.label ?? at.section?.label ?? (at.area === "import" ? "Import data" : "Workspace")}</span>
         </div>
 
         {trail.length > 0 && (
