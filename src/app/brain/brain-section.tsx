@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Loader2, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "@/components/client";
 import type { BrainField, BrainItem, BrainSection as Spec } from "@/lib/seller/brain";
-import { saveBrainSectionAction, suggestBrainAction } from "./actions";
+import { estimateTargetingAction, saveBrainSectionAction, suggestBrainAction } from "./actions";
 
 const blank = (fields: BrainField[]): BrainItem => Object.fromEntries(fields.map((f) => [f.key, f.kind === "list" || f.kind === "lines" ? [] : f.kind === "bool" ? false : f.kind === "number" ? null : f.kind === "select" ? f.options?.[0]?.value ?? "" : ""]));
 const summary = (it: BrainItem, fields: BrainField[]) => {
@@ -29,7 +29,7 @@ function Fields({ fields, item, onChange }: { fields: BrainField[]; item: BrainI
     <div className="br-fields">
       {fields.map((f) => (
         <label key={f.key} className={`br-field${f.kind === "long" || f.kind === "lines" ? " wide" : ""}`}>
-          <span>{f.label}</span>
+          <span>{f.label}{f.need && <em className={`br-need ${f.need}`}>{f.need === "research" ? "Required" : "Needed for emails"}</em>}</span>
           <Input field={f} value={item[f.key]} onChange={(v) => onChange({ ...item, [f.key]: v })} />
           {f.hint && <small>{f.hint}</small>}
         </label>
@@ -103,6 +103,8 @@ export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: s
         </ul>
       )}
 
+      {spec.key === "targeting" && <ImpactEstimate clientId={clientId} item={items[0]} />}
+
       {suggestions.length > 0 && (
         <div className="br-sugg">
           <div className="br-sugg-head"><Sparkles size={14} /> AI suggestions <span>from the website and files: check before saving</span>
@@ -132,5 +134,21 @@ export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: s
         </footer>
       )}
     </section>
+  );
+}
+
+/** Optional, rough: how the edited rule would sort the companies already in the app. Not a forecast. */
+function ImpactEstimate({ clientId, item }: { clientId: string; item: BrainItem }) {
+  const [r, setR] = useState<{ now: number; next: number; total: number } | null>(null);
+  const [busy, start] = useTransition();
+  return (
+    <details className="br-impact">
+      <summary>Rough impact estimate <span>optional · not recommended for decisions</span></summary>
+      <p>Counts only companies already in the app with a known country and size. It can&apos;t tell you how many exist in the market.</p>
+      <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => start(async () => { const x = await estimateTargetingAction(clientId, item); if (x.ok) setR(x); else toast({ ok: false, message: x.message }); })}>
+        {busy ? <Loader2 size={14} className="lg-spin" /> : null} Estimate
+      </button>
+      {r && <p className="tnum"><b>{r.now}</b> of {r.total} pass the saved rule · <b>{r.next}</b> would pass this one</p>}
+    </details>
   );
 }

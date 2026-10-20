@@ -53,7 +53,7 @@ export interface SellerProfile {
   name: string;
   website: string;
   hq: string;
-  founded: number;
+  founded?: number;
   summary: string;
   positioning: string;
   products: { name: string; what: string }[];

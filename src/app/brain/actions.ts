@@ -128,3 +128,24 @@ export async function removeBrainFileAction(clientId: string, docId: string): Pr
     return { ok: false, message: e instanceof Error ? e.message : "Couldn't remove it" };
   }
 }
+
+/** Optional rough estimate: saved rule vs edited rule, over companies already in the app with known country and size. */
+export async function estimateTargetingAction(clientId: string, item: BrainItem): Promise<{ ok: true; now: number; next: number; total: number } | { ok: false; message: string }> {
+  try {
+    await editor(clientId);
+    const { pack } = await loadBrain(clientId);
+    const edited = writeSection(pack, "targeting", [item]).icp.mustHave;
+    const { mustHaveGate } = await import("@/lib/pipeline/gates");
+    const { normalizeCountry } = await import("@/lib/pipeline/normalize");
+    const rows = await db.account.findMany({ where: { mergedIntoId: null, country: { not: null }, employees: { not: null } }, select: { country: true, employees: true }, take: 20000 });
+    let now = 0, next = 0;
+    for (const a of rows) {
+      const c = { country: normalizeCountry(a.country), employees: a.employees };
+      if (mustHaveGate(c, pack.icp.mustHave).pass) now++;
+      if (mustHaveGate(c, edited).pass) next++;
+    }
+    return { ok: true, now, next, total: rows.length };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Could not estimate" };
+  }
+}

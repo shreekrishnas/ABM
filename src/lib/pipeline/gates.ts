@@ -298,7 +298,9 @@ export function factGuardrail(claims: Claim[], facts: UsableFact[], now = new Da
 
 export function complianceGate(body: string): GateResult {
   if (!/unsubscribe|opt out|opt-out/i.test(body)) return { pass: false, reason: "Missing unsubscribe line" };
-  if (!body.includes(seller().sender.address)) return { pass: false, reason: "Missing sender postal address" };
+  const address = seller().sender.address.trim();
+  if (!address) return { pass: false, reason: "No postal address set: add it in Settings → Email sending before emails go out" };
+  if (!body.includes(address)) return { pass: false, reason: "Missing sender postal address" };
   return { pass: true, reason: "Unsubscribe and sender details present" };
 }
 

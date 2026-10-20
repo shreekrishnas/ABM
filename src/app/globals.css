@@ -1551,3 +1551,12 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 .td-tasks li { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.35rem; border-bottom: 1px solid var(--border-subtle); }
 .td-tasks li:last-child { border-bottom: 0; }
 #tasks { grid-row: auto; }
+
+/* Brain: required markers and the optional impact estimate */
+.br-need { margin-left: 6px; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; vertical-align: 1px; }
+.br-need.research { color: #7C3AED; background: rgba(124,58,237,.12); }
+.br-need.email { color: #0E7490; background: rgba(14,116,144,.12); }
+.br-impact { margin: 0 20px 14px; padding: 10px 12px; border: 1px dashed var(--glass-border); border-radius: 12px; font-size: 13px; }
+.br-impact summary { cursor: pointer; font-weight: 600; }
+.br-impact summary span { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 6px; }
+.br-impact p { margin: 8px 0; color: var(--text-secondary); }

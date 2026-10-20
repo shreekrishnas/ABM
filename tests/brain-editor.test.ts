@@ -50,3 +50,12 @@ describe("Account Brain editor", () => {
     expect(p.icp.industries[0].useCases).toEqual(["fleet_tracking"]);
   });
 });
+
+describe("targeting rule feeds the hard gate", () => {
+  it("writes countries and minimum size into mustHave", async () => {
+    const { writeSection, readSection, starterPack } = await import("@/lib/seller/brain");
+    const p = writeSection(starterPack("acme", "Acme"), "targeting", [{ countries: ["in"], secondaryCountries: ["ae"], minEmployees: 1000, midEmployees: 2000, sweetSpot: 5000 }]);
+    expect(p.icp.mustHave).toEqual({ countries: ["IN", "AE"], minEmployees: 1000 });
+    expect(readSection(p, "targeting")[0].minEmployees).toBe(1000);
+  });
+});
