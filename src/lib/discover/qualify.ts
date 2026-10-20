@@ -70,6 +70,8 @@ export interface SuggestionInput {
   families?: string[];
   sources?: { url: string; quote: string; at: string; trigger: string }[];
   seed?: string | null;
+  /** Lookalikes: the seed company's profile, for "why similar". */
+  seedProfile?: { industry: string | null; employees: number | null; country: string | null; keywords?: string[] } | null;
 }
 
 /** Save (or refresh) a suggestion. Approved and dismissed ones are left alone. */
@@ -85,6 +87,7 @@ export async function saveSuggestion(s: SuggestionInput): Promise<"new" | "exclu
     origin: s.origin, seed: s.seed ?? null, name: s.candidate.name, domain: normalizeDomain(s.candidate.domain), industry: s.firmo.industry, bucket: bucketOf(s.firmo.industry),
     country: s.firmo.country, employees: s.firmo.employees, score: s.score, level: s.level, whyNow: s.whyNow.slice(0, 400), families: s.families ?? [],
     sources: (s.sources ?? []) as unknown as Prisma.InputJsonValue, status, reason: gate.pass ? null : gate.reason,
+    ...(s.seedProfile ? { seedProfile: s.seedProfile as unknown as Prisma.InputJsonValue } : {}),
   };
   await db.prospectSuggestion.upsert({ where: { sellerId_nameKey: { sellerId: p.id, nameKey } }, create: { sellerId: p.id, nameKey, ...data }, update: data });
   return status;

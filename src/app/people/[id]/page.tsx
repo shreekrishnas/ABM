@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { JOURNEY_STAGES, STAGE_INFO, stageLabel } from "@/lib/journey/stages";
 import { eligibleToCall, nextAction } from "@/lib/journey/engine";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
+import { AddTaskButton } from "@/components/shell/QuickTask";
 import { ReplyAssistant } from "@/components/reply-assistant";
 import { Avatar, Badge, Card, Empty, ago, date } from "@/components/ui";
 import { ProspectTrack } from "./prospect-track";
@@ -96,6 +97,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           </div>
           <div className="flex flex-wrap gap-2">
             {c.phone && call.ok && <a href={`tel:${c.phone}`} className="btn btn-success"><Phone size={15} /> Call</a>}
+            <AddTaskButton target={{ contactId: c.id, label: c.fullName }} className="btn btn-secondary" />
             <Modal trigger={<><Pencil size={15} /> Edit</>} title={`Edit ${c.fullName}`} eyebrow="People" triggerClass="btn btn-secondary">{editForm}</Modal>
             <ActionButton action={deletePersonAction.bind(null, c.id)} className="btn btn-secondary" confirm={`Delete ${c.fullName}? Their journeys and history are removed.`}><Trash2 size={15} /> Delete</ActionButton>
           </div>

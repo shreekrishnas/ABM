@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import { Mail, MessageSquareReply, MessagesSquare, Phone, Send, Timer, UserPlus as Linkedin } from "lucide-react";
 import { ViewSwitch } from "@/components/v2";
 import { EmailThreads } from "./threads";
@@ -13,12 +14,14 @@ export const metadata = { title: "Outreach" };
 
 const CH = { email: Mail, linkedin: Linkedin, call: Phone, task: Timer };
 
-export default async function OutreachPage({ searchParams }: { searchParams: Promise<{ tab?: string; view?: string; c?: string }> }) {
+export default async function OutreachPage({ searchParams }: { searchParams: Promise<{ tab?: string; view?: string; c?: string; peek?: string }> }) {
   const sp = await searchParams;
+  const keep = { view: sp.view, tab: sp.tab };
   const tab = sp.tab ?? "sends";
   if (sp.view !== "overview") {
     return (
       <div className="page-enter">
+      <PeekPanel peek={sp.peek} close={closeHref("/outreach", keep)} />
         <PageHeader eyebrow="Every email as a conversation" title="Emails" sub="Each person's thread: what the brain wrote, where it stands, and what they said back — email and LinkedIn together." actions={<ViewSwitch base="/outreach" params={{}} current="threads" views={[{ id: "threads", label: "Conversations", icon: <MessagesSquare size={13} /> }, { id: "overview", label: "Sending & sequences", icon: <Send size={13} /> }]} />} />
         <EmailThreads selected={sp.c} />
       </div>
@@ -111,7 +114,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                   <tbody>
                     {messages.map((m) => (
                       <tr key={m.id}>
-                        <td className="strong"><div className="flex items-center gap-2.5"><Avatar name={m.contact.fullName} id={m.contactId} size={28} round /><div><Link href={`/people/${m.contactId}`} className="hover:underline">{m.contact.fullName}</Link><div className="muted text-xs font-normal"><Link href={`/accounts/${m.contact.accountId}`} className="hover:underline">{m.contact.account.name}</Link></div></div></div></td>
+                        <td className="strong"><div className="flex items-center gap-2.5"><Avatar name={m.contact.fullName} id={m.contactId} size={28} round /><div><Link href={peekHref("/outreach", keep, "p", m.contactId)} scroll={false} className="hover:underline">{m.contact.fullName}</Link><div className="muted text-xs font-normal"><Link href={peekHref("/outreach", keep, "a", m.contact.accountId)} scroll={false} className="hover:underline">{m.contact.account.name}</Link></div></div></div></td>
                         <td className="max-w-[280px] truncate">{m.draft.subject}</td>
                         <td className="tnum">{m.draft.stepOrder}</td>
                         <td className="mono">{m.mailbox}</td>
@@ -135,7 +138,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                     <tbody>
                       {replies.map((r) => (
                         <tr key={r.id}>
-                          <td className="strong whitespace-nowrap"><Link href={`/people/${r.contactId}`} className="hover:underline">{r.contact.fullName}</Link><div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
+                          <td className="strong whitespace-nowrap"><Link href={peekHref("/outreach", keep, "p", r.contactId)} scroll={false} className="hover:underline">{r.contact.fullName}</Link><div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
                           <td className="max-w-[260px]"><span className="line-clamp-2">{r.body}</span></td>
                           <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#7C3AED" : "#B45309"}>{r.class.replace("_", " ")}</Badge></td>
                           <td className="text-xs">{r.route}</td>

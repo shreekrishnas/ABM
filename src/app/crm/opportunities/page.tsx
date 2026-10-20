@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import type { OppStage } from "@prisma/client";
 import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
@@ -18,8 +19,9 @@ const COLUMNS: { id: OppStage; label: string; color: string }[] = [
   { id: "lost", label: "Lost", color: "#EF4444" },
 ];
 
-export default async function OpportunitiesPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
-  const { account } = await searchParams;
+export default async function OpportunitiesPage({ searchParams }: { searchParams: Promise<{ account?: string; peek?: string }> }) {
+  const { account, peek } = await searchParams;
+  const keep = { account };
   const [opps, accounts] = await Promise.all([
     db.opportunity.findMany({ where: account ? { accountId: account } : {}, include: { account: true, owner: true }, orderBy: { updatedAt: "desc" } }),
     db.account.findMany({ where: { mergedIntoId: null, relationship: { not: "competitor" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -32,6 +34,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
 
   return (
     <div className="page-enter">
+      <PeekPanel peek={peek} close={closeHref("/crm/opportunities", keep)} />
       <PageHeader
         eyebrow="CRM"
         title="Opportunities"
@@ -75,7 +78,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
                         <Avatar name={o.account.name} id={o.account.id} size={26} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[0.82rem] font-semibold" style={{ color: "var(--text-primary)" }}>{o.name}</div>
-                          <Link href={`/accounts/${o.accountId}?tab=crm`} className="muted block truncate text-xs hover:underline">{o.account.name}</Link>
+                          <Link href={peekHref("/crm/opportunities", keep, "a", o.accountId)} scroll={false} className="muted block truncate text-xs hover:underline">{o.account.name}</Link>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2">

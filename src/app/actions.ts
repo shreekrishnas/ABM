@@ -156,6 +156,24 @@ export async function recordReplyAction(_: ActionState, fd: FormData): Promise<A
 
 // ── Handoffs ──
 
+/** Sales accepts a hand-off, or sends it back to nurture with a reason (form: handoffId, decision, reason, recheckDays). */
+export async function decideHandoffAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const id = str(fd, "handoffId");
+  const decision = str(fd, "decision") === "sent_back" ? "sent_back" : "accepted";
+  const reason = str(fd, "reason")?.slice(0, 300) || null;
+  if (decision === "sent_back" && !reason) return { ok: false, message: "Say why it's not ready, so marketing can learn from it" };
+  const { getMe } = await import("@/lib/me");
+  const me = await getMe();
+  const { decideHandoff } = await import("@/lib/pipeline/stages/engagement");
+  try {
+    const r = await decideHandoff(id!, { decision, reason, by: me?.email ?? "a team member", recheckDays: Number(str(fd, "recheckDays")) || 30 });
+    refresh("/handoffs", "/accounts");
+    return { ok: true, message: decision === "accepted" ? `${r.account} accepted: it's yours now` : `${r.account} sent back to nurture; it will be re-checked later` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Couldn't save the decision" };
+  }
+}
+
 export async function ackHandoffAction(id: string): Promise<ActionState> {
   await acknowledgeHandoff(id);
   refresh("/handoffs");
@@ -239,14 +257,31 @@ export async function createTaskAction(_: ActionState, fd: FormData): Promise<Ac
   const title = str(fd, "title");
   if (!title) return { ok: false, message: "Title is required" };
   const due = str(fd, "dueAt");
-  await db.task.create({ data: { title, body: str(fd, "body"), accountId: str(fd, "accountId") ?? null, assigneeId: str(fd, "assigneeId") ?? null, dueAt: due ? new Date(due) : null } });
-  refresh("/crm/tasks");
-  return { ok: true, message: "Task created" };
+  const contactId = str(fd, "contactId") ?? null;
+  // A task about a person belongs to that person's company too.
+  const accountId = str(fd, "accountId") ?? (contactId ? (await db.contact.findUnique({ where: { id: contactId }, select: { accountId: true } }))?.accountId ?? null : null);
+  const origin = ["manual", "signal", "email", "note", "handoff", "palette"].includes(str(fd, "origin") ?? "") ? str(fd, "origin")! : "manual";
+  const { getMe } = await import("@/lib/me");
+  const me = await getMe();
+  const assigneeId = str(fd, "assigneeId") ?? me?.id ?? null;
+  await db.task.create({ data: { title: title.slice(0, 200), body: str(fd, "body")?.slice(0, 2000), accountId, contactId, assigneeId, origin, dueAt: due ? new Date(due) : null } });
+  refresh("/crm/tasks", "/work/today", ...(accountId ? [`/accounts/${accountId}`] : []));
+  return { ok: true, message: `Task added${due ? ` for ${new Date(due).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}` };
+}
+
+/** Make the signed-in user the owner of a company. */
+export async function assignToMeAction(accountId: string): Promise<ActionState> {
+  const { getMe } = await import("@/lib/me");
+  const me = await getMe();
+  if (!me) return { ok: false, message: "Sign in first" };
+  const a = await db.account.update({ where: { id: accountId }, data: { ownerId: me.id } });
+  refresh("/accounts", `/accounts/${accountId}`);
+  return { ok: true, message: `You now own ${a.name}` };
 }
 
 export async function setTaskStatusAction(id: string, status: "todo" | "in_progress" | "done"): Promise<ActionState> {
   await db.task.update({ where: { id }, data: { status, completedAt: status === "done" ? new Date() : null } });
-  refresh("/crm/tasks");
+  refresh("/crm/tasks", "/work/today");
   return { ok: true, message: "Updated" };
 }
 
@@ -434,6 +469,18 @@ export async function flagFactAction(_: ActionState, fd: FormData): Promise<Acti
   const r = await flagFact(p.data.evidenceId, p.data.reason);
   refresh(`/accounts/${r.accountId}`, "/review", "/outreach");
   return { ok: true, message: `Marked wrong — it won't be used again${r.withdrawn ? `; ${r.withdrawn} draft(s) citing it withdrawn` : ""}` };
+}
+
+export async function correctFactAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const p = z.object({ evidenceId: z.string().min(1), claim: z.string().trim().min(5, "Write the corrected fact").max(500), sourceUrl: z.string().trim().url("Source must be a full link (https://…)").max(500).optional().or(z.literal("")) })
+    .safeParse({ evidenceId: str(fd, "evidenceId"), claim: str(fd, "claim"), sourceUrl: str(fd, "sourceUrl") ?? "" });
+  if (!p.success) return { ok: false, message: p.error.issues[0].message };
+  const { getMe } = await import("@/lib/me");
+  const me = await getMe();
+  const { correctFact } = await import("@/lib/brain/feedback");
+  const r = await correctFact(p.data.evidenceId, { claim: p.data.claim, sourceUrl: p.data.sourceUrl || null, by: me?.email ?? "a team member" });
+  refresh(`/accounts/${r.accountId}`);
+  return { ok: true, message: "Fact corrected. The writer uses the new version from now on; drafts that cited the old one were withdrawn." };
 }
 
 export async function unflagFactAction(evidenceId: string): Promise<ActionState> {

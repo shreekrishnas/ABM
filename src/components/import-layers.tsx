@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { seller } from "@/lib/seller";
 import { IMPORT_FIELDS } from "@/lib/import/fields";
 import { ActionForm, SelectAll, SubmitButton } from "@/components/client";
-import { Card } from "@/components/ui";
+import { Card, ago } from "@/components/ui";
+import { similarity, type SeedProfile } from "@/lib/discover/similarity";
 import { approveSuggestionsAction } from "@/app/actions";
 
 /** The seller's targeting rule in words, e.g. "IN, more than 999 employees". */
@@ -62,6 +63,25 @@ export async function SuggestionReview({ origin, seed, emptyText }: { origin: Or
   const rule = ruleText();
   if (!rows.length) return <Card><p className="secondary text-sm">{emptyText}</p></Card>;
 
+  // Website visitors: how deep each company went on the site (last 30 days).
+  const depth = new Map<string, { visits: number; pages: number; hot: number; last: Date }>();
+  if (origin === "website_visitor") {
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const domains = rows.map((r) => r.domain).filter(Boolean) as string[];
+    const visits = await db.webVisit.findMany({
+      where: { occurredAt: { gte: since }, OR: [{ companyDomain: { in: domains } }, { companyName: { in: rows.map((r) => r.name) } }] },
+      select: { companyDomain: true, companyName: true, path: true, topic: true, occurredAt: true },
+    });
+    for (const r of rows) {
+      const mine = visits.filter((v) => (r.domain && v.companyDomain === r.domain) || v.companyName === r.name);
+      if (!mine.length) continue;
+      depth.set(r.id, { visits: mine.length, pages: new Set(mine.map((v) => v.path)).size, hot: mine.filter((v) => v.topic === "pricing" || v.topic === "demo").length, last: new Date(Math.max(...mine.map((v) => v.occurredAt.getTime()))) });
+    }
+    // Highest intent first: pricing/demo visits, then most visits.
+    const rank = (r: (typeof rows)[number]) => { const d = depth.get(r.id); return d ? d.hot * 100 + d.visits : -1; };
+    for (const list of [fit, check]) list.sort((a, b) => rank(b) - rank(a));
+  }
+
   const line = (r: (typeof rows)[number], pick: boolean) => (
     <li key={r.id} className="flex min-w-0 items-start gap-2.5 py-2">
       {pick && <input type="checkbox" name="ids" value={r.id} defaultChecked className="mt-1" aria-label={`Select ${r.name}`} />}
@@ -69,7 +89,27 @@ export async function SuggestionReview({ origin, seed, emptyText }: { origin: Or
         <div className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{r.name}</div>
         <div className="muted truncate text-xs">{[r.domain, r.industry, r.country ?? "country unknown", r.employees != null ? `${r.employees.toLocaleString()} employees` : "size unknown"].filter(Boolean).join(" · ")}</div>
         {r.reason && <div className="text-xs" style={{ color: "var(--intent-hot)" }}>{r.reason}</div>}
-        {!r.reason && r.whyNow && <div className="secondary line-clamp-2 text-xs">{r.whyNow}</div>}
+        {origin === "lookalike" && (() => {
+          const sim = similarity(r.seedProfile as SeedProfile | null, r);
+          return sim.traits.length ? (
+            <div className="sim-row" title={`Compared with ${r.seed}`}>
+              {sim.score != null && <span className={`sim-score${sim.score >= 70 ? " hi" : sim.score >= 40 ? " mid" : ""}`}>{sim.score}% match</span>}
+              {sim.traits.map((t) => <span key={t.label} className={`sim-trait${t.match === true ? " yes" : t.match === false ? " no" : ""}`} title={t.detail}>{t.match === true ? "✓" : t.match === false ? "✕" : "?"} {t.label}</span>)}
+            </div>
+          ) : null;
+        })()}
+        {origin === "website_visitor" && (() => {
+          const d = depth.get(r.id);
+          return d ? (
+            <div className="sim-row">
+              {d.hot > 0 && <span className="sim-score hi">Pricing / demo ×{d.hot}</span>}
+              <span className="sim-trait">{d.visits} visit{d.visits === 1 ? "" : "s"}</span>
+              <span className="sim-trait">{d.pages} page{d.pages === 1 ? "" : "s"}</span>
+              <span className="sim-trait">last {ago(d.last)}</span>
+            </div>
+          ) : <div className="muted text-xs">From the Apollo visitor list · no page data yet</div>;
+        })()}
+        {!r.reason && r.whyNow && origin !== "lookalike" && <div className="secondary line-clamp-2 text-xs">{r.whyNow}</div>}
       </div>
     </li>
   );

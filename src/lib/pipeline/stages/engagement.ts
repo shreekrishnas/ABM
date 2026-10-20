@@ -335,6 +335,33 @@ export async function acknowledgeHandoff(handoffId: string) {
   return db.handoff.update({ where: { id: handoffId }, data: { acknowledgedAt: new Date() } });
 }
 
+/**
+ * Sales decides on a hand-off. Accepted = the rep owns it. Sent back = not ready yet: the
+ * account returns to nurture (watched, re-checked later) and the reason is kept so marketing
+ * learns which hand-offs sales rejects.
+ */
+export async function decideHandoff(handoffId: string, input: { decision: "accepted" | "sent_back"; reason: string | null; by: string; recheckDays?: number }, now = new Date()) {
+  const h = await db.handoff.findUniqueOrThrow({ where: { id: handoffId }, include: { account: true } });
+  if (h.status !== "open") throw new Error(`Already ${h.status === "accepted" ? "accepted" : "sent back"}`);
+  await db.handoff.update({
+    where: { id: handoffId },
+    data: { status: input.decision, decisionReason: input.reason, decidedBy: input.by, decidedAt: now, acknowledgedAt: h.acknowledgedAt ?? now },
+  });
+  if (input.decision === "sent_back") {
+    const days = Math.min(Math.max(input.recheckDays ?? 30, 7), 180);
+    await db.account.update({ where: { id: h.accountId }, data: { stage: "WATCH" } });
+    await db.contact.updateMany({ where: { accountId: h.accountId, state: "handed_off" }, data: { state: "ready" } });
+    await db.watchlistEntry.create({ data: { accountId: h.accountId, reason: `Sent back by sales: ${input.reason ?? "not ready"}`, recheckAt: new Date(now.getTime() + days * 86_400_000) } });
+  }
+  await db.pipelineEvent.create({
+    data: {
+      accountId: h.accountId, stage: 13, step: input.decision === "accepted" ? "handoff.accepted" : "handoff.sent_back", outcome: input.decision === "accepted" ? "pass" : "info",
+      reason: input.decision === "accepted" ? `Accepted by ${input.by}` : `Sent back to nurture by ${input.by}: ${input.reason ?? "not ready"}`, runId: `handoff-${handoffId}`,
+    },
+  }).catch(() => undefined);
+  return { account: h.account.name };
+}
+
 /** Escalate handoffs not acknowledged within the SLA. */
 export async function escalateOverdue(ctx: RunContext = newContext()) {
   const overdue = await db.handoff.findMany({ where: { acknowledgedAt: null, escalatedAt: null, blocked: false, ackDueAt: { lt: ctx.now } }, include: { account: true } });

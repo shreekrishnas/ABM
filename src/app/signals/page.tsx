@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { Radar } from "lucide-react";
+import { ListTodo, Radar } from "lucide-react";
+import { AddTaskButton } from "@/components/shell/QuickTask";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, Kpi, PageHeader, StageBadge, ago } from "@/components/ui";
 import { recordSignalAction } from "../actions";
+import { ListKeys } from "@/components/peek/list-keys";
+import { PeekPanel, peekHref } from "@/components/peek/panel";
 
 export const metadata = { title: "Signals" };
 
-export default async function SignalsPage() {
+export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ peek?: string }> }) {
+  const { peek } = await searchParams;
   const since = new Date(Date.now() - 30 * 86_400_000);
   const [signals, byType, anon, accounts, surging] = await Promise.all([
     db.signal.findMany({ orderBy: { occurredAt: "desc" }, take: 80, include: { account: true, contact: true } }),
@@ -21,6 +25,8 @@ export default async function SignalsPage() {
 
   return (
     <div className="page-enter">
+      <ListKeys />
+      <PeekPanel peek={peek} close="/signals" />
       <PageHeader eyebrow="Continuous" title="Signals" sub="Intent, website visits, job changes and engagement feed one account-level score. Anonymous and uncontacted activity counts at half weight instead of being thrown away." />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Kpi label="Signals (30d)" value={total} meta={`${anon} anonymous`} />
@@ -34,16 +40,17 @@ export default async function SignalsPage() {
           {signals.length === 0 ? <Empty icon={<Radar size={20} />} title="No signals yet" /> : (
             <div className="table-wrap">
               <table className="data">
-                <thead><tr><th>Account</th><th>Signal</th><th>Who</th><th>Points</th><th>Counts toward</th><th>When</th></tr></thead>
+                <thead><tr><th>Account</th><th>Signal</th><th>Who</th><th>Points</th><th>Counts toward</th><th>When</th><th></th></tr></thead>
                 <tbody>
                   {signals.map((s) => (
-                    <tr key={s.id}>
-                      <td className="strong"><Link href={`/accounts/${s.accountId}?tab=activity`} className="hover:underline">{s.account.name}</Link></td>
+                    <tr key={s.id} data-row-select={peekHref("/signals", {}, "a", s.accountId)} data-selected={peek === `a_${s.accountId}` ? "" : undefined}>
+                      <td className="strong"><Link href={peekHref("/signals", {}, "a", s.accountId)} scroll={false} className="hover:underline">{s.account.name}</Link></td>
                       <td>{s.type.replaceAll("_", " ")}{s.detail && <div className="muted max-w-[200px] truncate text-xs">{s.detail}</div>}</td>
-                      <td>{s.contact?.fullName ?? <span className="muted">anonymous</span>}</td>
+                      <td>{s.contact ? <Link href={peekHref("/signals", {}, "p", s.contact.id)} scroll={false} className="hover:underline">{s.contact.fullName}</Link> : <span className="muted">anonymous</span>}</td>
                       <td className="tnum">+{s.points}</td>
                       <td>{s.attributed && !s.anonymous ? <Badge color="#7C3AED">person + account</Badge> : <Badge color="#0EA5E9">account (½ weight)</Badge>}</td>
                       <td className="muted whitespace-nowrap text-xs">{ago(s.occurredAt)}</td>
+                      <td><AddTaskButton target={{ accountId: s.accountId, contactId: s.contact?.id, label: s.contact?.fullName ?? s.account.name, title: `Follow up: ${s.type.replaceAll("_", " ")}${s.contact ? ` by ${s.contact.fullName}` : ""}`, origin: "signal" }} className="br-icon"><ListTodo size={15} /></AddTaskButton></td>
                     </tr>
                   ))}
                 </tbody>

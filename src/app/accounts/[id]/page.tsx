@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
-import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Flag, Handshake, Pencil, Lightbulb, Play, RotateCcw, ShieldAlert, Users, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { PIPELINE_STATUS_LABEL, PROGRESS_LABEL } from "@/lib/stage-docs";
@@ -9,7 +9,7 @@ import { ensureSellerPacks, seller } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
-import { addNoteAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
+import { addNoteAction, correctFactAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
 import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
@@ -18,6 +18,7 @@ import { Crumbs } from "@/components/shell/Crumbs";
 import { PipelineStepper, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
+import { AddTaskButton } from "@/components/shell/QuickTask";
 
 const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
 function brandColor(id: string) {
@@ -113,6 +114,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-brand" title="Continue from the next stage"><Play size={15} /> Run pipeline</ActionButton>
             <ActionButton action={runAccountAction.bind(null, a.id, 5)} className="btn btn-secondary" title="Re-plan and re-research (loop counters are kept)"><RotateCcw size={15} /> Re-research</ActionButton>
             <ActionButton action={manualHandoffAction.bind(null, a.id)} className="btn btn-secondary" confirm="Hand this account to its owner now? Automated outreach will pause."><Handshake size={15} /> Hand off</ActionButton>
+            <AddTaskButton target={{ accountId: a.id, label: a.name }} className="btn btn-secondary" />
           </div>
         </div>
 
@@ -186,6 +188,16 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                         <span className="min-w-0 flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
                         <span className="flex shrink-0 items-center gap-1.5">
                           <FieldBadge status={f.status as FieldStatus} />
+                          <Modal trigger={<Pencil size={13} />} triggerClass="btn btn-ghost btn-sm" title="Correct this fact" eyebrow="Edit fact">
+                            <ActionForm action={correctFactAction} className="grid gap-3">
+                              <input type="hidden" name="evidenceId" value={f.id} />
+                              <p className="muted text-xs">Now: &ldquo;{f.claim}&rdquo;</p>
+                              <textarea name="claim" className="glass-textarea" defaultValue={f.claim} required aria-label="Corrected fact" />
+                              <input name="sourceUrl" className="glass-input" placeholder="Source link (optional), e.g. https://company.com/news/…" aria-label="Source link" />
+                              <p className="muted text-xs">The corrected fact is marked verified and used from now on. Unsent drafts that cited the old version are withdrawn.</p>
+                              <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Save correction</SubmitButton></div>
+                            </ActionForm>
+                          </Modal>
                           <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Feedback">
                             <ActionForm action={flagFactAction} className="grid gap-3">
                               <input type="hidden" name="evidenceId" value={f.id} />
@@ -199,7 +211,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                       </div>
                       <div className="mono muted mt-1.5 flex flex-wrap gap-x-3">
                         <span className="micro" style={{ letterSpacing: "0.06em" }}>{f.key.replace("_", " ")}</span>
-                        <a href={f.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.sourceType} · {new URL(f.sourceUrl).hostname}</a>
+                        {f.sourceType === "team" ? <span>Corrected by the team</span> : <a href={f.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.sourceType} · {new URL(f.sourceUrl).hostname}</a>}
                         <span>{date(f.publishedAt)}</span>
                         {engineOf.get(f.id) && <span>via {engineOf.get(f.id)}</span>}
                       </div>

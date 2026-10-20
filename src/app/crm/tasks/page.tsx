@@ -4,11 +4,15 @@ import { db } from "@/lib/db";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Badge, Card, Empty, PageHeader, ago, cx, date } from "@/components/ui";
 import { createTaskAction, setTaskStatusAction } from "../../actions";
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
+import { ListKeys } from "@/components/peek/list-keys";
 
 export const metadata = { title: "CRM · Tasks" };
 
-export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const view = (await searchParams).view ?? "open";
+export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; peek?: string }> }) {
+  const sp = await searchParams;
+  const view = sp.view ?? "open";
+  const keep = { view: sp.view };
   const [tasks, accounts, users] = await Promise.all([
     db.task.findMany({
       where: view === "done" ? { status: "done" } : { status: { in: ["todo", "in_progress"] } },
@@ -23,6 +27,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page-enter">
+      <ListKeys />
+      <PeekPanel peek={sp.peek} close={closeHref("/crm/tasks", keep)} />
       <PageHeader
         eyebrow="CRM"
         title="Tasks"
@@ -62,7 +68,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                     {t.body && <div className="secondary mt-0.5 line-clamp-2 text-xs">{t.body}</div>}
                     <div className="muted mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <span className="inline-flex items-center gap-1"><Icon size={12} />{t.origin}</span>
-                      {t.account && <Link href={`/accounts/${t.account.id}`} className="hover:underline">{t.account.name}</Link>}
+                      {t.account && <Link href={peekHref("/crm/tasks", keep, "a", t.account.id)} scroll={false} className="hover:underline">{t.account.name}</Link>}
+                      {t.contact && <Link href={peekHref("/crm/tasks", keep, "p", t.contact.id)} scroll={false} className="hover:underline">{t.contact.fullName}</Link>}
                       <span>{t.assignee?.name ?? "Unassigned"}</span>
                       <span>created {ago(t.createdAt)}</span>
                     </div>

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
+import { getMe } from "@/lib/me";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
 import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
@@ -76,8 +77,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
+  // The signed-in user's own name from the team list; the email's first part only as a fallback.
+  const me = await getMe();
   const first = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
-  const userName = process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
+  const userName = me?.name.split(/\s+/)[0] || process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
   const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
 
   const kpis = [
@@ -98,7 +101,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="hm-tools">
             <SearchPill />
             <ThemePill />
-            {session?.email && <span className="hm-who" title={session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
+            {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
           </div>
         </header>
 

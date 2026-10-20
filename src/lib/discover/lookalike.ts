@@ -100,6 +100,7 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
       origin: "lookalike", seed: seedName, candidate: c, firmo, score: fit, level: "cold",
       whyNow: `Similar to ${seedName}: ${c.reason}`,
       sources: c.source ? [{ ...c.source, trigger: "lookalike" }] : [],
+      seedProfile: { industry: seedFirmo.industry, employees: seedFirmo.employees, country: seedFirmo.country, keywords: keywords.slice(0, 8) },
     });
     if (status === "new") suggested++;
     if (status === "excluded") excluded++;

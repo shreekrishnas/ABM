@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { CheckCircle2, ClipboardCheck, Flame, HelpCircle, MessageSquareReply, Repeat, Upload } from "lucide-react";
+import { CheckCircle2, Circle, ClipboardCheck, Flame, HelpCircle, ListTodo, MessageSquareReply, Repeat, Upload } from "lucide-react";
 import { db } from "@/lib/db";
+import { getMe } from "@/lib/me";
 import { nextAction } from "@/lib/journey/engine";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import { ActionButton } from "@/components/client";
 import { Avatar } from "@/components/ui";
 import { FamilyChip, IntentPill, QueueRow, StatStrip, type IntentLevel } from "@/components/v2";
-import { runAllAction } from "../../actions";
+import { runAllAction, setTaskStatusAction } from "../../actions";
 import { TopOpportunities } from "./top-opportunities";
 
 export const metadata = { title: "Today" };
@@ -36,7 +37,7 @@ export default async function Today() {
     .filter((x) => x.n.dueAt && x.n.dueAt <= now && !x.n.text.startsWith("No outreach"))
     .slice(0, 6);
   const total = replies.length + approvalsCount + followUps.length + decisions.length;
-  const hour = now.getHours();
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now));
 
   const lanes = [
     { id: "replies", label: "Replies", n: replies.length, icon: MessageSquareReply, tone: "emerald" },
@@ -45,13 +46,21 @@ export default async function Today() {
     { id: "decisions", label: "Decisions", n: decisions.length, icon: HelpCircle, tone: "violet" },
   ];
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const me = await getMe();
+  const firstName = me?.name.split(/\s+/)[0];
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+  const myTasks = await db.task.findMany({
+    where: { status: { in: ["todo", "in_progress"] }, dueAt: { lte: endOfDay }, ...(me ? { OR: [{ assigneeId: me.id }, { assigneeId: null }] } : {}) },
+    orderBy: { dueAt: "asc" }, take: 8, include: { account: { select: { id: true, name: true } }, contact: { select: { id: true, fullName: true } } },
+  });
 
   return (
     <div className="page-enter td">
       <section className="td-hero">
         <div className="td-hero-main">
           <div className="td-date">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
-          <h1 className="td-title">{greet}.</h1>
+          <h1 className="td-title">{greet}{firstName ? `, ${firstName}` : ""}.</h1>
           <p className="td-lede">{total ? <><b>{total} thing{total > 1 ? "s" : ""}</b> need a person today. Everything else runs on its own.</> : "Nothing needs you right now. Research, scoring and drafting are running on their own."}</p>
           <div className="td-actions">
             <ActionButton action={runAllAction} className="td-btn-primary">Process new companies</ActionButton>
@@ -91,6 +100,23 @@ export default async function Today() {
                   action={REPLY_ACTION[j.stage] ?? "Open"} />
               ))}
             </div>
+          )}
+        </Panel>
+
+        <Panel id="tasks" icon={ListTodo} tone="sky" title="Your tasks due today" count={myTasks.length} action={<Link href="/crm/tasks" className="td-link">All tasks</Link>}>
+          {myTasks.length === 0 ? <Clear text="No tasks due. Add one from any company, person or signal." /> : (
+            <ul className="td-tasks">
+              {myTasks.map((t) => (
+                <li key={t.id}>
+                  <ActionButton action={setTaskStatusAction.bind(null, t.id, "done")} className="br-icon" title="Mark done"><Circle size={16} /></ActionButton>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t.title}</div>
+                    <div className="muted truncate text-xs">{[t.contact?.fullName, t.account?.name].filter(Boolean).join(" · ") || "General"}{t.dueAt && t.dueAt < now ? " · overdue" : ""}</div>
+                  </div>
+                  {t.account && <Link href={`/accounts/${t.account.id}`} className="td-link">Open</Link>}
+                </li>
+              ))}
+            </ul>
           )}
         </Panel>
 

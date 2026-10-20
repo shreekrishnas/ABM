@@ -751,6 +751,12 @@ model Handoff {
   ackDueAt       DateTime?
   acknowledgedAt DateTime?
   escalatedAt    DateTime?
+  /// open | accepted | sent_back
+  status         String    @default("open")
+  /// Why sales accepted it or sent it back (sent back = the reason marketing learns from).
+  decisionReason String?
+  decidedBy      String?
+  decidedAt      DateTime?
   createdAt      DateTime  @default(now())
 
   @@index([acknowledgedAt])
@@ -974,6 +980,8 @@ model ProspectSuggestion {
   origin    String   @default("market")
   /// For lookalikes: the company they resemble.
   seed      String?
+  /// For lookalikes: the seed company's profile { industry, employees, country, keywords }, to show which traits match.
+  seedProfile Json?
   name      String
   nameKey   String
   domain    String?

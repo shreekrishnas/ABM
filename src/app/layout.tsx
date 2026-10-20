@@ -11,6 +11,7 @@ import { getMe, signedOutOrRemoved } from "@/lib/me";
 import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
+import { QuickTask } from "@/components/shell/QuickTask";
 
 export const metadata: Metadata = {
   title: { default: "ABM Intelligence", template: "%s · ABM Intelligence" },
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
   const me = await getMe();
+  const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);
   const access = me
     ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const) }
     : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const } : null;
@@ -47,7 +49,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="app-main" id="main">{children}</main>
         </Shell>
         <ToastHost />
-        <CommandPalette />
+        <CommandPalette canAct={Boolean(access && access.state === "ok")} />
+        <QuickTask users={team} />
       </body>
     </html>
   );
