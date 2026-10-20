@@ -66,7 +66,7 @@ export interface BriefInput {
   hypotheses: string[];
   seller: {
     name: string;
-    products: { name: string; what: string }[];
+    products: { name: string; what: string; useCases?: string[] }[];
     useCases: { key: string; name: string; pains: string; outcome: string }[];
     personas: { role: BuyingRoleKey; titles: string[]; why: string }[];
     proofPoints: string[];

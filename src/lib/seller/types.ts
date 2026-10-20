@@ -56,7 +56,7 @@ export interface SellerProfile {
   founded?: number;
   summary: string;
   positioning: string;
-  products: { name: string; what: string }[];
+  products: { name: string; what: string; useCases?: string[] }[];
   useCases: { key: string; name: string; pains: string; outcome: string }[];
   proofPoints: { text: string; source: string }[];
   customers: { name: string; story: string; publicReference: boolean }[];

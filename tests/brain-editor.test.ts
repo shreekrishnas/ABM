@@ -59,3 +59,15 @@ describe("targeting rule feeds the hard gate", () => {
     expect(readSection(p, "targeting")[0].minEmployees).toBe(1000);
   });
 });
+
+describe("offerings link to use cases", () => {
+  it("stores use case keys and drops removed ones", async () => {
+    const { writeSection, readSection, starterPack } = await import("@/lib/seller/brain");
+    let p = writeSection(starterPack("acme", "Acme"), "useCases", [{ name: "Vendor onboarding", pains: "slow", outcome: "fast" }]);
+    p = writeSection(p, "products", [{ name: "Suite", what: "Does it", useCases: ["Vendor onboarding"] }]);
+    expect(p.products[0].useCases).toEqual([p.useCases[0].key]);
+    expect(readSection(p, "products")[0].useCases).toEqual(["Vendor onboarding"]);
+    p = writeSection(p, "useCases", [{ name: "Other", pains: "x", outcome: "y" }]);
+    expect(p.products[0].useCases).toBeUndefined();
+  });
+});

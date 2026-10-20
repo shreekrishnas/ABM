@@ -248,7 +248,7 @@ export class OpenRouterLLM implements LLM {
         `RESEARCH HYPOTHESES: ${input.hypotheses.join(" | ") || "none"}`,
         input.intent ? `INTENT SIGNALS (score ${input.intent.score}, ${input.intent.level}; independent families converging is what matters): ${input.intent.signals.map((s) => `[${s.family}] ${s.label}`).join(" | ") || "none"}. Build "why now" from the strongest CONVERGING signals and name them specifically; if only one weak family exists, say the timing is unproven.` : "",
         input.imported ? `FROM THE CLIENT'S IMPORT: systems ${input.imported.technologies.join(", ") || "—"}; keywords ${input.imported.keywords.join(", ") || "—"}; team notes: ${input.imported.notes ?? "—"}; LinkedIn conversations already running: ${input.imported.conversations.map((c) => `${c.name} (${c.title ?? "?"}) — ${c.stage}${c.lastReply ? `: "${c.lastReply.slice(0, 120)}"` : ""}`).join(" | ") || "none"}. If a conversation is running, the next best action must build on it.` : "",
-        `${input.seller.name.toUpperCase()} PRODUCTS: ${input.seller.products.map((p) => `${p.name}: ${p.what}`).join(" | ")}`,
+        `${input.seller.name.toUpperCase()} PRODUCTS: ${input.seller.products.map((p) => `${p.name}: ${p.what}${p.useCases?.length ? ` (serves: ${p.useCases.join(", ")})` : ""}`).join(" | ")}. In each pain point's capability, name the product that serves its use case when one is listed.`,
         `USE CASES (useCase must be one of these keys): ${input.seller.useCases.map((u) => `${u.key} — pains: ${u.pains}; outcome: ${u.outcome}`).join(" | ")}`,
         `PERSONAS: ${input.seller.personas.map((p) => `${p.role}: ${p.titles.slice(0, 4).join(", ")} — ${p.why}`).join(" | ")}`,
         `PROOF POINTS: ${input.seller.proofPoints.join(" | ")}`,

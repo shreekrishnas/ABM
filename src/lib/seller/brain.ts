@@ -68,9 +68,9 @@ export const BRAIN_SECTIONS: BrainSection[] = [
     ],
   },
   {
-    key: "products", label: "Offerings", help: "The products or services this account sells.",
+    key: "products", label: "Offerings", help: "Optional. The products or services this account sells; AI fill reads only the account's own website and uploaded files.",
     aiAsk: "the company's products or service lines, each with one sentence on what it does",
-    fields: [{ key: "name", label: "Offering", kind: "text" }, { key: "what", label: "What it does", kind: "long" }],
+    fields: [{ key: "name", label: "Offering", kind: "text" }, { key: "what", label: "What it does", kind: "long" }, { key: "useCases", label: "Use cases it serves", kind: "list", hint: "Names from Use cases: emails about that use case can mention this offering" }],
   },
   {
     key: "useCases", label: "Use cases", help: "The 3–4 proven problems this account solves. Emails lead with one of these.",
@@ -150,7 +150,7 @@ export function readSection(p: SellerProfile, key: string): BrainItem[] {
     case "overview": return [{ name: p.name, website: p.website, hq: p.hq, summary: p.summary, positioning: p.positioning, tone: p.tone, cta: p.messaging.cta, defaultMessage: p.messaging.default }];
     case "targeting": return [{ countries: p.icp.geos.primary, secondaryCountries: p.icp.geos.secondary, minEmployees: p.icp.mustHave?.minEmployees ?? p.icp.employees.min, midEmployees: p.icp.employees.mid, sweetSpot: p.icp.employees.sweetSpot }];
     case "industries": return p.icp.industries.map((i) => ({ _key: i.key, label: i.label, tier: i.tier, match: i.match, useCases: i.useCases.map((k) => ucName.get(k) ?? k) }));
-    case "products": return p.products.map((x) => ({ name: x.name, what: x.what }));
+    case "products": return p.products.map((x) => ({ name: x.name, what: x.what, useCases: (x.useCases ?? []).map((k) => ucName.get(k) ?? k) }));
     case "useCases": return p.useCases.map((u) => ({ _key: u.key, name: u.name, pains: u.pains, outcome: u.outcome }));
     case "customers": return p.customers.map((c) => ({ name: c.name, story: c.story, publicReference: c.publicReference }));
     case "proofPoints": return p.proofPoints.map((x) => ({ text: x.text, source: x.source }));
@@ -204,7 +204,14 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
       });
       break;
     }
-    case "products": next.products = rows.map((r) => ({ name: s(r.name), what: s(r.what) })); break;
+    case "products": {
+      const byName = new Map(next.useCases.map((u) => [u.name.toLowerCase(), u.key]));
+      next.products = rows.map((r) => {
+        const uc = strs(r.useCases).map((x) => byName.get(x.toLowerCase()) ?? slug(x));
+        return { name: s(r.name), what: s(r.what), ...(uc.length ? { useCases: uc } : {}) };
+      });
+      break;
+    }
     case "useCases": {
       const used = new Set<string>();
       next.useCases = rows.map((r) => ({ key: r._key && !used.has(r._key) ? (used.add(r._key), r._key) : uniqueKey(s(r.name), used), name: s(r.name), pains: s(r.pains), outcome: s(r.outcome) }));
@@ -230,6 +237,7 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
   const keys = new Set(next.useCases.map((u) => u.key));
   for (const i of next.icp.industries) i.useCases = i.useCases.filter((k) => keys.has(k));
   for (const t of next.triggers) if (t.useCase && !keys.has(t.useCase)) delete t.useCase;
+  for (const pr of next.products) if (pr.useCases) { pr.useCases = pr.useCases.filter((k) => keys.has(k)); if (!pr.useCases.length) delete pr.useCases; }
   next.messaging.byUseCase = Object.fromEntries(Object.entries(next.messaging.byUseCase).filter(([k]) => keys.has(k)));
   if (next.writing) for (const e of next.writing.examples) if (e.useCase && !keys.has(e.useCase)) delete e.useCase;
   return next;

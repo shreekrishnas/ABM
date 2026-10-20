@@ -33,7 +33,7 @@ export const packSchema = z
     founded: z.number().int().min(1800).max(2100).optional(),
     summary: str,
     positioning: z.string(),
-    products: z.array(z.object({ name: str, what: str }).strict()),
+    products: z.array(z.object({ name: str, what: str, useCases: strList.optional() }).strict()),
     useCases: z.array(z.object({ key, name: str, pains: str, outcome: str }).strict()).min(1),
     proofPoints: z.array(z.object({ text: str, source: str }).strict()),
     customers: z.array(z.object({ name: str, story: str, publicReference: z.boolean() }).strict()),

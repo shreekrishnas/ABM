@@ -55,12 +55,16 @@ export async function suggestBrainAction(clientId: string, sectionKey: string): 
     const domain = pack.website.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     if (pack.name) {
       try {
-        pages = (await a.research.search(domain, pack.name, "brain", "main", { query: `${pack.name}${domain ? ` site:${domain}` : ""} ${section.label}` })).slice(0, 5).map((p) => ({ title: p.title, url: p.url, text: p.text }));
+        const found = await a.research.search(domain, pack.name, "brain", "main", { query: `${pack.name}${domain ? ` site:${domain}` : ""} ${section.label}` });
+        // Offerings: only the account's own pages, so the AI can't invent products from other sites.
+        const own = (u: string | null) => { try { return Boolean(domain && u && new URL(u).hostname.replace(/^www\./, "").endsWith(domain.replace(/^www\./, ""))); } catch { return false; } };
+        pages = found.filter((p) => sectionKey !== "products" || own(p.url)).slice(0, 5).map((p) => ({ title: p.title, url: p.url, text: p.text }));
       } catch {
         // No search connected: files alone are used.
       }
     }
     const context = [...docs.map((d) => ({ title: d.title, url: d.url, text: d.text })), ...pages];
+    if (!context.length && sectionKey === "products") return { ok: false, message: "No product pages found on the account's website: upload a brochure or product deck below" };
     if (!context.length) return { ok: false, message: "Nothing to read yet: add the account's website in Overview, or upload a file below" };
     const existing = readSection(pack, sectionKey).map((it) => Object.values(it).filter((v) => typeof v === "string").slice(0, 2).join(" — ")).filter(Boolean);
     const raw = await a.llm.suggestBrainItems({
