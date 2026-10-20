@@ -43,16 +43,15 @@ export default async function SellerPage() {
         </Card>
       </div>
 
-      <Card title="How fit is scored" sub={`Weights: industry ${w.industry} · size ${w.size} · geography ${w.geography} · partner network ${w.partnerNetwork} · tech stack ${w.techStack} — scored on known fields only`} className="mt-5" pad={false}>
+      <Card title="How fit is scored" sub={`Weights: industry ${w.industry} · size ${w.size} · geography ${w.geography} · tech stack ${w.techStack} — scored on known fields only`} className="mt-5" pad={false}>
         <div className="table-wrap">
           <table className="data">
-            <thead><tr><th>Vertical</th><th>Tier</th><th>Partner network</th><th>Lead use cases</th><th>Matches industry text like</th></tr></thead>
+            <thead><tr><th>Vertical</th><th>Tier</th><th>Lead use cases</th><th>Matches industry text like</th></tr></thead>
             <tbody>
               {sp.icp.industries.map((i) => (
                 <tr key={i.key}>
                   <td className="strong">{i.label}</td>
                   <td><Badge color={i.tier === "primary" ? "#059669" : "#0EA5E9"}>{i.tier}</Badge></td>
-                  <td className="tnum">{Math.round(i.partnerIntensity * w.partnerNetwork)}/{w.partnerNetwork}</td>
                   <td className="text-xs">{i.useCases.map((u) => sp.useCases.find((x) => x.key === u)?.name).join(" · ")}</td>
                   <td className="muted text-xs">{i.match.slice(0, 5).join(", ")}</td>
                 </tr>

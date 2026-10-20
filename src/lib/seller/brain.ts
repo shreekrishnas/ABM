@@ -63,7 +63,7 @@ export const BRAIN_SECTIONS: BrainSection[] = [
     fields: [
       { key: "label", label: "Industry", kind: "text", need: "research" },
       { key: "tier", label: "Priority", kind: "select", options: [{ value: "primary", label: "Primary" }, { value: "secondary", label: "Secondary" }] },
-      { key: "match", label: "Match words", kind: "list", need: "research" },
+      { key: "match", label: "Match words", kind: "list", hint: "Words that identify this industry in company data. Use AI suggest, or leave empty to use the industry name" },
       { key: "useCases", label: "Use cases to lead with", kind: "list", hint: "Names from Use cases" },
     ],
   },
@@ -128,7 +128,7 @@ export function starterPack(id: string, name: string): SellerProfile {
     products: [], useCases: [], proofPoints: [], customers: [], competitors: [],
     icp: {
       industries: [], employees: { sweetSpot: 1000, mid: 500, min: 100 }, geos: { primary: [], secondary: [] },
-      tech: { erp: [], incumbents: [], workflow: [] }, weights: { industry: 30, size: 25, geography: 20, partnerNetwork: 10, techStack: 15 },
+      tech: { erp: [], incumbents: [], workflow: [] }, weights: { industry: 30, size: 25, geography: 25, techStack: 20 },
     },
     personas: [], triggers: [], negativeSignals: [],
     researchQuestions: [
@@ -200,7 +200,7 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
       next.icp.industries = rows.map((r) => {
         const prev = r._key ? old.get(r._key) : undefined;
         const k = prev ? (used.add(prev.key), prev.key) : uniqueKey(s(r.label), used);
-        return { key: k, label: s(r.label), tier: r.tier === "secondary" ? "secondary" : "primary", match: strs(r.match).map((m) => m.toLowerCase()), partnerIntensity: prev?.partnerIntensity ?? 0.5, useCases: strs(r.useCases).map((x) => byName.get(x.toLowerCase()) ?? slug(x)) };
+        return { key: k, label: s(r.label), tier: r.tier === "secondary" ? "secondary" : "primary", match: (strs(r.match).length ? strs(r.match) : s(r.label).split(/,|&|\/|\band\b/)).map((m) => m.trim().toLowerCase()).filter(Boolean), useCases: strs(r.useCases).map((x) => byName.get(x.toLowerCase()) ?? slug(x)) };
       });
       break;
     }

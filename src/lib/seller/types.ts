@@ -62,11 +62,11 @@ export interface SellerProfile {
   customers: { name: string; story: string; publicReference: boolean }[];
   competitors: { name: string; category: string; angle: string }[];
   icp: {
-    industries: { key: string; label: string; tier: "primary" | "secondary"; match: string[]; partnerIntensity: number; useCases: string[] }[];
+    industries: { key: string; label: string; tier: "primary" | "secondary"; match: string[]; partnerIntensity?: number; useCases: string[] }[];
     employees: { sweetSpot: number; mid: number; min: number };
     geos: { primary: string[]; secondary: string[] };
     tech: { erp: string[]; incumbents: string[]; workflow: string[] };
-    weights: { industry: number; size: number; geography: number; partnerNetwork: number; techStack: number };
+    weights: { industry: number; size: number; geography: number; partnerNetwork?: number; techStack: number };
     /** How the combined priority score weighs intent, fit, company value and timing (default 40/30/20/10). */
     priorityWeights?: { intent: number; fit: number; value: number; timing: number };
     /** Starting tier from employee count (T1 at or above T1, T2 at or above T2, else T3). Hot buying signals upgrade to T1. */

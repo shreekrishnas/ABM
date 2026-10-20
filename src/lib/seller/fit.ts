@@ -22,7 +22,7 @@ export interface FitInput {
 }
 
 export interface FitComponent {
-  key: "industry" | "size" | "geography" | "partnerNetwork" | "techStack";
+  key: "industry" | "size" | "geography" | "techStack";
   label: string;
   points: number | null; // null = unknown (not counted)
   max: number;
@@ -67,11 +67,6 @@ export function sellerFit(a: FitInput, p: SellerProfile): SellerFit {
   else if (p.icp.geos.primary.includes(c)) components.push({ key: "geography", label: "Geography", points: w.geography, max: w.geography, reason: `${c} — home market` });
   else if (p.icp.geos.secondary.includes(c)) components.push({ key: "geography", label: "Geography", points: Math.round(w.geography * 0.67), max: w.geography, reason: `${c} — expansion market` });
   else components.push({ key: "geography", label: "Geography", points: Math.round(w.geography * 0.2), max: w.geography, reason: `${c} — outside current markets` });
-
-  // Partner network intensity: how many external parties the business onboards.
-  if (p.icp.industryMode === "any") components.push({ key: "partnerNetwork", label: "Partner network", points: null, max: w.partnerNetwork, reason: "Not judged by industry (research checks the real network)" });
-  else if (!ind) components.push({ key: "partnerNetwork", label: "Partner network", points: a.industry ? 0 : null, max: w.partnerNetwork, reason: a.industry ? "No large distributor/vendor/gig network expected" : "Unknown until industry is known" });
-  else components.push({ key: "partnerNetwork", label: "Partner network", points: Math.round(w.partnerNetwork * ind.partnerIntensity), max: w.partnerNetwork, reason: ind.partnerIntensity >= 0.9 ? "Large distributor/vendor/seller network typical" : "Meaningful partner and vendor network typical" });
 
   // Tech stack: ERP to integrate with, incumbents to displace, DIY workflow tools.
   const tech = (a.technologies ?? []).map(lc).join(" | ");

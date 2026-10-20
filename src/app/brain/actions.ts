@@ -149,3 +149,24 @@ export async function estimateTargetingAction(clientId: string, item: BrainItem)
     return { ok: false, message: e instanceof Error ? e.message : "Could not estimate" };
   }
 }
+
+/** AI: the words company data uses for one industry (e.g. "FMCG" → fmcg, cpg, consumer goods). */
+export async function suggestMatchWordsAction(clientId: string, industry: string): Promise<{ ok: true; words: string[] } | { ok: false; message: string }> {
+  try {
+    await editor(clientId);
+    const label = industry.trim().slice(0, 120);
+    if (!label) return { ok: false, message: "Name the industry first" };
+    const { pack } = await loadBrain(clientId);
+    const raw = await getAdapters().llm.suggestBrainItems({
+      account: pack.name || clientId, section: "Industries", single: true, existing: [],
+      ask: `match words for the industry "${label}": 6-12 short lowercase words or phrases that company databases (Apollo, LinkedIn industry, website text) use for companies in this industry, including common abbreviations and sub-sectors`,
+      context: [{ title: "Industry", url: null, text: `${label}. Account sells: ${pack.summary || pack.name}` }],
+      fields: [{ key: "match", label: "Match words (comma separated)", kind: "list" }],
+    });
+    const words = [...new Set(raw.flatMap((r) => String(r.match ?? "").split(",")).map((w) => w.trim().toLowerCase()).filter(Boolean))].slice(0, 15);
+    if (!words.length) return { ok: false, message: "No suggestions: try a clearer industry name" };
+    return { ok: true, words };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Could not suggest" };
+  }
+}

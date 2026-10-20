@@ -49,7 +49,7 @@ describe("scoring", () => {
     expect(full.useCases).toContain("distributor_onboarding");
     const partial = scoreFit({ industry: "beverages", employees: null, country: null });
     expect(partial.fit).toBe(100); // industry + partner network known, both full
-    expect(partial.coverage).toBeCloseTo(2 / 5);
+    expect(partial.coverage).toBeCloseTo(1 / 4);
     expect(scoreFit({}).fit).toBeNull();
     // Outside Manch's verticals and small → below the fit floor.
     expect(scoreFit({ industry: "robotics research", employees: 150, country: "JP" }).fit!).toBeLessThan(40);

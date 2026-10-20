@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Loader2, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "@/components/client";
 import type { BrainField, BrainItem, BrainSection as Spec } from "@/lib/seller/brain";
-import { estimateTargetingAction, saveBrainSectionAction, suggestBrainAction } from "./actions";
+import { suggestMatchWordsAction, estimateTargetingAction, saveBrainSectionAction, suggestBrainAction } from "./actions";
 
 const blank = (fields: BrainField[]): BrainItem => Object.fromEntries(fields.map((f) => [f.key, f.kind === "list" || f.kind === "lines" ? [] : f.kind === "bool" ? false : f.kind === "number" ? null : f.kind === "select" ? f.options?.[0]?.value ?? "" : ""]));
 const summary = (it: BrainItem, fields: BrainField[]) => {
@@ -98,6 +98,7 @@ export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: s
                 {canEdit && <button type="button" className="br-icon" aria-label="Remove" title="Remove" onClick={() => { edit(items.filter((_, j) => j !== i)); setOpen(null); }}><Trash2 size={15} /></button>}
               </div>
               {open === i && <Fields fields={spec.fields} item={it} onChange={(next) => canEdit && edit(items.map((x, j) => (j === i ? next : x)))} />}
+              {open === i && canEdit && spec.key === "industries" && <MatchWords clientId={clientId} item={it} onWords={(words) => edit(items.map((x, j) => (j === i ? { ...x, match: [...new Set([...(Array.isArray(x.match) ? x.match : []), ...words])] } : x)))} />}
             </li>
           ))}
         </ul>
@@ -150,5 +151,19 @@ function ImpactEstimate({ clientId, item }: { clientId: string; item: BrainItem 
       </button>
       {r && <p className="tnum"><b>{r.now}</b> of {r.total} pass the saved rule · <b>{r.next}</b> would pass this one</p>}
     </details>
+  );
+}
+
+function MatchWords({ clientId, item, onWords }: { clientId: string; item: BrainItem; onWords: (w: string[]) => void }) {
+  const [busy, start] = useTransition();
+  return (
+    <button type="button" className="br-ai br-ai-sm" disabled={busy} onClick={() => start(async () => {
+      const r = await suggestMatchWordsAction(clientId, String(item.label ?? ""));
+      if (!r.ok) return toast({ ok: false, message: r.message });
+      onWords(r.words);
+      toast({ ok: true, message: `${r.words.length} match words added: remove any that don't fit, then Save` });
+    })}>
+      {busy ? <Loader2 size={14} className="lg-spin" /> : <Sparkles size={14} />} AI suggest match words
+    </button>
   );
 }

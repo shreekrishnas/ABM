@@ -1560,3 +1560,4 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 .br-impact summary { cursor: pointer; font-weight: 600; }
 .br-impact summary span { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 6px; }
 .br-impact p { margin: 8px 0; color: var(--text-secondary); }
+.br-ai-sm { margin: 0 0 12px 14px; font-size: 12px; padding: 5px 10px; }
