@@ -755,3 +755,14 @@ export async function dismissSuggestionAction(id: string): Promise<ActionState> 
   return { ok: true, message: "Dismissed" };
 }
 
+
+/** Lift a company-wide outreach pause (after an objection was handled, or to end a "not now" early). */
+export async function resumeOutreachAction(accountId: string): Promise<ActionState> {
+  const { resumeCompany } = await import("@/lib/pipeline/coordination");
+  const { newContext } = await import("@/lib/pipeline/context");
+  const { getMe } = await import("@/lib/me");
+  const me = await getMe();
+  const n = await resumeCompany(accountId, newContext(), `resumed by ${me?.email ?? "a team member"}`);
+  refresh(`/accounts/${accountId}`, "/review", "/outreach");
+  return { ok: true, message: `Outreach resumed: ${n} sequence${n === 1 ? "" : "s"} active again. Due emails are drafted on the next run.` };
+}

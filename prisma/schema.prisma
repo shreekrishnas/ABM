@@ -271,6 +271,9 @@ model Account {
   pipelineStage     Int       @default(0)
   pipelineStatus    String    @default("idle") // idle | running | blocked | done | error
   /// Automatic retries after temporary failures (rate limits, outages, timeouts).
+  /// Company-wide outreach pause (a decision maker said not now, or an objection awaits review).
+  outreachPausedUntil DateTime?
+  outreachPauseReason String?
   retryCount        Int       @default(0)
   nextRetryAt       DateTime?
   lastError         String?
@@ -334,6 +337,10 @@ model Contact {
   personNotes        String?
   seniority          String? // c_level, vp, director, manager, ic
   buyingRole         BuyingRole        @default(unknown)
+  /// Company contact plan: order in the buying group, when this person's outreach may start, and why.
+  planOrder          Int?
+  planStartAt        DateTime?
+  planReason         String?
   identityConfidence Float?
   state              ContactState      @default(new)
   readiness          ReadinessOutcome?

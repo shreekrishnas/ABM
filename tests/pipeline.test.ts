@@ -351,3 +351,101 @@ describe("phase 1: freshness gate and automatic retry", () => {
     expect(await db.reviewItem.count({ where: { accountId: id, type: "retry_exhausted" } })).toBe(1);
   });
 });
+
+describe("phase 2: buying-group coordination", () => {
+  const people: [string, string, string?][] = [["Asha Mehta", "VP Data"], ["Daniel Okafor", "Head of Data Platform"], ["Priya Nair", "Data Platform Lead"]];
+
+  it("plans the company: role order, staggered starts, only the first person drafted on day one", async () => {
+    const id = await account("strong-plan.com", people);
+    await runAccount(id);
+    const plan = await db.contact.findMany({ where: { accountId: id, planOrder: { not: null } }, orderBy: { planOrder: "asc" } });
+    expect(plan.length).toBeGreaterThan(1);
+    const rank = (r: string) => { const i = ["champion", "decision_maker"].indexOf(r); return i < 0 ? 9 : i; };
+    for (let i = 1; i < plan.length; i++) expect(rank(plan[i].buyingRole)).toBeGreaterThanOrEqual(rank(plan[i - 1].buyingRole));
+    expect(plan[0].planStartAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(plan[1].planStartAt!.getTime() - plan[0].planStartAt!.getTime()).toBeGreaterThanOrEqual(3 * 86_400_000);
+    const drafts = await db.draft.findMany({ where: { contact: { accountId: id }, stepOrder: 1 } });
+    expect(drafts.map((d) => d.contactId)).toEqual([plan[0].id]);
+    const later = await db.enrollment.findFirstOrThrow({ where: { contactId: plan[1].id } });
+    expect(later.nextDueAt!.getTime()).toBe(plan[1].planStartAt!.getTime());
+    // Re-running keeps the plan.
+    await runAccount(id, { fromStage: 11 });
+    const again = await db.contact.findMany({ where: { accountId: id, planOrder: { not: null } }, orderBy: { planOrder: "asc" } });
+    expect(again.map((c) => c.planStartAt!.getTime())).toEqual(plan.map((c) => c.planStartAt!.getTime()));
+  });
+
+  it("sends at most one email per company per day", async () => {
+    const id = await account("strong-cap.com", people);
+    await runAccount(id);
+    const plan = await db.contact.findMany({ where: { accountId: id, planOrder: { not: null } }, orderBy: { planOrder: "asc" } });
+    await db.draft.updateMany({ where: { contact: { accountId: id } }, data: { status: "approved" } });
+    const first = await db.draft.findFirstOrThrow({ where: { contactId: plan[0].id } });
+    await db.draft.create({ data: { contactId: plan[1].id, stepOrder: 1, subject: first.subject, body: first.body, claims: first.claims as object, status: "approved" } });
+    await db.enrollment.updateMany({ where: { contactId: plan[1].id }, data: { status: "active" } });
+    const r = await sendApproved(newContext());
+    expect(await db.message.count({ where: { contact: { accountId: id }, status: "delivered" } })).toBe(1);
+    expect(r.reasons.some((x) => /Company limit/.test(x))).toBe(true);
+  });
+
+  it("a decision maker's 'not now' pauses the whole company; the re-check resumes it", async () => {
+    const id = await account("strong-notnow.com", people);
+    await runAccount(id);
+    const contacts = await db.contact.findMany({ where: { accountId: id, planOrder: { not: null } }, orderBy: { planOrder: "asc" } });
+    const dm = contacts[contacts.length - 1];
+    await db.contact.update({ where: { id: dm.id }, data: { buyingRole: "decision_maker" } });
+    const ad = createMockAdapters();
+    ad.llm.classifyReply = async () => "not_now";
+    setAdapters(ad);
+    try {
+      await recordReply(dm.id, "Not this quarter, check back later");
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.outreachPausedUntil!.getTime()).toBeGreaterThan(Date.now() + 30 * 86_400_000);
+    expect(await db.enrollment.count({ where: { contact: { accountId: id }, status: "active" } })).toBe(0);
+    expect(await db.draft.count({ where: { contact: { accountId: id }, status: { in: ["pending_review", "approved"] } } })).toBe(0);
+    // The pause also holds at send time.
+    const { companyHold, resumeCompany } = await import("@/lib/pipeline/coordination");
+    expect(await companyHold(contacts[0], new Date())).toMatch(/paused/i);
+    const n = await resumeCompany(id, newContext());
+    expect(n).toBeGreaterThan(0);
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).outreachPausedUntil).toBeNull();
+  });
+
+  it("an objection pauses colleagues and asks a person; an unsubscribe affects only that person", async () => {
+    const id = await account("strong-object.com", people);
+    await runAccount(id);
+    const contacts = await db.contact.findMany({ where: { accountId: id, planOrder: { not: null } }, orderBy: { planOrder: "asc" } });
+    const ad = createMockAdapters();
+    ad.llm.classifyReply = async () => "unsubscribe";
+    setAdapters(ad);
+    await recordReply(contacts[1].id, "Remove me");
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).outreachPausedUntil).toBeNull();
+    expect(await db.enrollment.count({ where: { contactId: contacts[0].id, status: "active" } })).toBe(1);
+    ad.llm.classifyReply = async () => "objection";
+    try {
+      await recordReply(contacts[0].id, "We already use another vendor");
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).outreachPauseReason).toMatch(/objection/);
+    expect(await db.enrollment.count({ where: { contact: { accountId: id }, status: "active" } })).toBe(0);
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "needs_human_reply", status: "open" } })).toBe(1);
+  });
+});
+
+describe("phase 2: new people per week", () => {
+  it("holds a third new person when two started this week", async () => {
+    const id = await account("strong-week.com", [["A One", "VP Data"], ["B Two", "Head of Data Platform"], ["C Three", "Data Platform Lead"]]);
+    const cs = await db.contact.findMany({ where: { accountId: id }, orderBy: { createdAt: "asc" } });
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    for (const c of cs.slice(0, 2)) {
+      const d = await db.draft.create({ data: { contactId: c.id, stepOrder: 1, subject: "s", body: "b", claims: [], status: "sent" } });
+      await db.message.create({ data: { draftId: d.id, contactId: c.id, mailbox: "out@company.test", status: "delivered", sentAt: twoDaysAgo } });
+    }
+    const { companyHold } = await import("@/lib/pipeline/coordination");
+    expect(await companyHold(cs[2], new Date())).toMatch(/new people/);
+    expect(await companyHold(cs[0], new Date())).toBeNull(); // already started: follow-ups continue
+  });
+});

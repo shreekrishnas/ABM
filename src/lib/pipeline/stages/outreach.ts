@@ -1,5 +1,6 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
+import { isPaused, planBuyingGroup, resumeCompany } from "../coordination";
 import { visitSummary } from "@/lib/web/visits";
 import type { Account, Contact, Prisma } from "@prisma/client";
 import { isTriggerKey } from "@/lib/research/keys";
@@ -328,14 +329,27 @@ export async function s11DraftReview(account: Account, ctx: RunContext): Promise
     await logEvent(ctx, { accountId: account.id, stage: S, step: "draft_review.sequence", outcome: "error", reason: "No active sequence configured" });
     throw new StopRun("No active sequence");
   }
-  for (const c of ready) {
+  // A company pause that has run out ends here (e.g. the watchlist re-check after "not now").
+  if (account.outreachPausedUntil && !isPaused(account, ctx.now)) {
+    await resumeCompany(account.id, ctx, "re-check date reached");
+    account = await db.account.findUniqueOrThrow({ where: { id: account.id } });
+  }
+  if (isPaused(account, ctx.now)) {
+    await logEvent(ctx, { accountId: account.id, stage: S, step: "buying_group.plan", outcome: "block", reason: `Company paused until ${account.outreachPausedUntil!.toISOString().slice(0, 10)}: ${account.outreachPauseReason ?? ""} — no new drafts` });
+    return account;
+  }
+  // One plan for the company: who goes first, and when each person starts.
+  const plan = await planBuyingGroup(account, ready, ctx);
+  const first = seq.steps[0];
+  for (const c of plan) {
+    const later = c.planStartAt && c.planStartAt > ctx.now;
     await db.enrollment.upsert({
       where: { contactId_sequenceId: { contactId: c.id, sequenceId: seq.id } },
-      create: { contactId: c.id, sequenceId: seq.id, currentStep: 1, status: "active", nextDueAt: null },
+      // Later people wait for their start date; the sequence ticker drafts their first email then.
+      create: { contactId: c.id, sequenceId: seq.id, currentStep: 1, status: "active", nextDueAt: later ? c.planStartAt : null },
       update: {},
     });
-    const first = seq.steps[0];
-    if (first.channel === "email") await draftForContact(account, c, first.order, first.instruction, ctx);
+    if (!later && first.channel === "email") await draftForContact(account, c, first.order, first.instruction, ctx);
   }
   return account;
 }

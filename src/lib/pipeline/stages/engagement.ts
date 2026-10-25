@@ -1,6 +1,7 @@
 // Stages 12–13: Sequence/Send/Measure and Sales Handoff/Recycle, plus the
 // continuous signal engine (account-level engagement, buying stage, MQA).
 
+import { companyHold, isPaused, pauseCompany } from "../coordination";
 import { checkDraftEvidence, markNeedsRefresh } from "../freshness";
 import { tagLinks } from "@/lib/web/visits";
 import { readIntent } from "@/lib/brain/intent";
@@ -69,6 +70,14 @@ export async function sendApproved(ctx: RunContext = newContext()) {
       await markNeedsRefresh(d.id, fresh.reason, ctx, "send");
       result.held++;
       result.reasons.push(`${c.fullName}: ${fresh.reason}`);
+      continue;
+    }
+    // Company limits: a pause, one email per company per day, a few new people per week.
+    const hold = await companyHold(c, ctx.now);
+    if (hold) {
+      await logEvent(ctx, { accountId: c.accountId, contactId: c.id, stage: S, step: "sequence_send.company_limit", outcome: "block", reason: hold });
+      result.held++;
+      result.reasons.push(`${c.fullName}: ${hold}`);
       continue;
     }
     const box = await pickMailbox(ctx.now);
@@ -148,6 +157,7 @@ export async function tickSequences(ctx: RunContext = newContext()) {
     const step = e.sequence.steps.find((s) => s.order === e.currentStep);
     if (!step) continue;
     if (["paused", "replied", "handed_off", "suppressed"].includes(e.contact.state)) continue;
+    if (isPaused(e.contact.account, ctx.now)) continue;
     if (step.channel === "email") {
       const d = await draftForContact(e.contact.account, e.contact, step.order, step.instruction, ctx);
       if (d) drafts++;
@@ -242,10 +252,16 @@ export async function recordReply(contactId: string, body: string, ctx: RunConte
       await pauseAll("not now");
       await db.contact.update({ where: { id: contactId }, data: { state: "paused" } });
       await addToWatchlist(contact.accountId, `${contact.fullName} said not now`, CONFIG.watch.notNowDays, ctx.now);
+      // The decision maker speaks for the company: everyone waits until the re-check date.
+      if (contact.buyingRole === "decision_maker") await pauseCompany(contact.accountId, CONFIG.watch.notNowDays, `${contact.fullName} (decision maker) said not now`, ctx);
       break;
     case "objection":
+      await pauseAll("objection");
       await db.note.create({ data: { accountId: contact.accountId, contactId, body: `Objection from ${contact.fullName}: ${body.slice(0, 500)}` } });
       await recordSignal({ accountId: contact.accountId, contactId, type: "email_reply", source: "email_provider", detail: "objection" }, ctx);
+      // Colleagues wait while a person reads the objection and decides how to answer.
+      await pauseCompany(contact.accountId, CONFIG.coordination.objectionPauseDays, `objection from ${contact.fullName}`, ctx);
+      await openReview({ type: "needs_human_reply", stage: S, accountId: contact.accountId, contactId, reason: `Objection from ${contact.fullName}: company outreach paused until reviewed (resume it from the company page)`, payload: { body } });
       break;
     case "wrong_person":
       await pauseAll("wrong person");

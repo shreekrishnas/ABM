@@ -110,6 +110,18 @@ export const CONFIG = {
     learningsInDrafts: 3,
   },
 
+  // Buying-group coordination: who goes first, and how much one company receives.
+  coordination: {
+    /** Contact order by role: champion first, then the decision maker. */
+    roleOrder: ["champion", "decision_maker"] as const,
+    /** At most this many emails to one company per day (all people together). */
+    maxEmailsPerAccountPerDay: 1,
+    /** At most this many new people at one company start receiving email per 7 days. */
+    maxNewPeoplePerWeek: 2,
+    /** How long an objection pauses the rest of the company while a person reviews it. */
+    objectionPauseDays: 14,
+  },
+
   // Approval (autonomy level) lives in the seller pack: review_all | auto_t3 | auto_all.
   loops: {
     /** Writer → critic panel → rewriter: at most this many versions per email. */
