@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InteractionRail } from "./interaction-rail";
 import { notFound } from "next/navigation";
 import { ExternalLink, Mail, MessageSquareText, Pencil, Phone, Trash2, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
@@ -108,6 +109,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="grid min-w-0 content-start gap-5 xl:col-span-2">
+          <InteractionRail contactId={c.id} />
           <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />
           <Card
             title="LinkedIn journey"

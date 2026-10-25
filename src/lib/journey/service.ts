@@ -2,6 +2,7 @@
 // to the journey's timeline. Used by the CSV import, manual and bulk updates, and the
 // agent-assisted reply flow.
 
+import { bridgeLinkedInToEmail } from "./bridge";
 import type { Journey, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getAdapters } from "@/lib/adapters";
@@ -29,7 +30,7 @@ export async function ensureJourney(contactId: string, campaignId: string, sende
 export async function recordActivities(journeyId: string, activities: Activity[], source: ActivitySource, extraDetail?: string) {
   const order: Record<Activity["type"], number> = { connection_sent: 0, connection_accepted: 1, follow_up_sent: 2, details_shared: 3, reply: 4, call_scheduled: 5, demo_scheduled: 6, call_logged: 7, note: 8, stage_set: 9 };
   const sorted = [...activities].sort((a, b) => a.at.getTime() - b.at.getTime() || order[a.type] - order[b.type]);
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const j = await tx.journey.findUniqueOrThrow({ where: { id: journeyId } });
     let state = toState(j);
     const changes: { from: Stage; to: Stage }[] = [];
@@ -51,8 +52,14 @@ export async function recordActivities(journeyId: string, activities: Activity[]
         stageReason: changes.length ? `${STAGE_INFO[changes[0].from].label} → ${STAGE_INFO[state.stage].label} (${source})` : j.stageReason,
       },
     });
-    return { journey: updated, changed: changes.length > 0 || sorted.length > 0 };
+    return { journey: updated, changed: changes.length > 0 || sorted.length > 0, from: j.stage as Stage };
   });
+  // The email side reacts to what was logged on LinkedIn (outside the transaction: it touches other records).
+  await bridgeLinkedInToEmail(journeyId, result.from, result.journey.stage as Stage, source).catch(async (e) => {
+    const { logEvent, newContext } = await import("@/lib/pipeline/context");
+    await logEvent(newContext(), { accountId: null, stage: 12, step: "linkedin.bridge", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 300) : String(e) });
+  });
+  return { journey: result.journey, changed: result.changed };
 }
 
 /** Suggested meaning of a pasted reply — the person confirms or changes it before it is saved. */

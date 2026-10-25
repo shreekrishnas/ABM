@@ -449,3 +449,38 @@ describe("phase 2: new people per week", () => {
     expect(await companyHold(cs[0], new Date())).toBeNull(); // already started: follow-ups continue
   });
 });
+
+describe("LinkedIn → email bridge", () => {
+  async function journeyFor(contactId: string) {
+    const { ensureJourney } = await import("@/lib/journey/service");
+    const campaign = await db.campaign.upsert({ where: { name: "LI test" }, create: { name: "LI test" }, update: {} });
+    const sender = await db.senderProfile.upsert({ where: { name: "Sender LI" }, create: { name: "Sender LI" }, update: {} });
+    return (await ensureJourney(contactId, campaign.id, sender.id)).journey;
+  }
+
+  it("a positive LinkedIn reply logged by the team pauses that person's email, withdraws drafts and hands off", async () => {
+    const id = await account("strong-li.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: "pending_review" } });
+    const j = await journeyFor(d.contactId);
+    const { recordActivities } = await import("@/lib/journey/service");
+    await recordActivities(j.id, [{ type: "reply", at: new Date(), text: "Yes, let's talk next week", meaning: "interested" }], "manual");
+    expect((await db.draft.findUniqueOrThrow({ where: { id: d.id } })).status).toBe("rejected");
+    expect(await db.enrollment.count({ where: { contactId: d.contactId, status: "active" } })).toBe(0);
+    expect(await db.handoff.count({ where: { accountId: id } })).toBe(1);
+    expect(await sendApproved(newContext()).then(() => db.message.count({ where: { contactId: d.contactId } }))).toBe(0);
+  });
+
+  it("a request for details pauses only that person; imported history never hands off", async () => {
+    const id = await account("strong-li2.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: "pending_review" } });
+    const j = await journeyFor(d.contactId);
+    const { recordActivities } = await import("@/lib/journey/service");
+    await recordActivities(j.id, [{ type: "reply", at: new Date(), text: "Can you send details?", meaning: "details_requested" }], "manual");
+    expect((await db.contact.findUniqueOrThrow({ where: { id: d.contactId } })).state).toBe("paused");
+    expect(await db.handoff.count({ where: { accountId: id } })).toBe(0);
+    await recordActivities(j.id, [{ type: "reply", at: new Date(), text: "Interested", meaning: "interested" }], "csv");
+    expect(await db.handoff.count({ where: { accountId: id } })).toBe(0);
+  });
+});

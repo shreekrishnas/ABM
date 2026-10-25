@@ -92,7 +92,8 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
       {siblings.length > 0 && (
         <nav className="nav-sub" aria-label="Pages here">
           {siblings.map((it) => {
-            const on = isOn(path, it.href);
+            // The most specific sibling wins: /accounts/coverage lights Coverage, not Companies too.
+            const on = isOn(path, it.href) && !siblings.some((o) => o.href.length > it.href.length && isOn(path, o.href));
             const n = it.count ? counts[it.count] : 0;
             return (
               <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>

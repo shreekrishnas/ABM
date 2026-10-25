@@ -22,6 +22,7 @@ export const SECTIONS: NavSection[] = [
     key: "research", label: "Research", blurb: "Companies, people and the signals behind them", icon: Building2,
     items: [
       { href: "/accounts", label: "Companies", blurb: "Every company, its priority and next step", icon: Building2 },
+      { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users },
       { href: "/people", label: "People", blurb: "The buying group at each company", icon: Users },
       { href: "/signals", label: "Signals", blurb: "Buying events, with sources", icon: Radar },
       { href: "/discover", label: "Discover", blurb: "New companies and rising industries", icon: Globe },
