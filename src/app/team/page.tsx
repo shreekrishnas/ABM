@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import { ShieldCheck, UserPlus, Building2, History } from "lucide-react";
+import { ShieldCheck, UserPlus, Building2, History, Trash2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
-import { addClientAction, addUserAction, setAssignmentAction, setUserStatusAction } from "./actions";
+import { addClientAction, addUserAction, clearWorkspaceDataAction, setAssignmentAction, setUserStatusAction } from "./actions";
 
 export const metadata = { title: "Team & Access" };
 
@@ -96,6 +96,10 @@ export default async function TeamPage() {
           </ActionForm>
         </Card>
       </div>
+
+      <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Start fresh</span>} sub="Remove every company and everything attached (research, people, drafts, emails, signals, tasks, opportunities, imports), plus mailboxes and demo logins. Team, clients, Account Brain, knowledge files and sequences are kept. Can't be undone." className="mb-5">
+        <ActionButton action={clearWorkspaceDataAction} className="btn btn-secondary" confirm="Remove ALL companies and their data? This can't be undone. Team, clients, Account Brain and sequences are kept.">Remove all company data</ActionButton>
+      </Card>
 
       <Card title={<span className="inline-flex items-center gap-2"><History size={18} /> Audit log</span>} sub="Every Super Admin action and mode switch. Entries can't be edited." pad={false}>
         {log.length === 0 ? <p className="muted px-5 py-4 text-sm">Nothing recorded yet.</p> : (

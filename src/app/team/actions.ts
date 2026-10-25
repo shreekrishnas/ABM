@@ -81,3 +81,35 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
     return fail(e);
   }
 }
+
+/**
+ * Super Admin: remove all company data to start fresh with real data. Keeps the team, clients,
+ * assignments, Account Brain (seller packs + knowledge files), sequences and the audit log.
+ * Removes companies (and everything attached to them), imports, suggestions, visits, mailboxes,
+ * suppressions, insights, brain logs and demo (@company.com) logins.
+ */
+export async function clearWorkspaceDataAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const before = await db.account.count();
+    const [accounts] = await db.$transaction([
+      db.account.deleteMany({}),
+      db.importBatch.deleteMany({}),
+      db.prospectSuggestion.deleteMany({}),
+      db.webVisit.deleteMany({}),
+      db.marketEvent.deleteMany({}),
+      db.mailbox.deleteMany({}),
+      db.suppression.deleteMany({}),
+      db.brainInsight.deleteMany({}),
+      db.brainSignal.deleteMany({}),
+      db.decision.deleteMany({}),
+      db.proposal.deleteMany({}),
+      db.user.deleteMany({ where: { email: { endsWith: "@company.com" } } }),
+    ]);
+    await audit(me.email, "data.clear", { before: { companies: before }, after: { companies: 0 } });
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Removed ${accounts.count} companies and everything attached. Team, clients, Account Brain and sequences kept.` };
+  } catch (e) {
+    return fail(e);
+  }
+}
