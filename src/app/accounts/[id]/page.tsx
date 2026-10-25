@@ -20,6 +20,7 @@ const TAB_LABEL: Record<string, string> = { intake: "Data → research", people:
 import { WebVisitsCard } from "@/components/web-visits";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { BuyingGroupPlan } from "./buying-group";
+import { HeaderSignals, WhyNow } from "./header-signals";
 
 const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
 function brandColor(id: string) {
@@ -136,7 +137,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             {reading ? (
               <>
                 <div className="co-intent-row"><IntentPill level={reading.level} score={reading.score} title={reading.explain} />{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</div>
-                {reading.whyNow && <p className="co-why"><b>Why now:</b> {reading.whyNow}</p>}
+                <WhyNow brief={brief} fallback={reading.whyNow} />
               </>
             ) : <p className="co-muted">No buying signals read yet.</p>}
             {brief?.nextBestAction && <div className="mt-3"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
@@ -147,12 +148,12 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           <dl className="co-facts">
             <div><dt>Employees</dt><dd className="tnum">{a.employees ? a.employees.toLocaleString() : "—"}</dd></div>
             <div><dt>Owner</dt><dd>{a.owner?.name ?? "Unassigned"}</dd></div>
-            <div><dt>Data we trust</dt><dd className="tnum">{a.dataConfidence != null ? `${Math.round(a.dataConfidence * 100)}%` : "—"}</dd></div>
-            <div><dt>Engagement</dt><dd className="tnum">{Math.round(a.engagementScore)}<small> / {CONFIG.engagement.stages.MQA} to sales</small></dd></div>
             <div><dt>Progress</dt><dd>{stageName}<small>{PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus}</small></dd></div>
             {a.technologies.length > 0 && <div className="wide"><dt>Stack</dt><dd>{a.technologies.join(", ")}</dd></div>}
           </dl>
         </div>
+
+        <HeaderSignals account={a} brief={brief} intent={reading ? { score: reading.score, level: reading.level } : null} />
 
         {(a.keywords.length > 0 || a.companyNotes) && (
           <div className="co-foot">
@@ -252,6 +253,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Next:</b> {brief.nextBestAction}</p>
               </Card>
             )}
+            <div id="fit" className="contents" />
             <Card title={`Why fit ${a.fitScore ?? "—"} for ${sp.name}`} sub={a.useCase ? `Lead with: ${sp.useCases.find((u) => u.key === a.useCase)?.name ?? a.useCase}` : "Scored against the seller profile"}>
               {a.fitReasons.length === 0 ? <span className="muted text-xs">Run the pipeline to score this account.</span> : (
                 <ul className="grid gap-3">
