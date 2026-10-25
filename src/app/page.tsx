@@ -6,6 +6,7 @@ import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
+import { commandCenter } from "@/lib/command-center";
 import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
@@ -13,15 +14,6 @@ export const metadata = { title: "Home" };
 const DAY = 86_400_000;
 type Status = "Researching" | "Awaiting approval" | "Draft ready" | "Researched" | "New";
 const STATUS_TONE: Record<Status, string> = { Researching: "sky", "Awaiting approval": "amber", "Draft ready": "violet", Researched: "ink", New: "muted" };
-// The buying journey, in order. Watch / recycled / disqualified sit outside it.
-const STAGES = [
-  { key: "UNAWARE", label: "Unaware" },
-  { key: "AWARE", label: "Aware" },
-  { key: "ENGAGED", label: "Engaged" },
-  { key: "MQA", label: "Ready for sales" },
-  { key: "OPPORTUNITY", label: "Opportunity" },
-  { key: "CUSTOMER", label: "Customer" },
-] as const;
 
 const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
 function brandColor(id: string) {
@@ -36,24 +28,20 @@ function greeting(d: Date) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** Home: the numbers, where accounts stand, the two ways in, and what just changed. */
+/** Home is the Command Center: what needs doing, where companies stand, what is stuck, and the two ways in. */
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   await ensureSellerPacks();
   const p = seller();
   const { range = "week" } = await searchParams;
   const now = new Date();
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const [companies, companiesSinceMonday, toApprove, draftsReady, importedWeek, importedPrevWeek, byStage, recent] = await Promise.all([
+  const cc = await commandCenter(now);
+  const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
-    db.account.count({ where: { mergedIntoId: null, createdAt: { gte: monday } } }),
     db.draft.count({ where: { status: "pending_review" } }),
     db.draft.count({ where: { status: "approved", message: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 7 * DAY) } } }),
-    db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 14 * DAY), lt: new Date(now.getTime() - 7 * DAY) } } }),
     db.account.groupBy({ by: ["stage"], where: { mergedIntoId: null }, _count: true }),
     db.account.findMany({
       where: { mergedIntoId: null, ...(since ? { updatedAt: { gte: since } } : {}) },
@@ -71,9 +59,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     return "New";
   };
   const stageCount = (k: string) => byStage.find((s) => s.stage === k)?._count ?? 0;
-  const inJourney = STAGES.reduce((n, s) => n + stageCount(s.key), 0);
-  const outside = companies - inJourney;
-  const weekDelta = importedWeek - importedPrevWeek;
 
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
@@ -82,13 +67,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const first = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
   const userName = me?.name.split(/\s+/)[0] || process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
   const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
-
-  const kpis = [
-    { label: "Companies", accent: "indigo", value: companies, note: companiesSinceMonday ? `+${companiesSinceMonday} since Monday` : "None new since Monday", tone: companiesSinceMonday ? "up" : "" },
-    { label: "To approve", accent: "amber", value: toApprove, note: toApprove ? "Drafts waiting for you" : "Nothing waiting", href: "/review", tone: toApprove ? "warn" : "" },
-    { label: "Drafts ready", accent: "violet", value: draftsReady, note: "Approved, not sent", tone: "" },
-    { label: "Imported this week", accent: "sky", value: importedWeek, note: weekDelta ? `${weekDelta > 0 ? "+" : ""}${weekDelta} on last week` : "Same as last week", tone: weekDelta > 0 ? "up" : weekDelta < 0 ? "down" : "" },
-  ];
 
   return (
     <div className="hm-main">
@@ -105,40 +83,64 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </header>
 
-        <section className="hm-kpis" aria-label="Key numbers">
-          {kpis.map((k) => {
-            const body = (
-              <>
-                <span className="hm-k-label">{k.label}</span>
-                <span className="hm-k-value tnum"><CountUp value={k.value} /></span>
-                <span className={`hm-k-note ${k.tone}`}>{k.note}</span>
-                {k.href && <ArrowUpRight size={16} className="hm-k-go" />}
-              </>
-            );
-            return k.href ? <Link key={k.label} href={k.href} className={`hm-k link a-${k.accent}`}>{body}</Link> : <div key={k.label} className={`hm-k a-${k.accent}`}>{body}</div>;
-          })}
+        <section className="cc-kpis" aria-label="What needs doing">
+          {cc.kpis.map((k) => (
+            <Link key={k.key} href={k.href} className={`cc-k ${k.tone}`} title={k.define}>
+              <span className="cc-k-label">{k.label}</span>
+              <span className="cc-k-value tnum"><CountUp value={k.value} /></span>
+              <span className="cc-k-note">{k.note}</span>
+              <ArrowUpRight size={15} className="cc-k-go" />
+            </Link>
+          ))}
         </section>
 
-        <section className="hm-journey" aria-label="Where your accounts are">
-          <div className="hm-sec-head">
-            <h2>Where your accounts are</h2>
-            <span className="hm-sec-meta">{inJourney} in the buying journey{outside > 0 ? ` · ${outside} watched or ruled out` : ""}</span>
+        <section className="cc-mid">
+          <div className="cc-panel">
+            <div className="hm-sec-head">
+              <h2>Company funnel</h2>
+              <span className="hm-sec-meta">Each step counts companies that passed every step before it</span>
+            </div>
+            <ol className="cc-funnel">
+              {cc.funnel.map((f, i) => {
+                const prev = i ? cc.funnel[i - 1].value : f.value;
+                const top = cc.funnel[0].value || 1;
+                const pct = i && prev ? Math.round((f.value / prev) * 100) : null;
+                return (
+                  <li key={f.key}>
+                    <Link href={f.href} title={f.define}>
+                      <span className="cc-f-l">{f.label}</span>
+                      <span className="cc-f-bar"><span style={{ width: `${Math.max(f.value ? 3 : 0, Math.round((f.value / top) * 100))}%` }} /></span>
+                      <span className="cc-f-n tnum">{f.value}</span>
+                      <span className="cc-f-p tnum">{pct == null ? "" : i && !prev ? "—" : `${pct}%`}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="cc-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
           </div>
-          <ol className="hm-stages">
-            {STAGES.map((s, i) => {
-              const n = stageCount(s.key);
-              const share = inJourney ? n / inJourney : 0;
-              return (
-                <li key={s.key} className={n ? "has" : ""}>
-                  <Link href={`/accounts?stage=${s.key}`}>
-                    <span className="hm-st-n tnum">{n}</span>
-                    <span className="hm-st-l"><span className="hm-st-i">{String(i + 1).padStart(2, "0")}</span>{s.label}</span>
-                    <span className="hm-st-bar"><span style={{ width: `${Math.max(n ? 6 : 0, Math.round(share * 100))}%` }} /></span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
+
+          <div className="cc-panel" id="attention">
+            <div className="hm-sec-head">
+              <h2>Needs attention</h2>
+              <span className="hm-sec-meta">{cc.attention.length ? `${cc.attention.length} item${cc.attention.length === 1 ? "" : "s"}` : "All clear"}</span>
+            </div>
+            {cc.attention.length === 0 ? (
+              <p className="hm-empty">Nothing is stuck, overdue or paused.</p>
+            ) : (
+              <ul className="cc-att">
+                {cc.attention.slice(0, 8).map((a, i) => (
+                  <li key={i}>
+                    <Link href={a.href} className={`cc-a ${a.tone}`}>
+                      <i />
+                      <span className="min-w-0 flex-1"><span className="cc-a-kind">{a.kind}</span><span className="cc-a-title">{a.title}</span><span className="cc-a-detail">{a.detail}</span></span>
+                      <span className="cc-a-at">{ago(a.at)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         <section className="hm-doors">

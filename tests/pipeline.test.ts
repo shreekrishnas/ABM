@@ -484,3 +484,20 @@ describe("LinkedIn → email bridge", () => {
     expect(await db.handoff.count({ where: { accountId: id } })).toBe(0);
   });
 });
+
+describe("command center", () => {
+  it("funnel steps are nested, and paused or failed companies need attention", async () => {
+    const id = await account("strong-cc.com");
+    await runAccount(id);
+    await account("weak-cc2.com");
+    const { pauseCompany } = await import("@/lib/pipeline/coordination");
+    await pauseCompany(id, 14, "objection from Asha", newContext());
+    const { commandCenter } = await import("@/lib/command-center");
+    const cc = await commandCenter();
+    for (let i = 1; i < cc.funnel.length; i++) expect(cc.funnel[i].value).toBeLessThanOrEqual(cc.funnel[i - 1].value);
+    expect(cc.funnel[0].value).toBe(2);
+    expect(cc.kpis.find((k) => k.key === "risk")!.value).toBeGreaterThanOrEqual(1);
+    expect(cc.attention.some((a) => a.kind === "Outreach paused" && /objection/.test(a.detail))).toBe(true);
+    expect(cc.kpis.every((k) => k.href && k.define)).toBe(true);
+  });
+});
