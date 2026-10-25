@@ -50,7 +50,7 @@ export function KnowledgeSearch() {
                 <b className="text-sm" style={{ color: "var(--text-primary)" }}>{h.title}</b>
                 <span className="chip">{KIND_LABEL[h.kind] ?? h.kind}</span>
                 {h.approved && <span className="chip" style={{ ["--c" as string]: "#059669" }}>may be stated</span>}
-                {h.origin !== "built_in" && <span className="chip" style={{ ["--c" as string]: "#4F46E5" }}>{h.origin === "learned" ? "learned" : "added"}</span>}
+                {h.origin !== "built_in" && <span className="chip" style={{ ["--c" as string]: "#2B2A26" }}>{h.origin === "learned" ? "learned" : "added"}</span>}
                 <span className="muted ml-auto text-xs tnum">match {Math.round(h.score * 100)}</span>
               </div>
               <p className="secondary mt-1.5 whitespace-pre-line text-xs leading-relaxed">{h.text.length > 600 ? `${h.text.slice(0, 600)}…` : h.text}</p>

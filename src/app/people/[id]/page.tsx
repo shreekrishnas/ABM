@@ -133,7 +133,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               <div className="grid gap-4">
                 <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Sender profile">
                   {c.journeys.map((x) => (
-                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(99,102,241,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "#4338CA" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "#6366F1" : "transparent"}` }}>
+                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(99,102,241,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "#2B2A26" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "#2B2A26" : "transparent"}` }}>
                       {x.sender.name} · {x.campaign.name} · {stageLabel(x.stage, x.followUpCount)}
                     </Link>
                   ))}

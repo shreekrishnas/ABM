@@ -15,7 +15,7 @@ const DAY = 86_400_000;
 type Status = "Researching" | "Awaiting approval" | "Draft ready" | "Researched" | "New";
 const STATUS_TONE: Record<Status, string> = { Researching: "sky", "Awaiting approval": "amber", "Draft ready": "violet", Researched: "ink", New: "muted" };
 
-const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
+const PALETTE = ["#0E6B5C", "#8A5A2B", "#3E5C76", "#7A4E6B", "#5C6B2E", "#9A4A33", "#4A4A42", "#2F6F73"];
 function brandColor(id: string) {
   let h = 0;
   for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h);

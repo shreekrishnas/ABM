@@ -11,7 +11,7 @@ const ROLES = [
   { key: "influencer", label: "Influencer" },
   { key: "budget_owner", label: "Budget owner" },
 ] as const;
-const STATUS_COLOR = { missing: "#DC2626", found: "#64748B", planned: "#B45309", contacted: "#4F46E5", engaged: "#059669" } as const;
+const STATUS_COLOR = { missing: "#DC2626", found: "#64748B", planned: "#B45309", contacted: "#2B2A26", engaged: "#059669" } as const;
 type Status = keyof typeof STATUS_COLOR;
 
 /** The company as one buying group: coverage by role, the contact plan, the next person, and any company pause. */

@@ -58,10 +58,10 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
       />
 
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-5">
-        <Kpi label="Pending approval" value={D("pending_review")} accent="#8B5CF6" meta={<Link href="/review?type=draft_approval" className="hover:underline">Review drafts →</Link>} />
+        <Kpi label="Pending approval" value={D("pending_review")} accent="#0E6B5C" meta={<Link href="/review?type=draft_approval" className="hover:underline">Review drafts →</Link>} />
         <Kpi label="Approved, unsent" value={D("approved")} accent="#0EA5E9" meta="Sends on the next run" />
         <Kpi label="Sent" value={D("sent")} accent="#10B981" meta={`${D("rejected")} rejected · ${D("blocked")} blocked`} />
-        <Kpi label="Active enrollments" value={E("active")} accent="#4F46E5" meta={`${E("paused")} paused · ${E("completed")} completed`} />
+        <Kpi label="Active enrollments" value={E("active")} accent="#2B2A26" meta={`${E("paused")} paused · ${E("completed")} completed`} />
         <Kpi label="Bounce breaker" value={breaker.pass ? "OK" : "TRIPPED"} accent={breaker.pass ? "#10B981" : "#DC2626"} meta={`${breaker.hard} hard / ${breaker.sent} sends (7d) · trips >${CONFIG.sending.bounceBreakerPct}%`} />
       </div>
 
@@ -140,7 +140,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                         <tr key={r.id}>
                           <td className="strong whitespace-nowrap"><Link href={peekHref("/outreach", keep, "p", r.contactId)} scroll={false} className="hover:underline">{r.contact.fullName}</Link><div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
                           <td className="max-w-[260px]"><span className="line-clamp-2">{r.body}</span></td>
-                          <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#7C3AED" : "#B45309"}>{r.class.replace("_", " ")}</Badge></td>
+                          <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#0E6B5C" : "#B45309"}>{r.class.replace("_", " ")}</Badge></td>
                           <td className="text-xs">{r.route}</td>
                           <td className="muted whitespace-nowrap text-xs">{ago(r.receivedAt)}</td>
                         </tr>

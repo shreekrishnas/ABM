@@ -126,7 +126,7 @@ export default async function SettingsPage() {
           {Object.entries(CONFIG.lawfulBasis).map(([k, v]) => <Row key={k} k={k} v={<span className="text-xs font-medium">{v}</span>} />)}
           <Row k="Suppressions" v={suppressions} />
           <div className="micro mb-1 mt-4">Team</div>
-          {users.map((u) => <Row key={u.id} k={u.name} v={<Badge color="#4F46E5">{u.role}</Badge>} />)}
+          {users.map((u) => <Row key={u.id} k={u.name} v={<Badge color="#2B2A26">{u.role}</Badge>} />)}
         </Card>
       </div>
     </div>
