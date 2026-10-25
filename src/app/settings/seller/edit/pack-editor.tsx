@@ -309,7 +309,7 @@ export function PackEditor({ sellerId, base, builtIn, source, revisions }: { sel
       <aside className="grid gap-5 xl:sticky xl:top-4">
         <Card title="Save changes">
           {changed.length > 0 ? (
-            <div className="mb-3 flex flex-wrap gap-1.5">{changed.map((c) => <span key={c} className="chip" style={{ ["--c" as string]: "#2B2A26" }}>{sectionLabel(c)}</span>)}</div>
+            <div className="mb-3 flex flex-wrap gap-1.5">{changed.map((c) => <span key={c} className="chip" style={{ ["--c" as string]: "#4F46E5" }}>{sectionLabel(c)}</span>)}</div>
           ) : (
             <p className="muted mb-3 text-xs">{mode === "json" ? "Check the JSON to see what changes." : "No changes yet."}</p>
           )}

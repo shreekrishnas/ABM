@@ -8,9 +8,9 @@ const GLYPH = [
   "M25 4h4.5a9 9 0 0 1 6.2 15.5A9 9 0 0 1 31 36h-6v-6h6a3 3 0 0 0 0-6h-6v-6h4.5a3 3 0 0 0 0-6H25z",
   "M42 36V4h6.2L55 17.6 61.8 4H68v32h-6V16.6l-4.4 9.2h-5.2L48 16.6V36z",
 ];
-export const INK = "#1C1B17";
-export const PAPER = "#F4F1EA";
-export const ACCENT = "#2FA38C";
+export const INK = "#1E1240";
+export const PAPER = "#F4F1FB";
+export const ACCENT = "#A855F7";
 
 function Glyph({ color }: { color: string }) {
   return (
@@ -25,7 +25,7 @@ function Glyph({ color }: { color: string }) {
 export function LogoType({ height = 28, tone = "ink" }: { height?: number; tone?: "ink" | "paper" }) {
   return (
     <svg height={height} width={(height * 68) / 40} viewBox="0 0 68 40" aria-hidden className="brand-type">
-      <Glyph color={tone === "ink" ? "var(--brand-ink, #1C1B17)" : PAPER} />
+      <Glyph color={tone === "ink" ? "var(--brand-ink, #1E1240)" : PAPER} />
     </svg>
   );
 }

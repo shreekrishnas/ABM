@@ -31,7 +31,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
       <main className="lg-wrap">
         <section className="lg-hero">
-          <div className="lg-brand"><Logo height={34} sub="Account intelligence" /></div>
+          <div className="lg-brand"><Logo height={34} tone="light" sub="Account intelligence" /></div>
           <h1 className="lg-headline">Know who&apos;s ready to buy <span>before they raise their hand.</span></h1>
           <p className="lg-lede">Research, buying signals, website visitors and drafted outreach for every target account, in one place.</p>
           <ul className="lg-points">

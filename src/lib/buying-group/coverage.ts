@@ -12,7 +12,7 @@ export const ROLES = [
 export type RoleKey = (typeof ROLES)[number]["key"];
 export const STATUS_ORDER = ["missing", "found", "planned", "contacted", "engaged"] as const;
 export type CoverageStatus = (typeof STATUS_ORDER)[number];
-export const STATUS_COLOR: Record<CoverageStatus, string> = { missing: "#94A3B8", found: "#64748B", planned: "#B45309", contacted: "#2B2A26", engaged: "#059669" };
+export const STATUS_COLOR: Record<CoverageStatus, string> = { missing: "#94A3B8", found: "#64748B", planned: "#B45309", contacted: "#4F46E5", engaged: "#059669" };
 
 export interface ContactCoverage { id: string; fullName: string; buyingRole: string; status: CoverageStatus }
 

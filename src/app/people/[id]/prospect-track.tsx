@@ -7,8 +7,8 @@ import { FamilyChip, IntentPill, Stepper } from "@/components/v2";
 
 const KIND: Record<TrackKind, { label: string; color: string }> = {
   linkedin: { label: "LinkedIn", color: "#0A66C2" },
-  email: { label: "Email", color: "#2B2A26" },
-  brain: { label: "Brain", color: "#0E6B5C" },
+  email: { label: "Email", color: "#4F46E5" },
+  brain: { label: "Brain", color: "#7C3AED" },
   engagement: { label: "Engagement", color: "#DB2777" },
   data: { label: "Data checks", color: "#0D9488" },
   people: { label: "People & reviews", color: "#B45309" },
@@ -47,7 +47,7 @@ export async function ProspectTrack({ contactId, accountId, sellerId, filter }: 
       </div>
 
       <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Filter the journey">
-        <Link role="tab" aria-selected={!kind} href={base} className="badge" style={{ border: `1px solid ${!kind ? "#2B2A26" : "transparent"}` }}>All {t.items.length}</Link>
+        <Link role="tab" aria-selected={!kind} href={base} className="badge" style={{ border: `1px solid ${!kind ? "#6366F1" : "transparent"}` }}>All {t.items.length}</Link>
         {(Object.keys(KIND) as TrackKind[]).filter((k) => t.counts[k]).map((k) => (
           <Link key={k} role="tab" aria-selected={kind === k} href={`${base}?track=${k}`} className="badge" style={{ color: KIND[k].color, border: `1px solid ${kind === k ? KIND[k].color : "transparent"}` }}>{KIND[k].label} {t.counts[k]}</Link>
         ))}

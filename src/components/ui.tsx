@@ -26,9 +26,9 @@ export function hexA(hex: string, a: number) {
 export const STAGE_STYLE: Record<BuyingStage, { color: string; label: string }> = {
   UNAWARE: { color: "#64748B", label: "Unaware" },
   AWARE: { color: "#0EA5E9", label: "Aware" },
-  ENGAGED: { color: "#0E6B5C", label: "Engaged" },
-  MQA: { color: "#0E6B5C", label: "Sales-ready" },
-  OPPORTUNITY: { color: "#2B2A26", label: "Opportunity" },
+  ENGAGED: { color: "#8B5CF6", label: "Engaged" },
+  MQA: { color: "#7C3AED", label: "Sales-ready" },
+  OPPORTUNITY: { color: "#4F46E5", label: "Opportunity" },
   CUSTOMER: { color: "#059669", label: "Customer" },
   WATCH: { color: "#B45309", label: "Watch" },
   DISQUALIFIED: { color: "#DC2626", label: "Disqualified" },
@@ -41,7 +41,7 @@ export function StageBadge({ stage }: { stage: BuyingStage }) {
 }
 
 export const TIER_COLOR: Record<Tier, string> = { T1: "var(--chart-1)", T2: "var(--chart-2)", T3: "var(--chart-3)" };
-const TIER_HEX: Record<Tier, string> = { T1: "#2B2A26", T2: "#0D9488", T3: "#C2410C" };
+const TIER_HEX: Record<Tier, string> = { T1: "#4F46E5", T2: "#0D9488", T3: "#C2410C" };
 
 export function TierBadge({ tier }: { tier: Tier | null }) {
   if (!tier) return <span className="muted text-xs">—</span>;
@@ -68,7 +68,7 @@ export function FieldBadge({ status }: { status: FieldStatus | undefined | null 
   return <Badge color={FIELD_STATUS_STYLE[s]} dot title={s}>{FIELD_WORD[s]}</Badge>;
 }
 
-const AVATAR_PALETTE = ["#0E6B5C", "#8A5A2B", "#3E5C76", "#7A4E6B", "#5C6B2E", "#9A4A33", "#4A4A42", "#2F6F73"];
+const AVATAR_PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
 
 export function brandColor(id: string) {
   let hash = 0;
