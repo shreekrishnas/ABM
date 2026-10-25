@@ -241,3 +241,113 @@ describe("engagement", () => {
     expect(r.sent).toBe(0);
   });
 });
+
+describe("phase 1: freshness gate and automatic retry", () => {
+  it("an approved email whose fact went stale is held at send, never sent, and asks for a fresh version", async () => {
+    const id = await account("strong-fresh.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: "pending_review" } });
+    await db.draft.update({ where: { id: d.id }, data: { status: "approved" } });
+    const factIds = (d.claims as { factIds: string[] }[]).flatMap((c) => c.factIds);
+    await db.evidence.updateMany({ where: { id: { in: factIds } }, data: { publishedAt: new Date(Date.now() - 400 * 86_400_000) } });
+
+    const r = await sendApproved(newContext());
+    expect(await db.message.count({ where: { draftId: d.id } })).toBe(0);
+    expect(r.held).toBeGreaterThan(0);
+    const held = await db.draft.findUniqueOrThrow({ where: { id: d.id } });
+    expect(held.status).toBe("needs_refresh");
+    expect(held.blockReason).toMatch(/stale/i);
+    expect(await db.reviewItem.count({ where: { draftId: d.id, type: "draft_refresh", status: "open" } })).toBe(1);
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.pipelineStatus).toBe("queued");
+    expect(a.queuedFromStage).toBe(5);
+  });
+
+  it("a retired fact fails the check; a fresh one passes", async () => {
+    const id = await account("strong-retired.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id } } });
+    const { checkDraftEvidence } = await import("@/lib/pipeline/freshness");
+    expect((await checkDraftEvidence(d)).ok).toBe(true);
+    const fid = (d.claims as { factIds: string[] }[])[0].factIds[0];
+    const other = await db.evidence.findFirstOrThrow({ where: { accountId: id, id: { not: fid } } });
+    await db.evidence.update({ where: { id: fid }, data: { supersededById: other.id } });
+    expect((await checkDraftEvidence(d)).ok).toBe(false);
+  });
+
+  it("a replacement for a held draft always goes to a person and links back", async () => {
+    const id = await account("strong-replace.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: "pending_review" } });
+    await db.draft.update({ where: { id: d.id }, data: { status: "needs_refresh" } });
+    await runAccount(id, { fromStage: 11 });
+    const next = await db.draft.findFirstOrThrow({ where: { contactId: d.contactId, stepOrder: d.stepOrder, id: { not: d.id } } });
+    expect(next.replacesId).toBe(d.id);
+    expect(next.status).toBe("pending_review");
+  });
+
+  it("an unsubscribe while an email is approved stops it", async () => {
+    const id = await account("strong-unsub.com");
+    await runAccount(id);
+    const d = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: "pending_review" } });
+    await db.draft.update({ where: { id: d.id }, data: { status: "approved" } });
+    await recordReply(d.contactId, "Please unsubscribe me");
+    await sendApproved(newContext());
+    expect(await db.message.count({ where: { draftId: d.id, status: "delivered" } })).toBe(0);
+  });
+
+  it("a temporary API failure is retried later from the failed stage, without duplicates", async () => {
+    const id = await account("strong-retry.com");
+    const ad = createMockAdapters();
+    const orig = ad.research.search.bind(ad.research);
+    let failures = 2;
+    ad.research.search = async (...args: Parameters<typeof orig>) => {
+      if (failures > 0) { failures--; throw new Error("Exa 429 Too Many Requests"); }
+      return orig(...args);
+    };
+    setAdapters(ad);
+    try {
+      const { processQueue, RETRY } = await import("@/lib/pipeline/orchestrator");
+      const first = await runAccount(id);
+      expect(first.reason).toMatch(/Retrying/);
+      let a = await db.account.findUniqueOrThrow({ where: { id } });
+      expect(a.pipelineStatus).toBe("queued");
+      expect(a.retryCount).toBe(1);
+      expect(a.nextRetryAt!.getTime()).toBeGreaterThan(Date.now());
+      // Not due yet: the queue skips it.
+      expect((await processQueue({ ctx: newContext() })).processed).toBe(0);
+      // Later: second failure, then success.
+      await processQueue({ ctx: newContext(new Date(Date.now() + 2 * RETRY.baseMs)) });
+      a = await db.account.findUniqueOrThrow({ where: { id } });
+      expect(a.retryCount).toBe(2);
+      await processQueue({ ctx: newContext(new Date(Date.now() + 10 * RETRY.baseMs)) });
+      a = await db.account.findUniqueOrThrow({ where: { id } });
+      expect(a.pipelineStatus).toBe("done");
+      expect(a.retryCount).toBe(0);
+      const drafts = await db.draft.findMany({ where: { contact: { accountId: id } } });
+      expect(new Set(drafts.map((d) => `${d.contactId}:${d.stepOrder}`)).size).toBe(drafts.length);
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+  });
+
+  it("gives up after the retry limit and asks a person; permanent errors are not retried", async () => {
+    const { isTransient } = await import("@/lib/pipeline/orchestrator");
+    expect(isTransient("OpenRouter 503 Service Unavailable")).toBe(true);
+    expect(isTransient("fetch failed")).toBe(true);
+    expect(isTransient("Seller pack invalid: name required")).toBe(false);
+    const id = await account("strong-giveup.com");
+    await db.account.update({ where: { id }, data: { retryCount: 3 } });
+    const ad = createMockAdapters();
+    ad.research.search = async () => { throw new Error("Exa 429 Too Many Requests"); };
+    setAdapters(ad);
+    try {
+      await runAccount(id);
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.pipelineStatus).toBe("error");
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "retry_exhausted" } })).toBe(1);
+  });
+});

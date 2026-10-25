@@ -1,6 +1,7 @@
 // Stages 12–13: Sequence/Send/Measure and Sales Handoff/Recycle, plus the
 // continuous signal engine (account-level engagement, buying stage, MQA).
 
+import { checkDraftEvidence, markNeedsRefresh } from "../freshness";
 import { tagLinks } from "@/lib/web/visits";
 import { readIntent } from "@/lib/brain/intent";
 import type { Account, Prisma, ReplyClass, SignalType } from "@prisma/client";
@@ -62,6 +63,14 @@ export async function sendApproved(ctx: RunContext = newContext()) {
   }
   for (const d of drafts) {
     const c = d.contact;
+    // Freshness gate: the facts this email cites must still be usable right now.
+    const fresh = await checkDraftEvidence(d, ctx.now);
+    if (!fresh.ok) {
+      await markNeedsRefresh(d.id, fresh.reason, ctx, "send");
+      result.held++;
+      result.reasons.push(`${c.fullName}: ${fresh.reason}`);
+      continue;
+    }
     const box = await pickMailbox(ctx.now);
     const globalSent = await db.message.count({ where: { sentAt: { gte: startOfDay(ctx.now) } } });
     const enrollment = await db.enrollment.findFirst({ where: { contactId: c.id, status: "active" } });

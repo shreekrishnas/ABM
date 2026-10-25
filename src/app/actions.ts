@@ -90,6 +90,17 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
   p.data.body = norm(p.data.body);
   p.data.subject = norm(p.data.subject);
   const edited = norm(d.body) !== p.data.body || norm(d.subject) !== p.data.subject;
+  if (p.data.decision === "approve") {
+    // Freshness gate: facts can go stale or be retired while a draft waits for approval.
+    const { checkDraftEvidence, markNeedsRefresh } = await import("@/lib/pipeline/freshness");
+    const fresh = await checkDraftEvidence(d);
+    if (!fresh.ok) {
+      const { newContext } = await import("@/lib/pipeline/context");
+      await markNeedsRefresh(d.id, fresh.reason, newContext(), "approval");
+      refresh("/review", "/outreach");
+      return { ok: false, message: `Not approved: ${fresh.reason}. The company is being re-researched and a fresh version will come back for review.` };
+    }
+  }
   if (edited && p.data.decision === "approve") {
     // Edited drafts must still carry the compliance footer.
     const { complianceGate } = await import("@/lib/pipeline/gates");

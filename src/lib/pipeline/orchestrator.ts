@@ -47,6 +47,19 @@ export interface RunResult {
 
 const LOCK_TTL_MS = 10 * 60_000;
 
+/** Automatic retries for temporary failures: at most this many, with growing waits. */
+export const RETRY = { max: 3, baseMs: 15 * 60_000 };
+
+/** Rate limits, provider outages, timeouts and dropped connections pass on their own; anything else needs a person. */
+export function isTransient(message: string): boolean {
+  return /\b(429|50[0-9])\b|rate.?limit|too many requests|timed? ?out|timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed|socket hang up|network|overloaded|temporarily unavailable/i.test(message);
+}
+
+/** Wait before retry n (1-based): 15 min, 30 min, 60 min… with ±20% jitter so retries don't bunch up. */
+export function retryDelayMs(n: number, rand = Math.random()): number {
+  return Math.round(RETRY.baseMs * 2 ** (n - 1) * (0.8 + 0.4 * rand));
+}
+
 async function acquireLock(accountId: string, now: Date): Promise<boolean> {
   const r = await db.account.updateMany({
     where: { id: accountId, mergedIntoId: null, OR: [{ pipelineStatus: { not: "running" } }, { lastRunAt: { lt: new Date(now.getTime() - LOCK_TTL_MS) } }] },
@@ -122,7 +135,7 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
 
     stage = 11;
     account = await s11DraftReview(account, ctx);
-    account = await db.account.update({ where: { id: accountId }, data: { pipelineStage: 11, pipelineStatus: "done" } });
+    account = await db.account.update({ where: { id: accountId }, data: { pipelineStage: 11, pipelineStatus: "done", retryCount: 0, nextRetryAt: null, lastError: null } });
     await recomputeAccount(accountId, ctx);
     await publish(ctx, { type: "run.finished", module: "main_brain", accountId, payload: { status: "done", reachedStage: 11 } });
     return { accountId, status: "done", reachedStage: 11, reason: "Drafts queued", runId: ctx.runId };
@@ -140,8 +153,21 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
       return { accountId, status: "blocked", reachedStage: stage, reason: e.message, runId: ctx.runId };
     }
     const msg = e instanceof Error ? e.message : String(e);
-    await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "error", pipelineStage: Math.max(stage - 1, 1) } });
+    const done = Math.max(stage - 1, 1);
+    const tries = account?.retryCount ?? 0;
+    if (isTransient(msg) && tries < RETRY.max) {
+      // Temporary failure: queue the company to resume at the failed stage after a wait.
+      const n = tries + 1;
+      const at = new Date(ctx.now.getTime() + retryDelayMs(n));
+      await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "queued", queuedFromStage: stage, pipelineStage: done, retryCount: n, nextRetryAt: at, lastError: msg.slice(0, 500) } });
+      await logEvent(ctx, { accountId, stage, step: "orchestrator.retry", outcome: "info", reason: `Temporary failure (${msg.slice(0, 200)}) — retry ${n} of ${RETRY.max} from stage ${stage} after ${at.toISOString()}` });
+      return { accountId, status: "error", reachedStage: stage, reason: `Retrying: ${msg}`, runId: ctx.runId };
+    }
+    await db.account.update({ where: { id: accountId }, data: { pipelineStatus: "error", pipelineStage: done, nextRetryAt: null, lastError: msg.slice(0, 500) } });
     await logEvent(ctx, { accountId, stage, step: "orchestrator.error", outcome: "error", reason: msg.slice(0, 500) });
+    if (isTransient(msg)) {
+      await openReview({ type: "retry_exhausted", stage, accountId, reason: `Still failing after ${RETRY.max} automatic retries at stage ${stage}: ${msg.slice(0, 200)}`, payload: { retries: tries } });
+    }
     return { accountId, status: "error", reachedStage: stage, reason: msg, runId: ctx.runId };
   }
 }
@@ -233,7 +259,8 @@ export async function processIntent(ctx: RunContext = newContext()) {
 export async function processQueue(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext } = {}) {
   const ctx = opts.ctx ?? newContext();
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
-  const where = { pipelineStatus: "queued", mergedIntoId: null, ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
+  // Companies waiting out a retry delay are skipped until their time comes.
+  const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
   const results: RunResult[] = [];
   while (Date.now() < deadline && results.length < (opts.max ?? 500)) {
     const next = await db.account.findFirst({ where, orderBy: { updatedAt: "asc" } });

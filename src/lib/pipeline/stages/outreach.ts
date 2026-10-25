@@ -126,8 +126,10 @@ export async function usableFacts(accountId: string, now: Date) {
  */
 export async function draftForContact(account: Account, contact: Contact, stepOrder: number, instruction: string, ctx: RunContext) {
   const S = 11;
-  const existing = await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: { not: "rejected" } } });
+  const existing = await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: { notIn: ["rejected", "needs_refresh"] } } });
   if (existing) return existing;
+  // A draft held by the freshness gate is replaced, never edited: the new one links back to it.
+  const replaces = await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: "needs_refresh" }, orderBy: { createdAt: "desc" }, select: { id: true } });
 
   // The brain's angle for this person: their role's pain point, rotated so colleagues
   // at the same company get different emails.
@@ -286,15 +288,16 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   const out = current;
   // A critic that could not run means a person reviews it, whatever the autonomy level.
   const criticDown = panel.some((p) => !p.available) || checks == null;
-  const human = needsHumanApproval(account.tier, sp.autonomy) || criticDown;
+  const human = needsHumanApproval(account.tier, sp.autonomy) || criticDown || Boolean(replaces);
   const draft = await db.draft.create({
     data: {
-      sellerId: sc.pack.id, sellerPackVersion: sc.version,
+      sellerId: sc.pack.id, sellerPackVersion: sc.version, replacesId: replaces?.id ?? null,
       contactId: contact.id, stepOrder, subject: out.subject, body: out.body, angle: trigger?.key ?? out.angle,
       painPoint: angle?.pain ?? null, useCase, claimCheck: (checks ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
       claims: out.claims as unknown as Prisma.InputJsonValue, leadEvidenceId: out.claims[0]?.factIds[0] ?? null,
       guardrailAttempts: attempt, rewrites: attempt - 1, critique, knowledge: knowledgeTrace(writing),
-      status: human ? "pending_review" : "approved",
+      // A replacement for a held draft always goes to a person: the old approval never carries over.
+      status: human || replaces ? "pending_review" : "approved",
       reviewedAt: !human ? ctx.now : null,
       reviewerNote: !human ? `Auto-approved (${sp.autonomy}: every critic passed)` : null,
     },

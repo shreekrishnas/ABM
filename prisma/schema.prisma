@@ -87,6 +87,8 @@ enum DraftStatus {
   rejected
   blocked
   sent
+  /// A cited fact went stale, was retired or marked wrong after drafting: never sent; a fresh version goes back for approval.
+  needs_refresh
 }
 
 enum MessageStatus {
@@ -144,6 +146,8 @@ enum ReviewType {
   briefing_blocked
   needs_human_reply
   bounce_breaker
+  draft_refresh
+  retry_exhausted
   other
 }
 
@@ -266,6 +270,10 @@ model Account {
   // Pipeline cursor: last completed stage (0 = nothing yet) and loop counters.
   pipelineStage     Int       @default(0)
   pipelineStatus    String    @default("idle") // idle | running | blocked | done | error
+  /// Automatic retries after temporary failures (rate limits, outages, timeouts).
+  retryCount        Int       @default(0)
+  nextRetryAt       DateTime?
+  lastError         String?
   followupUsed      Boolean   @default(false)
   reopenUsed        Boolean   @default(false)
   disqualifyReason  String?
@@ -627,6 +635,8 @@ model Draft {
   rewrites          Int         @default(0)
   sellerId          String?
   sellerPackVersion String?
+  /// The draft this one replaces after a freshness refresh. Approval never carries over.
+  replacesId        String?
   createdAt         DateTime    @default(now())
 
   message Message?
