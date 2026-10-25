@@ -1657,3 +1657,54 @@ a.hs-t:hover { border-color: rgba(124,58,237,.35); }
 .wn-link:hover { text-decoration: underline; }
 .wn-inf { margin-top: 0.35rem; font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
 @media (max-width: 1100px) { .hs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hs-elig { grid-column: 1 / -1; } }
+
+/* ─────────────────────────────────────────────────────────────
+   Polish (same palette): glass with edge light, violet-tinted depth,
+   varied radii, tactile states, calmer labels, balanced headings.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --shadow-rest: 0 1px 2px rgba(76, 29, 149, 0.05), 0 6px 18px -8px rgba(76, 29, 149, 0.12);
+  --shadow-hover: 0 2px 4px rgba(76, 29, 149, 0.06), 0 18px 40px -14px rgba(79, 70, 229, 0.26);
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+:root[data-theme="dark"] { --edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+
+/* Glass that catches light on its top edge */
+.glass-card, .glass-card-static, .cc-panel, .hm-journey, .hm-import, .hm-activity, .co-hero, .br-card, .cc-k, .hm-k {
+  box-shadow: var(--edge-light), var(--shadow-rest) !important; }
+.glass-card:hover, .cc-k:hover, .hm-k.link:hover { box-shadow: var(--edge-light), var(--shadow-hover) !important; }
+
+/* Radii: soft containers, tighter insides */
+.hs-t, .bg-role, .cc-a, .bg-plan li, .ir-dot { border-radius: 0.75rem !important; }
+.badge, .ir-tag, .wn-chip, .co-tag { border-radius: 0.45rem !important; }
+
+/* Tactile controls */
+.btn, .sh-item, .nav-page, .sh .nav-section, .cc-k, .hm-k.link, .td-btn-primary, .td-btn-ghost { transition: transform 160ms cubic-bezier(.2,.7,.2,1), box-shadow 200ms, background 160ms, color 160ms, border-color 160ms !important; }
+.btn:active, .sh-item:active, .nav-page:active, .cc-k:active, .hm-k.link:active { transform: translateY(1px) scale(0.985) !important; }
+.btn-primary:hover, .btn-brand:hover { box-shadow: 0 10px 24px -8px rgba(124, 58, 237, 0.55) !important; }
+:focus-visible { outline: 2px solid #8B5CF6 !important; outline-offset: 2px !important; border-radius: 6px; }
+
+/* Calmer labels: same caps, lighter tracking and weight */
+.micro, .eyebrow, table.data th, .hm-k-label, .cc-k-label, .cc-a-kind, .hs-l, .co-label, .co-facts dt, .co-kicker, .hm-date, .hm-table th {
+  letter-spacing: 0.055em !important; font-weight: 650 !important; }
+
+/* Headings: tighter, balanced, no orphans */
+.page-title, h1.page-title, .hm-title, .co-name, .card-title, .hm-sec-head h2, .td-title { letter-spacing: -0.028em !important; text-wrap: balance; }
+p, .hm-brief, .co-why, .hs-n, .cc-a-detail { text-wrap: pretty; }
+
+/* Tables: violet wash on hover, steadier rows */
+table.data tbody tr:hover { background: rgba(124, 58, 237, 0.045) !important; }
+table.data td { transition: background 120ms; }
+
+/* Funnel and tiles: crisper bars, gentle lift */
+.cc-f-bar { height: 0.62rem !important; box-shadow: inset 0 1px 2px rgba(76, 29, 149, 0.08); }
+.cc-f-bar span { box-shadow: 0 2px 6px -2px rgba(79, 70, 229, 0.5); }
+a.hs-t:hover, .cc-a:hover, .bg-plan li:hover { transform: translateY(-1px); }
+.hs-t, .cc-a, .bg-plan li { transition: transform 180ms cubic-bezier(.2,.7,.2,1), border-color 180ms, background 180ms; }
+
+/* Entrances: settle in, staggered */
+@media (prefers-reduced-motion: no-preference) {
+  .page-enter > * { animation: polishIn 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .page-enter > :nth-child(2) { animation-delay: 40ms; } .page-enter > :nth-child(3) { animation-delay: 80ms; } .page-enter > :nth-child(4) { animation-delay: 120ms; }
+}
+@keyframes polishIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
