@@ -76,6 +76,7 @@ export const packSchema = z
     tone: strList,
     bannedClaims: strList,
     autonomy: z.enum(["review_all", "auto_t3", "auto_all"]),
+    discovery: z.object({ everyDays: z.number().min(1).max(30) }).strict().optional(),
     ruleHints: z.object({ techHypothesis: z.string().includes("{tech}"), toolingPain: z.string().includes("{tools}") }).strict(),
     writing: writingSchema.optional(),
   })

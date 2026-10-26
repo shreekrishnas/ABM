@@ -100,6 +100,8 @@ export interface SellerProfile {
   bannedClaims: string[];
   /** When a person must approve (code-enforced). review_all = every email; auto_t3 = T3 emails that pass every critic go out; auto_all = all passing emails go out. */
   autonomy: "review_all" | "auto_t3" | "auto_all";
+  /** AI prospect discovery: how often the market scan runs for this client (days). Default 3. */
+  discovery?: { everyDays: number };
   /** Wording for the rule-based fallback brain; {tech} and {tools} are filled in. */
   ruleHints: { techHypothesis: string; toolingPain: string };
   /** Writing knowledge base: personas, market norms, objections, examples. */

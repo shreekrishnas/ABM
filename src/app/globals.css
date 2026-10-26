@@ -1708,3 +1708,9 @@ a.hs-t:hover, .cc-a:hover, .bg-plan li:hover { transform: translateY(-1px); }
   .page-enter > :nth-child(2) { animation-delay: 40ms; } .page-enter > :nth-child(3) { animation-delay: 80ms; } .page-enter > :nth-child(4) { animation-delay: 120ms; }
 }
 @keyframes polishIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Discover markers */
+.ds-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 4px; border-radius: 6px; vertical-align: middle; background: rgba(79, 70, 229, 0.1); color: #4F46E5; }
+.ds-mark.warn { background: rgba(217, 119, 6, 0.12); color: #B45309; }
+.ds-prev { padding: 8px 10px; border-radius: 10px; background: rgba(217, 119, 6, 0.08); border: 1px solid rgba(217, 119, 6, 0.22); }
+.ds-prev summary { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: #92400E; }

@@ -55,6 +55,7 @@ export const BRAIN_SECTIONS: BrainSection[] = [
       { key: "minEmployees", label: "Minimum employees (hard limit)", kind: "number", hint: "Smaller companies are never researched", need: "research" },
       { key: "midEmployees", label: "Mid-size from", kind: "number", hint: "Scoring only" },
       { key: "sweetSpot", label: "Best fit from", kind: "number", hint: "Scoring only: companies this big score highest" },
+      { key: "discoveryDays", label: "AI prospect scan every (days)", kind: "number", hint: "How often the AI scans the market for new prospects. Empty = every 3 days" },
     ],
   },
   {
@@ -148,7 +149,7 @@ export function readSection(p: SellerProfile, key: string): BrainItem[] {
   const ucName = new Map(p.useCases.map((u) => [u.key, u.name]));
   switch (key) {
     case "overview": return [{ name: p.name, website: p.website, hq: p.hq, summary: p.summary, positioning: p.positioning, tone: p.tone, cta: p.messaging.cta, defaultMessage: p.messaging.default }];
-    case "targeting": return [{ countries: p.icp.geos.primary, secondaryCountries: p.icp.geos.secondary, minEmployees: p.icp.mustHave?.minEmployees ?? p.icp.employees.min, midEmployees: p.icp.employees.mid, sweetSpot: p.icp.employees.sweetSpot }];
+    case "targeting": return [{ countries: p.icp.geos.primary, secondaryCountries: p.icp.geos.secondary, minEmployees: p.icp.mustHave?.minEmployees ?? p.icp.employees.min, midEmployees: p.icp.employees.mid, sweetSpot: p.icp.employees.sweetSpot, discoveryDays: p.discovery?.everyDays ?? null }];
     case "industries": return p.icp.industries.map((i) => ({ _key: i.key, label: i.label, tier: i.tier, match: i.match, useCases: i.useCases.map((k) => ucName.get(k) ?? k) }));
     case "products": return p.products.map((x) => ({ name: x.name, what: x.what, useCases: (x.useCases ?? []).map((k) => ucName.get(k) ?? k) }));
     case "useCases": return p.useCases.map((u) => ({ _key: u.key, name: u.name, pains: u.pains, outcome: u.outcome }));
@@ -190,6 +191,7 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
     case "targeting":
       next.icp.geos = { primary: strs(one.countries).map((c) => c.toUpperCase()), secondary: strs(one.secondaryCountries).map((c) => c.toUpperCase()) };
       next.icp.employees = { min: n(one.minEmployees, p.icp.employees.min), mid: n(one.midEmployees, p.icp.employees.mid), sweetSpot: n(one.sweetSpot, p.icp.employees.sweetSpot) };
+      { const d = Number(one.discoveryDays); if (one.discoveryDays != null && one.discoveryDays !== "" && d >= 1 && d <= 30) next.discovery = { everyDays: Math.round(d) }; else delete next.discovery; }
       // The hard gate reads mustHave: keep it in step with what people edit here.
       next.icp.mustHave = targetingRule(next.icp.geos, one.minEmployees == null || one.minEmployees === "" ? undefined : next.icp.employees.min);
       break;

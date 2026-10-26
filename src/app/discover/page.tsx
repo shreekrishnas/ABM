@@ -3,7 +3,9 @@ import { ExternalLink, Globe, Plus, Radar, TrendingDown, TrendingUp, X } from "l
 import { db } from "@/lib/db";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { industryTrends, type Momentum } from "@/lib/discover/trends";
-import { bucketLabel } from "@/lib/discover/scan";
+import { DEFAULT_SCAN_DAYS, MIN_INDEPENDENT_EVENTS, NO_PROSPECTS_MESSAGE, bucketLabel } from "@/lib/discover/scan";
+import { sellerFit } from "@/lib/seller/fit";
+import { History, RefreshCw } from "lucide-react";
 import { ActionButton, ActionForm, SelectAll, SubmitButton } from "@/components/client";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
@@ -17,10 +19,11 @@ const MOMENTUM: Record<Momentum, { word: string; color: string }> = {
   cooling: { word: "Cooling", color: "var(--intent-cold)" },
   quiet: { word: "Quiet", color: "var(--text-muted)" },
 };
-const STATUS = ["new", "added", "dismissed", "excluded"] as const;
-const STATUS_WORD: Record<string, string> = { new: "Suggested", added: "Added", dismissed: "Dismissed", excluded: "Outside your rule" };
+const STATUS = ["new", "watching", "needs_check", "added", "dismissed", "excluded"] as const;
+const STATUS_WORD: Record<string, string> = { new: "AI suggested", watching: "One signal so far", needs_check: "Size or country unknown", added: "Approved", dismissed: "Ignored", excluded: "Outside your rule" };
 
-type Source = { url: string; quote: string; at: string; trigger: string };
+type Source = { url: string; quote: string; at: string; trigger: string; reports?: number; newSinceIgnored?: boolean };
+const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 const ORIGINS = ["market", "lookalike", "website_visitor"] as const;
 const ORIGIN_WORD: Record<string, string> = { market: "News & hiring", lookalike: "Similar companies", website_visitor: "Website visitors" };
@@ -37,7 +40,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     db.prospectSuggestion.groupBy({ by: ["status"], where: scope, _count: true }),
     db.prospectSuggestion.groupBy({ by: ["origin"], where: { sellerId: p.id, status: "new" }, _count: true }),
     db.prospectSuggestion.findMany({ where: { ...scope, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 60 }),
-    db.marketEvent.findFirst({ where: { sellerId: p.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    db.pipelineEvent.findFirst({ where: { step: "discover.scan" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reason: true } }),
   ]);
   const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
   const rising = trends.filter((t) => t.momentum === "rising");
@@ -49,8 +52,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     <div className="space-y-6">
       <PageHeader
         eyebrow="Discover"
-        title="New companies and rising industries"
-        sub={<>The brain scans the news for buying events in your market, suggests companies you don&apos;t hold yet, and shows which industries are heating up. {lastScan ? `Last scan ${ago(lastScan.createdAt)}.` : "No scan yet."} It also runs on its own once a week.</>}
+        title="AI suggested prospects"
+        sub={<>The AI scans the whole market for buying events that match your Account Brain and suggests companies you don&apos;t hold yet. A company is suggested only if it passes your targeting rule and has at least {MIN_INDEPENDENT_EVENTS} independent signals; many reports of one announcement count once. {lastScan ? `Last scan ${ago(lastScan.createdAt)}.` : "No scan yet."} Runs every {p.discovery?.everyDays ?? DEFAULT_SCAN_DAYS} days. Approving starts research only; emails still need your approval.</>}
         actions={<ActionButton action={scanMarketAction} className="btn btn-primary"><Globe size={16} /> Scan the market now</ActionButton>}
       />
 
@@ -126,7 +129,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {sp.industry && <Link href={link({ industry: undefined })} className="chip"><X size={12} /> {bucketLabel(sp.industry)}</Link>}
         </div>
         {suggestions.length === 0 ? (
-          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? "No suggestions yet" : `Nothing ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "Scan the news here, find companies similar to one website on Import, or connect Apollo website visitors. Suggestions wait here for your approval." : undefined} /></Card>
+          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? NO_PROSPECTS_MESSAGE : `Nothing here: ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "The next scan runs on its own. You can also scan now, find companies similar to one website on Import, or connect Apollo website visitors." : undefined} /></Card>
         ) : (
           <ActionForm action={approveSuggestionsAction}>
           {status === "new" && (
@@ -139,20 +142,34 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <div className="grid gap-4 md:grid-cols-2">
             {suggestions.map((s) => {
               const sources = (s.sources as Source[]) ?? [];
+              const fit = sellerFit({ industry: s.industry, employees: s.employees, country: s.country }, p).fit;
+              const fresh = sources.filter((x) => x.newSinceIgnored);
               return (
                 <article key={s.id} className="glass-card-static card-pad min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-2.5">
                       {s.status === "new" && <input type="checkbox" name="ids" value={s.id} className="mt-1" aria-label={`Select ${s.name}`} />}
                       <div className="min-w-0">
-                      <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <span className="chip ml-1 align-middle">{ORIGIN_WORD[s.origin] ?? s.origin}</span></h3>
+                      <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <span className="chip ml-1 align-middle">{ORIGIN_WORD[s.origin] ?? s.origin}</span>
+                        {s.version > 1 && <span className="ds-mark" title={`Revised ${s.version - 1} time${s.version > 2 ? "s" : ""} with stronger evidence`}><RefreshCw size={12} /></span>}
+                        {s.resurfacedAt && <span className="ds-mark warn" title="Previously ignored"><History size={12} /></span>}
+                      </h3>
                       <div className="muted text-xs">
                         {[s.domain, s.industry, s.country, s.employees != null ? `${s.employees.toLocaleString()} employees` : "size unknown"].filter(Boolean).join(" · ")}
                       </div>
                       </div>
                     </div>
-                    <IntentPill level={s.level as IntentLevel} score={s.score} />
+                    <span className="flex shrink-0 flex-col items-end gap-1"><IntentPill level={s.level as IntentLevel} score={s.score} />{fit != null && <span className="muted text-xs tnum">Fit {fit}</span>}</span>
                   </div>
+                  {s.resurfacedAt && (
+                    <details className="ds-prev mt-3">
+                      <summary><History size={13} /> Previously ignored{s.decidedAt ? ` on ${day(s.decidedAt)}` : ""}: back on new evidence</summary>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {fresh.map((x) => <li key={x.url}><a href={x.url} target="_blank" rel="noreferrer" className="underline">{(() => { try { return new URL(x.url).hostname.replace(/^www\./, ""); } catch { return "source"; } })()}</a> · {day(new Date(x.at))} · &ldquo;{x.quote.slice(0, 140)}&rdquo;</li>)}
+                      </ul>
+                    </details>
+                  )}
+                  {s.origin === "market" && <p className="mt-2 text-xs muted">{sources.length} independent signal{sources.length === 1 ? "" : "s"}{sources.some((x) => (x.reports ?? 1) > 1) ? ` · ${sources.reduce((n, x) => n + (x.reports ?? 1), 0)} reports grouped` : ""}</p>}
                   <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.origin === "lookalike" ? "Why: " : "Why now: "}</span>{s.whyNow}</p>
                   {s.families.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{s.families.map((f) => <FamilyChip key={f} family={f} />)}</div>}
                   {s.reason && <p className="mt-2 text-xs" style={{ color: "var(--intent-hot)" }}>{s.reason}</p>}
@@ -163,7 +180,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                         {sources.map((x) => (
                           <li key={x.url} className="flex min-w-0 items-start gap-2">
                             <a href={x.url} target="_blank" rel="noreferrer" className="shrink-0 pt-0.5" aria-label="Open source"><ExternalLink size={14} /></a>
-                            <span className="min-w-0 break-words">&ldquo;{x.quote}&rdquo; <span className="muted text-xs">· {ago(new Date(x.at))}</span></span>
+                            <span className="min-w-0 break-words">&ldquo;{x.quote}&rdquo; <span className="muted text-xs">· {day(new Date(x.at))}{(x.reports ?? 1) > 1 ? ` · ${x.reports} reports of this event` : ""}</span></span>
                           </li>
                         ))}
                       </ul>
@@ -174,8 +191,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       <Link href={`/accounts/${s.accountId}`} className="btn btn-secondary">Open company</Link>
                     ) : s.status !== "added" ? (
                       <>
-                        {s.status !== "excluded" && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Approve &amp; start</ActionButton>}
-                        {s.status !== "dismissed" && <ActionButton action={dismissSuggestionAction.bind(null, s.id)} className="btn btn-secondary">Dismiss</ActionButton>}
+                        {(s.status === "new" || s.status === "dismissed") && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Approve &amp; start research</ActionButton>}
+                        {s.status !== "dismissed" && s.status !== "excluded" && <ActionButton action={dismissSuggestionAction.bind(null, s.id)} className="btn btn-secondary">Ignore</ActionButton>}
                       </>
                     ) : null}
                   </div>

@@ -113,7 +113,9 @@ describe("end to end: every section talks to the next", () => {
 
   it("4 Discover → add → same pipeline", async () => {
     const r = await scanMarket(newContext());
-    expect(r.suggestions).toBeGreaterThan(0);
+    // Mock news has one event per company: tracked, but not suggested until a second independent signal.
+    expect(r.events).toBeGreaterThan(0);
+    expect(await db.prospectSuggestion.count({ where: { status: "watching" } })).toBeGreaterThan(0);
     const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Sahyadri Lifesciences" } });
     const id = await addSuggestion(s.id);
     expect((await db.account.findUniqueOrThrow({ where: { id: id! } })).pipelineStatus).toBe("queued");
@@ -121,7 +123,7 @@ describe("end to end: every section talks to the next", () => {
     const a = await db.account.findUniqueOrThrow({ where: { id: id! } });
     expect(a.pipelineStage).toBeGreaterThan(2);
     const stop = await db.pipelineEvent.findFirst({ where: { accountId: id!, step: "orchestrator.stop" }, orderBy: { createdAt: "desc" } });
-    ok(`Discover suggested ${r.suggestions} companies; the added one ran through research to step ${a.pipelineStage}${stop ? ` and stopped correctly: ${stop.reason}` : ""}`);
+    ok(`Discover read ${r.events} reports (${r.suggestions} with two or more signals); the approved one ran through research to step ${a.pipelineStage}${stop ? ` and stopped correctly: ${stop.reason}` : ""}`);
     const pharma = (await industryTrends()).find((t) => t.key === "pharma")!;
     expect(pharma.momentum).toBe("rising");
     ok(`Industry radar: pharma ${pharma.momentum}, held ${pharma.held}`);

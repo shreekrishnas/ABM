@@ -4,7 +4,8 @@ import { ingestRows } from "@/lib/pipeline/ingest";
 import { setAdapters } from "@/lib/adapters";
 import { createMockAdapters } from "@/lib/adapters/mock";
 import { MANCH } from "@/lib/seller/manch";
-import { addSuggestion, dismissSuggestion, maybeScanMarket, scanMarket } from "@/lib/discover/scan";
+import { addSuggestion, dismissSuggestion, groupEvents, maybeScanMarket, scanMarket } from "@/lib/discover/scan";
+import { companyNameKey } from "@/lib/pipeline/normalize";
 import { industryTrends, momentumOf } from "@/lib/discover/trends";
 import { newContext } from "@/lib/pipeline/context";
 
@@ -28,7 +29,9 @@ describe("Discover: market scan", () => {
     expect(r.events).toBeGreaterThan(0);
     const all = await db.prospectSuggestion.findMany();
     const by = (n: string) => all.find((s) => s.name === n)!;
-    expect(by("Sahyadri Lifesciences").status).toBe("new");
+    // One announcement is one signal: not enough on its own.
+    expect(by("Sahyadri Lifesciences").status).toBe("watching");
+    expect(by("Sahyadri Lifesciences").reason).toMatch(/independent signal/);
     expect(by("Sahyadri Lifesciences").country).toBe("IN");
     expect(by("Sahyadri Lifesciences").employees).toBe(18000);
     expect(by("Sahyadri Lifesciences").whyNow).toMatch(/S\/4HANA/);
@@ -84,5 +87,71 @@ describe("Discover: industry radar", () => {
     expect(pharma.narrative).toMatch(/You hold no companies here.*add companies/);
     expect(t[0].key).toBe("pharma");
     expect(t.find((x) => x.key === "fmcg")!.momentum).not.toBe("rising");
+  });
+});
+
+const DAYMS = 86_400_000;
+async function report(company: string, trigger: number, daysAgo: number, url: string) {
+  await db.marketEvent.create({ data: { sellerId: MANCH.id, company, nameKey: companyNameKey(company)!, industry: "Pharmaceuticals", bucket: "pharma", triggerKey: MANCH.triggers[trigger].key, claim: `${company} event ${trigger}`, quote: `${company} announced it`, sourceUrl: url, publishedAt: new Date(Date.now() - daysAgo * DAYMS) } });
+}
+const sahyadri = () => db.prospectSuggestion.findFirstOrThrow({ where: { name: "Sahyadri Lifesciences" } });
+
+describe("AI prospect discovery rules", () => {
+  it("many reports of one announcement count once; two independent events qualify", async () => {
+    await scanMarket(newContext());
+    const first = await db.marketEvent.findFirstOrThrow({ where: { company: "Sahyadri Lifesciences" } });
+    const t = MANCH.triggers.findIndex((x) => x.key === first.triggerKey);
+    await report("Sahyadri Lifesciences", t, 2, "https://news.example/a");
+    await report("Sahyadri Lifesciences", t, 1, "https://news.example/b");
+    await scanMarket(newContext());
+    expect((await sahyadri()).status).toBe("watching");
+    await report("Sahyadri Lifesciences", t === 0 ? 1 : 0, 3, "https://news.example/c");
+    await scanMarket(newContext());
+    const s = await sahyadri();
+    expect(s.status).toBe("new");
+    expect((s.sources as unknown[]).length).toBe(2);
+  });
+
+  it("older relevant evidence still counts", async () => {
+    await scanMarket(newContext());
+    await report("Sahyadri Lifesciences", 1, 200, "https://news.example/old");
+    await report("Sahyadri Lifesciences", 0, 10, "https://news.example/new");
+    await scanMarket(newContext());
+    expect((await sahyadri()).status).toBe("new");
+  });
+
+  it("a pending suggestion is revised, not duplicated", async () => {
+    await scanMarket(newContext());
+    await report("Sahyadri Lifesciences", 0, 5, "https://news.example/1");
+    await report("Sahyadri Lifesciences", 1, 4, "https://news.example/2");
+    await scanMarket(newContext());
+    expect((await sahyadri()).version).toBe(1);
+    await report("Sahyadri Lifesciences", 2, 1, "https://news.example/3");
+    await scanMarket(newContext());
+    expect((await sahyadri()).version).toBe(2);
+    expect(await db.prospectSuggestion.count({ where: { name: "Sahyadri Lifesciences" } })).toBe(1);
+  });
+
+  it("an ignored company returns only on genuinely new evidence, marked as previously ignored", async () => {
+    await scanMarket(newContext());
+    await report("Sahyadri Lifesciences", 0, 5, "https://news.example/x1");
+    await report("Sahyadri Lifesciences", 1, 4, "https://news.example/x2");
+    await scanMarket(newContext());
+    await dismissSuggestion((await sahyadri()).id);
+    await scanMarket(newContext());
+    expect((await sahyadri()).status).toBe("dismissed");
+    await new Promise((r) => setTimeout(r, 20));
+    await report("Sahyadri Lifesciences", 2, 0, "https://news.example/x3");
+    await scanMarket(newContext());
+    const s = await sahyadri();
+    expect(s.status).toBe("new");
+    expect(s.resurfacedAt).not.toBeNull();
+    expect((s.sources as { newSinceIgnored?: boolean }[]).some((x) => x.newSinceIgnored)).toBe(true);
+  });
+
+  it("groups by trigger and time window", () => {
+    const d = (n: number) => new Date(Date.UTC(2026, 0, n));
+    const g = groupEvents([{ triggerKey: "a", publishedAt: d(1) }, { triggerKey: "a", publishedAt: d(10) }, { triggerKey: "a", publishedAt: d(40) }, { triggerKey: "b", publishedAt: d(2) }]);
+    expect(g.length).toBe(3);
   });
 });

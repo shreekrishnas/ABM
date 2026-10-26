@@ -18,7 +18,26 @@ import type { ResearchPage } from "@/lib/adapters/types";
 const DAY = 86_400_000;
 /** Companies checked for size and country per scan (each check is one search). */
 const ENRICH_LIMIT = 25;
-const RESCAN_DAYS = 7;
+/** Default scan interval (days) when the client's Brain doesn't set one: about twice a week. */
+export const DEFAULT_SCAN_DAYS = 3;
+/** How far back evidence is considered. Age lowers confidence through the intent score; it doesn't disqualify. */
+export const LOOKBACK_DAYS = 365;
+/** Reports of the same kind of event about one company within this many days are one event. */
+export const SAME_EVENT_DAYS = 21;
+/** A company is suggested only with at least this many independent events. */
+export const MIN_INDEPENDENT_EVENTS = 2;
+export const NO_PROSPECTS_MESSAGE = "No new prospects with qualifying signals found in the latest scan.";
+
+/** Group a company's reports into independent events: same trigger within SAME_EVENT_DAYS = one event (earliest report dates it). */
+export function groupEvents<T extends { triggerKey: string; publishedAt: Date }>(reports: T[]): T[][] {
+  const groups: T[][] = [];
+  for (const r of [...reports].sort((a, b) => a.publishedAt.getTime() - b.publishedAt.getTime())) {
+    const g = groups.find((x) => x[0].triggerKey === r.triggerKey && Math.abs(r.publishedAt.getTime() - x[0].publishedAt.getTime()) <= SAME_EVENT_DAYS * DAY);
+    if (g) g.push(r);
+    else groups.push([r]);
+  }
+  return groups;
+}
 
 export const bucketOf = (industry: string | null | undefined) => matchIndustry(industry, seller())?.key ?? "other";
 
@@ -100,7 +119,7 @@ export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanRe
     }
   }
   const out = await buildSuggestions(ctx);
-  await logEvent(ctx, { stage: 0, step: "discover.scan", outcome: "info", reason: `${events} market events; ${out.suggestions} new companies suggested, ${out.excluded} outside the targeting rule`, data: { searches: queries.length } });
+  await logEvent(ctx, { stage: 0, step: "discover.scan", outcome: "info", reason: out.suggestions ? `${events} market reports; ${out.suggestions} prospects with two or more independent signals, ${out.excluded} outside the targeting rule` : `${NO_PROSPECTS_MESSAGE} (${events} market reports read)`, data: { searches: queries.length, sellerId: p.id } });
   await publish(ctx, { type: "market.scanned", module: "discover", payload: { searches: queries.length, events, ...out } });
   return { searches: queries.length, events, ...out };
 }
@@ -108,7 +127,7 @@ export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanRe
 /** Groups recent market events by company, skips companies already held, checks the rule, scores intent. */
 async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number; excluded: number }> {
   const p = seller();
-  const since = new Date(ctx.now.getTime() - 90 * DAY);
+  const since = new Date(ctx.now.getTime() - LOOKBACK_DAYS * DAY);
   const rows = await db.marketEvent.findMany({ where: { sellerId: p.id, publishedAt: { gte: since } }, orderBy: { publishedAt: "desc" } });
   const held = await db.account.findMany({ where: { nameKey: { in: [...new Set(rows.map((r) => r.nameKey))] } }, select: { nameKey: true } });
   const heldKeys = new Set(held.map((a) => a.nameKey));
@@ -122,7 +141,12 @@ async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number;
   let enriched = 0;
   for (const [nameKey, evs] of byCompany) {
     const prev = existing.get(nameKey);
-    if (prev && (prev.status === "added" || prev.status === "dismissed")) continue;
+    if (prev?.status === "added") continue;
+    // Independent events: many reports of one announcement count once.
+    const groups = groupEvents(evs);
+    // An ignored company returns only on genuinely new evidence: an event first seen after the decision.
+    const fresh = prev?.status === "dismissed" ? groups.filter((g) => g.every((r) => r.createdAt > (prev.decidedAt ?? prev.updatedAt))) : groups;
+    if (prev?.status === "dismissed" && !fresh.length) continue;
     // Size and country: reuse what we already know; otherwise one firmographics search.
     let firmo: { industry: string | null; employees: number | null; country: string | null } | null = prev && prev.country && prev.employees != null ? { industry: prev.industry, employees: prev.employees, country: prev.country } : null;
     if (!firmo && enriched < ENRICH_LIMIT) {
@@ -137,17 +161,23 @@ async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number;
     }
     const industry = evs.find((e) => e.industry)?.industry ?? firmo?.industry ?? null;
     const gate = mustHaveGate({ country: firmo?.country ?? null, employees: firmo?.employees ?? null });
-    const signals: IntentSignal[] = evs.map((e) => ({
-      family: familyOf(e.triggerKey),
-      label: e.claim,
+    // One signal per independent event, dated by its first report; every report stays as evidence.
+    const signals: IntentSignal[] = groups.map((g) => ({
+      family: familyOf(g[0].triggerKey),
+      label: g[0].claim,
       strength: 1,
-      at: e.publishedAt,
-      refs: [e.id],
-      trigger: e.triggerKey,
+      at: g[0].publishedAt,
+      refs: g.map((e) => e.id),
+      trigger: g[0].triggerKey,
     }));
     const reading = scoreIntent(signals);
-    const sources = evs.slice(0, 5).map((e) => ({ url: e.sourceUrl, quote: e.quote, at: e.publishedAt.toISOString(), trigger: e.triggerKey }));
-    const status = gate.pass ? "new" : gate.unknown ? "new" : "excluded";
+    const sources = groups.slice(0, 6).map((g) => ({ url: g[0].sourceUrl, quote: g[0].quote, at: g[0].publishedAt.toISOString(), trigger: g[0].triggerKey, reports: g.length, newSinceIgnored: prev?.status === "dismissed" ? fresh.includes(g) : undefined }));
+    const enough = groups.length >= MIN_INDEPENDENT_EVENTS;
+    // Hard targeting gate first; then at least two independent events. One signal alone never qualifies.
+    const status = gate.unknown ? "needs_check" : !gate.pass ? "excluded" : enough ? "new" : "watching";
+    if (prev?.status === "dismissed" && status !== "new") continue;
+    const resurfaced = prev?.status === "dismissed" && status === "new";
+    const revised = prev?.status === "new" && status === "new" && (prev.score !== reading.score || (prev.sources as unknown[]).length !== sources.length);
     const data = {
       name: evs[0].company,
       industry,
@@ -160,20 +190,23 @@ async function buildSuggestions(ctx: RunContext): Promise<{ suggestions: number;
       families: reading.families,
       sources: sources as unknown as Prisma.InputJsonValue,
       status,
-      reason: gate.pass ? null : gate.reason,
+      reason: !gate.pass ? gate.reason : enough ? null : `Only ${groups.length} independent signal; at least ${MIN_INDEPENDENT_EVENTS} are needed`,
+      ...(resurfaced ? { resurfacedAt: ctx.now } : {}),
+      ...(revised ? { version: { increment: 1 } } : {}),
     };
-    await db.prospectSuggestion.upsert({ where: { sellerId_nameKey: { sellerId: p.id, nameKey } }, create: { sellerId: p.id, nameKey, ...data }, update: data });
+    await db.prospectSuggestion.upsert({ where: { sellerId_nameKey: { sellerId: p.id, nameKey } }, create: { sellerId: p.id, nameKey, ...data, version: 1 }, update: data });
     if (status === "excluded") excluded++;
-    else suggestions++;
+    else if (status === "new") suggestions++;
   }
   return { suggestions, excluded };
 }
 
-/** Weekly from the tick; never twice inside RESCAN_DAYS. */
+/** From the tick, on the client's schedule (Account Brain, default every 3 days); never twice inside it. */
 export async function maybeScanMarket(ctx: RunContext) {
   await ensureSellerPacks();
-  const last = await db.marketEvent.findFirst({ where: { sellerId: seller().id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
-  if (last && ctx.now.getTime() - last.createdAt.getTime() < RESCAN_DAYS * DAY) return false;
+  const every = seller().discovery?.everyDays ?? DEFAULT_SCAN_DAYS;
+  const last = await db.pipelineEvent.findFirst({ where: { step: "discover.scan", data: { path: ["sellerId"], equals: seller().id } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+  if (last && ctx.now.getTime() - last.createdAt.getTime() < every * DAY - 60 * 60_000) return false;
   await scanMarket(ctx);
   return true;
 }
@@ -187,12 +220,12 @@ export async function addSuggestion(id: string) {
     { source: s.origin === "lookalike" ? "lookalike" : s.origin === "website_visitor" ? "website-visitor" : "discover", filename: `${s.origin}-${s.name}` },
   );
   const accountId = res.accountIds[0] ?? null;
-  await db.prospectSuggestion.update({ where: { id }, data: { status: "added", accountId } });
+  await db.prospectSuggestion.update({ where: { id }, data: { status: "added", accountId, decidedAt: new Date() } });
   // Earlier website visits by this company now count for it.
   if (accountId) await db.webVisit.updateMany({ where: { accountId: null, OR: [...(s.domain ? [{ companyDomain: s.domain }] : []), { companyName: s.name }] }, data: { accountId } });
   return accountId;
 }
 
 export async function dismissSuggestion(id: string) {
-  await db.prospectSuggestion.update({ where: { id }, data: { status: "dismissed" } });
+  await db.prospectSuggestion.update({ where: { id }, data: { status: "dismissed", decidedAt: new Date(), resurfacedAt: null } });
 }
