@@ -1714,3 +1714,85 @@ a.hs-t:hover, .cc-a:hover, .bg-plan li:hover { transform: translateY(-1px); }
 .ds-mark.warn { background: rgba(217, 119, 6, 0.12); color: #B45309; }
 .ds-prev { padding: 8px 10px; border-radius: 10px; background: rgba(217, 119, 6, 0.08); border: 1px solid rgba(217, 119, 6, 0.22); }
 .ds-prev summary { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: #92400E; }
+
+/* ─────────────────────────────────────────────────────────────
+   Spatial hierarchy (Apple-inspired, same palette)
+   Four depths, each with its own material:
+     L0 ground      — the shell and page atmosphere
+     L1 panes       — content cards: frosted, specular top edge, soft lift
+     L2 floating    — top bar, sub-nav, primary actions: thicker glass, hovering
+     L3 overlays    — palette, modals, drawers: thickest glass; the page recedes
+   Inner tiles inside a pane are recessed wells (pressed into the glass).
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --ease-spatial: cubic-bezier(0.32, 0.72, 0, 1);
+  --l1-blur: blur(24px) saturate(180%);
+  --l2-blur: blur(30px) saturate(190%);
+  --l3-blur: blur(40px) saturate(200%);
+  --specular: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.55);
+  --l1-shadow: 0 1px 1px rgba(30, 27, 75, 0.04), 0 8px 24px -10px rgba(76, 29, 149, 0.16);
+  --l1-shadow-hover: 0 2px 4px rgba(30, 27, 75, 0.05), 0 22px 44px -16px rgba(79, 70, 229, 0.28);
+  --l2-shadow: 0 1px 2px rgba(30, 27, 75, 0.06), 0 14px 34px -12px rgba(76, 29, 149, 0.24);
+  --l3-shadow: 0 2px 6px rgba(30, 27, 75, 0.08), 0 40px 80px -20px rgba(49, 46, 129, 0.4);
+  --well: rgba(99, 102, 241, 0.045);
+  --well-edge: inset 0 1px 2px rgba(30, 27, 75, 0.06), inset 0 0 0 1px rgba(30, 27, 75, 0.04);
+}
+:root[data-theme="dark"] {
+  --specular: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --well: rgba(255, 255, 255, 0.035);
+  --well-edge: inset 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* L1 — panes */
+.glass-card, .glass-card-static, .cc-panel, .hm-journey, .hm-import, .hm-activity, .co-hero, .br-card, .cc-k, .hm-k {
+  backdrop-filter: var(--l1-blur) !important; -webkit-backdrop-filter: var(--l1-blur) !important;
+  box-shadow: var(--specular), var(--l1-shadow) !important;
+  border-radius: 1.5rem !important;
+}
+.cc-k, .hm-k { border-radius: 1.15rem !important; }
+.glass-card, .cc-k, .hm-k.link, a.glass-card-static {
+  transition: transform 420ms var(--ease-spatial), box-shadow 420ms var(--ease-spatial) !important; }
+.glass-card:hover, .cc-k:hover, .hm-k.link:hover, a.glass-card-static:hover {
+  transform: translateY(-3px) scale(1.006) !important; box-shadow: var(--specular), var(--l1-shadow-hover) !important; }
+
+/* Recessed wells inside panes */
+.hs-t, .bg-role, .bg-plan li, .cc-a, .ir-item, .co-facts > div, .co-ring, .br-item, .sim-row, table.data thead th {
+  background: var(--well) !important; box-shadow: var(--well-edge) !important; border-color: transparent !important; }
+.hs-t, .bg-role, .co-facts > div, .co-ring, .br-item { border-radius: 1rem !important; }
+.cc-a, .bg-plan li, .ir-item { border-radius: 0.85rem !important; }
+.ir-item { margin-bottom: 4px; }
+.ir-item::before { display: none; }
+a.hs-t:hover, .cc-a:hover, .bg-plan li:hover { background: rgba(124, 58, 237, 0.07) !important; transform: none !important; }
+
+/* L2 — floating chrome */
+.sh .nav { margin: 0.75rem 0.9rem 0; border-radius: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.55) !important; backdrop-filter: var(--l2-blur) !important; -webkit-backdrop-filter: var(--l2-blur) !important;
+  box-shadow: var(--specular), var(--l2-shadow) !important; top: 0.75rem !important; }
+:root[data-theme="dark"] .sh .nav { background: rgba(30, 27, 60, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+.sh .nav-sub { border-top: 0 !important; }
+.sh .nav-sections { box-shadow: var(--well-edge); }
+.sh .nav-section.on, .nav-page.on { box-shadow: var(--specular), 0 4px 14px -4px rgba(79, 70, 229, 0.35) !important; }
+.sh-rail { background: rgba(255, 255, 255, 0.28); backdrop-filter: var(--l2-blur); -webkit-backdrop-filter: var(--l2-blur); }
+:root[data-theme="dark"] .sh-rail { background: rgba(15, 14, 35, 0.35); }
+.sh-item.on { box-shadow: var(--specular), 0 8px 20px -6px rgba(124, 58, 237, 0.45) !important; }
+.btn-primary, .btn-brand { box-shadow: var(--specular), 0 6px 16px -6px rgba(124, 58, 237, 0.55) !important; }
+.btn-secondary { backdrop-filter: blur(12px) saturate(160%); -webkit-backdrop-filter: blur(12px) saturate(160%); box-shadow: var(--specular), 0 1px 2px rgba(30, 27, 75, 0.05) !important; }
+
+/* L3 — overlays: thickest glass; the page behind recedes */
+.palette, .glass-modal, .peek-drawer {
+  backdrop-filter: var(--l3-blur) !important; -webkit-backdrop-filter: var(--l3-blur) !important;
+  box-shadow: var(--specular), var(--l3-shadow) !important; border-radius: 1.75rem !important; }
+.peek-drawer { border-radius: 1.75rem 0 0 1.75rem !important; }
+.overlay, .palette-backdrop { background: rgba(30, 27, 75, 0.18) !important; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
+.sh-body > * { transition: transform 480ms var(--ease-spatial), opacity 480ms var(--ease-spatial); transform-origin: 50% 0; }
+body:has(.overlay, .palette-backdrop) .sh-body > * { transform: scale(0.985); opacity: 0.92; }
+@media (prefers-reduced-motion: no-preference) {
+  .palette, .glass-modal { animation: spatialIn 420ms var(--ease-spatial) both; }
+  .peek-drawer { animation: spatialSlide 460ms var(--ease-spatial) both; }
+}
+@keyframes spatialIn { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes spatialSlide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .glass-card:hover, .cc-k:hover, .hm-k.link:hover { transform: none !important; }
+  body:has(.overlay, .palette-backdrop) .sh-body > * { transform: none; }
+}
