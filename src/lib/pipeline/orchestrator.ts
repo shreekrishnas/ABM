@@ -72,10 +72,12 @@ export async function prepareReResearch(accountId: string, now = new Date()): Pr
   return unscoped(async () => {
     await db.evidence.updateMany({ where: { accountId, isNegative: true, flagged: false }, data: { flagged: true, flagReason: "Set aside: re-researched under the current rules" } });
     await db.reviewItem.updateMany({ where: { accountId, status: "open", type: "possible_blocker" }, data: { status: "resolved", resolution: "Re-researched", resolvedAt: now } });
-    const lift = a.stage === "DISQUALIFIED" && Boolean(a.disqualifyReason?.startsWith("Negative evidence"));
+    const lift = (a.stage === "DISQUALIFIED" && Boolean(a.disqualifyReason?.startsWith("Negative evidence"))) || a.stage === "WATCH";
+    if (a.stage === "WATCH") await db.watchlistEntry.updateMany({ where: { accountId, status: { in: ["waiting", "due"] } }, data: { status: "cancelled" } });
     await db.account.update({
       where: { id: accountId },
-      data: { pipelineStatus: "queued", queuedFromStage: 5, nextRetryAt: null, retryCount: 0, lastError: null, followupUsed: false, ...(lift ? { stage: "UNAWARE", disqualifyReason: null } : {}) },
+      // From the identity check: people's emails are re-checked too, then the research plan.
+      data: { pipelineStatus: "queued", queuedFromStage: 4, nextRetryAt: null, retryCount: 0, lastError: null, followupUsed: false, ...(lift ? { stage: "UNAWARE", disqualifyReason: null } : {}) },
     });
     return true;
   });

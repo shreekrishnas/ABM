@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isValidEmail, normalizeCompanyName, normalizeDomain, normalizePhone, phoneCountry, standardizeTitle, inferFunction } from "@/lib/pipeline/normalize";
 import { accountEngagement, dataConfidence, personEngagement, researchPriority, scoreFit, stageFromEngagement, tierFor } from "@/lib/pipeline/scoring";
 import {
-  bounceBreaker, companyMarks, complianceGate, decideReadiness, emailDomainStatus, evidenceGate, exclusionGate, factGuardrail, factStatus,
+  blockerSupported, bounceBreaker, companyMarks, complianceGate, decideReadiness, emailDomainStatus, evidenceGate, exclusionGate, factGuardrail, factStatus,
   entityGate, findContradictions, isStale, lawfulBasisFor, preSendGate, resolveContradiction,
 } from "@/lib/pipeline/gates";
 import { CONFIG } from "@/lib/config";
@@ -137,6 +137,30 @@ describe("gates", () => {
     const page = (title: string, text: string) => ({ url: "https://news.example.com/a", title, text });
     expect(entityGate("Torrent Pharmaceuticals", "torrentpharma.com", page("Pharma news", "Torrent Pharma plans to cut its field force")).pass).toBe(true);
     expect(entityGate("Aurobindo Pharma", "aurobindo.com", page("Sector round-up", "Cipla and Lupin report results")).pass).toBe(false);
+  });
+  it("a blocker's own sentence must say what the blocker means (real cases)", () => {
+    const ok = (kind: string, quote: string, name: string, domain: string) => blockerSupported(kind, quote, name, domain);
+    // Aurobindo buying companies is not Aurobindo being acquired.
+    expect(ok("acquired", "Aurobindo Pharma completes acquisition of US-based Lannett Company - The HinduBusinessLine", "Aurobindo Pharma", "aurobindo.com")).toBe(false);
+    expect(ok("acquired", "Aurobindo has completed its $250m acquisition of Lannett in the US following a recent approval from the FTC.", "Aurobindo Pharma", "aurobindo.com")).toBe(false);
+    expect(ok("acquired", "Aurobindo arm Apitoria acquires A1 Biochem Labs LLC in $15.25M cash deal", "Aurobindo Pharma", "aurobindo.com")).toBe(false);
+    // Mankind absorbing its own subsidiary is not Mankind being acquired.
+    expect(ok("acquired", "Mankind Pharma will take over the entire business of Bharat Serums and Vaccines Limited (BSVL) through a voluntary liquidation of the subsidiary", "MANKIND PHARMA", "mankindpharma.com")).toBe(false);
+    // Torrent trimming its sales force while merging JB Chemicals is not distress layoffs.
+    expect(ok("layoffs", "Torrent Pharmaceuticals is reducing its medical representative force by 400 positions as it integrates JB Chemicals & Pharmaceuticals.", "Torrent Pharmaceuticals", "torrentpharma.com")).toBe(false);
+    // Akums' tax demand and Mankind's analyst rating were never blockers.
+    expect(ok("bankrupt", "However, a ₹156 crore tax demand looms.", "Akums Drugs& Pharmaceuticals", "akums.in")).toBe(false);
+    expect(ok("competitor_signed", "Nandan Kulkarni from Bernstein maintained a Sell rating on Mankind Pharma Ltd.", "MANKIND PHARMA", "mankindpharma.com")).toBe(false);
+    // The real thing still counts.
+    expect(ok("acquired", "MegaCorp acquires Delta Foods for $2 billion", "Delta Foods", "deltafoods.com")).toBe(true);
+    expect(ok("acquired", "Delta Foods has been acquired by MegaCorp", "Delta Foods", "deltafoods.com")).toBe(true);
+    expect(ok("bankrupt", "The NCLT admitted an insolvency petition against Delta Foods", "Delta Foods", "deltafoods.com")).toBe(true);
+    expect(ok("layoffs", "Delta Foods announced layoffs of 12% of its workforce amid falling sales", "Delta Foods", "deltafoods.com")).toBe(true);
+  });
+  it("a person's email on the company's other domain is fine", () => {
+    expect(emailDomainStatus("sumeet@akums.net", "akums.in").status).toBe("probable");
+    expect(emailDomainStatus("ramesh@aurobindousa.com", "aurobindo.com").status).toBe("probable");
+    expect(emailDomainStatus("x@othercorp.com", "akums.in").status).toBe("conflicting");
   });
   it("readiness rules in order", () => {
     const person = { identity: { email: "verified" as const, title: "verified" as const, company: "verified" as const }, buyingRole: "decision_maker" as const, lawfulBasis: "x", emailDeliverable: true, suppressed: false };

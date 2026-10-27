@@ -79,6 +79,9 @@ export function emailDomainStatus(email: string | null, companyDomain: string | 
   if ((CONFIG.personalDomains as readonly string[]).includes(d)) return { status: "conflicting", reason: `Personal address (${d})` };
   if (!companyDomain) return { status: "unknown", reason: "Company domain unknown" };
   if (d === companyDomain || d.endsWith(`.${companyDomain}`)) return { status: "probable", reason: "Email domain matches company" };
+  // The company's other domains: same name, another ending (akums.net for akums.in) or a regional one (aurobindousa.com).
+  const root = (x: string) => x.split(".")[0];
+  if (root(companyDomain).length >= 4 && (root(d) === root(companyDomain) || root(d).startsWith(root(companyDomain)))) return { status: "probable", reason: `Email on the company's other domain (${d})` };
   return { status: "conflicting", reason: `Email domain ${d} ≠ company ${companyDomain}` };
 }
 
@@ -216,6 +219,8 @@ export interface TriggerFact {
 export interface NegativeFact {
   kind: string;
   publishedAt: Date;
+  /** The sentence copied from the source; checked against what the blocker actually means. */
+  quote?: string | null;
   /** Where it was reported: a blocker counts only when confirmed (official source, or two independent sites). */
   sourceUrl?: string;
   sourceType?: string;
@@ -241,6 +246,45 @@ export function blockerConfirmed(reports: NegativeFact[]): boolean {
 }
 
 const TERMINAL = ["acquired", "bankrupt", "competitor_signed"];
+
+const has = (re: RegExp, t: string) => re.test(t);
+/** Before and after the first mention of the company in the sentence. */
+function aroundCompany(quote: string, marks: string[]) {
+  const t = quote.toLowerCase();
+  const at = Math.min(...marks.map((m) => t.indexOf(m)).filter((i) => i >= 0));
+  return Number.isFinite(at) ? { before: t.slice(0, at), after: t.slice(at) } : null;
+}
+
+/**
+ * Does the sentence actually say what the blocker means? The AI often labels a company buying
+ * someone else as "acquired", or a post-merger reshuffle as "layoffs"; code checks the wording.
+ * Facts without a quote (sample data, older records) are taken as labelled.
+ */
+export function blockerSupported(kind: string, quote: string | null | undefined, companyName: string, companyDomain: string | null): boolean {
+  if (!quote) return true;
+  const t = quote.toLowerCase();
+  const marks = companyMarks(companyName, companyDomain);
+  const where = marks.length ? aroundCompany(quote, marks) : null;
+  switch (kind) {
+    case "acquired": {
+      // THIS company is the one bought: "<Company> acquired by / sold to / merged into …" or "… acquires / acquisition of <Company>".
+      const passive = /\b(acquired by|bought by|taken over by|sold to|merged into|agreed to be acquired|to be acquired)\b/;
+      const active = /\b(acquires?|acquiring|to acquire|buys?|buying|to buy|acquisition of|takeover of|take over)\b/;
+      if (!where) return has(passive, t);
+      return has(passive, where.after) || has(active, where.before);
+    }
+    case "bankrupt":
+      return has(/\b(insolven\w*|bankrupt\w*|liquidat\w*|winding.up|nclt|cirp|receivership)\b/, t) && !has(/\b(subsidiary|arm|unit)\b/, t);
+    case "competitor_signed":
+      return has(/\b(selects?|selected|chose|chosen|signs?|signed|deploys?|deployed|implements?|implemented|goes live|went live|partners? with|partnered with)\b/, t) && !has(/\b(rating|downgrade\w*|upgrade\w*|target price|price target|shares?|stock)\b/, t);
+    case "layoffs":
+      return has(/\b(lay.?offs?|laid off|job cuts?|cuts? .{0,30}jobs|retrench\w*|redundanc\w*|reduc\w* .{0,40}(workforce|headcount|staff|employees|positions|strength))\b/, t) && !has(/\b(integrat\w*|merger|merging|acquisition|restructur\w*|realign\w*|consolidat\w*)\b/, t);
+    case "hiring_freeze":
+      return has(/\b(hiring freeze|freez\w* .{0,20}hiring|stop\w* hiring|paus\w* hiring)\b/, t);
+    default:
+      return false;
+  }
+}
 const label = (kind: string) => kind.replace(/_/g, " ");
 
 /**
@@ -248,8 +292,9 @@ const label = (kind: string) => kind.replace(/_/g, " ");
  * an unconfirmed one pauses the company for a person to decide ("possible blocker"). Layoffs and
  * hiring freezes park the company only when confirmed; otherwise they are context.
  */
-export function negativeEvidence(negatives: NegativeFact[], now = new Date()): { outcome: "disqualified" | "possible_blocker" | "watch" | "continue"; reason: string } {
-  const byKind = (kind: string) => negatives.filter((n) => n.kind === kind);
+export function negativeEvidence(negatives: NegativeFact[], now = new Date(), company?: { name: string; domain: string | null }): { outcome: "disqualified" | "possible_blocker" | "watch" | "continue"; reason: string } {
+  const real = company ? negatives.filter((n) => blockerSupported(n.kind, n.quote, company.name, company.domain)) : negatives;
+  const byKind = (kind: string) => real.filter((n) => n.kind === kind);
   for (const kind of TERMINAL) {
     const reports = byKind(kind);
     if (reports.length && blockerConfirmed(reports)) return { outcome: "disqualified", reason: `Negative evidence: ${label(kind)} (confirmed by ${reports.length} source${reports.length === 1 ? "" : "s"})` };
@@ -275,6 +320,8 @@ export interface ReadinessPerson {
 
 export interface ReadinessAccount {
   negatives: NegativeFact[];
+  /** The company itself, so a blocker's wording can be checked against it. */
+  company?: { name: string; domain: string | null };
   triggers: TriggerFact[];
   followupUsed: boolean;
 }
@@ -289,7 +336,7 @@ export interface ReadinessDecision {
 
 /** Rules are checked in order; the first that matches wins (mirrors the spec table). */
 export function decideReadiness(acc: ReadinessAccount, p: ReadinessPerson, now = new Date()): ReadinessDecision {
-  const neg = negativeEvidence(acc.negatives, now);
+  const neg = negativeEvidence(acc.negatives, now, acc.company);
   if (neg.outcome === "disqualified") return { outcome: "disqualified", reasons: [neg.reason] };
   if (neg.outcome === "possible_blocker") return { outcome: "human_review", reasons: [neg.reason], blocker: true };
   if (neg.outcome === "watch") return { outcome: "watch", reasons: [neg.reason], watchDays: CONFIG.readiness.negativeWatchDays };

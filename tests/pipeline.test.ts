@@ -537,7 +537,7 @@ describe("re-research from scratch", () => {
     expect(a.stage).toBe("UNAWARE");
     expect(a.disqualifyReason).toBeNull();
     expect(a.pipelineStatus).toBe("queued");
-    expect(a.queuedFromStage).toBe(5);
+    expect(a.queuedFromStage).toBe(4);
     expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: false } })).toBe(0);
     expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: true } })).toBeGreaterThan(0);
   });

@@ -262,8 +262,8 @@ class MockResearch implements ResearchSource {
     if (key === "negative") {
       // Confirmed blockers come from two independent sites; a rumour from one.
       if (sc === "layoffs") pages.push({ url: `https://news.example.com/${domain}/layoffs`, sourceType: "news", publishedAt: daysAgo(25), title: `${companyName} cuts 8% of staff`, text: "layoffs" }, { url: `https://wire.example.org/${domain}/layoffs`, sourceType: "news", publishedAt: daysAgo(24), title: `${companyName} job cuts`, text: "layoffs" });
-      if (sc === "acquired") pages.push({ url: `https://news.example.com/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(40), title: `${companyName} acquired by MegaCorp`, text: "acquired" }, { url: `https://wire.example.org/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(39), title: `MegaCorp completes ${companyName} deal`, text: "acquired" });
-      if (sc === "acquired_rumour") pages.push({ url: `https://gossip.example.com/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(10), title: `${companyName} may be acquired`, text: "acquired" });
+      if (sc === "acquired") pages.push({ url: `https://news.example.com/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(40), title: `${companyName} acquired by MegaCorp`, text: "acquired" }, { url: `https://wire.example.org/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(39), title: `MegaCorp completes its acquisition of ${companyName}`, text: "acquired" });
+      if (sc === "acquired_rumour") pages.push({ url: `https://gossip.example.com/${domain}/acquired`, sourceType: "news", publishedAt: daysAgo(10), title: `${companyName} to be acquired by MegaCorp, sources say`, text: "acquired" });
       // Finding no negative news is still an answer (recorded by the LLM step).
       return pages;
     }

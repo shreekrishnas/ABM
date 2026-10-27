@@ -35,7 +35,8 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
   const S = 10;
   const evidence = await liveEvidence(account.id);
   const accInput = {
-    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, sourceType: e.sourceType })),
+    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, sourceType: e.sourceType, quote: e.quote })),
+    company: { name: account.name, domain: account.domain },
     triggers: evidence.filter((e) => isTriggerKey(e.key)).map((e) => ({ status: e.status, publishedAt: e.publishedAt })),
     followupUsed: account.followupUsed,
   };
