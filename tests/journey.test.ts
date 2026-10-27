@@ -95,6 +95,19 @@ describe("stage rules (agreed Phase 1 design)", () => {
     expect(parseStage("8")).toBe("interested");
     expect(parseStage("Nurture or Future")).toBe("nurture");
     expect(parseStage("maybe")).toBeNull();
+    expect(parseStage("Cold")).toBe("not_contacted");
+  });
+
+  it("a stage in the team's own words never rejects the row", () => {
+    const mapping = { Company: "company", Name: "contactName", Stage: "stage" } as const;
+    const v = validateRow({ Company: "Acme", Name: "Ana Rao", Stage: "Approaching" }, mapping);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.unknownStage).toBe("Approaching");
+      expect(v.row.activity?.stage).toBeNull();
+    }
+    const cold = validateRow({ Company: "Acme", Name: "Ana Rao", Stage: "Cold" }, mapping);
+    expect(cold.ok && cold.row.activity?.stage).toBe("not_contacted");
   });
 
   it("auto-maps common export headers, including LinkedIn ones", () => {
@@ -110,7 +123,7 @@ describe("stage rules (agreed Phase 1 design)", () => {
     expect(ok.ok && ok.row).toMatchObject({ nameKey: "abc manufacturing", companyLinkedin: "https://www.linkedin.com/company/abc-mfg", keywords: ["Distributor network", "Vendor onboarding"], activity: { connectionAccepted: true, followUps: 2 } });
     expect(ok.ok && (ok.row.activity?.connectionSent as Date).toISOString().slice(0, 10)).toBe("2026-09-20");
     const bad = validateRow({ "Company Name": "X", "First Name": "A", Stage: "Maybe later", "Follow-ups Sent": "two", "Company LinkedIn URL": "linkedin.com/in/someone" }, mapping);
-    expect(!bad.ok && bad.error).toMatch(/Stage "Maybe later"/);
+    expect(!bad.ok && bad.error).not.toMatch(/Stage/); // an unknown stage word is a note, not an error
     expect(!bad.ok && bad.error).toMatch(/Follow-ups Sent/);
     expect(!bad.ok && bad.error).toMatch(/not a company page/);
   });

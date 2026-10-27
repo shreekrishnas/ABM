@@ -20,6 +20,7 @@ interface Preview {
   valid: number;
   invalid: number;
   sampleErrors: { row: number; error: string }[];
+  unknownStages: Record<string, number>;
   duplicates: number;
   companies: number;
   people: number;
@@ -169,6 +170,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
       let duplicates = 0;
       let withActivity = 0;
       const sampleErrors: { row: number; error: string }[] = [];
+      const unknownStages: Record<string, number> = {};
       const companyIndex = new Map<string, number>();
       const companies: { domain: string | null; companyLinkedin: string | null; nameKey: string; name: string; country: string | null; employees: number | null }[] = [];
       const seenPeople = new Set<string>();
@@ -180,6 +182,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
           if (sampleErrors.length < 8) sampleErrors.push({ row: i + 2, error: v.error });
           return;
         }
+        if (v.unknownStage) unknownStages[v.unknownStage] = (unknownStages[v.unknownStage] ?? 0) + 1;
         const k = rowKeys(v.row);
         // Same rules as the import: website, then company LinkedIn, then name (unless the websites differ).
         let ci = (k.domain ? companyIndex.get(`d:${k.domain}`) : undefined) ?? (k.companyLinkedin ? companyIndex.get(`l:${k.companyLinkedin}`) : undefined);
@@ -223,7 +226,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         for (const [why, names] of Object.entries(r.outsideReasons)) outsideReasons[why] = [...(outsideReasons[why] ?? []), ...names].slice(0, 6);
         missingNames.push(...r.missingNames.slice(0, 6 - missingNames.length));
       }
-      setPhase({ k: "preview", busy: false, data: { valid: parsed.rows.length - invalid, invalid, sampleErrors, duplicates, companies: companies.length, people: people.length, withActivity, ...totals, outsideReasons, missingNames, rule: r0?.rule ?? null } });
+      setPhase({ k: "preview", busy: false, data: { valid: parsed.rows.length - invalid, invalid, sampleErrors, unknownStages, duplicates, companies: companies.length, people: people.length, withActivity, ...totals, outsideReasons, missingNames, rule: r0?.rule ?? null } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Preview failed");
       setPhase({ k: "map" });
@@ -426,6 +429,12 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
                 <Stat label="Rows with LinkedIn activity" value={phase.data.withActivity} />
               </div>
               <p className="muted text-xs">Duplicate rows (same LinkedIn URL, email, or name at the same company) are merged into one person. Existing journeys only receive activity that is new. Without activity columns, new journeys start at <b>Not Contacted</b>.</p>
+              {Object.keys(phase.data.unknownStages ?? {}).length > 0 && (
+                <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(99,102,241,0.08)" }}>
+                  <div className="mb-1 font-semibold" style={{ color: "#4F46E5" }}>Stage words we don&apos;t use, imported anyway</div>
+                  <p className="secondary">{Object.entries(phase.data.unknownStages).map(([k, n]) => `"${k}" (${n})`).join(", ")}: these people are imported and start at <b>Not Contacted</b>, or at the stage their activity columns show. Map a column to Stage only if it uses the 17 stage names.</p>
+                </div>
+              )}
               {phase.data.sampleErrors.length > 0 && (
                 <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)" }}>
                   <div className="mb-1 flex items-center gap-1.5 font-semibold" style={{ color: "#B45309" }}><AlertTriangle size={14} /> Rows that will be rejected (first {phase.data.sampleErrors.length})</div>

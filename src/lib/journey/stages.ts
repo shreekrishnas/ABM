@@ -62,6 +62,8 @@ export function parseStage(input: string | null | undefined): Stage | null {
   const hit = JOURNEY_STAGES.find((k) => norm(STAGE_INFO[k].label) === s || norm(k) === s);
   if (hit) return hit;
   if (s === "nurture" || s === "future") return "nurture";
+  // Common pipeline words for "nobody has reached out yet".
+  if (/^(cold|new|fresh|untouched|not started|to contact|to be contacted|prospect|open|none)$/.test(s)) return "not_contacted";
   if (s === "won") return "closed_won";
   if (s === "lost") return "closed_lost";
   return null;

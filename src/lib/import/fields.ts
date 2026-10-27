@@ -189,7 +189,7 @@ const NO = /^(n|no|false|0|-|not sent|pending)$/i;
  * row with a reason, so only clean, predefined data is stored. Blank cells are fine
  * (they never erase data we already hold).
  */
-export function validateRow(raw: Record<string, unknown>, mapping: Record<string, FieldKey>): { ok: true; row: CleanRow } | { ok: false; error: string } {
+export function validateRow(raw: Record<string, unknown>, mapping: Record<string, FieldKey>): { ok: true; row: CleanRow; unknownStage?: string } | { ok: false; error: string } {
   const v: Partial<Record<FieldKey, string>> = {};
   for (const [header, key] of Object.entries(mapping)) {
     const cell = raw[header];
@@ -197,6 +197,7 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
     if (s) v[key] = s;
   }
   const errors: string[] = [];
+  let unknownStage: string | undefined;
   if (!v.company) errors.push("Company Name is required");
   if (v.company && v.company.length > 200) errors.push("Company Name is longer than 200 characters");
   const domain = v.domain ? normalizeDomain(v.domain) : null;
@@ -294,10 +295,12 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
       if (!Number.isInteger(n) || n < 0 || n > 50) errors.push(`Follow-ups Sent "${v.followUps}" is not a whole number`);
       else followUps = n;
     }
+    // A stage in the team's own words that isn't one of the 17 never rejects the row: the
+    // person is imported and the stage comes from the activity columns (or Not Contacted).
     let stage: Stage | null = null;
     if (v.stage) {
       stage = parseStage(v.stage);
-      if (!stage) errors.push(`Stage "${v.stage}" is not one of the 17 stages`);
+      if (!stage) unknownStage = v.stage;
     }
     activity = {
       connectionSent: flag("connectionSent"), connectionAccepted: flag("connectionAccepted"), followUps, lastFollowUp: date("lastFollowUp"),
@@ -308,6 +311,7 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
   if (errors.length) return { ok: false, error: errors.join("; ") };
   return {
     ok: true,
+    ...(unknownStage ? { unknownStage } : {}),
     row: {
       company: v.company!, nameKey: companyNameKey(v.company!), domain, companyLinkedin, industry: v.industry?.toLowerCase() ?? null, employees,
       city: v.city ?? null, country, technologies, keywords, dataSource: v.dataSource ?? null, companyNotes: v.companyNotes ?? null, person, activity,
