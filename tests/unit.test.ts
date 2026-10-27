@@ -253,3 +253,18 @@ describe("AI answers: lengths are trimmed, never a failure", () => {
     expect(out).toHaveLength(0);
   });
 });
+
+describe("quote check: real sentences pass, invented ones don't", () => {
+  it("compares what a reader sees: markdown links and formatting don't break a quote", async () => {
+    const { quoteGate, quoteMatch } = await import("@/lib/pipeline/gates");
+    const page = { title: "Profile", text: "### Senior SAP S/4HANA Functional Consultant - [Acme Foods USA, Inc.](https://www.linkedin.com/company/acme-foods-usa) (Current)\n\nJun 2024 - Present" };
+    expect(quoteGate("Senior SAP S/4HANA Functional Consultant - Acme Foods USA, Inc.", page, "live").pass).toBe(true);
+    // A word dropped or changed is tolerated...
+    expect(quoteMatch("Acme Foods is opening a new plant in Pune to serve western India", "Acme Foods is opening a new manufacturing plant in Pune to serve all of western India.")).toBeGreaterThanOrEqual(0.85);
+    // ...a sentence the page doesn't contain is not.
+    expect(quoteGate("Acme Foods signed a five-year ERP contract with SAP", page, "live").pass).toBe(false);
+    // Numbers must match exactly.
+    expect(quoteGate("Acme Foods is opening a new plant in Pune to serve 9 states", { title: "News", text: "Acme Foods is opening a new plant in Pune to serve 6 states." }, "live").pass).toBe(false);
+    expect(quoteGate("Acme Foods is opening a plant", { title: "News", text: "Acme Foods reported quarterly results." }, "live").pass).toBe(false);
+  });
+});

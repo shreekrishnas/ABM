@@ -79,7 +79,7 @@ export function emailDomainStatus(email: string | null, companyDomain: string | 
   if ((CONFIG.personalDomains as readonly string[]).includes(d)) return { status: "conflicting", reason: `Personal address (${d})` };
   if (!companyDomain) return { status: "unknown", reason: "Company domain unknown" };
   if (d === companyDomain || d.endsWith(`.${companyDomain}`)) return { status: "probable", reason: "Email domain matches company" };
-  // The company's other domains: same name, another ending (akums.net for akums.in) or a regional one (aurobindousa.com).
+  // The company's other domains: same name, another ending (acme.net for acme.in) or a regional one (acmeusa.com).
   const root = (x: string) => x.split(".")[0];
   if (root(companyDomain).length >= 4 && (root(d) === root(companyDomain) || root(d).startsWith(root(companyDomain)))) return { status: "probable", reason: `Email on the company's other domain (${d})` };
   return { status: "conflicting", reason: `Email domain ${d} ≠ company ${companyDomain}` };
@@ -111,20 +111,70 @@ export function evidenceGate(e: EvidenceDraft, adapterMode: "live" | "mock" = "m
 
 const squash = (t: string) => t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[^a-z0-9%$.,'"]+/g, " ").trim();
 
+/** Page text as a reader sees it: markdown links, images, headings and table bars removed. */
+export function plainText(t: string): string {
+  return t
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[#*_>|`~]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const words = (t: string) => squash(plainText(t)).replace(/[^a-z0-9%$ ]+/g, " ").split(/\s+/).filter(Boolean);
+
 /**
- * Truth before speed: a fact is kept only with an exact supporting quote that really
- * appears on its source page. In live mode a missing quote drops the fact.
+ * How much of the quote appears on the page, in order, within a stretch about its own
+ * length: 1 = word for word. Tolerates a dropped or changed word, never a sentence the
+ * page doesn't contain.
+ */
+export function quoteMatch(quote: string, pageText: string): number {
+  const q = words(quote);
+  const p = words(pageText);
+  if (!q.length || !p.length) return 0;
+  if (` ${p.join(" ")} `.includes(` ${q.join(" ")} `)) return 1;
+  const span = Math.ceil(q.length * 1.3) + 2;
+  let best = 0;
+  for (let i = 0; i < p.length; i++) {
+    if (p[i] !== q[0] && p[i] !== q[1]) continue;
+    let k = 0;
+    let matched = 0;
+    for (let j = i; j < Math.min(p.length, i + span) && k < q.length; j++) {
+      const hit = q.indexOf(p[j], k);
+      if (hit !== -1 && hit - k <= 2) {
+        matched++;
+        k = hit + 1;
+      }
+    }
+    best = Math.max(best, matched / q.length);
+    if (best === 1) break;
+  }
+  return best;
+}
+
+/** Near enough to word for word: most of the quote, in order, in one place on the page. */
+export const QUOTE_MATCH_MIN = 0.85;
+
+/**
+ * Truth before speed: a fact is kept only with a supporting quote that really appears on its
+ * source page (word for word, or within a word or two). In live mode a missing quote drops the fact.
  */
 export function quoteGate(quote: string | null | undefined, page: { title: string; text: string } | undefined, adapterMode: "live" | "mock" = "mock"): GateResult {
   if (!quote || quote.trim().length < 12) return adapterMode === "live" ? { pass: false, reason: "No supporting quote from the page" } : { pass: true, reason: "Sample data (no quote required)" };
   if (!page) return { pass: false, reason: "Source page not found for the quote" };
-  if (!squash(`${page.title} ${page.text}`).includes(squash(quote))) return { pass: false, reason: "Quote does not appear on the source page" };
-  return { pass: true, reason: "Exact quote found on the page" };
+  const m = quoteMatch(quote, `${page.title} ${page.text}`);
+  if (m === 1) return { pass: true, reason: "Exact quote found on the page" };
+  // Words may differ slightly; numbers never (5,000 is not 3,000).
+  const onPage = new Set(words(`${page.title} ${page.text}`));
+  const numbersOk = words(quote).filter((w) => /\d/.test(w)).every((w) => onPage.has(w));
+  if (m >= QUOTE_MATCH_MIN && numbersOk && words(quote).length >= 6) return { pass: true, reason: `Quote found on the page (${Math.round(m * 100)}% word for word)` };
+  return { pass: false, reason: "Quote does not appear on the source page" };
 }
 
-const GENERIC = new Set("ltd limited pvt private inc corp corporation company co the and of group india indian industries industry pharmaceuticals pharmaceutical pharma drugs drug technologies technology tech solutions services labs laboratories lifesciences life sciences global international holdings enterprises".split(" "));
+const GENERIC = new Set("ltd limited pvt private inc corp corporation company co the and of group india indian industries industry pharmaceuticals pharmaceutical pharma drugs drug technologies technology tech solutions services labs laboratories lifesciences life sciences global international holdings enterprises foods food systems software healthcare consumer products manufacturing logistics ventures capital partners llp llc plc gmbh sa ag".split(" "));
 
-/** The words that identify a company ("Akums Drugs & Pharmaceuticals" → akums), else its domain name. */
+/** The words that identify a company ("Acme Drugs & Pharmaceuticals" → acme), plus its domain name. */
 export function companyMarks(name: string, domain: string | null): string[] {
   const words = squash(name).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !GENERIC.has(w));
   const root = domain?.toLowerCase().replace(/^www\./, "").split(".")[0];
