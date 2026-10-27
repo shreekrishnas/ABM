@@ -189,8 +189,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <ul className="grid gap-2.5">
                   {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
                     <li key={f.id} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="min-w-[12rem] flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
                         <span className="flex shrink-0 items-center gap-1.5">
                           <FieldBadge status={f.status as FieldStatus} />
                           <Modal trigger={<Pencil size={13} />} triggerClass="btn btn-ghost btn-sm" title="Correct this fact" eyebrow="Edit fact">
