@@ -7,7 +7,7 @@ import { getMe } from "@/lib/me";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
-import { FlowSankey } from "@/components/viz/flow-sankey";
+import { StageLadder } from "@/components/viz/stage-ladder";
 import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
@@ -101,7 +101,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
               <h2>Company flow</h2>
               <span className="hm-sec-meta">Each step counts companies that passed every step before it</span>
             </div>
-            <FlowSankey steps={flow.steps} accounts={flow.accounts} />
+            <StageLadder steps={flow.steps} accounts={flow.accounts} />
             <p className="cc-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
           </div>
 
