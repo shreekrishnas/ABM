@@ -15,6 +15,18 @@ import { JOURNEY_STAGES, STAGE_INFO } from "@/lib/journey/stages";
 const FUNCTIONS = ["data", "it", "procurement", "finance", "sales", "operations", "compliance", "security", "engineering", "marketing", "hr", "executive"] as const;
 const NEGATIVE = ["layoffs", "hiring_freeze", "acquired", "bankrupt", "competitor_signed"] as const;
 
+/** What each blocker means. Anything that doesn't meet one exactly is "not_a_blocker" and is dropped. */
+export const BLOCKER_DEFINITIONS =
+  "bankrupt = insolvency, bankruptcy or liquidation proceedings have been filed or ordered against THIS company (NOT a tax demand, loss, debt, lawsuit, penalty or fine). " +
+  "acquired = THIS company has been bought by, or completed a merger into, another company (NOT this company buying someone else). " +
+  "competitor_signed = a named vendor offering the same kind of product as the seller has been chosen or deployed by THIS company for that same need (NOT analyst ratings, downgrades, share-price moves or rivals in the company's own market). " +
+  "layoffs = company-wide job cuts or a freeze announced because of financial distress (NOT restructuring or merging teams after an acquisition, or trimming one function). " +
+  "hiring_freeze = THIS company has stopped hiring company-wide. " +
+  "not_a_blocker = any other negative news: stock ratings, tax or legal disputes, quarterly losses, regulatory actions, leadership changes, restructuring. Use it whenever unsure.";
+
+/** Trim to a limit at a word boundary; a trimmed quote is still a run of words from the page. */
+const clip = (s: string | null | undefined, n: number) => (s == null ? s : s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, ""));
+
 const BRAIN = (sellerName: string) =>
   `You are the research and strategy brain of an account-based marketing system working for ${sellerName}. ` +
   "You never invent facts: anything about a prospect must come from the numbered facts or pages you are given. " +
@@ -68,20 +80,22 @@ export class OpenRouterLLM implements LLM {
     const sp = seller();
     const fixed: Record<string, string> = {
       trigger: `Recent events that create a need for ${sp.name} (${sp.triggers.map((t) => t.label).join("; ")}). One item per distinct event.`,
-      negative: `Only explicit negative events. kind must be one of: ${NEGATIVE.join(", ")}.`,
+      negative: `Only explicit negative events about this exact company. kind must be one of: ${NEGATIVE.join(", ")}, not_a_blocker. Definitions: ${BLOCKER_DEFINITIONS}`,
     };
     const q = sp.researchQuestions.find((x) => x.key === key);
     const guide: Record<string, string> = { [key]: fixed[key] ?? q?.extract ?? q?.question ?? key };
     if (key === "owner_function") guide[key] += ` value must be one of: ${FUNCTIONS.join(", ")}.`;
     const schema = z.object({
-      items: z.array(z.object({ page: z.number().int(), claim: z.string().min(5).max(240), quote: z.string().max(400).nullable().optional(), value: z.string().max(120).nullable().optional(), kind: z.string().nullable().optional(), sameAs: z.string().nullable().optional() })).max(8),
+      // Lengths are trimmed afterwards, never a reason to fail the whole answer.
+      items: z.array(z.object({ page: z.number().int(), claim: z.string().min(5), quote: z.string().nullable().optional(), value: z.string().nullable().optional(), kind: z.string().nullable().optional(), sameAs: z.string().nullable().optional() })),
     });
     const out = await this.json(
       schema,
       "You extract facts from web pages for B2B account research. Extract only what a page states explicitly — never infer or combine pages. For every item, copy into \"quote\" the exact sentence from the page that supports it, character for character. Write each claim as one short sentence that starts with the company name. If nothing relevant is stated, return {\"items\": []}.",
       `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
     );
-    return out.items.flatMap((it) => {
+    return out.items.slice(0, 8).flatMap((raw) => {
+      const it = { ...raw, claim: clip(raw.claim, 240)!, quote: clip(raw.quote, 400), value: clip(raw.value, 120) };
       const p = pages[it.page];
       if (!p) return [];
       const isNegative = key === "negative";

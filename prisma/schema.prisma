@@ -148,6 +148,8 @@ enum ReviewType {
   bounce_breaker
   draft_refresh
   retry_exhausted
+  /// Bad news that might rule the company out, reported by one source only: a person decides.
+  possible_blocker
   other
 }
 

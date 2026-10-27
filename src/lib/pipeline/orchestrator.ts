@@ -61,6 +61,21 @@ export function retryDelayMs(n: number, rand = Math.random()): number {
   return Math.round(RETRY.baseMs * 2 ** (n - 1) * (0.8 + 0.4 * rand));
 }
 
+/**
+ * A run cut off by the host's time limit leaves its company marked "running" with nobody on it.
+ * Once its lock has expired, put it back in the queue from the step after the last one it
+ * finished; steps are idempotent, so nothing is done twice.
+ */
+export async function recoverStuckRuns(ctx: RunContext): Promise<number> {
+  const stuck = await db.account.findMany({ where: { pipelineStatus: "running", mergedIntoId: null, OR: [{ lastRunAt: null }, { lastRunAt: { lt: new Date(ctx.now.getTime() - LOCK_TTL_MS) } }] }, select: { id: true, pipelineStage: true } });
+  for (const a of stuck) {
+    const from = Math.max(2, a.pipelineStage + 1);
+    const r = await db.account.updateMany({ where: { id: a.id, pipelineStatus: "running" }, data: { pipelineStatus: "queued", queuedFromStage: from, nextRetryAt: null } });
+    if (r.count) await logEvent(ctx, { accountId: a.id, stage: from, step: "orchestrator.recover", outcome: "info", reason: `Run was cut off; resuming from step ${from}` });
+  }
+  return stuck.length;
+}
+
 async function acquireLock(accountId: string, now: Date): Promise<boolean> {
   const r = await db.account.updateMany({
     where: { id: accountId, mergedIntoId: null, OR: [{ pipelineStatus: { not: "running" } }, { lastRunAt: { lt: new Date(now.getTime() - LOCK_TTL_MS) } }] },
@@ -268,6 +283,7 @@ export async function processQueue(opts: { batchId?: string; budgetMs?: number; 
 
 async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext }) {
   const ctx = opts.ctx ?? newContext();
+  await recoverStuckRuns(ctx);
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
   // Companies waiting out a retry delay are skipped until their time comes.
   const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };

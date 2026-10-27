@@ -119,6 +119,24 @@ export function quoteGate(quote: string | null | undefined, page: { title: strin
   return { pass: true, reason: "Exact quote found on the page" };
 }
 
+const GENERIC = new Set("ltd limited pvt private inc corp corporation company co the and of group india indian industries industry pharmaceuticals pharmaceutical pharma drugs drug technologies technology tech solutions services labs laboratories lifesciences life sciences global international holdings enterprises".split(" "));
+
+/** The words that identify a company ("Akums Drugs & Pharmaceuticals" → akums), else its domain name. */
+export function companyMarks(name: string, domain: string | null): string[] {
+  const words = squash(name).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !GENERIC.has(w));
+  const root = domain?.toLowerCase().replace(/^www\./, "").split(".")[0];
+  return [...new Set([...words, ...(root && root.length >= 3 ? [root] : [])])];
+}
+
+/** Right company: the source must name it (by a distinctive word or its domain), or it is about someone else. */
+export function entityGate(name: string, domain: string | null, page: { url: string; title: string; text: string } | undefined): GateResult {
+  if (!page) return { pass: false, reason: "Source page not found" };
+  const marks = companyMarks(name, domain);
+  if (!marks.length) return { pass: true, reason: "No distinctive name to check" };
+  const hay = ` ${squash(`${page.title} ${page.text} ${page.url}`)} `;
+  return marks.some((m) => hay.includes(m)) ? { pass: true, reason: "Source names the company" } : { pass: false, reason: `Source doesn't name ${name}` };
+}
+
 // ── Stage 7: fact status & contradictions ──
 
 export interface EvidenceLike {
@@ -198,6 +216,9 @@ export interface TriggerFact {
 export interface NegativeFact {
   kind: string;
   publishedAt: Date;
+  /** Where it was reported: a blocker counts only when confirmed (official source, or two independent sites). */
+  sourceUrl?: string;
+  sourceType?: string;
 }
 
 export function evidenceQuality(triggers: TriggerFact[], now = new Date()): { strong: boolean; verified: number; usable: number } {
@@ -211,12 +232,37 @@ export function evidenceQuality(triggers: TriggerFact[], now = new Date()): { st
   };
 }
 
-export function negativeEvidence(negatives: NegativeFact[], now = new Date()): { outcome: "disqualified" | "watch" | "continue"; reason: string } {
-  const terminal = negatives.find((n) => ["acquired", "bankrupt", "competitor_signed"].includes(n.kind));
-  if (terminal) return { outcome: "disqualified", reason: `Negative evidence: ${terminal.kind.replace("_", " ")}` };
-  const recent = negatives.find((n) => ["layoffs", "hiring_freeze"].includes(n.kind) && daysBetween(now, n.publishedAt) <= CONFIG.readiness.negativeWatchDays);
-  if (recent) return { outcome: "watch", reason: `${recent.kind.replace("_", " ")} in the last ${CONFIG.readiness.negativeWatchDays} days` };
-  return { outcome: "continue", reason: "No blocking negative evidence" };
+/** A blocker is confirmed by one official source or by two independent sites; one article is never enough. */
+export function blockerConfirmed(reports: NegativeFact[]): boolean {
+  if (reports.some((r) => r.sourceType === "official")) return true;
+  const hosts = new Set(reports.map((r) => (r.sourceUrl ? hostOf(r.sourceUrl) : "")).filter(Boolean));
+  // Facts recorded before sources were tracked count as one report each.
+  return hosts.size >= 2 || (!reports.some((r) => r.sourceUrl) && reports.length >= 2);
+}
+
+const TERMINAL = ["acquired", "bankrupt", "competitor_signed"];
+const label = (kind: string) => kind.replace(/_/g, " ");
+
+/**
+ * Bad news never rules a company out on one article. Confirmed terminal blockers disqualify;
+ * an unconfirmed one pauses the company for a person to decide ("possible blocker"). Layoffs and
+ * hiring freezes park the company only when confirmed; otherwise they are context.
+ */
+export function negativeEvidence(negatives: NegativeFact[], now = new Date()): { outcome: "disqualified" | "possible_blocker" | "watch" | "continue"; reason: string } {
+  const byKind = (kind: string) => negatives.filter((n) => n.kind === kind);
+  for (const kind of TERMINAL) {
+    const reports = byKind(kind);
+    if (reports.length && blockerConfirmed(reports)) return { outcome: "disqualified", reason: `Negative evidence: ${label(kind)} (confirmed by ${reports.length} source${reports.length === 1 ? "" : "s"})` };
+  }
+  for (const kind of TERMINAL) {
+    const reports = byKind(kind);
+    if (reports.length) return { outcome: "possible_blocker", reason: `Possible blocker: ${label(kind)}, reported by one source only, needs a person to check` };
+  }
+  for (const kind of ["layoffs", "hiring_freeze"]) {
+    const recent = byKind(kind).filter((n) => daysBetween(now, n.publishedAt) <= CONFIG.readiness.negativeWatchDays);
+    if (recent.length && blockerConfirmed(recent)) return { outcome: "watch", reason: `${label(kind)} in the last ${CONFIG.readiness.negativeWatchDays} days (confirmed)` };
+  }
+  return { outcome: "continue", reason: "No confirmed blocking negative evidence" };
 }
 
 export interface ReadinessPerson {
@@ -236,6 +282,8 @@ export interface ReadinessAccount {
 export interface ReadinessDecision {
   outcome: ReadinessOutcome;
   reasons: string[];
+  /** human_review because of an unconfirmed blocker on the company, not because of the person. */
+  blocker?: boolean;
   watchDays?: number;
 }
 
@@ -243,6 +291,7 @@ export interface ReadinessDecision {
 export function decideReadiness(acc: ReadinessAccount, p: ReadinessPerson, now = new Date()): ReadinessDecision {
   const neg = negativeEvidence(acc.negatives, now);
   if (neg.outcome === "disqualified") return { outcome: "disqualified", reasons: [neg.reason] };
+  if (neg.outcome === "possible_blocker") return { outcome: "human_review", reasons: [neg.reason], blocker: true };
   if (neg.outcome === "watch") return { outcome: "watch", reasons: [neg.reason], watchDays: CONFIG.readiness.negativeWatchDays };
 
   const q = evidenceQuality(acc.triggers, now);

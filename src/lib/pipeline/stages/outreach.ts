@@ -35,7 +35,7 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
   const S = 10;
   const evidence = await liveEvidence(account.id);
   const accInput = {
-    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt })),
+    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, sourceType: e.sourceType })),
     triggers: evidence.filter((e) => isTriggerKey(e.key)).map((e) => ({ status: e.status, publishedAt: e.publishedAt })),
     followupUsed: account.followupUsed,
   };
@@ -51,6 +51,13 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
     await db.account.update({ where: { id: account.id }, data: { stage: "DISQUALIFIED", disqualifyReason: probe.reasons[0] } });
     await db.contact.updateMany({ where: { id: { in: people.map((p) => p.id) } }, data: { readiness: "disqualified", readinessReasons: probe.reasons } });
     await logEvent(ctx, { accountId: account.id, stage: S, step: "readiness.negative_evidence", outcome: "block", reason: probe.reasons[0] });
+    throw new StopRun(probe.reasons[0]);
+  }
+  if (probe.blocker) {
+    // Never ruled out on one article: paused, with the evidence, for a person to decide.
+    const reports = evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind, claim: e.claim, quote: e.quote, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt.toISOString() }));
+    await openReview({ type: "possible_blocker", stage: S, accountId: account.id, reason: probe.reasons[0], payload: { reports } });
+    await logEvent(ctx, { accountId: account.id, stage: S, step: "readiness.negative_evidence", outcome: "block", reason: `${probe.reasons[0]} — paused for review` });
     throw new StopRun(probe.reasons[0]);
   }
   if (probe.outcome === "watch") {

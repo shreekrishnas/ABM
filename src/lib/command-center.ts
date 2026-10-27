@@ -61,7 +61,7 @@ export async function commandCenter(now = new Date()) {
     db.account.findMany({ where: { ...live, outreachPausedUntil: { gt: now } }, select: { id: true, name: true, outreachPauseReason: true, outreachPausedUntil: true, updatedAt: true }, take: 20 }),
     db.account.findMany({ where: { ...live, pipelineStatus: "error" }, select: { id: true, name: true, pipelineStatus: true, lastError: true, updatedAt: true }, orderBy: { updatedAt: "desc" }, take: 20 }),
     db.draft.count({ where: { status: "pending_review" } }),
-    db.reviewItem.findMany({ where: { status: "open", type: { in: ["draft_refresh", "retry_exhausted", "needs_human_reply", "budget_exceeded", "bounce_breaker"] } }, include: { account: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 20 }),
+    db.reviewItem.findMany({ where: { status: "open", type: { in: ["draft_refresh", "retry_exhausted", "needs_human_reply", "budget_exceeded", "bounce_breaker", "possible_blocker"] } }, include: { account: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 20 }),
     db.task.findMany({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lt: now } }, include: { account: { select: { name: true } } }, orderBy: { dueAt: "asc" }, take: 20 }),
     db.handoff.findMany({ where: { status: "open", acknowledgedAt: null, ackDueAt: { lt: now } }, include: { account: { select: { name: true } } }, take: 20 }),
   ]);
@@ -90,7 +90,7 @@ export async function commandCenter(now = new Date()) {
 
   const attention: Attention[] = [
     ...overdueHandoffs.map((h): Attention => ({ kind: "Hand-off overdue", title: h.account.name, detail: "Sales hasn't responded within the agreed time", href: "/handoffs", at: h.ackDueAt ?? now, tone: "risk" })),
-    ...refresh.map((r): Attention => ({ kind: r.type === "draft_refresh" ? "Needs a fresh version" : r.type === "retry_exhausted" ? "Research keeps failing" : r.type === "needs_human_reply" ? "Reply needs a person" : r.type === "bounce_breaker" ? "Sending stopped: bounces" : "Budget reached", title: r.account?.name ?? "All companies", detail: r.reason, href: r.accountId ? `/accounts/${r.accountId}` : "/review", at: r.createdAt, tone: r.type === "draft_refresh" ? "warn" : "risk" })),
+    ...refresh.map((r): Attention => ({ kind: r.type === "draft_refresh" ? "Needs a fresh version" : r.type === "retry_exhausted" ? "Research keeps failing" : r.type === "needs_human_reply" ? "Reply needs a person" : r.type === "bounce_breaker" ? "Sending stopped: bounces" : r.type === "possible_blocker" ? "Possible blocker: you decide" : "Budget reached", title: r.account?.name ?? "All companies", detail: r.reason, href: r.accountId ? `/accounts/${r.accountId}` : "/review", at: r.createdAt, tone: r.type === "draft_refresh" ? "warn" : "risk" })),
     ...atRiskPaused.map((a): Attention => ({ kind: "Outreach paused", title: a.name, detail: `${a.outreachPauseReason ?? "Paused"} · until ${a.outreachPausedUntil!.toISOString().slice(0, 10)}`, href: `/accounts/${a.id}?tab=people`, at: a.updatedAt, tone: "warn" })),
     ...atRiskError.map((a): Attention => ({ kind: "Research stopped on an error", title: a.name, detail: a.lastError ?? "Open the audit trail for the reason", href: `/accounts/${a.id}?tab=pipeline`, at: a.updatedAt, tone: "risk" })),
     ...overdueTasks.map((t): Attention => ({ kind: "Task overdue", title: t.title, detail: t.account?.name ?? "", href: "/crm/tasks", at: t.dueAt ?? now, tone: "info" })),

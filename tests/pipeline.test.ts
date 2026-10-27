@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { ingestRows } from "@/lib/pipeline/ingest";
-import { processWatchlist, runAccount } from "@/lib/pipeline/orchestrator";
+import { processQueue, processWatchlist, runAccount } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { recordBounce, recordOutcome, recordReply, recordSignal, sendApproved } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
@@ -80,6 +80,30 @@ describe("pipeline scenarios", () => {
     const id = await account("acquired-delta.com");
     await runAccount(id);
     expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).toBe("DISQUALIFIED");
+  });
+
+  it("a blocker from one article pauses the company for a person, never rules it out", async () => {
+    const id = await account("acquired-rumour-kappa.com");
+    const r = await runAccount(id);
+    expect(r.status).toBe("blocked");
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.stage).not.toBe("DISQUALIFIED");
+    const review = await db.reviewItem.findFirstOrThrow({ where: { accountId: id, type: "possible_blocker", status: "open" } });
+    expect(review.reason).toMatch(/one source only/);
+    expect((review.payload as { reports: { sourceUrl: string }[] }).reports[0].sourceUrl).toMatch(/gossip/);
+    expect(await db.draft.count()).toBe(0);
+  });
+
+  it("a run cut off mid-way is picked up again and finishes", async () => {
+    const id = await account("strong-lambda.com");
+    // As if the host stopped the request during research: marked running, lock long expired.
+    await db.account.update({ where: { id }, data: { pipelineStatus: "running", pipelineStage: 5, lastRunAt: new Date(Date.now() - 60 * 60_000) } });
+    const q = await processQueue({});
+    expect(q.results.map((x) => x.accountId)).toContain(id);
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.pipelineStatus).not.toBe("running");
+    expect(a.pipelineStage).toBeGreaterThan(5);
+    expect(await db.pipelineEvent.count({ where: { accountId: id, step: "orchestrator.recover" } })).toBe(1);
   });
 
   it("no trigger after the follow-up → watch 30 days", async () => {

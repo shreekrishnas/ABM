@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { isValidEmail, normalizeCompanyName, normalizeDomain, normalizePhone, phoneCountry, standardizeTitle, inferFunction } from "@/lib/pipeline/normalize";
 import { accountEngagement, dataConfidence, personEngagement, researchPriority, scoreFit, stageFromEngagement, tierFor } from "@/lib/pipeline/scoring";
 import {
-  bounceBreaker, complianceGate, decideReadiness, emailDomainStatus, evidenceGate, exclusionGate, factGuardrail, factStatus,
-  findContradictions, isStale, lawfulBasisFor, preSendGate, resolveContradiction,
+  bounceBreaker, companyMarks, complianceGate, decideReadiness, emailDomainStatus, evidenceGate, exclusionGate, factGuardrail, factStatus,
+  entityGate, findContradictions, isStale, lawfulBasisFor, preSendGate, resolveContradiction,
 } from "@/lib/pipeline/gates";
 import { CONFIG } from "@/lib/config";
 import { seller } from "@/lib/seller";
@@ -131,11 +131,26 @@ describe("gates", () => {
     expect(resolveContradiction(items).winnerId).toBe("b");
     expect(resolveContradiction([items[0], { ...items[0], id: "c", value: "120" }]).winnerId).toBeNull();
   });
+  it("a source must name the company", () => {
+    expect(companyMarks("Akums Drugs& Pharmaceuticals", "akums.in")).toEqual(["akums"]);
+    expect(companyMarks("MANKIND PHARMA", "mankindpharma.com")).toEqual(["mankind", "mankindpharma"]);
+    const page = (title: string, text: string) => ({ url: "https://news.example.com/a", title, text });
+    expect(entityGate("Torrent Pharmaceuticals", "torrentpharma.com", page("Pharma news", "Torrent Pharma plans to cut its field force")).pass).toBe(true);
+    expect(entityGate("Aurobindo Pharma", "aurobindo.com", page("Sector round-up", "Cipla and Lupin report results")).pass).toBe(false);
+  });
   it("readiness rules in order", () => {
     const person = { identity: { email: "verified" as const, title: "verified" as const, company: "verified" as const }, buyingRole: "decision_maker" as const, lawfulBasis: "x", emailDeliverable: true, suppressed: false };
     const strong = [{ status: "verified" as const, publishedAt: ago(10) }];
-    expect(decideReadiness({ negatives: [{ kind: "acquired", publishedAt: ago(10) }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("disqualified");
-    expect(decideReadiness({ negatives: [{ kind: "layoffs", publishedAt: ago(10) }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("watch");
+    // A blocker counts only when confirmed: two independent sites, or one official source.
+    expect(decideReadiness({ negatives: [{ kind: "acquired", publishedAt: ago(10), sourceUrl: "https://a.com/x", sourceType: "news" }, { kind: "acquired", publishedAt: ago(9), sourceUrl: "https://b.org/y", sourceType: "news" }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("disqualified");
+    expect(decideReadiness({ negatives: [{ kind: "bankrupt", publishedAt: ago(10), sourceUrl: "https://acme.com/ir", sourceType: "official" }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("disqualified");
+    const rumour = decideReadiness({ negatives: [{ kind: "bankrupt", publishedAt: ago(10), sourceUrl: "https://a.com/x", sourceType: "news" }], triggers: strong, followupUsed: false }, person, NOW);
+    expect(rumour.outcome).toBe("human_review");
+    expect(rumour.blocker).toBe(true);
+    // Two articles on the same site are one source.
+    expect(decideReadiness({ negatives: [{ kind: "acquired", publishedAt: ago(10), sourceUrl: "https://a.com/x", sourceType: "news" }, { kind: "acquired", publishedAt: ago(9), sourceUrl: "https://www.a.com/y", sourceType: "news" }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("human_review");
+    expect(decideReadiness({ negatives: [{ kind: "layoffs", publishedAt: ago(10), sourceUrl: "https://a.com/x", sourceType: "news" }, { kind: "layoffs", publishedAt: ago(9), sourceUrl: "https://b.org/y", sourceType: "news" }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("watch");
+    expect(decideReadiness({ negatives: [{ kind: "layoffs", publishedAt: ago(10), sourceUrl: "https://a.com/x", sourceType: "news" }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("ready");
     expect(decideReadiness({ negatives: [{ kind: "layoffs", publishedAt: ago(200) }], triggers: strong, followupUsed: false }, person, NOW).outcome).toBe("ready");
     expect(decideReadiness({ negatives: [], triggers: [], followupUsed: false }, person, NOW).outcome).toBe("targeted_re_research");
     expect(decideReadiness({ negatives: [], triggers: [], followupUsed: true }, person, NOW).outcome).toBe("watch");
@@ -194,3 +209,23 @@ describe("seller intelligence (Manch)", () => {
   });
 });
 
+
+describe("AI answers: lengths are trimmed, never a failure", () => {
+  it("a quote over 400 characters is shortened at a word and the fact is kept", async () => {
+    const { OpenRouterLLM } = await import("@/lib/adapters/live/openrouter");
+    const llm = new OpenRouterLLM("test-key");
+    const long = "Aurobindo Pharma said it will expand its distributor network across India " + "and add new partners in every state ".repeat(14);
+    (llm as unknown as { call: () => Promise<string> }).call = async () => JSON.stringify({ items: [{ page: 0, claim: "Aurobindo Pharma is expanding its distributor network", quote: long, kind: null }] });
+    const out = await llm.extractEvidence([{ url: "https://news.example.com/a", sourceType: "news", publishedAt: new Date(), title: "Aurobindo", text: long }], "trigger");
+    expect(out).toHaveLength(1);
+    expect(out[0].quote!.length).toBeLessThanOrEqual(400);
+    expect(long.startsWith(out[0].quote!)).toBe(true);
+  });
+  it("bad news that isn't a real blocker is dropped", async () => {
+    const { OpenRouterLLM } = await import("@/lib/adapters/live/openrouter");
+    const llm = new OpenRouterLLM("test-key");
+    (llm as unknown as { call: () => Promise<string> }).call = async () => JSON.stringify({ items: [{ page: 0, claim: "Akums Drugs faces a tax demand", quote: "However, a ₹156 crore tax demand looms.", kind: "not_a_blocker" }] });
+    const out = await llm.extractEvidence([{ url: "https://news.example.com/a", sourceType: "news", publishedAt: new Date(), title: "Akums", text: "However, a ₹156 crore tax demand looms." }], "negative");
+    expect(out).toHaveLength(0);
+  });
+});

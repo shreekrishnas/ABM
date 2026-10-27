@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
 import { queryFor } from "@/lib/adapters/live/research";
-import { evidenceGate, quoteGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
+import { entityGate, evidenceGate, quoteGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
 import { dataConfidence } from "../scoring";
 import { BudgetExceeded, charge, ensureBudget, logEvent, openReview, recordCost, type RunContext } from "../context";
 import { sha256 } from "../crypto";
@@ -166,7 +166,8 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
     for (const e of extracted) {
       const page = pages.find((p) => p.url === e.sourceUrl);
       const gq = quoteGate(e.quote, page, strict);
-      const g = !gq.pass ? gq : evidenceGate(e, strict);
+      const ge = strict === "live" ? entityGate(account.name, account.domain, page) : gq;
+      const g = !gq.pass ? gq : !ge.pass ? ge : evidenceGate(e, strict);
       if (!g.pass) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.evidence_gate", outcome: "block", reason: `Dropped "${e.claim.slice(0, 60)}": ${g.reason}` });
         continue;
