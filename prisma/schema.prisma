@@ -790,6 +790,8 @@ model Mailbox {
 
 model ImportBatch {
   id             String         @id @default(cuid())
+  /// The client this import was for (companies created by it belong to that client).
+  sellerId       String         @default("manch")
   filename       String
   source         String // csv | api | form | manual
   status         String         @default("done") // uploading | processing | done | failed
@@ -811,6 +813,8 @@ model ImportBatch {
   processed      Int            @default(0)
   createdAt      DateTime       @default(now())
   finishedAt     DateTime?
+
+  @@index([sellerId])
 }
 
 // ───────────────────────────── People journeys ─────────────────────────────

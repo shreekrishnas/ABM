@@ -4,7 +4,8 @@ import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "luci
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
@@ -32,7 +33,7 @@ function greeting(d: Date) {
 /** Home is the Command Center: what needs doing, where companies stand, what is stuck, and the two ways in. */
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   await ensureSellerPacks();
-  const p = seller();
+  const p = await activeSeller();
   const { range = "week" } = await searchParams;
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);

@@ -385,9 +385,8 @@ export async function previewMatchesAction(input: {
   // Sort companies by the seller's targeting rule, so people see what will be used before importing.
   const { mustHaveGate } = await import("@/lib/pipeline/gates");
   const { normalizeCountry } = await import("@/lib/pipeline/normalize");
-  const { ensureSellerPacks, seller } = await import("@/lib/seller");
-  await ensureSellerPacks();
-  const mh = seller().icp.mustHave;
+  const { activeSeller } = await import("@/lib/scope");
+  const mh = (await activeSeller()).icp.mustHave;
   const rule = mh ? [mh.countries?.length ? mh.countries.join(" or ") : null, mh.minEmployees ? `more than ${(mh.minEmployees - 1).toLocaleString()} employees` : null].filter(Boolean).join(", ") : null;
   let fit = 0, outside = 0, missing = 0;
   const outsideReasons: Record<string, string[]> = {};

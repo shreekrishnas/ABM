@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ExternalLink, Globe, Plus, Radar, TrendingDown, TrendingUp, X } from "lucide-react";
 import { db } from "@/lib/db";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { industryTrends, type Momentum } from "@/lib/discover/trends";
 import { DEFAULT_SCAN_DAYS, MIN_INDEPENDENT_EVENTS, NO_PROSPECTS_MESSAGE, bucketLabel } from "@/lib/discover/scan";
 import { sellerFit } from "@/lib/seller/fit";
@@ -32,7 +33,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   await ensureSellerPacks();
   const sp = await searchParams;
   const status = (STATUS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "new";
-  const p = seller();
+  const p = await activeSeller();
   const origin = (ORIGINS as readonly string[]).includes(sp.origin ?? "") ? sp.origin! : undefined;
   const scope = { sellerId: p.id, ...(origin ? { origin } : {}), ...(origin === "lookalike" && sp.seed ? { seed: sp.seed } : {}) };
   const [trends, counts, byOrigin, suggestions, lastScan] = await Promise.all([

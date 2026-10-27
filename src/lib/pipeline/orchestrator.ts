@@ -5,6 +5,7 @@ import { maybeScanMarket } from "@/lib/discover/scan";
 import { syncApolloVisitors } from "@/lib/web/apollo-sync";
 import type { Account } from "@prisma/client";
 import { db } from "@/lib/db";
+import { unscoped } from "@/lib/scope";
 import { CONFIG } from "@/lib/config";
 import { BudgetExceeded, budgetFor, logEvent, newContext, openReview, spentUsd, StopRun, type RunContext } from "./context";
 import { s02CleanNormalize, s03FitTier, s04Identity } from "./stages/data";
@@ -74,9 +75,14 @@ async function acquireLock(accountId: string, now: Date): Promise<boolean> {
  * `fromStage` is given.
  */
 export async function runAccount(accountId: string, opts: { fromStage?: number; ctx?: RunContext; reason?: "initial" | "refresh" | "intent_surge" } = {}): Promise<RunResult> {
-  const ctx = opts.ctx ?? newContext();
+  // The viewer must be able to see the company; the run itself is background work across the workspace.
   const found = await db.account.findUnique({ where: { id: accountId }, select: { sellerId: true } });
-  if (!found) return { accountId, status: "error", reachedStage: 0, reason: "Account not found", runId: ctx.runId };
+  if (!found) return { accountId, status: "error", reachedStage: 0, reason: "Account not found", runId: (opts.ctx ?? newContext()).runId };
+  return unscoped(() => runAccountUnscoped(accountId, found, opts));
+}
+
+async function runAccountUnscoped(accountId: string, found: { sellerId: string }, opts: { fromStage?: number; ctx?: RunContext; reason?: "initial" | "refresh" | "intent_surge" }): Promise<RunResult> {
+  const ctx = opts.ctx ?? newContext();
   // Seller context module: the account's seller pack becomes the brain's identity for the whole run.
   let sellerOk = true;
   await ensureSellerPacks();
@@ -257,6 +263,10 @@ export async function processIntent(ctx: RunContext = newContext()) {
  * already owns (opportunity / customer) are updated but not re-run.
  */
 export async function processQueue(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext } = {}) {
+  return unscoped(() => processQueueUnscoped(opts));
+}
+
+async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext }) {
   const ctx = opts.ctx ?? newContext();
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
   // Companies waiting out a retry delay are skipped until their time comes.
@@ -295,6 +305,10 @@ export async function processQueue(opts: { batchId?: string; budgetMs?: number; 
 
 /** The scheduler's job: what a cron would run every few minutes. */
 export async function tick(ctx: RunContext = newContext()) {
+  return unscoped(() => tickUnscoped(ctx));
+}
+
+async function tickUnscoped(ctx: RunContext) {
   await ensureSellerPacks();
   const queue = await processQueue({ ctx, budgetMs: 30_000 });
   const sequences = await tickSequences(ctx);

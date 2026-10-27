@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { db } from "@/lib/db";
-import { DEFAULT_SELLER_ID, ensureSellerPacks, sellerFor } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { getAdapters } from "@/lib/adapters";
 import { ensureIndexed, knowledgeStats } from "@/lib/knowledge/rag/store";
 import { Card, PageHeader, ago } from "@/components/ui";
@@ -19,7 +20,7 @@ const ORIGIN_LABEL: Record<string, string> = { built_in: "Built in", upload: "Ad
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ origin?: string }> }) {
   const origin = (await searchParams).origin;
   await ensureSellerPacks();
-  const sp = sellerFor(DEFAULT_SELLER_ID);
+  const sp = (await activeSeller());
   const embedder = getAdapters().embedder;
   let indexError: string | null = null;
   try {

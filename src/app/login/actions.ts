@@ -31,6 +31,23 @@ export async function signOutAction() {
   redirect("/login");
 }
 
+/** Which client to work on ("all" = every client this person may see). Checked again on every query. */
+export async function switchClientAction(id: string) {
+  const { CLIENT_COOKIE, clearScopeCache } = await import("@/lib/scope");
+  const jar = await cookies();
+  if (id === "all") jar.delete(CLIENT_COOKIE);
+  else jar.set(CLIENT_COOKIE, id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
+  clearScopeCache();
+  // A fresh request, so every number is read with the new client (not the one the page was drawn with).
+  const { headers } = await import("next/headers");
+  const ref = (await headers()).get("referer");
+  let back = "/";
+  try {
+    if (ref) back = new URL(ref).pathname + new URL(ref).search;
+  } catch {}
+  redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/");
+}
+
 /** Sri Krishna's switch: Super Admin on or off for this session. The entitlement itself never changes here. */
 export async function switchModeAction(to: "super" | "user") {
   const me = await getMe();

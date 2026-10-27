@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller, resolveScope } from "@/lib/scope";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "@fontsource-variable/inter";
@@ -32,10 +33,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
   const me = await getMe();
+  const scope = await resolveScope();
+  const sp = await activeSeller();
   const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);
   const access = me
-    ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const) }
-    : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const } : null;
+    ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const), choices: scope?.choices ?? [], picked: scope?.active && scope.ids?.length === 1 ? scope.active : null, everyClient: Boolean(scope?.all) }
+    : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const, choices: [], picked: null, everyClient: false } : null;
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
@@ -45,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
-          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={seller().name} />
+          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} />
           <main className="app-main" id="main">{children}</main>
         </Shell>
         <ToastHost />

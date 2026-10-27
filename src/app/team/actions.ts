@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { baseDb } from "@/lib/db-base"; // Start fresh clears every client, whichever one is picked
 import { allowedDomains, domainAllowed, normalizeEmail } from "@/lib/auth";
 import { audit, requireSuperAdmin } from "@/lib/me";
 import type { ActionState } from "../actions";
@@ -47,6 +48,7 @@ export async function setUserStatusAction(userId: string, status: "active" | "re
 }
 
 export async function setAssignmentAction(userId: string, clientId: string, assigned: boolean): Promise<ActionState> {
+  (await import("@/lib/scope")).clearScopeCache();
   try {
     const me = await requireSuperAdmin();
     const [user, client] = await Promise.all([db.user.findUniqueOrThrow({ where: { id: userId } }), db.client.findUniqueOrThrow({ where: { id: clientId } })]);
@@ -91,20 +93,20 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
 export async function clearWorkspaceDataAction(): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
-    const before = await db.account.count();
-    const [accounts] = await db.$transaction([
-      db.account.deleteMany({}),
-      db.importBatch.deleteMany({}),
-      db.prospectSuggestion.deleteMany({}),
-      db.webVisit.deleteMany({}),
-      db.marketEvent.deleteMany({}),
-      db.mailbox.deleteMany({}),
-      db.suppression.deleteMany({}),
-      db.brainInsight.deleteMany({}),
-      db.brainSignal.deleteMany({}),
-      db.decision.deleteMany({}),
-      db.proposal.deleteMany({}),
-      db.user.deleteMany({ where: { email: { endsWith: "@company.com" } } }),
+    const before = await baseDb.account.count();
+    const [accounts] = await baseDb.$transaction([
+      baseDb.account.deleteMany({}),
+      baseDb.importBatch.deleteMany({}),
+      baseDb.prospectSuggestion.deleteMany({}),
+      baseDb.webVisit.deleteMany({}),
+      baseDb.marketEvent.deleteMany({}),
+      baseDb.mailbox.deleteMany({}),
+      baseDb.suppression.deleteMany({}),
+      baseDb.brainInsight.deleteMany({}),
+      baseDb.brainSignal.deleteMany({}),
+      baseDb.decision.deleteMany({}),
+      baseDb.proposal.deleteMany({}),
+      baseDb.user.deleteMany({ where: { email: { endsWith: "@company.com" } } }),
     ]);
     await audit(me.email, "data.clear", { before: { companies: before }, after: { companies: 0 } });
     revalidatePath("/", "layout");

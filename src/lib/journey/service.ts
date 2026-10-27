@@ -14,7 +14,7 @@ export type ActivitySource = "csv" | "manual" | "bulk" | "agent" | "system";
 const toState = (j: Journey): JourneyState => ({ stage: j.stage as Stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement });
 
 /** One journey per person + campaign + sender; created on first use. */
-export async function ensureJourney(contactId: string, campaignId: string, senderId: string, tx: Prisma.TransactionClient = db) {
+export async function ensureJourney(contactId: string, campaignId: string, senderId: string, tx: Pick<typeof db, "journey" | "journeyEvent"> = db) {
   const existing = await tx.journey.findUnique({ where: { contactId_campaignId_senderId: { contactId, campaignId, senderId } } });
   if (existing) return { journey: existing, created: false };
   try {

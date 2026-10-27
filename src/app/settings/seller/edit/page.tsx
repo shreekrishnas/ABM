@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
+import { activeSellerId } from "@/lib/scope";
 import { DEFAULT_SELLER_ID, builtInPack, ensureSellerPacks, loadSeller, packSource } from "@/lib/seller";
 import { listRevisions, versionUsage } from "@/lib/seller/edit";
 import { PackEditor, type RevisionRow } from "./pack-editor";
@@ -10,7 +11,7 @@ export const metadata = { title: "Edit seller profile" };
 export const dynamic = "force-dynamic";
 
 export default async function EditSellerPage({ searchParams }: { searchParams: Promise<{ seller?: string }> }) {
-  const sellerId = (await searchParams).seller ?? DEFAULT_SELLER_ID;
+  const sellerId = (await searchParams).seller ?? (await activeSellerId());
   if (!builtInPack(sellerId)) notFound();
   await ensureSellerPacks();
   const { pack, version } = loadSeller(sellerId);

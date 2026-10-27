@@ -16,6 +16,7 @@
 import { z } from "zod";
 import type { Account, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { unscoped } from "@/lib/scope";
 import { analyzeHeaders, validateRow, type ActivityRow, type CleanRow, type FieldKey } from "@/lib/import/fields";
 import { companyNameKey, inferFunction, inferSeniority, standardizeTitle } from "./normalize";
 import { setAccountField, setContactField } from "./fields";
@@ -105,6 +106,8 @@ export async function findPerson(p: { linkedinUrl: string | null; email: string 
 interface RowContext {
   source: string;
   batchId: string;
+  /** The client the import is for; new companies belong to it. */
+  sellerId: string;
   filename: string;
   campaignId: string | null;
   senderId: string | null;
@@ -116,13 +119,15 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
   const source = r.dataSource ?? ctx.source;
 
   // ── Company ──
-  let account = await findCompany(r);
+  // A company belongs to one client: one that another client already has is skipped, never shared.
+  let account = (await findCompany(r)) ?? (await unscoped(() => findCompany(r)));
+  if (account && account.sellerId !== ctx.sellerId) throw new Error(`${account.name} already belongs to another client, so this row was skipped`);
   let accountOutcome: AccountOutcome = "unchanged";
   if (!account) {
     account = await db.account.create({
       data: {
         name: r.company, nameKey: r.nameKey, domain: r.domain, linkedinUrl: r.companyLinkedin, industry: r.industry, employees: r.employees, city: r.city, country: r.country,
-        technologies: r.technologies ?? [], keywords: r.keywords ?? [], companyNotes: r.companyNotes, source,
+        technologies: r.technologies ?? [], keywords: r.keywords ?? [], companyNotes: r.companyNotes, source, sellerId: ctx.sellerId,
       },
     });
     accountOutcome = "created";
@@ -132,7 +137,7 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
   } else {
     const a = account;
     const data: Prisma.AccountUpdateInput = {};
-    if (r.domain && !a.domain && !(await db.account.findUnique({ where: { domain: r.domain } }))) data.domain = r.domain;
+    if (r.domain && !a.domain && !(await unscoped(() => db.account.findUnique({ where: { domain: r.domain! } })))) data.domain = r.domain;
     if (r.companyLinkedin && r.companyLinkedin !== a.linkedinUrl) data.linkedinUrl = r.companyLinkedin;
     if (r.industry && r.industry !== a.industry) data.industry = r.industry;
     if (r.employees != null && r.employees !== a.employees) data.employees = r.employees;
@@ -297,7 +302,7 @@ export interface ChunkResult {
 export async function importChunk(batchId: string, rows: Record<string, unknown>[], rowOffset = 0, mapping?: Record<string, FieldKey>): Promise<ChunkResult> {
   const batch = await db.importBatch.findUniqueOrThrow({ where: { id: batchId } });
   const headerMap = mapping ?? (batch.mapping as Record<string, FieldKey> | null) ?? analyzeHeaders([...new Set(rows.flatMap((r) => Object.keys(r)))]).mapping;
-  const ctx: RowContext = { source: batch.source === "csv" ? "CSV Import" : batch.source, batchId, filename: batch.filename, campaignId: batch.campaignId, senderId: batch.senderId, now: new Date() };
+  const ctx: RowContext = { source: batch.source === "csv" ? "CSV Import" : batch.source, batchId, sellerId: batch.sellerId, filename: batch.filename, campaignId: batch.campaignId, senderId: batch.senderId, now: new Date() };
   const stats = { ...emptyStats(), ...(batch.stats as unknown as Partial<BatchStats>) };
   const errors: { row: number; error: string }[] = [];
   const accountIds = new Set<string>();

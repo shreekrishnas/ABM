@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { Badge, Card, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Seller profile" };
@@ -9,7 +10,7 @@ const ROLE_COLOR = { decision_maker: "#4F46E5", champion: "#0D9488", influencer:
 
 export default async function SellerPage() {
   await ensureSellerPacks();
-  const sp = seller();
+  const sp = await activeSeller();
   const w = sp.icp.weights;
   return (
     <div className="page-enter">

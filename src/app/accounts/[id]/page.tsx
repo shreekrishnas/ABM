@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Flag, Handshake, P
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { PIPELINE_STATUS_LABEL, PROGRESS_LABEL } from "@/lib/stage-docs";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks, seller, sellerFor } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
@@ -87,7 +87,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const engineOf = new Map(engines.map((e) => [e.id, e.engine]));
   const flaggedIds = new Set(flagged.map((f) => f.id));
   const spent = (ledger._sum.amountMicros ?? 0) / 1_000_000;
-  const sp = seller();
+  const sp = (() => { try { return sellerFor(a.sellerId); } catch { return seller(); } })();
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
   const stageName = PROGRESS_LABEL[a.pipelineStage] ?? "Not started";

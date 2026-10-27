@@ -1,7 +1,8 @@
 import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
@@ -40,7 +41,7 @@ export default async function SettingsPage() {
   const apolloKey = Boolean(process.env.APOLLO_API_KEY?.trim());
   const apolloLabel = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
   const visits30 = await db.webVisit.count({ where: { occurredAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } });
-  const sp = seller();
+  const sp = await activeSeller();
   const accounts = await db.account.count();
   const seedAllowed = process.env.ALLOW_SEED === "true";
   return (

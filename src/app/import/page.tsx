@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSellerId } from "@/lib/scope";
 import { IMPORT_PAGES } from "@/lib/nav";
 import { Hub } from "@/components/hub";
 
@@ -14,7 +15,7 @@ const TEXT: Record<string, string> = {
 /** Import data: three ways in, each its own layer. Found companies wait for approval before research. */
 export default async function ImportHub() {
   await ensureSellerPacks();
-  const sid = seller().id;
+  const sid = await activeSellerId();
   const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
   const [batches, lookalikes, visitors] = await Promise.all([
     db.importBatch.count(),

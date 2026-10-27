@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { IMPORT_FIELDS } from "@/lib/import/fields";
 import { ActionForm, SelectAll, SubmitButton } from "@/components/client";
 import { Card, ago } from "@/components/ui";
@@ -12,8 +12,8 @@ import { similarity, type SeedProfile } from "@/lib/discover/similarity";
 import { approveSuggestionsAction } from "@/app/actions";
 
 /** The seller's targeting rule in words, e.g. "IN, more than 999 employees". */
-export function ruleText(): string | null {
-  const mh = seller().icp.mustHave;
+export async function ruleText(): Promise<string | null> {
+  const mh = (await activeSeller()).icp.mustHave;
   if (!mh) return null;
   return [mh.countries?.length ? mh.countries.join(" or ") : null, mh.minEmployees ? `more than ${(mh.minEmployees - 1).toLocaleString()} employees` : null].filter(Boolean).join(", ") || null;
 }
@@ -21,8 +21,8 @@ export function ruleText(): string | null {
 const REQ_WORD = { required: "Required", recommended: "Recommended", optional: "Optional" } as const;
 
 /** What a file needs, before anyone picks one: required, recommended and optional columns, with examples. */
-export function ImportRequirements() {
-  const rule = ruleText();
+export async function ImportRequirements() {
+  const rule = await ruleText();
   const groups = ["Company", "People", "LinkedIn activity"] as const;
   return (
     <Card title="What your file needs" sub="Column names don't have to match: you map them in the next step. Only mapped columns are stored." className="mb-5">
@@ -54,13 +54,13 @@ type Origin = "lookalike" | "website_visitor";
 
 /** Found companies, sorted into what will be used and what won't, with one approval step. */
 export async function SuggestionReview({ origin, seed, emptyText }: { origin: Origin; seed?: string; emptyText: string }) {
-  const where = { sellerId: seller().id, origin, ...(seed ? { seed } : {}) };
+  const where = { sellerId: (await activeSeller()).id, origin, ...(seed ? { seed } : {}) };
   const rows = await db.prospectSuggestion.findMany({ where: { ...where, status: { in: ["new", "excluded", "added"] } }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 120 });
   const fit = rows.filter((r) => r.status === "new" && r.country && r.employees != null);
   const check = rows.filter((r) => r.status === "new" && !(r.country && r.employees != null));
   const out = rows.filter((r) => r.status === "excluded");
   const added = rows.filter((r) => r.status === "added");
-  const rule = ruleText();
+  const rule = await ruleText();
   if (!rows.length) return <Card><p className="secondary text-sm">{emptyText}</p></Card>;
 
   // Website visitors: how deep each company went on the site (last 30 days).

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LogOut, Send, Settings2, ShieldCheck, Sun, Upload, Users } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { signOutAction, switchModeAction } from "@/app/login/actions";
+import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
 // Rail entries: Home, Import, then the workspace sections. Active state follows the
@@ -20,7 +20,7 @@ const RAIL = [
   { key: "insights", href: "/overview", label: "Insights", icon: BarChart3 },
 ];
 
-export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed" } | null;
+export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null;
 
 /** The glass shell every signed-in page lives in: atmosphere → glass panel → rail + content. */
 export function Shell({ counts, access, children }: { counts: Counts; access: Access; children: React.ReactNode }) {
@@ -66,9 +66,29 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
               <form action={switchModeAction.bind(null, "user")}><button type="submit" className="sh-super-btn">Switch to User</button></form>
             </div>
           )}
+          {access && access.choices.length > 1 && <ClientBar choices={access.choices} picked={access.picked} everyClient={access.everyClient} />}
           {children}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Which client's companies every page shows. Only there when a person has more than one. */
+function ClientBar({ choices, picked, everyClient }: { choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean }) {
+  const opts = [{ id: "all", name: everyClient ? "All clients" : "All my clients" }, ...choices];
+  return (
+    <div className="sh-clients" role="group" aria-label="Client">
+      <span className="sh-clients-k">Client</span>
+      {opts.map((c) => {
+        const on = (picked ?? "all") === c.id;
+        return (
+          <form key={c.id} action={switchClientAction.bind(null, c.id)}>
+            <button type="submit" className={`sh-client${on ? " on" : ""}`} aria-pressed={on}>{c.name}</button>
+          </form>
+        );
+      })}
+      {!picked && <span className="sh-clients-note">Pick one client to import or add companies</span>}
     </div>
   );
 }

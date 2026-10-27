@@ -10,7 +10,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
-import { db } from "@/lib/db";
+import { baseDb as db } from "@/lib/db-base";
 import { MANCH } from "./manch";
 import { validatePack } from "./schema";
 import { canonicalJson } from "./diff";

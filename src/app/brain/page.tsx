@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { authRequired } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { DEFAULT_SELLER_ID, ensureSellerPacks } from "@/lib/seller";
+import { resolveScope } from "@/lib/scope";
 import { BRAIN_SECTIONS, loadBrain, readSection, readiness } from "@/lib/seller/brain";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { PageHeader, ago } from "@/components/ui";
@@ -21,7 +22,8 @@ export default async function BrainPage({ searchParams }: { searchParams: Promis
   const mine = me ? (me.superAdmin ? all : all.filter((c) => me.clients.some((m) => m.id === c.id))) : all;
   const choices = mine.length ? mine : authRequired() ? [] : [{ id: DEFAULT_SELLER_ID, name: DEFAULT_SELLER_ID }];
   const { client: wanted } = await searchParams;
-  const current = choices.find((c) => c.id === wanted) ?? choices[0];
+  const active = (await resolveScope())?.active;
+  const current = choices.find((c) => c.id === wanted) ?? choices.find((c) => c.id === active) ?? choices[0];
   if (!current) return <div className="page-enter"><PageHeader eyebrow="Account Brain" title="No account assigned" sub="Ask ShreeKrishna to assign you to an account." /></div>;
 
   const [{ pack, savedAt, versions }, files] = await Promise.all([

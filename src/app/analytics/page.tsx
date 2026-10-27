@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
-import { ensureSellerPacks, seller } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { classifyTrigger } from "@/lib/seller/fit";
 import { HBars } from "@/components/charts";
 import { StatStrip } from "@/components/v2";
@@ -23,7 +24,7 @@ export default async function AnalyticsPage() {
   ]);
 
   // Leading indicator: reply rate by the angle (the seller's trigger type) the draft led with.
-  const sp = seller();
+  const sp = await activeSeller();
   const leadClaim = new Map(evidence.map((e) => [e.id, e.claim]));
   const angle = (d: { angle: string | null; leadEvidenceId: string | null }) => {
     const byKey = d.angle ? sp.triggers.find((t) => t.key === d.angle) : undefined;
