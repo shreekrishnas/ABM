@@ -49,9 +49,15 @@ export function PriorityMap({ accounts }: { accounts: Dot[] }) {
           const { x, y } = a;
           const flip = x > 62; // label on the left near the right edge so it is never clipped
           return (
-            <Link key={a.id} href={`/accounts/${a.id}`} title={a.intent!.whyNow ?? a.name} className={`group absolute flex items-center gap-1.5 ${flip ? "flex-row-reverse" : ""}`} style={{ left: `${x}%`, bottom: `${y}%`, transform: flip ? "translate(calc(-100% + 20px), 50%)" : "translate(-20px, 50%)", zIndex: Math.round(y) }}>
+            <Link key={a.id} href={`/accounts/${a.id}`} className={`group absolute flex items-center gap-1.5 ${flip ? "flex-row-reverse" : ""}`} style={{ left: `${x}%`, bottom: `${y}%`, transform: flip ? "translate(calc(-100% + 20px), 50%)" : "translate(-20px, 50%)", zIndex: Math.round(y) }}>
               <span className="rounded-full" style={{ boxShadow: a.intent!.level === "hot" ? "0 0 0 3px var(--surface-base), 0 0 0 5px var(--intent-hot)" : "0 0 0 3px var(--surface-base)" }}><Avatar name={a.name} id={a.id} size={s} round /></span>
               <span className="rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap transition-transform group-hover:-translate-y-0.5" style={{ background: "var(--surface-card-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-pill)" }}>{a.name}</span>
+              <span className={`pm-card ${flip ? "pm-left" : ""}`} role="tooltip">
+                <b>{a.name}</b>
+                <span className="pm-row"><span>Fit</span><b className="tnum">{a.fit}</b><span>Intent</span><b className="tnum">{a.intent!.score}</b><span>Tier</span><b>{a.tier ?? "—"}</b></span>
+                {a.intent!.whyNow && <span className="pm-why">{a.intent!.whyNow.slice(0, 160)}{a.intent!.whyNow.length > 160 ? "…" : ""}</span>}
+                <span className="pm-go">Open company →</span>
+              </span>
             </Link>
           );
         })}

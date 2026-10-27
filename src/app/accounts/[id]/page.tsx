@@ -20,6 +20,8 @@ const TAB_LABEL: Record<string, string> = { intake: "Data → research", people:
 import { WebVisitsCard } from "@/components/web-visits";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { BuyingGroupPlan } from "./buying-group";
+import { TimelineCard } from "./timeline-card";
+import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
 
 const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
@@ -178,6 +180,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         ]}
       />
 
+      {tab === "overview" && <div className="mb-5"><TimelineCard accountId={a.id} /></div>}
       {tab === "overview" && (
         <div className="grid gap-5 xl:grid-cols-3">
           <div className="grid gap-5 xl:col-span-2">
@@ -315,6 +318,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
       {tab === "intake" && <IntakeTab account={a} />}
 
+      {tab === "people" && <NetworkCard accountId={a.id} company={a.name} />}
       {tab === "people" && <BuyingGroupPlan accountId={a.id} />}
       {tab === "people" && (
         <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment." action={<Link href={`/people?q=${encodeURIComponent(a.name)}`} className="btn btn-secondary btn-sm">Journeys in People</Link>}>

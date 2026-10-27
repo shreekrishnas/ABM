@@ -6,7 +6,8 @@ import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
-import { commandCenter } from "@/lib/command-center";
+import { commandCenter, companyFlow } from "@/lib/command-center";
+import { FlowSankey } from "@/components/viz/flow-sankey";
 import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
@@ -36,7 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const cc = await commandCenter(now);
+  const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
   const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.draft.count({ where: { status: "pending_review" } }),
@@ -95,28 +96,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         </section>
 
         <section className="cc-mid">
-          <div className="cc-panel">
+          <div className="cc-panel cc-wide">
             <div className="hm-sec-head">
-              <h2>Company funnel</h2>
+              <h2>Company flow</h2>
               <span className="hm-sec-meta">Each step counts companies that passed every step before it</span>
             </div>
-            <ol className="cc-funnel">
-              {cc.funnel.map((f, i) => {
-                const prev = i ? cc.funnel[i - 1].value : f.value;
-                const top = cc.funnel[0].value || 1;
-                const pct = i && prev ? Math.round((f.value / prev) * 100) : null;
-                return (
-                  <li key={f.key}>
-                    <Link href={f.href} title={f.define}>
-                      <span className="cc-f-l">{f.label}</span>
-                      <span className="cc-f-bar"><span style={{ width: `${Math.max(f.value ? 3 : 0, Math.round((f.value / top) * 100))}%` }} /></span>
-                      <span className="cc-f-n tnum">{f.value}</span>
-                      <span className="cc-f-p tnum">{pct == null ? "" : i && !prev ? "—" : `${pct}%`}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ol>
+            <FlowSankey steps={flow.steps} accounts={flow.accounts} />
             <p className="cc-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
           </div>
 

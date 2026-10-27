@@ -23,6 +23,33 @@ const STEPS = [
 ];
 const nested = (i: number) => ({ ...live, AND: STEPS.slice(0, i + 1).map((s) => s.where) });
 
+export interface FlowAccount { id: string; name: string; tier: string | null; reached: number; reason: string }
+
+/** Why a company stopped where it did, in plain words (from its recorded state). */
+function stopReason(a: { stage: string; pipelineStatus: string; outreachPausedUntil: Date | null }, now: Date): string {
+  if (a.stage === "DISQUALIFIED") return "Ruled out";
+  if (a.outreachPausedUntil && a.outreachPausedUntil > now) return "Paused";
+  if (["WATCH", "RECYCLED"].includes(a.stage)) return "Watching";
+  if (a.pipelineStatus === "error") return "Stopped on an error";
+  if (["queued", "running"].includes(a.pipelineStatus)) return "In progress";
+  if (a.pipelineStatus === "blocked") return "Blocked at a check";
+  if (["MQA", "OPPORTUNITY", "CUSTOMER"].includes(a.stage)) return "With sales";
+  return "Not reached yet";
+}
+
+/** Every company with the furthest funnel step it passed, for the interactive flow. */
+export async function companyFlow(now = new Date()): Promise<{ steps: { key: string; label: string; define: string }[]; accounts: FlowAccount[] }> {
+  const sets = await Promise.all(STEPS.map((_, i) => db.account.findMany({ where: nested(i), select: { id: true }, take: 5000 }).then((r) => new Set(r.map((x) => x.id)))));
+  const all = await db.account.findMany({ where: live, select: { id: true, name: true, tier: true, stage: true, pipelineStatus: true, outreachPausedUntil: true }, take: 5000 });
+  const accounts = all.map((a) => {
+    let reached = -1;
+    for (let i = 0; i < sets.length; i++) if (sets[i].has(a.id)) reached = i;
+    return { id: a.id, name: a.name, tier: a.tier, reached, reason: stopReason(a, now) };
+  });
+  const words = (await commandCenter(now)).funnel;
+  return { steps: words.map((f) => ({ key: f.key, label: f.label, define: f.define })), accounts };
+}
+
 export async function commandCenter(now = new Date()) {
   const steps = await Promise.all(STEPS.map((_, i) => db.account.count({ where: nested(i) })));
   const [imported, qualified, researched, contactable, contacted, engaged, handedOff, opportunity] = steps;
