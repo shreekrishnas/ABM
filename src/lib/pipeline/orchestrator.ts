@@ -62,6 +62,26 @@ export function retryDelayMs(n: number, rand = Math.random()): number {
 }
 
 /**
+ * Re-research a company from scratch: bad news found earlier is set aside (kept, flagged, for
+ * the record) and asked again under the current rules; a rule-out that came from bad news is
+ * lifted, and the company is queued from the research plan.
+ */
+export async function prepareReResearch(accountId: string, now = new Date()): Promise<boolean> {
+  const a = await db.account.findUnique({ where: { id: accountId }, select: { id: true, stage: true, disqualifyReason: true } });
+  if (!a) return false;
+  return unscoped(async () => {
+    await db.evidence.updateMany({ where: { accountId, isNegative: true, flagged: false }, data: { flagged: true, flagReason: "Set aside: re-researched under the current rules" } });
+    await db.reviewItem.updateMany({ where: { accountId, status: "open", type: "possible_blocker" }, data: { status: "resolved", resolution: "Re-researched", resolvedAt: now } });
+    const lift = a.stage === "DISQUALIFIED" && Boolean(a.disqualifyReason?.startsWith("Negative evidence"));
+    await db.account.update({
+      where: { id: accountId },
+      data: { pipelineStatus: "queued", queuedFromStage: 5, nextRetryAt: null, retryCount: 0, lastError: null, followupUsed: false, ...(lift ? { stage: "UNAWARE", disqualifyReason: null } : {}) },
+    });
+    return true;
+  });
+}
+
+/**
  * A run cut off by the host's time limit leaves its company marked "running" with nobody on it.
  * Once its lock has expired, put it back in the queue from the step after the last one it
  * finished; steps are idempotent, so nothing is done twice.

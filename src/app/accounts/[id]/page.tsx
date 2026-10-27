@@ -9,7 +9,7 @@ import { ensureSellerPacks, seller, sellerFor } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
-import { addNoteAction, correctFactAction, flagFactAction, manualHandoffAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
+import { addNoteAction, correctFactAction, flagFactAction, manualHandoffAction, reResearchAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
 import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
@@ -116,7 +116,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           </div>
           <div className="co-actions">
             <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-brand" title="Continue from the next stage"><Play size={15} /> Run pipeline</ActionButton>
-            <ActionButton action={runAccountAction.bind(null, a.id, 5)} className="btn btn-secondary" title="Re-plan and re-research (loop counters are kept)"><RotateCcw size={15} /> Re-research</ActionButton>
+            <ActionButton action={reResearchAction.bind(null, a.id)} className="btn btn-secondary" title="Research again from scratch under the current rules, in the background"><RotateCcw size={15} /> Re-research</ActionButton>
             <ActionButton action={manualHandoffAction.bind(null, a.id)} className="btn btn-secondary" confirm="Hand this account to its owner now? Automated outreach will pause."><Handshake size={15} /> Hand off</ActionButton>
             <AddTaskButton target={{ accountId: a.id, label: a.name }} className="btn btn-secondary" />
           </div>

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { finishBatch, importChunk, ingestRows, startBatch, type BatchStats } from "@/lib/pipeline/ingest";
 import { analyzeMapping } from "@/lib/import/fields";
-import { runAccount, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
+import { prepareReResearch, runAccount, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
@@ -49,6 +49,20 @@ export async function runAccountAction(accountId: string, fromStage?: number): P
   const r = await runAccount(accountId, { fromStage });
   refresh("/accounts", `/accounts/${accountId}`, "/pipeline", "/review");
   return { ok: r.status === "done", message: `${r.status === "done" ? "Done" : r.status === "blocked" ? "Stopped" : r.status === "skipped" ? "Skipped" : "Error"}: ${r.reason}` };
+}
+
+/** Re-research one company, or every company, from scratch in the background. */
+export async function reResearchAction(accountId?: string): Promise<ActionState> {
+  const ids = accountId ? [accountId] : (await db.account.findMany({ where: { mergedIntoId: null, stage: { notIn: ["CUSTOMER", "OPPORTUNITY"] } }, select: { id: true } })).map((a) => a.id);
+  let n = 0;
+  for (const id of ids) if (await prepareReResearch(id)) n++;
+  if (n) await startBackgroundQueue();
+  refresh("/", "/accounts", "/pipeline", "/review", ...(accountId ? [`/accounts/${accountId}`] : []));
+  return { ok: n > 0, message: n ? `Re-researching ${n} compan${n === 1 ? "y" : "ies"} in the background; results appear in a few minutes` : "Company not found" };
+}
+
+export async function reResearchAllAction(): Promise<ActionState> {
+  return reResearchAction();
 }
 
 export async function runAllAction(): Promise<ActionState> {

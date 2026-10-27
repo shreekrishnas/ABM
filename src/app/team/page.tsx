@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ShieldCheck, UserPlus, Building2, History, Trash2 } from "lucide-react";
+import { ShieldCheck, UserPlus, Building2, History, Trash2, RotateCcw } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { allowedDomains } from "@/lib/auth";
@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
 import { addClientAction, addUserAction, clearWorkspaceDataAction, setAssignmentAction, setUserStatusAction } from "./actions";
+import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
 
@@ -96,6 +97,10 @@ export default async function TeamPage() {
           </ActionForm>
         </Card>
       </div>
+
+      <Card title={<span className="inline-flex items-center gap-2"><RotateCcw size={18} /> Re-research all companies</span>} sub="Research every company again from scratch under the current rules, in the background. Bad news found earlier is set aside (kept for the record) and checked again; companies ruled out on it come back. People, imports and approved work are kept." className="mb-5">
+        <ActionButton action={reResearchAllAction} className="btn btn-secondary" confirm="Re-research every company from scratch? This uses research credits.">Re-research all</ActionButton>
+      </Card>
 
       <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Start fresh</span>} sub="Remove every company and everything attached (research, people, drafts, emails, signals, tasks, opportunities, imports), plus mailboxes and demo logins. Team, clients, Account Brain, knowledge files and sequences are kept. Can't be undone." className="mb-5">
         <ActionButton action={clearWorkspaceDataAction} className="btn btn-secondary" confirm="Remove ALL companies and their data? This can't be undone. Team, clients, Account Brain and sequences are kept.">Remove all company data</ActionButton>

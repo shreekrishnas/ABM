@@ -525,3 +525,20 @@ describe("command center", () => {
     expect(cc.kpis.every((k) => k.href && k.define)).toBe(true);
   });
 });
+
+describe("re-research from scratch", () => {
+  it("sets old bad news aside, lifts a rule-out that came from it, and queues the company", async () => {
+    const { prepareReResearch } = await import("@/lib/pipeline/orchestrator");
+    const id = await account("acquired-mu.com");
+    await runAccount(id);
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).toBe("DISQUALIFIED");
+    expect(await prepareReResearch(id)).toBe(true);
+    const a = await db.account.findUniqueOrThrow({ where: { id } });
+    expect(a.stage).toBe("UNAWARE");
+    expect(a.disqualifyReason).toBeNull();
+    expect(a.pipelineStatus).toBe("queued");
+    expect(a.queuedFromStage).toBe(5);
+    expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: false } })).toBe(0);
+    expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: true } })).toBeGreaterThan(0);
+  });
+});
