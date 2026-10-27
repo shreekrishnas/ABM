@@ -32,7 +32,7 @@ export function PriorityMap({ accounts }: { accounts: Dot[] }) {
         {/* quadrants */}
         <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 overflow-hidden" style={{ borderRadius: "1rem", border: "1px solid var(--border-subtle)" }}>
           {[QUAD[1], QUAD[0], QUAD[3], QUAD[2]].map((q, i) => (
-            <div key={q.title} className="relative p-3" style={{ background: i === 1 ? "color-mix(in srgb, var(--intent-hot) 6%, transparent)" : i === 2 ? "transparent" : "var(--surface-card-header)", borderRight: i % 2 === 0 ? "1px dashed var(--border-default)" : undefined, borderBottom: i < 2 ? "1px dashed var(--border-default)" : undefined }}>
+            <div key={q.title} className="relative p-3" style={{ background: i === 1 ? "color-mix(in srgb, var(--intent-hot) 6%, transparent)" : i === 2 ? "transparent" : "var(--surface-card-header)", borderRight: i % 2 === 0 ? "1px solid var(--border-subtle)" : undefined, borderBottom: i < 2 ? "1px solid var(--border-subtle)" : undefined }}>
               <div className={`absolute ${q.y === "top" ? "top-3" : "bottom-3"} ${q.x === "right" ? "right-4 text-right" : "left-4"}`}>
                 <div className="text-sm font-bold" style={{ color: q.color }}>{q.title}</div>
                 <div className="muted text-xs">{q.sub}</div>

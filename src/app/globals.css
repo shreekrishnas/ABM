@@ -1796,3 +1796,19 @@ body:has(.overlay, .palette-backdrop) .sh-body > * { transform: scale(0.985); op
   .glass-card:hover, .cc-k:hover, .hm-k.link:hover { transform: none !important; }
   body:has(.overlay, .palette-backdrop) .sh-body > * { transform: none; }
 }
+
+/* Charts: validated brand palette (light: all pairs, CVD ΔE 11.1; dark: all pairs pass on the dark surface) */
+:root { --chart-1: #6D28D9; --chart-2: #0284C7; --chart-3: #D97706; --chart-seq: #7C3AED; --chart-area: #7C3AED; }
+:root[data-theme="dark"] { --chart-1: #8B5CF6; --chart-2: #0891B2; --chart-3: #D97706; --chart-seq: #8B5CF6; --chart-area: #8B5CF6; }
+/* Tooltip on the overlay layer */
+.chart-tip { background: rgba(255, 255, 255, 0.72) !important; backdrop-filter: var(--l3-blur); -webkit-backdrop-filter: var(--l3-blur);
+  border: 1px solid rgba(255, 255, 255, 0.7) !important; border-radius: 12px !important; box-shadow: var(--specular), var(--l2-shadow) !important; }
+:root[data-theme="dark"] .chart-tip { background: rgba(30, 27, 60, 0.72) !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+.chart .recharts-cartesian-grid line { stroke-width: 1; }
+.chart-table { margin-top: 0.5rem; }
+.chart-table summary { cursor: pointer; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); width: fit-content; padding: 2px 8px; border-radius: 6px; }
+.chart-table summary:hover { background: var(--well); color: var(--text-secondary); }
+.chart-table[open] table { margin-top: 0.4rem; background: var(--well); box-shadow: var(--well-edge); border-radius: 0.75rem; overflow: hidden; }
+/* One series = one colour: funnel and priority parts */
+.cc-f-bar span { background: var(--chart-seq) !important; box-shadow: none !important; }
+.co-parts .co-part-bar i { background: var(--chart-seq) !important; }
