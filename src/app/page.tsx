@@ -7,7 +7,7 @@ import { getMe } from "@/lib/me";
 import { ensureSellerPacks, seller } from "@/lib/seller";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
-import { FunnelRibbon } from "@/components/viz/funnel-ribbon";
+import { FunnelTrack } from "@/components/viz/funnel-track";
 import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
@@ -96,12 +96,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         </section>
 
         <section className="cc-mid">
-          <div className="cc-panel cc-wide">
+          <div className="cc-panel">
             <div className="hm-sec-head">
               <h2>Company flow</h2>
-              <span className="hm-sec-meta">Each step counts companies that passed every step before it</span>
+              <span className="hm-sec-meta">Bubble size = companies reaching each step</span>
             </div>
-            <FunnelRibbon steps={flow.steps} accounts={flow.accounts} />
+            <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
             <p className="cc-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
           </div>
 
