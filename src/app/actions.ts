@@ -790,3 +790,39 @@ export async function resumeOutreachAction(accountId: string): Promise<ActionSta
   refresh(`/accounts/${accountId}`, "/review", "/outreach");
   return { ok: true, message: `Outreach resumed: ${n} sequence${n === 1 ? "" : "s"} active again. Due emails are drafted on the next run.` };
 }
+
+// ── Possible blockers: a person decides (never the AI on its own) ──
+
+/** Keep the company: the bad news is set aside (kept for the record) and research carries on from readiness. */
+export async function keepCompanyAction(reviewId: string): Promise<ActionState> {
+  const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
+  if (!r?.accountId) return { ok: false, message: "This decision has no company" };
+  const me = await (await import("@/lib/me")).getMe();
+  await db.evidence.updateMany({ where: { accountId: r.accountId, isNegative: true, flagged: false }, data: { flagged: true, flagReason: `Not a blocker: kept by ${me?.name ?? "a person"}` } });
+  await db.reviewItem.update({ where: { id: reviewId }, data: { status: "resolved", resolution: `Kept by ${me?.email ?? "a person"}`, resolvedAt: new Date() } });
+  await db.account.update({ where: { id: r.accountId }, data: { pipelineStatus: "queued", queuedFromStage: 10, nextRetryAt: null } });
+  await startBackgroundQueue();
+  refresh("/review", "/", `/accounts/${r.accountId}`);
+  return { ok: true, message: "Kept: research carries on from the readiness check" };
+}
+
+/** Approve the rejection: the company is ruled out; the record and its evidence stay. */
+export async function approveRejectionAction(reviewId: string): Promise<ActionState> {
+  const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
+  if (!r?.accountId) return { ok: false, message: "This decision has no company" };
+  const me = await (await import("@/lib/me")).getMe();
+  await db.account.update({ where: { id: r.accountId }, data: { stage: "DISQUALIFIED", disqualifyReason: `${r.reason.replace(/, reported by one source only, needs a person to check/, "")} (confirmed by ${me?.name ?? "a person"})`, pipelineStatus: "idle" } });
+  await db.reviewItem.update({ where: { id: reviewId }, data: { status: "resolved", resolution: `Rejection approved by ${me?.email ?? "a person"}`, resolvedAt: new Date() } });
+  refresh("/review", "/", `/accounts/${r.accountId}`);
+  return { ok: true, message: "Ruled out. The company and its evidence are kept for the record" };
+}
+
+/** Research the company again from scratch before deciding. */
+export async function moreResearchAction(reviewId: string): Promise<ActionState> {
+  const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
+  if (!r?.accountId) return { ok: false, message: "This decision has no company" };
+  await prepareReResearch(r.accountId);
+  await startBackgroundQueue();
+  refresh("/review", `/accounts/${r.accountId}`);
+  return { ok: true, message: "Researching again; a new decision appears if the blocker still stands" };
+}

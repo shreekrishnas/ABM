@@ -1,21 +1,20 @@
 import Link from "next/link";
 import type { ReviewType } from "@prisma/client";
-import { Check, ClipboardCheck, ExternalLink, Layers, List, UserCheck, UserX, X } from "lucide-react";
+import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
 import { db } from "@/lib/db";
-import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
-import { Badge, Card, Empty, FieldBadge, PageHeader, TierBadge, ago, cx, date } from "@/components/ui";
-import { resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
-import { ViewSwitch } from "@/components/v2";
-import { ApprovalStack } from "./approval-stack";
+import { ActionForm, SubmitButton } from "@/components/client";
+import { ago, date } from "@/components/ui";
+import { Badge as Kb, ConfidenceTag, EmptyState, FormField, PageHeader } from "@/components/kit";
+import { approveRejectionAction, keepCompanyAction, moreResearchAction, resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
+import { DecideButton, KeyNav } from "./decide";
 import { reviewLabel } from "@/lib/review-labels";
 
-export const metadata = { title: "Review queue" };
+export const metadata = { title: "Approvals" };
 
 
 export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string; pick?: string }> }) {
   const sp = await searchParams;
   const type = sp.type as ReviewType | undefined;
-  const view = sp.view === "list" ? "list" : "focus";
   const [counts, items] = await Promise.all([
     db.reviewItem.groupBy({ by: ["type"], where: { status: "open" }, _count: true }),
     db.reviewItem.findMany({ where: { status: "open", ...(type ? { type } : {}) }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
@@ -26,125 +25,137 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const evidence = await db.evidence.findMany({ where: { id: { in: evidenceIds } } });
   const evById = new Map(evidence.map((e) => [e.id, e]));
   const total = counts.reduce((a, c) => a + c._count, 0);
-  const stack = view === "focus" ? items.filter((r) => r.type === "draft_approval" && drafts.some((d) => d.id === r.draftId)).map((r) => ({ id: r.id, contact: r.contact, account: r.account, draft: drafts.find((d) => d.id === r.draftId)! })) : [];
-  const listItems = view === "focus" ? items.filter((r) => r.type !== "draft_approval") : items;
+  const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type, ...q }).filter(([, v]) => v) as [string, string][])}`;
+  const idx = Math.max(0, items.findIndex((i) => i.id === sp.pick));
+  const r = items[idx];
+  const prev = idx > 0 ? href({ pick: items[idx - 1].id }) : undefined;
+  const next = idx < items.length - 1 ? href({ pick: items[idx + 1].id }) : undefined;
+  const draft = r?.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
+  const reports = r?.type === "possible_blocker" ? ((r.payload as { reports?: { kind: string; claim: string; quote: string | null; sourceUrl: string; publishedAt: string }[] } | null)?.reports ?? []) : [];
 
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Only a person can decide these" title="Approvals" sub="Emails come one at a time, with their checks. Other decisions are listed underneath, each with its reason." actions={<ViewSwitch base="/review" params={{ type }} current={view} views={[{ id: "focus", label: "One at a time", icon: <Layers size={13} /> }, { id: "list", label: "Everything", icon: <List size={13} /> }]} />} />
+      <PageHeader title="Approvals" description="Only a person can decide these. Pick one on the left; its evidence and actions open on the right." />
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/review" className="badge" style={{ background: !type ? "var(--accent-indigo)" : "var(--surface-card)", color: !type ? "#fff" : "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>All · {total}</Link>
+      <div className="dz-chips" role="group" aria-label="Filter by kind">
+        <Link href="/review" className={`dz-chip${!type ? " on" : ""}`}>All · {total}</Link>
         {counts.sort((a, b) => b._count - a._count).map((c) => (
-          <Link key={c.type} href={`/review?type=${c.type}`} className="badge" style={{ background: type === c.type ? "var(--accent-indigo)" : "var(--surface-card)", color: type === c.type ? "#fff" : "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
-            {reviewLabel(c.type)} · {c._count}
-          </Link>
+          <Link key={c.type} href={`/review?type=${c.type}`} className={`dz-chip${type === c.type ? " on" : ""}`}>{reviewLabel(c.type)} · {c._count}</Link>
         ))}
       </div>
 
       {items.length === 0 ? (
-        <Card><Empty icon={<ClipboardCheck size={20} />} title="Nothing waiting" sub="When the pipeline needs a decision, it lands here with its reason." /></Card>
+        <div className="k-table-wrap"><EmptyState icon={<ClipboardCheck size={20} />} title="Nothing waiting" text="When the pipeline needs a decision, it lands here with its reason." /></div>
       ) : (
-        <>
-        {stack.length > 0 && <ApprovalStack items={stack} pick={sp.pick} hrefFor={(id) => `/review?${new URLSearchParams({ ...(type ? { type } : {}), pick: id })}`} />}
-        {view === "focus" && stack.length > 0 && listItems.length > 0 && <div className="section-label"><span>Other decisions</span><span className="n">{listItems.length}</span></div>}
-        <div className="stagger grid gap-4">
-          {listItems.map((r) => {
-            const draft = r.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
-            const overdue = r.dueAt && r.dueAt < new Date();
-            return (
-              <section key={r.id} className="glass-card-static card-pad" style={{ borderLeft: `4px solid ${r.type === "draft_approval" ? "#8B5CF6" : r.type === "budget_exceeded" || r.type === "bounce_breaker" ? "#EF4444" : "#F59E0B"}` }}>
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge color="#7C3AED">{reviewLabel(r.type)}</Badge>
-                                            {overdue && <Badge color="#DC2626">overdue</Badge>}
-                    </div>
-                    <div className="mt-1.5 text-[0.95rem] font-semibold" style={{ color: "var(--text-primary)" }}>{r.reason}</div>
-                    <div className="muted mt-0.5 text-xs">
-                      {r.account && <Link href={`/accounts/${r.account.id}`} className="hover:underline">{r.account.name}</Link>}
-                      {r.account && <> · <TierBadge tier={r.account.tier} /></>} · opened {ago(r.createdAt)}{r.dueAt ? ` · due ${date(r.dueAt)}` : ""}
-                    </div>
-                  </div>
-                  {r.type !== "draft_approval" && r.type !== "identity_conflict" && (
-                    <div className="flex gap-2">
-                      <ActionButton action={resolveReviewAction.bind(null, r.id, "resolved", undefined)} className="btn btn-success btn-sm"><Check size={14} /> Resolve</ActionButton>
-                      <ActionButton action={resolveReviewAction.bind(null, r.id, "dismissed", undefined)} className="btn btn-ghost btn-sm">Dismiss</ActionButton>
-                    </div>
-                  )}
+        <div className="dz">
+          <KeyNav prev={prev} next={next} />
+          <nav className="dz-list" aria-label="Decisions">
+            <p className="dz-count">{idx + 1} of {items.length}{items.length === 50 ? "+" : ""}</p>
+            {items.map((it) => (
+              <Link key={it.id} href={href({ pick: it.id })} scroll={false} className={`dz-item${it.id === r?.id ? " on" : ""}`} aria-current={it.id === r?.id ? "true" : undefined}>
+                <Kb tone={it.type === "possible_blocker" || it.type === "bounce_breaker" || it.type === "budget_exceeded" ? "danger" : it.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(it.type)}</Kb>
+                <b>{[it.contact?.fullName, it.account?.name].filter(Boolean).join(" · ") || reviewLabel(it.type)}</b>
+                <span>{it.reason}</span>
+                {it.dueAt && it.dueAt < new Date() && <span className="dz-over">Overdue</span>}
+              </Link>
+            ))}
+          </nav>
+
+          {r && (
+            <section className="dz-pane" aria-label="Decision">
+              <header className="dz-head">
+                <div className="min-w-0">
+                  <Kb tone={r.type === "possible_blocker" ? "danger" : r.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(r.type)}</Kb>
+                  <h2>{r.reason}</h2>
+                  <p className="dz-meta">
+                    {r.account && <Link href={`/accounts/${r.account.id}`}>{r.account.name}</Link>}
+                    {r.account?.tier && <> · Tier {r.account.tier}</>} · opened {ago(r.createdAt)}{r.dueAt ? ` · due ${date(r.dueAt)}` : ""}
+                  </p>
                 </div>
+                <p className="dz-keys"><kbd>J</kbd> next · <kbd>K</kbd> previous</p>
+              </header>
 
-                {r.type === "draft_approval" && draft && (
-                  <div className="grid gap-5 lg:grid-cols-5">
-                    <ActionForm action={reviewDraftAction} className="grid gap-3 lg:col-span-3" resetOnSuccess={false}>
-                      <input type="hidden" name="draftId" value={draft.id} />
-                      <div><label className="field-label">To</label><div className="text-sm secondary">{r.contact ? <Link href={`/people/${r.contact.id}`} className="hover:underline">{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></div></div>
-                      <div><label className="field-label" htmlFor={`s-${draft.id}`}>Subject</label><input id={`s-${draft.id}`} name="subject" defaultValue={draft.subject} className="glass-input" /></div>
-                      <div><label className="field-label" htmlFor={`b-${draft.id}`}>Body</label><textarea id={`b-${draft.id}`} name="body" defaultValue={draft.body} className="glass-textarea" rows={11} /></div>
-                      <input name="note" className="glass-input" placeholder="Optional note for the log" aria-label="Note for the log (optional)" />
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject</SubmitButton>
-                        <SubmitButton name="decision" value="approve" className="btn btn-success"><Check size={15} /> Approve</SubmitButton>
-                      </div>
-                    </ActionForm>
-                    <div className="lg:col-span-2">
-                      {(draft.useCase || draft.painPoint) && (
-                        <div className="mb-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-                          <div className="micro mb-1">Angle for this person</div>
-                          <div className="secondary">{draft.useCase?.replace(/_/g, " ")}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</div>
-                        </div>
-                      )}
-                      <div className="micro mb-2">Claims and the evidence they cite</div>
-                      <ul className="grid gap-2.5">
-                        {(draft.claims as { text: string; factIds: string[] }[]).map((c, i) => (
-                          <li key={i} className="rounded-xl px-3 py-2.5 text-xs" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
-                            <div className="secondary">“{c.text}”</div>
-                            {Array.isArray(draft.claimCheck) && (draft.claimCheck as { supported: boolean; reason: string }[])[i] && (
-                              <div className="mt-1 font-semibold" style={{ color: (draft.claimCheck as { supported: boolean }[])[i].supported ? "#059669" : "#DC2626" }}>
-                                {(draft.claimCheck as { supported: boolean }[])[i].supported ? "✓ Checked: the source says this" : "✕ Checker: not supported"} <span className="muted font-normal">— {(draft.claimCheck as { reason: string }[])[i].reason}</span>
-                              </div>
-                            )}
-                            {c.factIds.map((id) => {
-                              const e = evById.get(id);
-                              return e ? (
-                                <div key={id} className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                  <FieldBadge status={e.status} />
-                                  <a href={e.sourceUrl} target="_blank" rel="noreferrer" className="mono muted inline-flex items-center gap-1 hover:underline">{e.sourceType} · {date(e.publishedAt)}<ExternalLink size={10} /></a>
-                                </div>
-                              ) : <div key={id} className="mt-1 text-[#DC2626]">Missing fact {id}</div>;
-                            })}
+              {r.type === "possible_blocker" && (
+                <div className="dz-body">
+                  <p className="dz-explain">The research found news that might rule this company out, but only one source reports it. Nothing is ruled out until you decide.</p>
+                  <ul className="dz-reports">
+                    {reports.map((x, i) => (
+                      <li key={i}>
+                        <Kb tone="warning">{x.kind.replace(/_/g, " ")}</Kb>
+                        <p>{x.claim}</p>
+                        {x.quote && <blockquote>“{x.quote}”</blockquote>}
+                        <a href={x.sourceUrl} target="_blank" rel="noreferrer">{(() => { try { return new URL(x.sourceUrl).hostname.replace(/^www\./, ""); } catch { return x.sourceUrl; } })()} · {date(new Date(x.publishedAt))} <ExternalLink size={11} /></a>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="dz-actions">
+                    <DecideButton action={keepCompanyAction.bind(null, r.id)} label="Keep company" done="Kept" kind="primary" next={next} />
+                    <DecideButton action={moreResearchAction.bind(null, r.id)} label="Research again" done="Researching again" next={next} />
+                    <DecideButton action={approveRejectionAction.bind(null, r.id)} label="Approve rejection" done="Ruled out" kind="danger" next={next} />
+                  </div>
+                </div>
+              )}
+
+              {r.type === "identity_conflict" && r.contact && (
+                <div className="dz-body">
+                  <dl className="dz-fields">
+                    {["email", "title", "company"].map((f) => {
+                      const st = r.contact!.fieldStates.find((x) => x.field === f);
+                      return <div key={f}><dt>{f[0].toUpperCase() + f.slice(1)}</dt><dd><ConfidenceTag status={st?.status ?? "unknown"} /> <span className="mono">{st?.value ?? "—"}</span></dd></div>;
+                    })}
+                    {(r.payload as { providerEmployer?: string } | null)?.providerEmployer && <div><dt>Provider says employer</dt><dd className="mono">{(r.payload as { providerEmployer: string }).providerEmployer}</dd></div>}
+                  </dl>
+                  <div className="dz-actions">
+                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "confirm")} label={<><UserCheck size={14} /> Confirm identity</>} done="Identity confirmed" kind="primary" next={next} />
+                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "drop")} label={<><UserX size={14} /> Drop contact</>} done="Contact dropped" next={next} />
+                  </div>
+                </div>
+              )}
+
+              {r.type === "draft_approval" && draft && (
+                <div className="dz-body dz-draft">
+                  <ActionForm action={reviewDraftAction} className="dz-form" resetOnSuccess={false}>
+                    <input type="hidden" name="draftId" value={draft.id} />
+                    <p className="dz-meta">To {r.contact ? <Link href={`/people/${r.contact.id}`}>{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></p>
+                    <FormField label="Subject"><input name="subject" defaultValue={draft.subject} className="glass-input" /></FormField>
+                    <FormField label="Body" hint="Edits must keep the unsubscribe line and sender address."><textarea name="body" defaultValue={draft.body} className="glass-textarea" rows={11} /></FormField>
+                    <FormField label="Note for the log (optional)"><input name="note" className="glass-input" /></FormField>
+                    <div className="dz-actions">
+                      <SubmitButton name="decision" value="approve" className="btn btn-primary"><Check size={15} /> Approve</SubmitButton>
+                      <SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject</SubmitButton>
+                    </div>
+                  </ActionForm>
+                  <aside className="dz-claims">
+                    {(draft.useCase || draft.painPoint) && <p className="dz-explain"><b>Angle:</b> {draft.useCase?.replace(/_/g, " ")}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</p>}
+                    <h3>Claims and their evidence</h3>
+                    <ul>
+                      {(draft.claims as { text: string; factIds: string[] }[]).map((c, i) => {
+                        const chk = Array.isArray(draft.claimCheck) ? (draft.claimCheck as { supported: boolean; reason: string }[])[i] : undefined;
+                        return (
+                          <li key={i}>
+                            <p>“{c.text}”</p>
+                            {chk && <Kb tone={chk.supported ? "success" : "danger"}>{chk.supported ? "Checked: the source says this" : "Not supported"}</Kb>}
+                            {c.factIds.map((id) => { const e = evById.get(id); return e ? <a key={id} href={e.sourceUrl} target="_blank" rel="noreferrer" className="dz-src"><ConfidenceTag status={e.status} /> {e.sourceType} · {date(e.publishedAt)} <ExternalLink size={10} /></a> : <span key={id} className="dz-over">Missing fact</span>; })}
                           </li>
-                        ))}
-                      </ul>
-                      <p className="muted mt-3 text-xs">Guardrail passed on attempt {draft.guardrailAttempts}{draft.claimCheck == null ? " · claim checker was unavailable, so read each claim against its source" : ""}. Edits must keep the unsubscribe line and sender address.</p>
-                    </div>
-                  </div>
-                )}
-
-                {r.type === "identity_conflict" && r.contact && (
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div className="flex flex-wrap gap-4 text-xs">
-                      {["email", "title", "company"].map((f) => {
-                        const st = r.contact!.fieldStates.find((x) => x.field === f);
-                        return <div key={f}><div className="micro mb-1">{f}</div><div className="flex items-center gap-1.5"><FieldBadge status={st?.status} /><span className="mono muted">{st?.value ?? "—"}</span></div></div>;
+                        );
                       })}
-                      {(r.payload as { providerEmployer?: string } | null)?.providerEmployer && <div><div className="micro mb-1">Provider says employer</div><span className="mono secondary">{(r.payload as { providerEmployer: string }).providerEmployer}</span></div>}
-                    </div>
-                    <div className="flex gap-2">
-                      <ActionButton action={resolveIdentityAction.bind(null, r.id, "drop")} className="btn btn-secondary btn-sm"><UserX size={14} /> Drop contact</ActionButton>
-                      <ActionButton action={resolveIdentityAction.bind(null, r.id, "confirm")} className="btn btn-primary btn-sm"><UserCheck size={14} /> Confirm identity</ActionButton>
-                    </div>
-                  </div>
-                )}
+                    </ul>
+                    <p className="dz-meta">Guardrail passed on attempt {draft.guardrailAttempts}{draft.claimCheck == null ? " · claim checker unavailable: read each claim against its source" : ""}.</p>
+                  </aside>
+                </div>
+              )}
 
-                {r.type === "needs_human_reply" && (r.payload as { body?: string } | null)?.body && (
-                  <blockquote className={cx("rounded-xl px-4 py-3 text-sm secondary")} style={{ background: "var(--surface-card-header)" }}>“{(r.payload as { body: string }).body}”</blockquote>
-                )}
-              </section>
-            );
-          })}
+              {r.type === "needs_human_reply" && (r.payload as { body?: string } | null)?.body && <blockquote className="dz-quote">“{(r.payload as { body: string }).body}”</blockquote>}
+
+              {!["possible_blocker", "identity_conflict", "draft_approval"].includes(r.type) && (
+                <div className="dz-actions">
+                  <DecideButton action={resolveReviewAction.bind(null, r.id, "resolved", undefined)} label={<><Check size={14} /> Resolve</>} done="Resolved" kind="primary" next={next} />
+                  <DecideButton action={resolveReviewAction.bind(null, r.id, "dismissed", undefined)} label="Dismiss" done="Dismissed" kind="ghost" next={next} />
+                </div>
+              )}
+            </section>
+          )}
         </div>
-        </>
       )}
     </div>
   );
