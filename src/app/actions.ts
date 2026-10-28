@@ -61,6 +61,17 @@ export async function reResearchAction(accountId?: string): Promise<ActionState>
   return { ok: n > 0, message: n ? `Re-researching ${n} compan${n === 1 ? "y" : "ies"} in the background; results appear in a few minutes` : "Company not found" };
 }
 
+/** Bulk: re-research the companies ticked in a list. */
+export async function reResearchSelectedAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string").slice(0, 200);
+  if (!ids.length) return { ok: false, message: "Tick at least one company" };
+  let n = 0;
+  for (const id of ids) if (await prepareReResearch(id)) n++;
+  if (n) await startBackgroundQueue();
+  refresh("/companies", "/accounts", "/");
+  return { ok: true, message: `Re-researching ${n} compan${n === 1 ? "y" : "ies"} in the background` };
+}
+
 export async function reResearchAllAction(): Promise<ActionState> {
   return reResearchAction();
 }
