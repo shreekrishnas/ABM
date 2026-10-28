@@ -1,59 +1,76 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Design tokens: the v2 blueprint (Evidence Desk review §6). Loaded last, so it
-   governs every page. Flat surfaces, one violet accent for primary actions, focus
-   and selected navigation; status colours always come with a text label.
-   Type: IBM Plex Sans / Plex Mono, 12px floor, three weights (400/500/600).
+   Design tokens: Design 2 (Design_2.md). Loaded last, so it governs every page.
+   Glass cards over an indigo/slate atmosphere; one violet accent for focus, links
+   and active states; primary buttons and the sidebar pill in indigo; opaque modals.
+   Type: Inter Variable (Plex Mono for code-like data), 12px floor, 400/500/600.
    Rule: components use these variables only; no hex colours or px font sizes
    outside this block (checked by scripts/check-tokens.mjs).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
   color-scheme: light;
-  /* Colour roles */
-  --canvas: #F6F6F9;
-  --surface: #FFFFFF;
-  --subtle: #F0F0F5;
-  --border: #E2E2EB;
-  --border-2: #CFCFDB;
-  --text: #17172A;
-  --text-2: #46465E;
-  --muted: #67677F;
-  --accent: #5B4CE0;
-  --accent-h: #4B3DCC;
-  --accent-subtle: #EFEDFF;
+  /* Colour roles (Design 2: slate text, one violet accent, indigo primary pill) */
+  --canvas: #EEF1F8;
+  --surface: #FFFFFF;                      /* opaque: header, inputs, menus, modals */
+  --glass: rgba(255, 255, 255, 0.65);      /* .glass-card */
+  --glass-hover: rgba(255, 255, 255, 0.82);
+  --glass-panel: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --subtle: #F4F5FA;
+  --border: #E4E7F0;
+  --border-2: #D2D6E4;
+  --text: #0F172A;
+  --text-2: #475569;
+  --muted: #64748B;
+  --accent: #7C3AED;
+  --accent-h: #6D28D9;
+  --accent-subtle: #F3EEFF;
   --on-accent: #FFFFFF;
-  --success: #1D7347; --success-bg: #E4F3EA;
-  --warning: #8F5500; --warning-bg: #FCEFD8;
-  --danger: #B02525;  --danger-bg: #FBE8E8;
-  --info: #1D5CA3;    --info-bg: #E6EFFA;
-  --neutral: #55556B; --neutral-bg: #ECECF2;
-  --skeleton: #E9E9F0;
+  --pill: #6366F1;                         /* primary buttons and the sidebar's active pill (deliberately indigo) */
+  --pill-h: #4F46E5;
+  --pill-subtle: #EEF0FF;
+  --success: #047857; --success-bg: #E7F6EF;
+  --warning: #B45309; --warning-bg: #FEF3E2;
+  --danger: #B91C1C;  --danger-bg: #FDECEC;
+  --info: #1D4ED8;    --info-bg: #E8EFFD;
+  --neutral: #475569; --neutral-bg: #EEF0F5;
+  --skeleton: #E5E8F1;
+  /* Atmosphere: one cool hue family (indigo/slate) */
+  --atm-1: #E0E7FF; --atm-2: #EDE9FE; --atm-3: #F1F5F9; --atm-4: #E0E7FF; --atm-5: #E2E8F0;
 
-  /* Type: 12px floor, three weights */
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type (Design 2: Inter Variable; Plex Mono for code-like data) */
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --fs-12: 12px;  /* labels, table headers, meta */
   --fs-13: 13px;  /* dense rows, controls */
   --fs-14: 14px;  /* body, descriptions */
   --fs-16: 16px;  /* section and card titles */
   --fs-20: 20px;  /* sub-page titles */
-  --fs-24: 24px;  /* page title (H1 24/32) */
-  --fs-28: 28px;  /* Stat values */
+  --fs-24: 24px;  /* page title */
+  --fs-28: 28px;  /* hero numbers */
   --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600;
 
   /* Space: 4px grid */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
-  /* Radius */
-  --r-sm: 8px;   /* controls, segments */
-  --r-md: 10px;  /* inputs, buttons, chips in groups */
-  --r-lg: 14px;  /* cards, panels */
+  /* Radius (Design 2 scale) */
+  --r-xs: 6px;   /* chips, inline code */
+  --r-sm: 8px;   /* segments, small controls */
+  --r-md: 12px;  /* inputs, buttons (= --radius) */
+  --r-lg: 20px;  /* glass cards and panels */
+  --r-3xl: 32px; /* modals */
   --r-full: 999px;
-  /* Elevation: flat by default; only overlays lift */
-  --shadow-card: 0 1px 0 rgba(20, 20, 40, 0.04);
-  --shadow-pop: 0 8px 24px rgba(20, 20, 40, 0.12);
-  --shadow-modal: 0 24px 64px rgba(20, 20, 40, 0.24);
+  --radius: 12px;
+  /* Shadow (Design 2 scale) */
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 32px 80px rgba(15, 23, 42, 0.18);
+  --scrim: rgba(15, 23, 42, 0.35);
+  --shadow-card: var(--shadow-md);
+  --shadow-pop: var(--shadow-lg);
+  --shadow-modal: var(--shadow-xl);
   /* Layers */
-  --z-dropdown: 40; --z-popover: 50; --z-modal: 100; --z-modal-nested: 110; --z-confirm: 130; --z-toast: 140;
+  --z-dropdown: 40; --z-popover: 50; --z-modal: 100; --z-modal-nested: 110; --z-lightbox: 120; --z-confirm: 130; --z-toast: 140;
   /* Layout */
   --gutter: var(--sp-8); --card-pad: var(--sp-4); --stack: var(--sp-4);
 
@@ -61,31 +78,33 @@
   --text-primary: var(--text); --text-secondary: var(--text-2); --text-muted: var(--muted);
   --surface-base: var(--canvas); --surface-card: var(--surface); --surface-card-elevated: var(--surface); --surface-card-header: var(--subtle); --surface-hover: var(--subtle); --surface-input: var(--surface);
   --border-subtle: var(--border); --border-default: var(--border-2); --border-input: var(--border-2);
-  --accent-primary: var(--accent); --pill-accent: var(--accent); --accent-indigo: var(--accent); --accent-section: var(--accent); --accent-primary-soft: var(--accent-subtle);
+  --accent-primary: var(--accent); --pill-accent: var(--pill); --accent-indigo: var(--pill); --accent-section: var(--accent); --accent-primary-soft: var(--accent-subtle);
   --accent-bg: var(--accent-subtle); --accent-border: var(--accent-subtle); --accent-strong: var(--accent-h);
-  --indigo: var(--accent); --indigo-strong: var(--accent-h); --indigo-bg: var(--accent-subtle); --indigo-border: var(--accent-subtle);
+  --indigo: var(--pill); --indigo-strong: var(--pill-h); --indigo-bg: var(--pill-subtle); --indigo-border: var(--pill-subtle);
   --danger-strong: var(--danger); --warning-strong: var(--warning); --success-strong: var(--success); --info-strong: var(--info);
   --status-success: var(--success); --status-warning: var(--warning); --status-danger: var(--danger); --status-info: var(--info);
   --font-body: var(--font-sans); --font-ui: var(--font-sans); --font-figure: var(--font-sans); --font-display: var(--font-sans); --font-geist-sans: var(--font-sans); --font-geist-mono: var(--font-mono); --font-poppins: var(--font-sans);
   --well: var(--subtle); --well-edge: inset 0 0 0 1px var(--border); --specular: none;
-  --l1-shadow: var(--shadow-card); --l2-shadow: var(--shadow-pop); --l3-shadow: var(--shadow-modal);
+  --l1-shadow: var(--shadow-sm); --l2-shadow: var(--shadow-lg); --l3-shadow: var(--shadow-xl);
   --line: var(--border); --ink: var(--text); --ground: var(--canvas); --panel: var(--surface);
   --teal: var(--accent); --teal-hover: var(--accent-h); --teal-soft: var(--accent-subtle);
-  --chart-1: var(--accent); --chart-2: var(--info); --chart-3: var(--warning); --chart-seq: var(--accent); --chart-area: var(--accent);
+  --chart-1: var(--pill); --chart-2: var(--info); --chart-3: var(--warning); --chart-seq: var(--pill); --chart-area: var(--accent);
   --fs-2xs: var(--fs-12); --fs-xs: var(--fs-12); --fs-sm: var(--fs-13); --fs-base: var(--fs-14); --fs-lg: var(--fs-16); --fs-xl: var(--fs-16); --fs-3xl: var(--fs-24); --fs-4xl: var(--fs-28);
-  --r-xs: var(--r-sm); --r-xl: var(--r-lg); --r-3xl: var(--r-lg);
-  --shadow-sm: var(--shadow-card); --shadow-md: var(--shadow-card); --shadow-lg: var(--shadow-pop); --shadow-xl: var(--shadow-modal);
+  --r-xl: var(--r-lg); --r-2xl: var(--r-lg);
 }
 
 [data-theme="dark"], :root[data-theme="dark"] {
   color-scheme: dark;
-  --canvas: #111119; --surface: #1A1A25; --subtle: #232331; --border: #30303F; --border-2: #3D3D50;
-  --text: #ECECF4; --text-2: #B9B9CC; --muted: #9A9AB0;
-  --accent: #8F84FF; --accent-h: #A399FF; --accent-subtle: #2A2650; --on-accent: #120F2E;
-  --success: #5FCF93; --success-bg: #173326; --warning: #F0B65A; --warning-bg: #3A2A12;
-  --danger: #FF8B8B; --danger-bg: #3D1B1B; --info: #7FB3FF; --info-bg: #162A44;
-  --neutral: #A0A0B8; --neutral-bg: #2A2A38; --skeleton: #262634;
-  --shadow-card: none; --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5); --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --canvas: #0B1020; --surface: #121931; --subtle: #1A2340; --border: #263055; --border-2: #33406B;
+  --glass: rgba(18, 25, 49, 0.62); --glass-hover: rgba(24, 33, 64, 0.8); --glass-panel: rgba(11, 16, 32, 0.5); --glass-border: rgba(148, 163, 184, 0.14);
+  --text: #E2E8F0; --text-2: #CBD5E1; --muted: #94A3B8;
+  --accent: #A78BFA; --accent-h: #C4B5FD; --accent-subtle: #2A1F55; --on-accent: #FFFFFF;
+  --pill: #6366F1; --pill-h: #818CF8; --pill-subtle: #232A5C;
+  --success: #6EE7B7; --success-bg: #0F2E25; --warning: #FCD34D; --warning-bg: #33260C;
+  --danger: #FCA5A5; --danger-bg: #3A1717; --info: #93C5FD; --info-bg: #13254A;
+  --neutral: #CBD5E1; --neutral-bg: #1E2846; --skeleton: #1C2544;
+  --atm-1: #1E1B4B; --atm-2: #2E1065; --atm-3: #0F172A; --atm-4: #172554; --atm-5: #0B1020;
+  --shadow-sm: none; --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35); --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5); --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.6);
 }
 @media (max-width: 1100px) { :root { --gutter: var(--sp-6); } }
 @media (max-width: 640px) { :root { --gutter: var(--sp-4); --card-pad: var(--sp-3); --stack: var(--sp-3); } }
@@ -738,3 +757,62 @@ a.k-dc-title:hover { color: var(--accent); }
 }
 .tabs { flex-wrap: nowrap !important; }
 .td3-tabs .tab { flex-shrink: 0; }
+
+/* ════ Design 2 surfaces (Design_2.md) — applies to every page, old and new ════ */
+
+/* Atmosphere: fixed, full bleed, one cool hue family, blurred. */
+.atmosphere {
+  display: block !important; position: fixed; inset: 0; z-index: -1; filter: blur(80px); pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 15%, var(--atm-1) 0%, transparent 42%),
+    radial-gradient(circle at 85% 10%, var(--atm-2) 0%, transparent 40%),
+    radial-gradient(circle at 50% 55%, var(--atm-3) 0%, transparent 100%),
+    radial-gradient(circle at 10% 85%, var(--atm-4) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, var(--atm-5) 0%, transparent 42%) !important;
+}
+html, body { background: var(--canvas) !important; }
+
+/* Shell: the glass panel the app lives in. */
+.sh, .glass-panel { background: var(--glass-panel) !important; backdrop-filter: blur(40px) saturate(160%) !important; -webkit-backdrop-filter: blur(40px) saturate(160%) !important; }
+.sh-rail { background: var(--glass) !important; backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important; border-right: 1px solid var(--glass-border) !important; }
+/* The header stays opaque (content must never show through it), on the surface colour. */
+.sh .nav { background: var(--surface) !important; }
+
+/* Glass cards: every card-like surface, old and new. */
+.glass-card, .glass-card-static, .sh .glass-card, .sh .glass-card-static, .ch, .dir-filters, .dir-table-wrap, .cc-panel, .cc-k, .hm-k, .layer-card, .viz-drill, .td-grid > *,
+.k-stat, .k-table, .hm2-card, .hm2-q, .hm2-ctx, .hm-activity, .td3-queue, .td3-opps, .rt-card, .up-main, .up-more, .lk-start section, .stat-strip, .kpi, .br-card, .dz-list, .dz-pane, .k-empty-card {
+  background: var(--glass) !important; backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  border: 1px solid var(--glass-border) !important; border-radius: var(--r-lg) !important; box-shadow: var(--shadow-md) !important;
+}
+/* Clickable cards lift 2px and brighten; static ones don't. */
+.glass-card:hover, a.cc-k:hover, a.hm-k:hover, a.layer-card:hover, a.hm2-q:hover, a.k-stat:hover { background: var(--glass-hover) !important; transform: translateY(-2px) !important; transition: transform 160ms, background 160ms; }
+.hm2-q.due { background: var(--warning-bg) !important; border-color: var(--warning) !important; }
+.hm2-c:hover { background: var(--glass-hover); }
+.rec-blocker { border-radius: var(--r-md); }
+.ev { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
+
+/* Modals, menus and popovers: fully opaque (a translucent modal over a busy page reads as ghosted text). */
+.glass-modal { background: var(--surface) !important; backdrop-filter: none !important; border-radius: var(--r-3xl) !important; box-shadow: var(--shadow-xl) !important; border: 1px solid var(--border) !important; }
+.sh-menu, .sh-sheet, .palette, .k-drawer { background: var(--surface) !important; box-shadow: var(--shadow-lg) !important; }
+.overlay, .palette-backdrop { background: var(--scrim) !important; backdrop-filter: blur(6px) !important; }
+
+/* Buttons: primary is solid indigo; secondary is translucent white, bordered. */
+.btn { border-radius: var(--r-md) !important; }
+.btn-primary, .btn-brand { background: var(--pill) !important; color: var(--on-accent) !important; box-shadow: var(--shadow-sm) !important; }
+.btn-primary:hover, .btn-brand:hover { background: var(--pill-h) !important; }
+.btn-secondary { background: var(--glass-hover) !important; border: 1px solid var(--border-2) !important; color: var(--text) !important; }
+.btn-secondary:hover { background: var(--surface) !important; }
+.btn:disabled, .btn[aria-disabled="true"] { background: var(--subtle) !important; color: var(--muted) !important; border-color: var(--border) !important; box-shadow: none !important; }
+
+/* Sidebar active pill: indigo, on purpose (not the violet accent). */
+.sh-item.on, .sh-rail .sh-item.on { color: var(--pill) !important; background: var(--pill-subtle) !important; }
+
+/* Inputs: opaque, rounded to the shared radius. */
+.glass-input, .glass-select, .glass-textarea, .dir-search, .hs-search, .nav-search { border-radius: var(--r-md) !important; background: var(--surface) !important; }
+
+/* Chips and badges use the small radius; pills stay round. */
+.k-badge, .badge { border-radius: var(--r-full); }
+.rec-chips span, .rd-tag { border-radius: var(--r-xs); }
+.segmented, .k-seg { background: var(--glass) !important; border-color: var(--glass-border) !important; }
+.tabs, .sh .tabs { border-bottom-color: var(--border) !important; }
+.rec-tabs { background: transparent; backdrop-filter: none; }
