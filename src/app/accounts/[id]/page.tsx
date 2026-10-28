@@ -11,11 +11,11 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
 import { addNoteAction, correctFactAction, flagFactAction, manualHandoffAction, reResearchAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
-import { FamilyChip, IntentPill, NextAction, StatStrip, type IntentLevel } from "@/components/v2";
+import { FamilyChip, NextAction, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
 import { Crumbs } from "@/components/shell/Crumbs";
-import { PipelineStepper, accountStep } from "@/components/peek/stepper";
+import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
 import { AddTaskButton } from "@/components/shell/QuickTask";
@@ -23,29 +23,6 @@ import { BuyingGroupPlan } from "./buying-group";
 import { TimelineCard } from "./timeline-card";
 import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
-
-const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
-function brandColor(id: string) {
-  let h = 0;
-  for (const c of id) h = c.charCodeAt(0) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-
-/** Priority 0–100 as a ring: purple→indigo arc on a soft track, the number in Fraunces. */
-function PriorityRing({ score }: { score: number | null }) {
-  const r = 46, c = 2 * Math.PI * r, v = score ?? 0;
-  return (
-    <div className="co-ring-svg">
-      <svg viewBox="0 0 108 108" width="108" height="108" aria-hidden>
-        <defs><linearGradient id="co-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7C3AED" /><stop offset="1" stopColor="#4F46E5" /></linearGradient></defs>
-        <circle cx="54" cy="54" r={r} fill="none" stroke="var(--accent-primary-soft, rgba(124,58,237,0.1))" strokeWidth="9" />
-        {v > 0 && <circle cx="54" cy="54" r={r} fill="none" stroke="url(#co-ring)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${(c * v) / 100} ${c}`} transform="rotate(-90 54 54)" />}
-      </svg>
-      <span className="co-ring-n tnum">{score ?? "—"}</span>
-      <span className="co-ring-l">Priority</span>
-    </div>
-  );
-}
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await ensureSellerPacks();
@@ -98,72 +75,54 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     <div className="page-enter">
       <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: a.name, href: tab !== "overview" ? `/accounts/${a.id}` : undefined }, ...(tab !== "overview" ? [{ label: TAB_LABEL[tab] ?? tab }] : [])]} />
 
-      <section className="co-hero" style={{ ["--co" as string]: brandColor(a.id) }}>
-        <div className="co-top">
-          <div className="co-id">
-            <Avatar name={a.name} id={a.id} size={64} />
-            <div className="min-w-0">
-              <div className="co-kicker">{[a.industry ?? "Industry unknown", [a.city, a.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</div>
-              <h1 className="co-name">{a.name}</h1>
-              <div className="co-badges">
-                <StageBadge stage={a.stage} />
-                <TierBadge tier={a.tier} />
-                {a.relationship !== "prospect" && <Badge color="#475569">{a.relationship}</Badge>}
-                {a.domain && <a href={`https://${a.domain}`} target="_blank" rel="noreferrer" className="co-link">{a.domain}<ExternalLink size={11} /></a>}
-                {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer" className="co-link">LinkedIn<ExternalLink size={11} /></a>}
-              </div>
+      <section className="ch">
+        <div className="ch-top">
+          <Avatar name={a.name} id={a.id} size={44} />
+          <div className="ch-id">
+            <div className="ch-name-row">
+              <h1 className="ch-name">{a.name}</h1>
+              <StageBadge stage={a.stage} />
+              <TierBadge tier={a.tier} />
+              {a.relationship !== "prospect" && <Badge color="#475569">{a.relationship}</Badge>}
+            </div>
+            <div className="ch-meta">
+              {[a.industry ?? "Industry unknown", [a.city, a.country].filter(Boolean).join(", "), a.employees ? `${a.employees.toLocaleString()} employees` : null, `Owner ${a.owner?.name ?? "unassigned"}`].filter(Boolean).map((x) => <span key={x}>{x}</span>)}
+              {a.domain && <a href={`https://${a.domain}`} target="_blank" rel="noreferrer">{a.domain}<ExternalLink size={11} /></a>}
+              {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer">LinkedIn<ExternalLink size={11} /></a>}
             </div>
           </div>
-          <div className="co-actions">
-            <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-brand" title="Continue from the next stage"><Play size={15} /> Run pipeline</ActionButton>
-            <ActionButton action={reResearchAction.bind(null, a.id)} className="btn btn-secondary" title="Research again from scratch under the current rules, in the background"><RotateCcw size={15} /> Re-research</ActionButton>
-            <ActionButton action={manualHandoffAction.bind(null, a.id)} className="btn btn-secondary" confirm="Hand this account to its owner now? Automated outreach will pause."><Handshake size={15} /> Hand off</ActionButton>
-            <AddTaskButton target={{ accountId: a.id, label: a.name }} className="btn btn-secondary" />
+          <div className="ch-actions">
+            <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-brand btn-sm" title="Continue from the next stage"><Play size={14} /> Run pipeline</ActionButton>
+            <ActionButton action={reResearchAction.bind(null, a.id)} className="btn btn-secondary btn-sm" title="Research again from scratch under the current rules, in the background"><RotateCcw size={14} /> Re-research</ActionButton>
+            <ActionButton action={manualHandoffAction.bind(null, a.id)} className="btn btn-secondary btn-sm" confirm="Hand this account to its owner now? Automated outreach will pause."><Handshake size={14} /> Hand off</ActionButton>
+            <AddTaskButton target={{ accountId: a.id, label: a.name }} className="btn btn-secondary btn-sm" />
           </div>
         </div>
 
-        <div className="co-body">
-          <div className="co-ring" title="Priority: intent, fit, value and timing">
-            <PriorityRing score={a.priorityScore} />
-            {(() => { const pp = a.priorityParts as { intent: number; fit: number; value: number; timing: number } | null; return pp ? (
-              <ul className="co-parts">
-                {([["Intent", pp.intent, "#F43F5E"], ["Fit", pp.fit, "#6366F1"], ["Value", pp.value, "#10B981"], ["Timing", pp.timing, "#F59E0B"]] as const).map(([l, v, c]) => (
-                  <li key={l}><span>{l}</span><span className="co-part-bar"><i style={{ width: `${v}%`, background: c }} /></span><b className="tnum">{v}</b></li>
-                ))}
-              </ul>
-            ) : <p className="co-muted">Scored after research · fit {a.fitScore ?? "—"}</p>; })()}
-          </div>
+        <HeaderSignals
+          account={a}
+          brief={brief}
+          intent={reading ? { score: reading.score, level: reading.level } : null}
+          progress={{ step: FLOW_STEPS.indexOf(accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })), steps: [...FLOW_STEPS], stopped: a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null }}
+        />
 
-          <div className="co-intent">
-            <div className="co-label">Buying intent</div>
-            {reading ? (
-              <>
-                <div className="co-intent-row"><IntentPill level={reading.level} score={reading.score} title={reading.explain} />{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</div>
-                <WhyNow brief={brief} fallback={reading.whyNow} />
-              </>
-            ) : <p className="co-muted">No buying signals read yet.</p>}
-            {brief?.nextBestAction && <div className="mt-3"><NextAction text={brief.nextBestAction} why={brief.verdictWhy} /></div>}
+        <div className="ch-body">
+          <div className="ch-why">
+            <div className="ch-sec">
+              <span className="ch-l">Why now</span>
+              {reading && <span className="ch-chips">{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</span>}
+            </div>
+            {reading ? <WhyNow brief={brief} fallback={reading.whyNow} /> : <p className="co-muted">No buying signals read yet.</p>}
+          </div>
+          <div className="ch-side">
+            {brief?.nextBestAction && <NextAction text={brief.nextBestAction} why={brief.verdictWhy} />}
             {a.disqualifyReason && <div className="co-warn"><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
-            {a.watchlist[0] && <div className="co-muted mt-2">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
+            {a.watchlist[0] && <div className="co-muted">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
+            {a.technologies.length > 0 && <div className="ch-kv"><span className="ch-l">Stack</span><span>{a.technologies.join(", ")}</span></div>}
+            {a.keywords.length > 0 && <div className="ch-tags">{a.keywords.slice(0, 10).map((k) => <span key={k}>{k}</span>)}</div>}
+            {a.companyNotes && <p className="co-muted">{a.companyNotes}</p>}
           </div>
-
-          <dl className="co-facts">
-            <div><dt>Employees</dt><dd className="tnum">{a.employees ? a.employees.toLocaleString() : "—"}</dd></div>
-            <div><dt>Owner</dt><dd>{a.owner?.name ?? "Unassigned"}</dd></div>
-            <div><dt>Progress</dt><dd>{stageName}<small>{PIPELINE_STATUS_LABEL[a.pipelineStatus] ?? a.pipelineStatus}</small></dd></div>
-            {a.technologies.length > 0 && <div className="wide"><dt>Stack</dt><dd>{a.technologies.join(", ")}</dd></div>}
-          </dl>
         </div>
-
-        <HeaderSignals account={a} brief={brief} intent={reading ? { score: reading.score, level: reading.level } : null} />
-
-        {(a.keywords.length > 0 || a.companyNotes) && (
-          <div className="co-foot">
-            {a.keywords.slice(0, 14).map((k) => <span key={k} className="co-tag">{k}</span>)}
-            {a.companyNotes && <p className="co-muted w-full">{a.companyNotes}</p>}
-          </div>
-        )}
-        <div className="co-stepper"><PipelineStepper current={accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })} stopped={a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null} /></div>
       </section>
 
       <TabLinks
