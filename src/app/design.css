@@ -189,3 +189,26 @@ table.data td, .dir-table td { font-size: var(--fs-sm); }
 .app-main, .sh-body { overflow-x: hidden; }
 .dir-table-wrap, .data-wrap, .viz-scroll, .table-scroll { overflow-x: auto; }
 .app-main-bleed { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); }
+
+/* ── Buying group: one row per function, people as chips ── */
+.bg-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.bg-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-2xs); color: var(--text-muted); }
+.bg-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.bg-legend i { width: 7px; height: 7px; border-radius: 50%; }
+.bg-rows { display: flex; flex-direction: column; border-top: 1px solid var(--border-subtle); }
+.bg-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--sp-3); align-items: center; padding: var(--sp-2) 0; border-bottom: 1px solid var(--border-subtle); }
+.bg-fn { font-size: var(--fs-xs); font-weight: 600; color: var(--text-secondary); }
+.bg-fn small { margin-left: 6px; font-weight: 500; color: var(--text-muted); }
+.bg-people { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bg-p { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; max-width: 260px; padding: 6px 10px 6px 6px; border-radius: var(--r-lg); background: var(--surface-card); border: 1px solid var(--border-subtle); transition: border-color 150ms, opacity 150ms; }
+.bg-p:hover { border-color: var(--accent-border); }
+.bg-p.dim { opacity: 0.35; }
+.bg-av { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-size: 10px; font-weight: 700; color: var(--text-primary); background: var(--surface-hover); border: 2px solid var(--surface-card); }
+.bg-txt { display: flex; flex-direction: column; min-width: 0; }
+.bg-txt b { font-size: var(--fs-xs); font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bg-txt small { font-size: var(--fs-2xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bg-int { display: block; width: 64px; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--surface-hover); overflow: hidden; }
+.bg-int i { display: block; height: 100%; background: var(--accent-primary); }
+.bg-role { flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: var(--r-full); color: var(--accent-strong); background: var(--accent-bg); }
+.bg-gap { font-size: var(--fs-xs); padding: 6px 10px; border-radius: var(--r-lg); border: 1px dashed var(--border-default); color: var(--text-muted); }
+@media (max-width: 640px) { .bg-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }

@@ -24,7 +24,7 @@ export async function NetworkCard({ accountId, company }: { accountId: string; c
   const eligible = CONFIG.readiness.eligibleRoles as readonly string[];
   const missing = roleCoverage(statuses.get(accountId) ?? []).filter((r) => eligible.includes(r.key) && r.status === "missing").map((r) => ROLES.find((x) => x.key === r.key)!.label);
   return (
-    <Card title="Buying-group network" sub="Who we know, by function. Line weight = interactions with that person; ring = where they are in outreach. Only known relationships are drawn." className="mb-5">
+    <Card title="Buying-group network" sub="Who we know, by function. Ring = where they are in outreach; bar = how much we have interacted." className="mb-5">
       <BuyingNetwork company={company} people={people} missing={missing} />
     </Card>
   );
