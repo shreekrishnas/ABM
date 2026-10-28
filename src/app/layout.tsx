@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller, resolveScope } from "@/lib/scope";
-import "@fontsource-variable/inter";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "./globals.css";

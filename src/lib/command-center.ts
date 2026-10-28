@@ -2,6 +2,7 @@
 // plain definition, and links to the records behind it. Nothing is estimated.
 
 import { db } from "@/lib/db";
+import { metric, type MetricKey } from "@/lib/metrics";
 
 const live = { mergedIntoId: null };
 const engagedContact = { OR: [{ state: { in: ["replied", "handed_off"] as ("replied" | "handed_off")[] } }, { signals: { some: { attributed: true } } }, { journeys: { some: { stage: { in: ["replied_neutral", "details_requested", "details_shared", "interested", "call_scheduled", "demo_scheduled", "opportunity", "closed_won"] as never[] } } } }] };
@@ -69,24 +70,16 @@ export async function commandCenter(now = new Date()) {
   const atRisk = atRiskPaused.length + atRiskError.length;
   const overdue = overdueTasks.length + overdueHandoffs.length;
   const kpis: Kpi[] = [
-    { key: "qualified", label: "Qualified companies", value: qualified, note: imported ? `${Math.round((qualified / imported) * 100)}% of ${imported} imported` : "Nothing imported yet", href: "/accounts", tone: "", define: "Passed the targeting rule and fit check, not ruled out" },
-    { key: "engaged", label: "Engaged buying groups", value: engagedAll, note: contactedAll ? `of ${contactedAll} contacted` : "No outreach yet", href: "/accounts/coverage", tone: engagedAll ? "up" : "", define: "At least one person replied, engaged after our email, or is in a logged LinkedIn conversation" },
-    { key: "opps", label: "Open opportunities", value: openOpps, note: oppValue._sum.amountUsd ? `$${oppValue._sum.amountUsd.toLocaleString()} entered` : "No value entered", href: "/crm/opportunities", tone: "", define: "Opportunities not yet won or lost. Value only where a person entered it" },
-    { key: "risk", label: "At risk", value: atRisk, note: atRisk ? `${atRiskPaused.length} paused · ${atRiskError.length} stuck` : "Nothing stuck", href: "#attention", tone: atRisk ? "risk" : "", define: "Companies with outreach paused (objection, not now) or research stopped on an error that retries didn't fix" },
-    { key: "approve", label: "Waiting for approval", value: toApprove, note: refresh.some((r) => r.type === "draft_refresh") ? `${refresh.filter((r) => r.type === "draft_refresh").length} need a fresh version` : toApprove ? "Drafts checked, waiting for you" : "Nothing waiting", href: "/review", tone: toApprove ? "warn" : "", define: "Drafts that passed every check and wait for a person" },
-    { key: "overdue", label: "Overdue", value: overdue, note: overdue ? `${overdueTasks.length} task${overdueTasks.length === 1 ? "" : "s"} · ${overdueHandoffs.length} hand-off${overdueHandoffs.length === 1 ? "" : "s"}` : "All on time", href: "/crm/tasks", tone: overdue ? "risk" : "", define: "Open tasks past their due date, and hand-offs past the response time" },
+    { key: "qualified", label: metric("qualified").label, value: qualified, note: imported ? `${Math.round((qualified / imported) * 100)}% of ${imported} imported` : "Nothing imported yet", href: metric("qualified").href ?? "", tone: "", define: metric("qualified").define },
+    { key: "engaged", label: metric("engaged_groups").label, value: engagedAll, note: contactedAll ? `of ${contactedAll} contacted` : "No outreach yet", href: metric("engaged_groups").href ?? "", tone: engagedAll ? "up" : "", define: metric("engaged_groups").define },
+    { key: "opps", label: metric("open_opps").label, value: openOpps, note: oppValue._sum.amountUsd ? `$${oppValue._sum.amountUsd.toLocaleString()} entered` : "No value entered", href: metric("open_opps").href ?? "", tone: "", define: metric("open_opps").define },
+    { key: "risk", label: metric("at_risk").label, value: atRisk, note: atRisk ? `${atRiskPaused.length} paused · ${atRiskError.length} stuck` : "Nothing stuck", href: metric("at_risk").href ?? "", tone: atRisk ? "risk" : "", define: metric("at_risk").define },
+    { key: "approve", label: metric("emails_to_approve").label, value: toApprove, note: refresh.some((r) => r.type === "draft_refresh") ? `${refresh.filter((r) => r.type === "draft_refresh").length} need a fresh version` : toApprove ? "Drafts checked, waiting for you" : "Nothing waiting", href: metric("emails_to_approve").href ?? "", tone: toApprove ? "warn" : "", define: metric("emails_to_approve").define },
+    { key: "overdue", label: metric("overdue").label, value: overdue, note: overdue ? `${overdueTasks.length} task${overdueTasks.length === 1 ? "" : "s"} · ${overdueHandoffs.length} hand-off${overdueHandoffs.length === 1 ? "" : "s"}` : "All on time", href: metric("overdue").href ?? "", tone: overdue ? "risk" : "", define: metric("overdue").define },
   ];
 
-  const funnel: FunnelStep[] = [
-    { key: "imported", label: "Imported", value: imported, href: "/accounts", define: "Every company in the workspace" },
-    { key: "qualified", label: "Qualified", value: qualified, href: "/accounts", define: "Passed targeting and fit" },
-    { key: "researched", label: "Researched", value: researched, href: "/accounts", define: "Has a sourced research brief" },
-    { key: "contactable", label: "Contactable", value: contactable, href: "/accounts/coverage", define: "At least one person passed readiness (verified, lawful, not suppressed)" },
-    { key: "contacted", label: "Contacted", value: contacted, href: "/outreach", define: "An email was delivered, or a LinkedIn step was logged" },
-    { key: "engaged", label: "Engaged", value: engaged, href: "/accounts/coverage", define: "A person replied or engaged (LinkedIn: only what was logged)" },
-    { key: "handoff", label: "Handed to sales", value: handedOff, href: "/handoffs", define: "A hand-off was created" },
-    { key: "opportunity", label: "Opportunity", value: opportunity, href: "/crm/opportunities", define: "An opportunity record exists" },
-  ];
+  const flowKeys: [string, number, MetricKey][] = [["imported", imported, "flow_imported"], ["qualified", qualified, "flow_qualified"], ["researched", researched, "flow_researched"], ["contactable", contactable, "flow_contactable"], ["contacted", contacted, "flow_contacted"], ["engaged", engaged, "flow_engaged"], ["handoff", handedOff, "flow_handoff"], ["opportunity", opportunity, "flow_opportunity"]];
+  const funnel: FunnelStep[] = flowKeys.map(([key, value, mk]) => ({ key, label: metric(mk).label, value, href: metric(mk).href ?? "", define: metric(mk).define }));
 
   const attention: Attention[] = [
     ...overdueHandoffs.map((h): Attention => ({ kind: "Hand-off overdue", title: h.account.name, detail: "Sales hasn't responded within the agreed time", href: "/handoffs", at: h.ackDueAt ?? now, tone: "risk" })),

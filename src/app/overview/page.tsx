@@ -1,3 +1,4 @@
+import { SPEND_KINDS, metric } from "@/lib/metrics";
 import Link from "next/link";
 import { ArrowRight, Building2 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -23,7 +24,7 @@ export default async function ProgramOverview() {
     db.opportunity.aggregate({ where: { stage: { notIn: ["won", "lost"] }, source: "abm" }, _sum: { amountUsd: true }, _count: true }),
     db.opportunity.aggregate({ where: { stage: "won" }, _sum: { amountUsd: true }, _count: true }),
     db.reviewItem.count({ where: { status: "open" } }),
-    db.ledgerEntry.aggregate({ _sum: { amountMicros: true } }),
+    db.ledgerEntry.aggregate({ where: { kind: { in: [...SPEND_KINDS] } }, _sum: { amountMicros: true } }),
     db.signal.findMany({ where: { occurredAt: { gte: since30 } }, select: { occurredAt: true, points: true } }),
     db.pipelineEvent.groupBy({ by: ["stage"], where: { outcome: "block" }, _count: true }),
     db.account.findMany({ where: { mergedIntoId: null, stage: { in: ["AWARE", "ENGAGED", "MQA", "OPPORTUNITY"] } }, orderBy: { engagementScore: "desc" }, take: 6, include: { owner: true } }),
@@ -66,7 +67,7 @@ export default async function ProgramOverview() {
         { label: "Pipeline influenced", value: money(openOpps._sum.amountUsd ?? 0), meta: `${openOpps._count} open · ${money(wonOpps._sum.amountUsd ?? 0)} won` },
         { label: "Reply rate", value: `${replyRate}%`, meta: `${positive} positive of ${replies} replies` },
         { label: "Needs a person", value: reviews, meta: <Link href="/review" className="hover:underline">Open approvals →</Link> },
-        { label: "Spend to date", value: `$${spendUsd.toFixed(2)}`, meta: `$${target ? (spendUsd / Math.max(1, target)).toFixed(2) : "0.00"} per target company` },
+        { label: metric("spend_total").label, value: `$${spendUsd.toFixed(2)}`, meta: `$${target ? (spendUsd / Math.max(1, target)).toFixed(2) : "0.00"} per target company` },
       ]} />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
