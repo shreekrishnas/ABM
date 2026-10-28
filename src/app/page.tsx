@@ -114,16 +114,39 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </section>
 
-        <section className="hm2-grid">
-          <div className="hm2-card">
-            <div className="hm2-head">
-              <h2>Company flow</h2>
-              <span className="hm2-meta">Companies reaching each step · % from the step before</span>
-            </div>
-            <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
-            <p className="hm2-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
-          </div>
+        <section className="hm2-card hm2-flow">
+          <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
+        </section>
 
+
+        <div className="hm2-grid">
+          <section className="hm-activity" aria-label="Recent activity">
+            <div className="hm-sec-head">
+              <h2>Recent activity</h2>
+              <div className="flex items-center gap-4"><RangeToggle /><Link href="/accounts" className="hm-sec-link">View all</Link></div>
+            </div>
+            {recent.length === 0 ? (
+              <p className="hm-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. <Link href="/import">Import companies</Link> to get started.</p>
+            ) : (
+              <table className="hm-table">
+                <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
+                <tbody>
+                  {recent.map((a, i) => {
+                    const s = statusOf(a);
+                    return (
+                      <tr key={a.id}>
+                        <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
+                        <td data-l="Last event" title={lastEvents[i]?.reason ?? undefined}>{eventText(lastEvents[i])}</td>
+                        <td data-l="Status"><span className={`hm-status ${STATUS_TONE[s]}`}><i />{s}</span></td>
+                        <td data-l="Owner" className="hm-dim">{a.owner?.name ?? "Unassigned"}</td>
+                        <td data-l="Updated" className="hm-dim r tnum">{ago(a.updatedAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
           <div className="hm2-card" id="attention">
             <div className="hm2-head">
               <h2>Needs attention</h2>
@@ -146,35 +169,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
               </ul>
             )}
           </div>
-        </section>
-
-        <section className="hm-activity" aria-label="Recent activity">
-          <div className="hm-sec-head">
-            <h2>Recent activity</h2>
-            <div className="flex items-center gap-4"><RangeToggle /><Link href="/accounts" className="hm-sec-link">View all</Link></div>
-          </div>
-          {recent.length === 0 ? (
-            <p className="hm-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. <Link href="/import">Import companies</Link> to get started.</p>
-          ) : (
-            <table className="hm-table">
-              <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
-              <tbody>
-                {recent.map((a, i) => {
-                  const s = statusOf(a);
-                  return (
-                    <tr key={a.id}>
-                      <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
-                      <td data-l="Last event" title={lastEvents[i]?.reason ?? undefined}>{eventText(lastEvents[i])}</td>
-                      <td data-l="Status"><span className={`hm-status ${STATUS_TONE[s]}`}><i />{s}</span></td>
-                      <td data-l="Owner" className="hm-dim">{a.owner?.name ?? "Unassigned"}</td>
-                      <td data-l="Updated" className="hm-dim r tnum">{ago(a.updatedAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </section>
+        </div>
 
         {companies < 10 && (
           <section className="hm2-card hm2-onboard" aria-label="Import">
