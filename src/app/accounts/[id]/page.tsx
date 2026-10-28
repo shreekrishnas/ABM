@@ -14,9 +14,10 @@ import { latestBrief } from "@/lib/brain/strategist";
 import { FamilyChip, NextAction, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
+import { ResearchTrace } from "./research-trace";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
-const TAB_LABEL: Record<string, string> = { intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
+const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { BuyingGroupPlan } from "./buying-group";
@@ -130,6 +131,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         active={tab}
         tabs={[
           { id: "overview", label: "Evidence twin" },
+          { id: "research", label: "Research trace" },
           { id: "intake", label: "Data → research" },
           { id: "people", label: "Buying group", count: a.contacts.length },
           { id: "outreach", label: "Drafts", count: drafts.length },
@@ -275,6 +277,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {tab === "research" && <ResearchTrace accountId={a.id} />}
       {tab === "intake" && <IntakeTab account={a} />}
 
       {tab === "people" && <NetworkCard accountId={a.id} company={a.name} />}

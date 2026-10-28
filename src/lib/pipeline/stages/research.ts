@@ -8,7 +8,15 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
 import { queryFor } from "@/lib/adapters/live/research";
-import { entityGate, evidenceGate, quoteGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
+import { claimFidelity, companyMarks, entityGate, evidenceGate, passageAround, quoteGate, factStatus, findContradictions, isStale, reportFingerprint, resolveContradiction, type FreshnessKind } from "../gates";
+
+const hostname = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+};
 import { dataConfidence } from "../scoring";
 import { BudgetExceeded, charge, ensureBudget, logEvent, openReview, recordCost, StopRun, type RunContext } from "../context";
 import { sha256 } from "../crypto";
@@ -16,6 +24,7 @@ import { seller } from "@/lib/seller";
 import { directResearch, type DirectedQuestion } from "@/lib/brain/plan";
 import { buildBrief } from "@/lib/brain/strategist";
 import { importContext, researchDepth } from "@/lib/research/intake";
+import { investigateAccount } from "@/lib/brain/investigate";
 
 /** A research question, as directed by the brain (query and engine are optional). */
 export type PlannedQuestion = DirectedQuestion;
@@ -119,7 +128,9 @@ async function searchOnce(account: Account, ctx: RunContext, q: PlannedQuestion,
   let pages: ResearchPage[] = [];
   let failure: unknown = null;
   try {
-    pages = await ctx.adapters.research.search(account.domain ?? "", account.name, q.key, pass, { query: q.query, engine: q.engine, onAttempt: (a) => attempts.push(a) });
+    // Absence of bad news must be checked on every engine; so must disconfirming questions.
+    const breadth = q.breadth ?? (q.key === "negative" ? "all" : "first");
+    pages = await ctx.adapters.research.search(account.domain ?? "", account.name, q.key, pass, { query: q.query, engine: q.engine, breadth, onAttempt: (a) => attempts.push(a) });
   } catch (e) {
     failure = e;
   }
@@ -141,6 +152,18 @@ async function searchOnce(account: Account, ctx: RunContext, q: PlannedQuestion,
   }
   if (failure) throw failure;
   return { pages, queryIds };
+}
+
+/**
+ * One investigation question: searched (cached, charged), extracted and gated like any other.
+ * Returns how many pages were found and the ids of the facts kept.
+ */
+export async function askQuestion(account: Account, ctx: RunContext, q: { key: string; question: string; query: string; why: string; breadth: "first" | "all"; pass: "investigate" | "repair" }): Promise<{ found: number; kept: string[] }> {
+  const before = new Set((await db.evidence.findMany({ where: { accountId: account.id }, select: { id: true } })).map((e) => e.id));
+  await researchKeys(account, ctx, [{ key: q.key, question: q.question, importance: "medium", query: q.query, why: q.why, breadth: q.breadth }], q.pass);
+  const kept = (await db.evidence.findMany({ where: { accountId: account.id, flagged: false }, select: { id: true } })).map((e) => e.id).filter((id) => !before.has(id));
+  const last = await db.researchQuery.findFirst({ where: { accountId: account.id, key: q.key }, orderBy: { createdAt: "desc" }, select: { results: true } });
+  return { found: last?.results ?? 0, kept };
 }
 
 /** One gap-fill search (stage 2b), cached and charged like any other research question. */
@@ -167,13 +190,17 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
     // Facts we already hold, so the brain can tell "a second source for the same event"
     // from "a new event" — that is what turns a probable fact into a verified one.
     const held = (await liveEvidence(account.id)).filter((e) => e.key === q.key && !e.isNegative).slice(0, 8);
-    const extracted = await ctx.adapters.llm.extractEvidence(pages, q.key, held.map((e) => ({ id: e.id, claim: e.claim })));
+    const extracted = await ctx.adapters.llm.extractEvidence(pages, q.key, held.map((e) => ({ id: e.id, claim: e.claim })), { company: account.name, domain: account.domain, question: q.why ?? q.question });
     let kept = 0;
+    const marks = companyMarks(account.name, account.domain);
     for (const e of extracted) {
       const page = pages.find((p) => p.url === e.sourceUrl);
       const gq = quoteGate(e.quote, page, strict);
       const ge = strict === "live" ? entityGate(account.name, account.domain, page) : gq;
-      const g = !gq.pass ? gq : !ge.pass ? ge : evidenceGate(e, strict);
+      const passage = page && e.quote ? passageAround(page.text, e.quote) : null;
+      // The claim must say what the quote says, about this company (live research only; sample data has no real quotes).
+      const gf = strict === "live" && e.quote ? claimFidelity(e.claim, e.quote, marks, passage) : gq;
+      const g = !gq.pass ? gq : !ge.pass ? ge : !gf.pass ? gf : evidenceGate(e, strict);
       if (!g.pass) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.evidence_gate", outcome: "block", reason: `Dropped "${e.claim.slice(0, 60)}": ${g.reason}` });
         continue;
@@ -195,6 +222,8 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
           claim: same ? same.claim : e.claim, value: same ? same.value : e.value,
           sourceUrl: e.sourceUrl, sourceType: e.sourceType, publishedAt: e.publishedAt, isNegative: e.isNegative, negativeKind: e.negativeKind,
           status: "probable", pass, engine, quote: e.quote?.slice(0, 400) ?? null,
+          passage: passage?.slice(0, 1200) ?? null, publisher: page?.publisher ?? hostname(e.sourceUrl), retrievedAt: page?.retrievedAt ?? ctx.now,
+          fingerprint: reportFingerprint(e.quote), fullText: Boolean(page?.full),
         },
       });
       if (same) await logEvent(ctx, { accountId: account.id, stage: S, step: "brain.corroborate", outcome: "pass", reason: `Second source for "${same.claim.slice(0, 80)}": ${e.sourceUrl}` });
@@ -261,7 +290,22 @@ export interface TwinSnapshot {
   noNegativeNews: boolean;
 }
 
-export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { allowReopen?: boolean } = {}): Promise<Account> {
+/** Fact statuses per (key, value) group, so independent reports of the same fact corroborate. */
+async function refreshStatuses(accountId: string, now: Date) {
+  const evidence = await liveEvidence(accountId);
+  const groups = new Map<string, Evidence[]>();
+  for (const e of evidence) {
+    if (e.status === "conflicting") continue;
+    const g = `${e.key}|${(e.value ?? e.claim).toLowerCase()}`;
+    groups.set(g, [...(groups.get(g) ?? []), e]);
+  }
+  for (const items of groups.values()) {
+    const status = factStatus(items, freshnessKindFor(items[0].key), now);
+    await db.evidence.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { status } });
+  }
+}
+
+export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { allowReopen?: boolean; investigate?: boolean } = {}): Promise<Account> {
   const S = 7;
   const allowReopen = opts.allowReopen ?? true;
   let evidence = await liveEvidence(account.id);
@@ -280,7 +324,7 @@ export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { 
       account = await db.account.update({ where: { id: account.id }, data: { reopenUsed: true } });
       await logEvent(ctx, { accountId: account.id, stage: S, step: "account_twin.contradiction", outcome: "info", reason: `${c.key} values disagree (${c.values.join(" vs ")}) — reopening once` });
       await s06AccountResearch(account, ctx, { pass: "reopen", keys: [c.key] });
-      return s07AccountTwin(account, ctx, { allowReopen: false });
+      return s07AccountTwin(account, ctx, { allowReopen: false, investigate: opts.investigate });
     } else {
       await db.evidence.updateMany({ where: { id: { in: c.evidenceIds } }, data: { status: "conflicting" } });
       contradictions.push({ key: c.key, values: c.values, resolution: "Unresolved — human review" });
@@ -288,20 +332,18 @@ export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { 
       await logEvent(ctx, { accountId: account.id, stage: S, step: "account_twin.contradiction", outcome: "block", reason: `${c.key} still unresolved after reopen — human review` });
     }
   }
-  evidence = await liveEvidence(account.id);
-
   // Statuses: per (key, value) group so independent sources for the same fact corroborate.
-  const groups = new Map<string, Evidence[]>();
-  for (const e of evidence) {
-    if (e.status === "conflicting") continue;
-    const g = `${e.key}|${(e.value ?? e.claim).toLowerCase()}`;
-    groups.set(g, [...(groups.get(g) ?? []), e]);
-  }
-  for (const items of groups.values()) {
-    const kind = freshnessKindFor(items[0].key);
-    // Each trigger claim is its own fact; corroboration needs another source on the same claim.
-    const status = factStatus(items, kind, ctx.now);
-    await db.evidence.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { status } });
+  await refreshStatuses(account.id, ctx.now);
+
+  // The investigation: hypotheses, follow-up questions, connections, completeness, validation.
+  if (opts.investigate ?? true) {
+    try {
+      await investigateAccount(account, ctx, askQuestion);
+    } catch (e) {
+      if (!(e instanceof BudgetExceeded)) throw e;
+      await logEvent(ctx, { accountId: account.id, stage: S, step: "investigate.done", outcome: "info", reason: "Research incomplete — budget reached during the investigation" });
+    }
+    await refreshStatuses(account.id, ctx.now);
   }
   evidence = await liveEvidence(account.id);
 

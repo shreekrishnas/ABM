@@ -18,6 +18,8 @@ export interface DirectedQuestion {
   query?: string;
   engine?: string;
   why?: string;
+  /** "all": every configured engine is asked (negative news, disconfirming questions): one empty engine is not proof. */
+  breadth?: "first" | "all";
 }
 
 export function mergePlan(

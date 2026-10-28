@@ -1,0 +1,40 @@
+{
+  "about": "Labelled cases for the research engine's code checks. Each case states the right answer. Add real misreads here as they are found: the benchmark then measures whether the fix holds.",
+  "blocker": [
+    { "kind": "acquired", "company": "Acme Foods", "quote": "Acme Foods has been acquired by MegaCorp in an all-cash deal.", "expect": true },
+    { "kind": "acquired", "company": "Acme Foods", "quote": "MegaCorp completes its acquisition of Acme Foods.", "expect": true },
+    { "kind": "acquired", "company": "Acme Foods", "quote": "Acme Foods acquires Beta Snacks to expand in the south.", "expect": false },
+    { "kind": "acquired", "company": "Acme Foods", "quote": "Acme Foods completed the acquisition of a 51% stake in Gamma Dairy.", "expect": false },
+    { "kind": "bankrupt", "company": "Delta Steel", "quote": "NCLT admits insolvency petition against Delta Steel; CIRP begins.", "expect": true },
+    { "kind": "bankrupt", "company": "Delta Steel", "quote": "Delta Steel receives a tax demand of Rs 40 crore and will appeal.", "expect": false },
+    { "kind": "bankrupt", "company": "Delta Steel", "quote": "Insolvency proceedings were opened against a Delta Steel subsidiary in Spain.", "expect": false },
+    { "kind": "layoffs", "company": "Kappa Retail", "quote": "Kappa Retail lays off 1,200 employees as losses mount.", "expect": true },
+    { "kind": "layoffs", "company": "Kappa Retail", "quote": "Kappa Retail will reduce headcount as it integrates the acquired stores after the merger.", "expect": false },
+    { "kind": "layoffs", "company": "Kappa Retail", "quote": "Kappa Retail announced job cuts of 8% across offices.", "expect": true },
+    { "kind": "competitor_signed", "company": "Omega Pharma", "quote": "Omega Pharma selects Informatica for its master data programme.", "expect": true },
+    { "kind": "competitor_signed", "company": "Omega Pharma", "quote": "Analysts downgrade Omega Pharma shares; price target cut.", "expect": false },
+    { "kind": "hiring_freeze", "company": "Sigma Logistics", "quote": "Sigma Logistics has paused hiring across all functions.", "expect": true },
+    { "kind": "hiring_freeze", "company": "Sigma Logistics", "quote": "Sigma Logistics is hiring 500 delivery partners this quarter.", "expect": false }
+  ],
+  "fidelity": [
+    { "company": "Acme Foods", "claim": "Acme Foods is adding 2,000 distributors", "quote": "Acme Foods will add 2,000 distributors across East India this year.", "expect": true },
+    { "company": "Acme Foods", "claim": "Acme Foods is adding 5,000 distributors", "quote": "Acme Foods will add 2,000 distributors across East India this year.", "expect": false },
+    { "company": "Acme Foods", "claim": "Acme Foods is migrating to SAP S/4HANA", "quote": "Beta Snacks is migrating to SAP S/4HANA next year.", "expect": false },
+    { "company": "Acme Foods", "claim": "Acme Foods appointed a new CIO", "quote": "Acme Foods appointed Ravi Kumar as Chief Information Officer (CIO) in June.", "expect": true },
+    { "company": "Acme Foods", "claim": "Acme Foods is evaluating MDM vendors for a group-wide rollout", "quote": "Acme Foods reported quarterly revenue growth of 12%.", "expect": false },
+    { "company": "Acme Foods", "claim": "Acme Foods opened a new plant in Pune", "quote": "Acme Foods inaugurated its new manufacturing plant in Pune on Monday.", "expect": true }
+  ],
+  "explicitIntent": [
+    { "quote": "Acme Foods has issued an RFP for a vendor master data management platform.", "expect": true },
+    { "quote": "Acme Foods is evaluating vendors for its supplier onboarding rebuild.", "expect": true },
+    { "quote": "Acme Foods invites bids for a distributor onboarding solution.", "expect": true },
+    { "quote": "Acme Foods completed its acquisition of Beta Snacks.", "expect": false },
+    { "quote": "Acme Foods is hiring a head of master data.", "expect": false },
+    { "quote": "Acme Foods announced a digital transformation strategy.", "expect": false }
+  ],
+  "syndication": [
+    { "quotes": ["Acme Foods will add 2,000 distributors across East India this year, the company said.", "Acme Foods will add 2,000 distributors across East India this year, the company said.", "Acme Foods will add 2,000 distributors across East India this year, the company said."], "hosts": ["a.example", "b.example", "c.example"], "expectReports": 1 },
+    { "quotes": ["Acme Foods will add 2,000 distributors across East India this year, the company said.", "Acme Foods told investors its distributor network will grow by 2,000 outlets in East India."], "hosts": ["a.example", "d.example"], "expectReports": 2 },
+    { "quotes": ["Acme Foods plans a new SAP rollout across all plants next year.", "Acme Foods also confirmed a new warehouse in Nagpur for the coming season."], "hosts": ["a.example", "a.example"], "expectReports": 1 }
+  ]
+}

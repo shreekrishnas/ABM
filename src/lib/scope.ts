@@ -113,6 +113,9 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "WatchlistEntry":
     case "LedgerEntry":
     case "Handoff":
+    case "ResearchRun":
+    case "Hypothesis":
+    case "EvidenceLink":
       return { account: acct };
     case "Enrollment":
     case "Draft":

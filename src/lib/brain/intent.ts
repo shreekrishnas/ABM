@@ -38,7 +38,12 @@ export interface IntentSignal {
   /** Which pack trigger it matches, if any. */
   trigger?: string | null;
   contactId?: string | null;
+  /** Hypotheses this signal supports: research events converge only when one connects them. */
+  hypotheses?: string[];
 }
+
+/** Research-found families: they converge only when a hypothesis explains how they connect. */
+const RESEARCH_FAMILIES: IntentFamily[] = ["trigger", "programme", "leadership", "hiring"];
 
 export interface IntentReading {
   score: number; // 0–100
@@ -85,8 +90,14 @@ export function scoreIntent(signals: IntentSignal[]): IntentReading {
     raw += WEIGHT[fam] * combined;
     if (fam !== "negative" && combined >= 0.15) positive.push(fam);
   }
-  // Convergence: independent families agreeing is worth more than any one loud signal.
-  const conv = positive.filter((f) => f !== "team_context").length;
+  // Convergence: independent families agreeing is worth more than any one loud signal. Events found by
+  // research (an acquisition, a hiring drive) count as converging only when a hypothesis connects them;
+  // first-party signals (conversations, engagement, third-party surges) converge on their own.
+  const firstParty = positive.filter((f) => f !== "team_context" && !RESEARCH_FAMILIES.includes(f)).length;
+  const research = positive.filter((f) => RESEARCH_FAMILIES.includes(f));
+  const hypsOf = (f: IntentFamily) => new Set((byFamily.get(f) ?? []).flatMap((s) => s.hypotheses ?? []));
+  const connected = research.filter((f) => research.some((g) => g !== f && [...hypsOf(f)].some((h) => hypsOf(g).has(h))));
+  const conv = firstParty + (research.length ? Math.max(1, connected.length) : 0);
   const bonus = conv >= 4 ? 20 : conv === 3 ? 12 : conv === 2 ? 5 : 0;
   const cap = conv <= 1 ? 45 : 100; // one family alone can never be "hot"
   const score = Math.max(0, Math.min(cap, Math.round(raw + bonus)));
@@ -96,7 +107,7 @@ export function scoreIntent(signals: IntentSignal[]): IntentReading {
   for (const s of top) if (!picked.some((p) => p.family === s.family) && picked.length < 3) picked.push(s);
   const whyNow = picked.length >= 2 ? picked.map((s) => s.label).join("; and ") : picked.length === 1 && picked[0].strength >= 0.6 ? picked[0].label : null;
   const neg = byFamily.get("negative");
-  const explain = `${conv} independent signal famil${conv === 1 ? "y" : "ies"} (${positive.join(", ") || "none"})${bonus ? `, +${bonus} for convergence` : ""}${cap < 100 ? ", capped at 45: one family alone is not enough" : ""}${neg ? `, ${neg.length} negative signal(s) subtracted` : ""}`;
+  const explain = `${conv} independent signal famil${conv === 1 ? "y" : "ies"} (${positive.join(", ") || "none"})${bonus ? `, +${bonus} for convergence` : ""}${cap < 100 ? ", capped at 45: one family alone is not enough" : ""}${neg ? `, ${neg.length} negative signal(s) subtracted` : ""}${research.length > 1 && connected.length < research.length ? ", research events not connected by a hypothesis count once" : ""}`;
   return { score, level, families: positive, signals: [...signals].sort((a, b) => b.strength - a.strength), whyNow, explain };
 }
 
@@ -110,6 +121,9 @@ export async function collectSignals(accountId: string, now = new Date(), contac
     db.signal.findMany({ where: { accountId, occurredAt: { gte: new Date(now.getTime() - 120 * DAY) }, ...(contactId ? { OR: [{ contactId }, { contactId: null }] } : {}) } }),
   ]);
   const out: IntentSignal[] = [];
+  // Which hypotheses each fact supports (the investigation's explained connections).
+  const hyps = await db.hypothesis.findMany({ where: { accountId, status: { in: ["supported", "validated"] } }, select: { id: true, supportIds: true } });
+  const hypOf = (ids: string[]) => hyps.filter((h) => h.supportIds.some((id) => ids.includes(id))).map((h) => h.id);
   const short = (s: string, n = 110) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
   const when = (d: Date | null) => (d ? ` (${d.toISOString().slice(0, 10)})` : "");
 
@@ -130,7 +144,7 @@ export async function collectSignals(accountId: string, now = new Date(), contac
     const strength = statusWeight(best.status) * decay(fam, best.publishedAt, now) * corroboration;
     if (strength < 0.05) continue;
     const trig = classifyTrigger(best.claim, sp);
-    out.push({ family: fam, label: `${short(best.claim)}${when(best.publishedAt)}${sources > 1 ? `, ${sources} sources` : ""}`, strength, at: best.publishedAt, refs: list.map((e) => e.id), trigger: trig?.key ?? null });
+    out.push({ family: fam, label: `${short(best.claim)}${when(best.publishedAt)}${sources > 1 ? `, ${sources} sources` : ""}`, strength, at: best.publishedAt, refs: list.map((e) => e.id), trigger: trig?.key ?? null, hypotheses: hypOf(list.map((e) => e.id)) });
   }
 
   // 2. Negatives subtract.

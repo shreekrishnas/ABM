@@ -186,7 +186,8 @@ export async function generateInsights(ctx: RunContext = newContext()): Promise<
  */
 export async function proposeImprovements(summary: InsightSummary, stats: BrainStats, ctx: RunContext) {
   const sp = sellerContext().pack;
-  const sample = Math.max(stats.review.reviewed, stats.facts.total, ...stats.messaging.byUseCase.map((r) => r.n), ...stats.linkedin.bySender.map((r) => r.n), 0);
+  // Research findings are applied separately (engine routing), so facts don't count toward these proposals' sample.
+  const sample = Math.max(stats.review.reviewed, ...stats.messaging.byUseCase.map((r) => r.n), ...stats.linkedin.bySender.map((r) => r.n), 0);
   for (const r of summary.recommendations) {
     if (r.area === "research" || /^Keep collecting/.test(r.text)) continue;
     const open = await db.proposal.findFirst({ where: { sellerId: sp.id, change: r.text, status: "proposed" } });

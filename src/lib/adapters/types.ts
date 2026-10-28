@@ -1,3 +1,4 @@
+import type { ConnectInput, ConnectOutput, EmailAuditInput, EmailAuditOutput, InvestigateInput, InvestigateOutput, ValidateInput, ValidateOutput } from "@/lib/brain/research-types";
 import type { Stage } from "@/lib/journey/stages";
 import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "@/lib/brain/types";
 import type { WritingContext } from "@/lib/knowledge/select";
@@ -47,9 +48,14 @@ export interface ResearchPage {
   text: string;
   /** Engine that returned the page (exa | tavily | serp | mock). */
   engine?: string;
+  /** True when `text` is the page read in full; false when it is only the search snippet. */
+  full?: boolean;
+  /** Site that published it (host) and when we read it. */
+  publisher?: string;
+  retrievedAt?: Date;
 }
 
-export type ResearchPass = "main" | "followup" | "reopen" | "refresh";
+export type ResearchPass = "main" | "followup" | "reopen" | "refresh" | "investigate" | "repair";
 
 export interface ResearchSource {
   /** True for real web search; the evidence gate then refuses mock evidence. */
@@ -67,6 +73,8 @@ export interface SearchHint {
   engine?: string;
   /** Called for every engine actually queried (each one costs credits). */
   onAttempt?: (a: { engine: string; results: number; error?: string }) => void;
+  /** "all": ask every configured engine and merge (an empty answer from one engine is not proof). Default: stop at the first with results. */
+  breadth?: "first" | "all";
 }
 
 export interface ExtractedEvidence {
@@ -166,7 +174,7 @@ export type ModelTier = "cheap" | "strong";
 export interface LLM {
   /** "mock" or the model id — recorded on everything the brain produces. */
   readonly model: string;
-  extractEvidence(pages: ResearchPage[], questionKey: string, known?: { id: string; claim: string }[]): Promise<ExtractedEvidence[]>;
+  extractEvidence(pages: ResearchPage[], questionKey: string, known?: { id: string; claim: string }[], guide?: { company: string; domain: string | null; question?: string }): Promise<ExtractedEvidence[]>;
   infer(facts: { id: string; key: string; claim: string }[]): Promise<Inference[]>;
   mapRole(title: string | null, ownerFunction: string | null, contactFunction: string | null): Promise<"decision_maker" | "champion" | "influencer" | "budget_owner" | "unknown">;
   draft(input: DraftInput, attempt: number): Promise<DraftOutput>;
@@ -189,6 +197,19 @@ export interface LLM {
   suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]>;
   /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
   classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
+  // ── The research engine ──
+  /** Investigator: hypotheses and the next questions, ranked by how much the answer would change the conclusion. */
+  investigate(input: InvestigateInput): Promise<InvestigateOutput>;
+  /** Connector: classify each hypothesis honestly and link facts to each other and to the client's capabilities. */
+  connectEvidence(input: ConnectInput): Promise<ConnectOutput>;
+  /** Whole-email audit: every sentence about the prospect, not only the claims the writer listed. */
+  auditEmail(input: EmailAuditInput): Promise<EmailAuditOutput>;
+}
+
+/** Independent validator: its own instructions, raw evidence, and optionally its own model (VALIDATOR_MODEL). */
+export interface Validator {
+  readonly model: string;
+  validateResearch(input: ValidateInput): Promise<ValidateOutput>;
 }
 
 export interface MarketEventExtract {
@@ -245,6 +266,7 @@ export interface Adapters {
   intent: IntentProvider;
   notifier: Notifier;
   embedder: Embedder;
+  validator: Validator;
 }
 
 export interface BrainSuggestInput {

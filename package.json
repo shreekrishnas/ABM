@@ -14,7 +14,8 @@
     "db:reset": "prisma migrate reset --force",
     "pipeline:run": "tsx scripts/run-pipeline.ts",
     "postinstall": "prisma generate",
-    "lint:tokens": "node scripts/check-tokens.mjs"
+    "lint:tokens": "node scripts/check-tokens.mjs",
+    "bench": "tsx scripts/bench.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

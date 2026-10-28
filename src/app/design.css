@@ -465,3 +465,27 @@ a.k-dc-title:hover { color: var(--accent); }
 .k-seg button:hover { color: var(--text); }
 .k-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
 .k-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Research trace (company → Research trace) */
+.rt { display: grid; gap: var(--sp-4); }
+.rt-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); font-size: var(--fs-13); color: var(--text-2); }
+.rt-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-4); }
+.rt-card h3 { font-size: var(--fs-14); font-weight: var(--fw-semibold); margin-bottom: var(--sp-3); }
+.rt-muted { color: var(--muted); font-size: var(--fs-13); }
+.rt-small { font-size: var(--fs-13); color: var(--text-2); margin-top: var(--sp-1); }
+.rt-checks { display: grid; gap: var(--sp-2); }
+.rt-checks li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-13); }
+.rt-hyps { display: grid; gap: var(--sp-3); }
+.rt-hyps > li { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3); }
+.rt-hyps > li.rt-dim { opacity: 0.6; }
+.rt-hyp-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.rt-hyp-text { font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--text); margin-top: var(--sp-2); }
+.rt-facts, .rt-links { display: grid; gap: var(--sp-1); margin-top: var(--sp-2); font-size: var(--fs-13); color: var(--text-2); }
+.rt-facts a { color: var(--accent); white-space: nowrap; display: inline-flex; align-items: center; gap: var(--sp-1); }
+.rt-rounds { display: grid; gap: var(--sp-3); }
+.rt-rounds ul { display: grid; gap: var(--sp-2); margin-top: var(--sp-1); font-size: var(--fs-13); }
+.rt-round-h { font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Research quality (Behind the scenes) */
+.rq h2 { font-size: var(--fs-16); font-weight: var(--fw-semibold); }
+.rq-sub { font-size: var(--fs-13); color: var(--muted); margin: var(--sp-1) 0 var(--sp-3); max-width: 72ch; }

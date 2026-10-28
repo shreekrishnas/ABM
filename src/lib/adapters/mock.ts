@@ -1,3 +1,4 @@
+import type { ConnectInput, ConnectOutput, EmailAuditOutput, InvestigateInput, InvestigateOutput, ValidateInput, ValidateOutput } from "@/lib/brain/research-types";
 // Deterministic mock adapters. The same input always gives the same output, so
 // tests are stable and every pipeline branch (layoffs, acquisitions, job changes,
 // contradictions, weak evidence, bounces) shows up in seeded data.
@@ -30,6 +31,7 @@ import type {
   ResearchPass,
   ResearchSource,
   SearchHint,
+  Validator,
 } from "./types";
 import { inferFunction } from "@/lib/pipeline/normalize";
 import { seller } from "@/lib/seller";
@@ -267,6 +269,11 @@ class MockResearch implements ResearchSource {
       // Finding no negative news is still an answer (recorded by the LLM step).
       return pages;
     }
+    if (key === "investigation") {
+      // Follow-up questions: well-documented companies have an independent report on their programme.
+      if (sc !== "strong") return [];
+      return [{ url: `https://industrynews.example.net/${domain}/programme`, sourceType: "news", publishedAt: daysAgo(18 + (h % 20)), title: `${companyName} rolls out its master data programme to distributors`, text: `${companyName} rolls out its master data programme to distributors.` }];
+    }
     if (key === "tooling") {
       pages.push({ url: `https://stackreviews.example.com/${domain}`, sourceType: "review_site", publishedAt: daysAgo(60), title: "Stack", text: ["SAP ECC, Excel-based vendor forms", "SAP S/4HANA, Informatica MDM", "Oracle EBS, Power Apps", "Microsoft Dynamics 365, manual KYC"][h % 4] });
       return pages;
@@ -293,6 +300,36 @@ const NEGATIVE_KINDS: Record<string, string> = { layoffs: "layoffs", acquired: "
 
 class MockLLM implements LLM {
   readonly model = "mock";
+
+  /** Round 1: one hypothesis from the trigger facts and one disconfirming question; then done. */
+  async investigate(input: InvestigateInput): Promise<InvestigateOutput> {
+    const pos = input.facts.filter((f) => !f.negative && isTriggerKey(f.key));
+    if (input.round > 1 || !pos.length) return { hypotheses: [], questions: [], done: true, doneWhy: pos.length ? "Hypothesis tested" : "No client-relevant development found" };
+    const uc = input.relevance.useCases[0]?.key ?? null;
+    const existing = input.hypotheses[0];
+    return {
+      hypotheses: [{ ref: existing?.id ?? "new", text: `${input.company.name}'s ${pos[0].claim.replace(new RegExp(`^${input.company.name}\\s*`, "i"), "")} may create a need for ${uc?.replace(/_/g, " ") ?? "the offering"}`, useCase: uc, assumptions: ["The change touches partner or vendor onboarding"], supportIds: pos.slice(0, 3).map((f) => f.id), counterIds: [] }],
+      questions: [
+        { question: `Is the programme already served by another supplier?`, query: `"${input.company.name}" master data programme partner rollout`, purpose: "disconfirm", hypothesisRef: existing?.id ?? "new", value: 4, why: "An incumbent would remove the need" },
+      ],
+      done: false,
+      doneWhy: "",
+    };
+  }
+
+  /** Two or more supporting facts → supported opportunity; one → relevant development; none → inconclusive. */
+  async connectEvidence(input: ConnectInput): Promise<ConnectOutput> {
+    const uc = input.relevance.useCases[0]?.key ?? "general";
+    return {
+      hypotheses: input.hypotheses.map((h) => ({ id: h.id, classification: h.supportIds.length >= 2 ? ("supported_opportunity" as const) : h.supportIds.length ? ("relevant_development" as const) : ("inconclusive" as const), useCase: h.useCase ?? uc, rationale: "Sample connection from the supporting facts", supportIds: h.supportIds, counterIds: h.counterIds, alternatives: [] })),
+      links: input.hypotheses.flatMap((h) => h.supportIds.map((id) => ({ hypothesisId: h.id, from: `fact:${id}`, relation: "may_create_need_for" as const, to: `capability:${h.useCase ?? uc}`, rationale: "Sample link", evidenceIds: [id] }))),
+    };
+  }
+
+  /** Sample emails are built only from fact-cited claims: nothing to flag. */
+  async auditEmail(): Promise<EmailAuditOutput> {
+    return { sentences: [] };
+  }
 
   planResearch(input: PlanResearchInput) {
     return Promise.resolve(rulePlan(input));
@@ -527,7 +564,16 @@ export function createMockAdapters(): Adapters & { provider: MockProvider } {
     intent: new MockIntent(),
     notifier: new MockNotifier(),
     embedder: new HashEmbedder(),
+    validator: new MockValidator(),
   };
+}
+
+/** Upholds every hypothesis as classified (sample data). */
+class MockValidator implements Validator {
+  readonly model = "mock";
+  async validateResearch(input: ValidateInput): Promise<ValidateOutput> {
+    return { results: input.hypotheses.map((h) => ({ hypothesisId: h.id, verdict: "upheld" as const, classification: h.classification as ValidateOutput["results"][number]["classification"], issues: [], alternatives: [], repairQuestions: [] })) };
+  }
 }
 
 export type MockAdapters = ReturnType<typeof createMockAdapters>;

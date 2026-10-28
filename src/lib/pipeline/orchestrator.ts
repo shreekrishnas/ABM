@@ -23,6 +23,7 @@ import { ensureSellerPacks, loadSeller, sellerContext, withSeller } from "@/lib/
 import { isTriggerKey } from "@/lib/research/keys";
 import { evidenceQuality } from "./gates";
 import { liveEvidence } from "./stages/research";
+import { validatedConclusions } from "@/lib/brain/investigate";
 
 type StageFn = (a: Account, ctx: RunContext) => Promise<Account>;
 
@@ -171,7 +172,7 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
         // Loop 1: one targeted re-research pass on the trigger question, then decide again.
         account = await db.account.update({ where: { id: accountId }, data: { followupUsed: true } });
         await s06AccountResearch(account, ctx, { pass: "followup", keys: ["trigger"] });
-        account = await s07AccountTwin(account, ctx, { allowReopen: false });
+        account = await s07AccountTwin(account, ctx, { allowReopen: false, investigate: false });
         r = await s10Readiness(account, ctx);
         if (r.reResearch) throw new StopRun("Evidence still weak after re-research");
       }
@@ -226,7 +227,7 @@ async function afterModule(n: number, account: Account, ctx: RunContext): Promis
   if (n !== 7) return account;
   const evidence = await liveEvidence(account.id);
   const triggers = evidence.filter((e) => isTriggerKey(e.key));
-  const q = evidenceQuality(triggers.map((t) => ({ status: t.status, publishedAt: t.publishedAt })), ctx.now);
+  const q = evidenceQuality(triggers.map((t) => ({ status: t.status, publishedAt: t.publishedAt, sourceUrl: t.sourceUrl, fingerprint: t.fingerprint })), ctx.now, (await validatedConclusions(account.id)).length);
   let intent = await readIntent(account.id, ctx.now);
   // Hot buying signals upgrade the tier to T1 and earn the deep dive now (once per run).
   if (intent.level === "hot" && account.tier !== "T1" && !account.tierLocked) {

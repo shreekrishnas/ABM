@@ -52,8 +52,10 @@ describe("live research", () => {
     });
     const r = new WebResearch({ exa: "exa-test", tavily: "tv-test", serp: "serp-test" });
     const pages = await r.search("kaverifoods.in", "Kaveri Foods", "trigger", "main");
-    expect(calls).toHaveLength(1);
-    expect((calls[0].init.headers as Record<string, string>)["x-api-key"]).toBe("exa-test");
+    // Search-API calls only (the reader also asks robots.txt and the page itself).
+    const api = calls.filter((c) => /api\.|serpapi/.test(c.url));
+    expect(api).toHaveLength(1);
+    expect((api[0].init.headers as Record<string, string>)["x-api-key"]).toBe("exa-test");
     expect(pages.map((p) => p.url)).toEqual(["https://news.example/a"]);
     expect(pages[0].sourceType).toBe("news");
   });
@@ -65,8 +67,9 @@ describe("live research", () => {
     });
     const r = new WebResearch({ exa: "exa-test", tavily: "tv-test" });
     const pages = await r.search("kaverifoods.in", "Kaveri Foods", "trigger", "main");
-    expect(calls.map((c) => new URL(c.url).hostname)).toEqual(["api.exa.ai", "api.tavily.com"]);
-    expect((calls[1].init.headers as Record<string, string>).authorization).toBe("Bearer tv-test");
+    const api = calls.filter((c) => /api\.|serpapi/.test(c.url));
+    expect(api.map((c) => new URL(c.url).hostname)).toEqual(["api.exa.ai", "api.tavily.com"]);
+    expect((api[1].init.headers as Record<string, string>).authorization).toBe("Bearer tv-test");
     expect(pages).toHaveLength(1);
     expect(pages[0].publishedAt.toISOString().slice(0, 10)).toBe("2026-09-28");
   });
@@ -146,6 +149,19 @@ describe("live LLM (OpenRouter)", () => {
     expect(d.body).toContain("Manch Technologies · Bengaluru, India");
     expect(d.body).toMatch(/unsubscribe/i);
     expect(d.claims[0].factIds).toEqual(["f1"]);
+  });
+});
+
+describe("page reader", () => {
+  it("turns HTML into readable text and keeps the paragraphs about the company", async () => {
+    const { htmlToText, relevantText, parseRobots } = await import("@/lib/adapters/live/reader");
+    const t = htmlToText("<html><head><script>x()</script><style>a{}</style></head><body><nav>Menu</nav><p>Intro &amp; context.</p><p>Kaveri Foods starts its SAP S/4HANA migration.</p><footer>©</footer></body></html>");
+    expect(t).toContain("Kaveri Foods starts its SAP S/4HANA migration.");
+    expect(t).toContain("Intro & context.");
+    expect(t).not.toMatch(/Menu|x\(\)|©/);
+    const long = [...Array(200)].map((_, i) => `Paragraph ${i} about markets.`).join("\n") + "\nKaveri announced a programme.\n" + "tail\n".repeat(50);
+    expect(relevantText(long, ["kaveri"], 300)).toContain("Kaveri announced a programme.");
+    expect(parseRobots("User-agent: *\nDisallow: /private\nUser-agent: other\nDisallow: /")).toEqual(["/private"]);
   });
 });
 

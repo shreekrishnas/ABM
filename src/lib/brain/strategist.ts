@@ -60,6 +60,7 @@ export async function buildBrief(account: Account, snap: TwinSnapshot, ctx: RunC
     company: { name: account.name, domain: account.domain, industry: account.industry, employees: account.employees, country: account.country, technologies: account.technologies, fitScore: account.fitScore, fitReasons: account.fitReasons },
     facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim, status: f.status, sourceType: f.sourceType })),
     inferences: snap.inferences.map((i) => i.text),
+    investigation: (await db.hypothesis.findMany({ where: { accountId: account.id, status: { not: "rejected" } }, orderBy: { updatedAt: "desc" }, take: 6 })).map((h) => ({ text: h.text, classification: h.classification, status: h.status, supportIds: h.supportIds, note: h.validatorNote })),
     negatives: snap.negatives.map((n) => n.claim),
     unknowns: snap.unknowns,
     hypotheses: plan?.hypotheses ?? [],

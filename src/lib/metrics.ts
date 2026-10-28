@@ -38,6 +38,16 @@ const defs = [
   { key: "live_conversations", label: "Live conversations", define: "People who replied or moved further on LinkedIn (details, interest, call or demo)", href: "/people" },
   // Spend: one definition everywhere
   { key: "spend_total", label: "Spend to date", define: "Every cost recorded: AI, web search, paid lookups and verification", href: "/analytics", unit: "usd" },
+  // Research quality (Behind the scenes)
+  { key: "rq_fact_precision", label: "Source-to-claim accuracy", define: "Share of facts no person has marked wrong", href: "/pipeline", unit: "percent" },
+  { key: "rq_full_text", label: "Sources read in full", define: "Facts taken from the whole page rather than a search snippet", href: "/pipeline", unit: "percent" },
+  { key: "rq_completeness", label: "Research complete", define: "Investigations that passed every completeness check (baseline, counter-evidence, support, independent sources, freshness, no open high-value question)", href: "/pipeline", unit: "percent" },
+  { key: "rq_direct_intent", label: "Direct-intent precision", define: "Direct buying-intent conclusions the independent validator upheld", href: "/pipeline", unit: "percent" },
+  { key: "rq_links", label: "Links backed by evidence", define: "Links in the evidence graph that cite facts; the rest are shown as assumptions", href: "/pipeline", unit: "percent" },
+  { key: "rq_email_claims", label: "Emails held for unsupported statements", define: "Drafts held because a sentence about the prospect wasn't supported by its facts", href: "/review", unit: "percent" },
+  { key: "rq_overturn", label: "Proposed rejections overturned", define: "Proposed rejections a person decided to keep", href: "/review", unit: "percent" },
+  { key: "rq_cost", label: "Cost per useful company", define: "All recorded spend divided by companies with a validated opportunity or explicit intent", href: "/analytics", unit: "usd" },
+  { key: "rq_latency", label: "Investigation time (median)", define: "From the start of an investigation to its finish (completeness and validation included)", href: "/pipeline" },
 ] as const satisfies readonly MetricDef[];
 
 export type MetricKey = (typeof defs)[number]["key"];

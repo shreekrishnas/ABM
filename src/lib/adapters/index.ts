@@ -44,6 +44,7 @@ export function serviceStatus(): ServiceStatus[] {
   const m = (connected: boolean): ServiceMode => (sample ? "sample" : connected ? "live" : "off");
   return [
     { key: "research", label: "Web research", mode: m(Boolean(engines && llmKey)), via: engines ? (llmKey ? engines : `${engines} — paused until OPENROUTER_API_KEY is set (the AI that reads the pages)`) : "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
+    { key: "validator", label: "Research validator", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini"}${env("VALIDATOR_MODEL") ? "" : " (set VALIDATOR_MODEL for a different model)"}` : "Set OPENROUTER_API_KEY" },
     { key: "llm", label: "LLM (extract, draft, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
     { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
     { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
@@ -67,6 +68,8 @@ export function createAdapters(): Adapters {
   if (llmKey) {
     a.llm = new OpenRouterLLM(llmKey);
     a.embedder = new OpenRouterEmbedder(llmKey);
+    // The validator is a separate role with its own instructions; VALIDATOR_MODEL can give it a different model too.
+    a.validator = new OpenRouterLLM(llmKey, env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini");
   }
   // Real data: never use sample people or a pretend mailbox on real companies.
   const apollo = env("APOLLO_API_KEY");

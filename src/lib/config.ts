@@ -35,6 +35,19 @@ export const CONFIG = {
     neverChangesDecision: ["culture"],
   },
 
+  // The investigation loop: how far the AI may follow evidence per company (cost and time ceilings).
+  investigation: {
+    byTier: {
+      T1: { rounds: 4, questionsPerRound: 3 },
+      T2: { rounds: 3, questionsPerRound: 3 },
+      T3: { rounds: 2, questionsPerRound: 2 },
+    } as Record<"T1" | "T2" | "T3", { rounds: number; questionsPerRound: number }>,
+    /** Validator → repair → re-validate: at most this many validation rounds. */
+    maxValidationRounds: 1,
+    /** Questions a validator can send back for repair in one round. */
+    maxRepairQuestions: 3,
+  },
+
   readiness: {
     triggerWindowDays: 90,
     minVerifiedTriggers: 1,

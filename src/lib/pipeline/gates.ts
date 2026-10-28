@@ -190,6 +190,86 @@ export function entityGate(name: string, domain: string | null, page: { url: str
   return marks.some((m) => hay.includes(m)) ? { pass: true, reason: "Source names the company" } : { pass: false, reason: `Source doesn't name ${name}` };
 }
 
+// ── Source fidelity: does the claim say what its quote says? ──
+
+const NUM = /\d[\d,.]*/g;
+const normNum = (n: string) => n.replace(/[,]/g, "").replace(/\.$/, "");
+const FIDELITY_STOP = new Set("the a an and or of to in on for with at by from as is are was were be been has have had its it this that their they will would can could also into over under about after before than more most new company said says announced".split(" "));
+
+/**
+ * The model writes the claim; the quote is what the page says. The claim may not add numbers
+ * the quote lacks, must share its key words with the quote, and the quote (or its paragraph)
+ * must be about this company — not a rival named on the same page.
+ */
+export function claimFidelity(claim: string, quote: string, marks: string[], passage?: string | null): GateResult {
+  const qWords = new Set(words(quote));
+  const claimNums = (claim.match(NUM) ?? []).map(normNum).filter((n) => /\d/.test(n));
+  const quoteNums = new Set((quote.match(NUM) ?? []).map(normNum));
+  const extra = claimNums.filter((n) => !quoteNums.has(n));
+  if (extra.length) return { pass: false, reason: `Claim adds a number the source doesn't state (${extra.join(", ")})` };
+  const content = words(claim).filter((w) => w.length > 2 && !FIDELITY_STOP.has(w) && !marks.some((m) => w.startsWith(m)));
+  if (content.length >= 3) {
+    const shared = content.filter((w) => qWords.has(w) || [...qWords].some((q) => q.length > 4 && (q.startsWith(w.slice(0, 5)) || w.startsWith(q.slice(0, 5))))).length;
+    if (shared / content.length < 0.4) return { pass: false, reason: "Claim goes beyond what the quoted sentence says" };
+  }
+  if (marks.length) {
+    const near = ` ${squash(`${quote} ${passage ?? ""}`)} `;
+    if (!marks.some((m) => near.includes(m))) return { pass: false, reason: "The quoted sentence isn't about this company" };
+  }
+  return { pass: true, reason: "Claim matches its quote" };
+}
+
+/** The paragraph around the quote on the page (about `radius` characters either side). */
+export function passageAround(text: string, quote: string, radius = 350): string | null {
+  const flat = plainText(text);
+  const probe = plainText(quote).slice(0, 40);
+  let at = flat.indexOf(probe);
+  if (at < 0) at = flat.toLowerCase().indexOf(probe.toLowerCase());
+  if (at < 0) return null;
+  return flat.slice(Math.max(0, at - radius), Math.min(flat.length, at + quote.length + radius)).trim();
+}
+
+/**
+ * Fingerprint of the reported sentence. Syndicated copies of one press release share the
+ * sentence word for word, so they share the fingerprint: one report, however many sites.
+ */
+export function reportFingerprint(quote: string | null | undefined): string | null {
+  const w = quote ? words(quote) : [];
+  if (w.length < 6) return null;
+  let h = 2166136261;
+  for (const ch of w.join(" ")) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return `fp${h.toString(36)}`;
+}
+
+/** Independent reports among sources: copies of the same sentence count once; each site counts once. */
+export function independentReports(items: { sourceUrl?: string; fingerprint?: string | null }[]): number {
+  const seen = new Set<string>();
+  const hosts = new Set<string>();
+  let n = 0;
+  for (const i of items) {
+    const host = i.sourceUrl ? hostOf(i.sourceUrl) : "";
+    const key = i.fingerprint ?? `host:${host}`;
+    if (seen.has(key) || (host && hosts.has(host))) continue;
+    seen.add(key);
+    if (host) hosts.add(host);
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Direct buying intent must be explicit: the source has to say the company is evaluating,
+ * selecting, tendering or budgeting for something. A guard, not a classifier — the model
+ * proposes the class; without such words in a quote, code downgrades it.
+ */
+export function explicitIntent(quote: string | null | undefined): boolean {
+  if (!quote) return false;
+  return /\b(rfp|rfq|rfi|request for (proposal|quotation|information)|tender(s|ed|ing)?|bid(s|ding)?|evaluat\w+ (vendors?|solutions?|platforms?|tools?|partners?)|shortlist\w*|select(ing|ed)? (a |an )?(vendor|partner|platform|solution)|procur\w+|purchase order|budget(ed|s)? (for|to)|seeking (a |an )?(vendor|partner|solution|platform)|looking for (a |an )?(vendor|partner|solution|platform)|invit\w+ (bids|proposals)|expression of interest|implementation partner (for|to))\b/i.test(quote);
+}
+
 // ── Stage 7: fact status & contradictions ──
 
 export interface EvidenceLike {
@@ -199,6 +279,8 @@ export interface EvidenceLike {
   sourceType: string;
   sourceUrl: string;
   publishedAt: Date;
+  /** Fingerprint of the quoted sentence: copies of one release count once. */
+  fingerprint?: string | null;
 }
 
 const OFFICIAL = new Set(["official", "provider"]);
@@ -211,14 +293,13 @@ function hostOf(url: string): string {
   }
 }
 
-/** Official source or two independent sources → verified; one → probable; too old → stale. */
+/** Official source or two independent reports → verified; one → probable; too old → stale. Copies of one release are one report. */
 export function factStatus(items: EvidenceLike[], kind: FreshnessKind, now = new Date()): FieldStatus {
   if (items.length === 0) return "unknown";
   const fresh = items.filter((i) => !isStale(i.publishedAt, kind, now));
   if (fresh.length === 0) return "stale";
   if (fresh.some((i) => OFFICIAL.has(i.sourceType))) return "verified";
-  const hosts = new Set(fresh.map((i) => hostOf(i.sourceUrl)));
-  return hosts.size >= 2 ? "verified" : "probable";
+  return independentReports(fresh) >= 2 ? "verified" : "probable";
 }
 
 export interface Contradiction {
@@ -274,25 +355,34 @@ export interface NegativeFact {
   /** Where it was reported: a blocker counts only when confirmed (official source, or two independent sites). */
   sourceUrl?: string;
   sourceType?: string;
+  fingerprint?: string | null;
 }
 
-export function evidenceQuality(triggers: TriggerFact[], now = new Date()): { strong: boolean; verified: number; usable: number } {
+/**
+ * Strong when one trigger is verified, or enough usable triggers come from independent reports
+ * (two claims pulled from one article are one report). A validated opportunity or explicit
+ * buying intent from the investigation also makes the evidence strong.
+ */
+export function evidenceQuality(triggers: (TriggerFact & { sourceUrl?: string; fingerprint?: string | null })[], now = new Date(), validated = 0): { strong: boolean; verified: number; usable: number; reports: number } {
   const recent = triggers.filter((t) => daysBetween(now, t.publishedAt) <= CONFIG.readiness.triggerWindowDays);
   const verified = recent.filter((t) => t.status === "verified").length;
-  const usable = recent.filter((t) => t.status === "verified" || t.status === "probable").length;
+  const usableItems = recent.filter((t) => t.status === "verified" || t.status === "probable");
+  const reports = usableItems.some((t) => t.sourceUrl) ? independentReports(usableItems) : usableItems.length;
   return {
-    strong: verified >= CONFIG.readiness.minVerifiedTriggers || usable >= CONFIG.readiness.minUsableTriggers,
+    strong: validated > 0 || verified >= CONFIG.readiness.minVerifiedTriggers || reports >= CONFIG.readiness.minUsableTriggers,
     verified,
-    usable,
+    usable: usableItems.length,
+    reports,
   };
 }
 
 /** A blocker is confirmed by one official source or by two independent sites; one article is never enough. */
 export function blockerConfirmed(reports: NegativeFact[]): boolean {
   if (reports.some((r) => r.sourceType === "official")) return true;
-  const hosts = new Set(reports.map((r) => (r.sourceUrl ? hostOf(r.sourceUrl) : "")).filter(Boolean));
+  // Copies of one wire story on several sites are one report.
+  if (reports.some((r) => r.sourceUrl)) return independentReports(reports) >= 2;
   // Facts recorded before sources were tracked count as one report each.
-  return hosts.size >= 2 || (!reports.some((r) => r.sourceUrl) && reports.length >= 2);
+  return reports.length >= 2;
 }
 
 const TERMINAL = ["acquired", "bankrupt", "competitor_signed"];
@@ -328,7 +418,7 @@ export function blockerSupported(kind: string, quote: string | null | undefined,
     case "competitor_signed":
       return has(/\b(selects?|selected|chose|chosen|signs?|signed|deploys?|deployed|implements?|implemented|goes live|went live|partners? with|partnered with)\b/, t) && !has(/\b(rating|downgrade\w*|upgrade\w*|target price|price target|shares?|stock)\b/, t);
     case "layoffs":
-      return has(/\b(lay.?offs?|laid off|job cuts?|cuts? .{0,30}jobs|retrench\w*|redundanc\w*|reduc\w* .{0,40}(workforce|headcount|staff|employees|positions|strength))\b/, t) && !has(/\b(integrat\w*|merger|merging|acquisition|restructur\w*|realign\w*|consolidat\w*)\b/, t);
+      return has(/\b(lay.?offs?|lay(s|ing)? off|laid off|job cuts?|cuts? .{0,30}jobs|retrench\w*|redundanc\w*|reduc\w* .{0,40}(workforce|headcount|staff|employees|positions|strength))\b/, t) && !has(/\b(integrat\w*|merger|merging|acquisition|restructur\w*|realign\w*|consolidat\w*)\b/, t);
     case "hiring_freeze":
       return has(/\b(hiring freeze|freez\w* .{0,20}hiring|stop\w* hiring|paus\w* hiring)\b/, t);
     default:
@@ -372,8 +462,12 @@ export interface ReadinessAccount {
   negatives: NegativeFact[];
   /** The company itself, so a blocker's wording can be checked against it. */
   company?: { name: string; domain: string | null };
-  triggers: TriggerFact[];
+  triggers: (TriggerFact & { sourceUrl?: string; fingerprint?: string | null })[];
   followupUsed: boolean;
+  /** Validated supported opportunities or explicit intent from the investigation. */
+  validated?: number;
+  /** The latest investigation stopped with gaps: say "incomplete", never "no signal". */
+  incomplete?: string | null;
 }
 
 export interface ReadinessDecision {
@@ -391,10 +485,11 @@ export function decideReadiness(acc: ReadinessAccount, p: ReadinessPerson, now =
   if (neg.outcome === "possible_blocker") return { outcome: "human_review", reasons: [neg.reason], blocker: true };
   if (neg.outcome === "watch") return { outcome: "watch", reasons: [neg.reason], watchDays: CONFIG.readiness.negativeWatchDays };
 
-  const q = evidenceQuality(acc.triggers, now);
+  const q = evidenceQuality(acc.triggers, now, acc.validated ?? 0);
   if (!q.strong && !acc.followupUsed)
-    return { outcome: "targeted_re_research", reasons: [`Evidence weak (${q.verified} verified, ${q.usable} usable triggers in ${CONFIG.readiness.triggerWindowDays}d)`] };
-  if (!q.strong) return { outcome: "watch", reasons: ["Evidence still weak after the follow-up pass"], watchDays: CONFIG.readiness.weakEvidenceWatchDays };
+    return { outcome: "targeted_re_research", reasons: [`Evidence weak (${q.verified} verified, ${q.reports} independent report(s) of ${q.usable} usable trigger(s) in ${CONFIG.readiness.triggerWindowDays}d)`] };
+  if (!q.strong)
+    return { outcome: "watch", reasons: [acc.incomplete ? `Research incomplete — ${acc.incomplete}` : "Evidence still weak after the follow-up pass"], watchDays: CONFIG.readiness.weakEvidenceWatchDays };
 
   const ok = (s: FieldStatus) => s === "verified" || s === "probable";
   const reasons: string[] = [];

@@ -7,6 +7,8 @@ import { ActionButton } from "@/components/client";
 import { Badge, Card, Empty, Kpi, PageHeader, ago, cx } from "@/components/ui";
 import { runAllAction, tickAction } from "../actions";
 import { QueuePanel } from "@/components/queue-panel";
+import { researchQuality } from "@/lib/brain/quality";
+import { Stat, StatRow } from "@/components/kit";
 
 export const metadata = { title: "Pipeline" };
 
@@ -52,6 +54,16 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
       />
 
       <QueuePanel className="mb-5" />
+
+      <section className="rq mb-5" aria-labelledby="rq-h">
+        <h2 id="rq-h">Research quality</h2>
+        <p className="rq-sub">Measured from what happened, not from what the AI says about itself. Grey figures rest on too little data to read into. Accuracy targets are judged on the labelled benchmark (npm run bench).</p>
+        <StatRow>
+          {(await researchQuality()).map((q) => (
+            <Stat key={q.key} id={q.key} value={q.value} sub={q.thin ? `Too little data · ${q.detail}` : q.detail} />
+          ))}
+        </StatRow>
+      </section>
 
       <Card>
         <div className="table-wrap pb-2">
@@ -136,7 +148,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <thead><tr><th>#</th><th>Outcome</th><th>When</th><th>People</th></tr></thead>
               <tbody>
                 {[
-                  ["disqualified", "Acquired, bankrupt, signed a competitor, or suppressed"],
+                  ["disqualified", "Suppressed; a confirmed blocker only proposes rejection — a person approves"],
                   ["watch", `Layoffs/freeze in ${CONFIG.readiness.negativeWatchDays}d, or evidence still weak after follow-up`],
                   ["targeted_re_research", "Evidence weak and follow-up unused"],
                   ["human_review", "Identity not verified/probable, no lawful basis, or not a decision maker/champion"],

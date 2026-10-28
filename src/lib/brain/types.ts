@@ -61,6 +61,8 @@ export interface BriefInput {
   intent?: IntentContext;
   facts: { id: string; key: string; claim: string; status: string; sourceType: string }[];
   inferences: string[];
+  /** The investigation's hypotheses, honestly classified and (where possible) validated. */
+  investigation?: { text: string; classification: string; status: string; supportIds: string[]; note: string | null }[];
   negatives: string[];
   unknowns: string[];
   hypotheses: string[];

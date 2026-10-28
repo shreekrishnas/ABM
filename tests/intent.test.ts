@@ -27,11 +27,21 @@ describe("intent engine", () => {
     const one = scoreIntent([sig("trigger", 1), sig("trigger", 1)]);
     expect(one.level).not.toBe("hot");
     expect(one.score).toBeLessThanOrEqual(45);
-    const many = scoreIntent([sig("trigger", 0.9, "Announced S/4HANA migration"), sig("conversation", 0.9, "Asha is interested on LinkedIn"), sig("hiring", 0.7, "Hiring a master-data lead")]);
+    // The migration and the hiring converge because a hypothesis connects them (same programme).
+    const linked = (s: IntentSignal): IntentSignal => ({ ...s, hypotheses: ["h1"] });
+    const many = scoreIntent([linked(sig("trigger", 0.9, "Announced S/4HANA migration")), sig("conversation", 0.9, "Asha is interested on LinkedIn"), linked(sig("hiring", 0.7, "Hiring a master-data lead"))]);
     expect(many.level).toBe("hot");
     expect(many.families).toEqual(expect.arrayContaining(["trigger", "conversation", "hiring"]));
     expect(many.whyNow).toContain("Asha is interested on LinkedIn");
     expect(many.whyNow).toContain("S/4HANA");
+  });
+
+  it("an acquisition plus unrelated hiring gets no convergence bonus as if they were connected", () => {
+    const unrelated = scoreIntent([sig("trigger", 0.9, "Acquired a rival"), sig("hiring", 0.9, "Hiring warehouse staff")]);
+    const connected = scoreIntent([{ ...sig("trigger", 0.9, "Acquired a rival"), hypotheses: ["h1"] }, { ...sig("hiring", 0.9, "Hiring integration lead"), hypotheses: ["h1"] }]);
+    expect(unrelated.score).toBeLessThanOrEqual(45);
+    expect(unrelated.explain).toMatch(/not connected by a hypothesis/);
+    expect(connected.score).toBeGreaterThan(unrelated.score);
   });
 
   it("negative news pulls intent down", () => {

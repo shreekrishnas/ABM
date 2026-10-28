@@ -208,15 +208,15 @@ enum UserRole {
 // ───────────────────────────── CRM core ─────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  role      UserRole @default(rep)
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  role       UserRole @default(rep)
   /// active = may sign in; removed = access withdrawn (history kept).
   status     String   @default("active")
   /// Entitled to switch into Super Admin (team, clients, access). Switching never removes it.
   superAdmin Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   clients       UserClient[]
   ownedAccounts Account[]     @relation("AccountOwner")
@@ -272,22 +272,22 @@ model Account {
   scoredAt         DateTime?
 
   // Pipeline cursor: last completed stage (0 = nothing yet) and loop counters.
-  pipelineStage     Int       @default(0)
-  pipelineStatus    String    @default("idle") // idle | running | blocked | done | error
+  pipelineStage       Int       @default(0)
+  pipelineStatus      String    @default("idle") // idle | running | blocked | done | error
   /// Automatic retries after temporary failures (rate limits, outages, timeouts).
   /// Company-wide outreach pause (a decision maker said not now, or an objection awaits review).
   outreachPausedUntil DateTime?
   outreachPauseReason String?
-  retryCount        Int       @default(0)
-  nextRetryAt       DateTime?
-  lastError         String?
-  followupUsed      Boolean   @default(false)
-  reopenUsed        Boolean   @default(false)
-  disqualifyReason  String?
-  lastRunAt         DateTime?
+  retryCount          Int       @default(0)
+  nextRetryAt         DateTime?
+  lastError           String?
+  followupUsed        Boolean   @default(false)
+  reopenUsed          Boolean   @default(false)
+  disqualifyReason    String?
+  lastRunAt           DateTime?
   // Set by imports: the account changed and waits for an automatic pipeline run.
-  queuedFromStage   Int?
-  lastImportBatchId String?
+  queuedFromStage     Int?
+  lastImportBatchId   String?
 
   ownerId      String?
   owner        User?    @relation("AccountOwner", fields: [ownerId], references: [id])
@@ -298,6 +298,9 @@ model Account {
   contacts      Contact[]
   fieldStates   FieldState[]
   evidence      Evidence[]
+  researchRuns  ResearchRun[]
+  hypotheses    Hypothesis[]
+  evidenceLinks EvidenceLink[]
   twins         TwinVersion[]
   plans         ResearchPlan[]
   signals       Signal[]
@@ -470,6 +473,15 @@ model Evidence {
   flagReason        String?
   /// Exact supporting sentence copied from the source page (checked by code to appear on the page).
   quote             String?
+  /// The paragraph around the quote, from the page as read, so a checker can see the context.
+  passage           String?
+  /// Site that published the page (host) and when we read it.
+  publisher         String?
+  retrievedAt       DateTime?
+  /// Fingerprint of the quoted sentence: the same press release copied on five sites shares one fingerprint (one report, not five).
+  fingerprint       String?
+  /// True when the page was read in full, false when only a search snippet was available.
+  fullText          Boolean     @default(false)
   sellerId          String?
   sellerPackVersion String?
   createdAt         DateTime    @default(now())
@@ -999,38 +1011,38 @@ model MarketEvent {
 
 /// A company the brain suggests adding, with the evidence behind it.
 model ProspectSuggestion {
-  id        String   @id @default(cuid())
-  sellerId  String
+  id           String    @id @default(cuid())
+  sellerId     String
   /// Where it came from: market (news scan) | lookalike (similar to a company you entered) | website_visitor (Apollo or tracking)
-  origin    String   @default("market")
+  origin       String    @default("market")
   /// For lookalikes: the company they resemble.
-  seed      String?
+  seed         String?
   /// For lookalikes: the seed company's profile { industry, employees, country, keywords }, to show which traits match.
-  seedProfile Json?
-  name      String
-  nameKey   String
-  domain    String?
-  industry  String?
-  bucket    String
-  country   String?
-  employees Int?
-  score     Int
-  level     String
-  whyNow    String
-  families  String[] @default([])
-  sources   Json
+  seedProfile  Json?
+  name         String
+  nameKey      String
+  domain       String?
+  industry     String?
+  bucket       String
+  country      String?
+  employees    Int?
+  score        Int
+  level        String
+  whyNow       String
+  families     String[]  @default([])
+  sources      Json
   /// new | added | dismissed | excluded | needs_check (size or country unknown) | watching (fits, but fewer than two independent signals)
-  status    String   @default("new")
+  status       String    @default("new")
   /// When a person approved or ignored it; new evidence after this date can resurface an ignored company.
-  decidedAt DateTime?
+  decidedAt    DateTime?
   /// Bumped each time a pending suggestion is revised with stronger evidence.
-  version   Int      @default(1)
+  version      Int       @default(1)
   /// Set when an ignored company came back on genuinely new evidence.
   resurfacedAt DateTime?
-  reason    String?
-  accountId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  reason       String?
+  accountId    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([sellerId, nameKey])
   @@index([sellerId, status, score])
@@ -1039,13 +1051,13 @@ model ProspectSuggestion {
 /// A short-lived lease so only one worker runs a background job at a time (e.g. the
 /// import queue drain). A lease past `expiresAt` is free to take over.
 model JobLease {
-  name       String   @id
+  name       String    @id
   holder     String
   expiresAt  DateTime
   lastRunAt  DateTime?
   /// What the last run did, for the status panel.
   lastResult Json?
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime  @updatedAt
 }
 
 /// An edited version of a seller pack (Settings → Seller profile → Edit). The newest
@@ -1115,24 +1127,24 @@ model KnowledgeChunk {
 /// One page view on the seller's website. Known companies and people are matched;
 /// unknown companies (from a reverse-IP tool) are kept so Discover can suggest them.
 model WebVisit {
-  id          String   @id @default(cuid())
-  accountId   String?
-  contactId   String?
+  id            String   @id @default(cuid())
+  accountId     String?
+  contactId     String?
   /// Anonymous browser id from the tracking script (first-party cookie).
-  visitorId   String?
+  visitorId     String?
   /// Company identified by a reverse-IP tool, when the account is not known yet.
-  companyName String?
+  companyName   String?
   companyDomain String?
-  url         String
-  path        String
-  title       String?
+  url           String
+  path          String
+  title         String?
   /// What the page is about: pricing, case_study, a seller use case or trigger key, or "general".
-  topic       String
+  topic         String
   /// tracking_script | reverse_ip | email_link
-  source      String
-  referrer    String?
-  durationSec Int?
-  occurredAt  DateTime @default(now())
+  source        String
+  referrer      String?
+  durationSec   Int?
+  occurredAt    DateTime @default(now())
 
   @@index([accountId, occurredAt])
   @@index([contactId, occurredAt])
@@ -1171,4 +1183,78 @@ model AuditEntry {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// One investigation of a company: rounds of questions and searches, why each was chosen,
+/// the completeness check, the validator's feedback and why it stopped.
+model ResearchRun {
+  id           String    @id @default(cuid())
+  accountId    String
+  account      Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  sellerId     String?
+  /// in_progress | complete | incomplete
+  status       String    @default("in_progress")
+  stopReason   String?
+  rounds       Int       @default(0)
+  /// [{ round, questions: [{ question, query, purpose, why, hypothesis, value, found, kept }] }]
+  trace        Json      @default("[]")
+  /// { complete, checks: [{ key, pass, detail }], gaps: [], nextQuestions: [] }
+  completeness Json?
+  /// { model, results: [{ hypothesisId, verdict, issues, alternatives, repairQuestions }], rounds }
+  validation   Json?
+  createdAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  hypotheses Hypothesis[]
+
+  @@index([accountId, createdAt])
+}
+
+/// An explained possible connection between what the company is doing and what the seller offers.
+model Hypothesis {
+  id             String       @id @default(cuid())
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  researchRunId  String?
+  researchRun    ResearchRun? @relation(fields: [researchRunId], references: [id], onDelete: SetNull)
+  text           String
+  /// verified_event | relevant_development | supported_opportunity | direct_intent | inconclusive | irrelevant
+  classification String       @default("inconclusive")
+  /// open | supported | refuted | validated | rejected
+  status         String       @default("open")
+  useCase        String?
+  assumptions    String[]
+  supportIds     String[]
+  counterIds     String[]
+  alternatives   String[]
+  rationale      String?
+  validatorNote  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  links EvidenceLink[]
+
+  @@index([accountId, status])
+}
+
+/// A typed link in the evidence graph: fact → fact, fact → capability, hypothesis → fact.
+/// A link without evidence is a hypothesis link and is shown as one.
+model EvidenceLink {
+  id           String      @id @default(cuid())
+  accountId    String
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  hypothesisId String?
+  hypothesis   Hypothesis? @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+  /// fact:<evidenceId> | capability:<useCase> | hypothesis:<id> | entity:<name>
+  fromRef      String
+  /// announced_by | part_of | responsible_for | may_create_need_for | contradicts | supported_by | same_programme | same_owner | same_timeframe
+  relation     String
+  toRef        String
+  rationale    String
+  evidenceIds  String[]
+  /// True when no evidence backs the link: it is shown as an assumption, never as a fact.
+  isHypothesis Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  @@index([accountId])
 }

@@ -10,6 +10,15 @@ import { bannedClaimGate, specificityGate, complianceGate, decideReadiness, fact
 import { addToWatchlist, BudgetExceeded, charge, isSuppressed, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { contactFields } from "../fields";
 import { proposeRejection } from "../rejection";
+import { validatedConclusions } from "@/lib/brain/investigate";
+
+/** The latest investigation's gaps, when it stopped incomplete. */
+async function incompleteReason(accountId: string): Promise<string | null> {
+  const run = await db.researchRun.findFirst({ where: { accountId, status: { not: "in_progress" } }, orderBy: { createdAt: "desc" } });
+  if (!run || run.status !== "incomplete") return null;
+  const gaps = (run.completeness as { gaps?: string[] } | null)?.gaps ?? [];
+  return `${run.stopReason ?? "stopped early"}${gaps.length ? `; ${gaps.slice(0, 2).join("; ")}` : ""}`.slice(0, 300);
+}
 import { liveEvidence } from "./research";
 import { seller, sellerContext } from "@/lib/seller";
 import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
@@ -36,10 +45,12 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
   const S = 10;
   const evidence = await liveEvidence(account.id);
   const accInput = {
-    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, sourceType: e.sourceType, quote: e.quote })),
+    negatives: evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind!, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, sourceType: e.sourceType, quote: e.quote, fingerprint: e.fingerprint })),
     company: { name: account.name, domain: account.domain },
-    triggers: evidence.filter((e) => isTriggerKey(e.key)).map((e) => ({ status: e.status, publishedAt: e.publishedAt })),
+    triggers: evidence.filter((e) => isTriggerKey(e.key)).map((e) => ({ status: e.status, publishedAt: e.publishedAt, sourceUrl: e.sourceUrl, fingerprint: e.fingerprint })),
     followupUsed: account.followupUsed,
+    validated: (await validatedConclusions(account.id)).length,
+    incomplete: await incompleteReason(account.id),
   };
   const people = await db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, state: { in: ["selected", "ready"] } } });
 
@@ -245,6 +256,23 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
         reason: checks == null ? "Claim checker unavailable — a person will review" : bad.length ? `Version ${attempt}: unsupported — ${bad.map((b) => `"${b.text.slice(0, 60)}" (${b.reason})`).join("; ")}` : `Version ${attempt}: all ${checks.length} claim(s) supported`,
       });
       panel.push({ critic: "truth (model)", pass: checks != null && !bad.length, issues: bad.map((b) => `Claim not supported by its source: "${b.text.slice(0, 80)}" — ${b.reason}`), available: checks != null });
+    }
+
+    // 2a. Whole-email critic (model): EVERY sentence about the prospect, not only the claims the writer listed.
+    //     A stated fact must be supported by a fact and its quote; a possible need must be phrased as a question or possibility.
+    try {
+      await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, `Whole-email audit for ${contact.fullName} (version ${attempt})`, S);
+      const audit = await ctx.adapters.llm.auditEmail({
+        company: account.name,
+        body: messageBody(candidate.body, sp.sender.name),
+        facts: facts.map((f) => ({ id: f.id, claim: f.claim, quote: f.quote })),
+        hypotheses: [angle?.pain, ...(brief?.hypotheses ?? [])].filter((x): x is string => Boolean(x)),
+      });
+      const bad = audit.sentences.filter((x) => x.aboutProspect && ((x.kind === "fact" && !x.supported) || (x.kind === "hypothesis" && !x.phrasedAsHypothesis)));
+      panel.push({ critic: "truth (whole email)", pass: bad.length === 0, issues: bad.map((b) => (b.kind === "hypothesis" ? `States a guess as fact — rephrase as a question: "${b.text.slice(0, 90)}"` : `Unsupported statement about the prospect: "${b.text.slice(0, 90)}"${b.reason ? ` (${b.reason})` : ""}`)), available: true });
+    } catch (e) {
+      if (e instanceof BudgetExceeded) throw e;
+      panel.push({ critic: "truth (whole email)", pass: true, issues: [], available: false });
     }
 
     // 2b. Playbook critic (code): length, subject, one ask, no filler — the measurable parts of the play.

@@ -4,6 +4,7 @@
 import type { ResearchPage, ResearchPass, ResearchSource, SearchHint } from "../types";
 import { fetchJson, parseLooseDate } from "./http";
 import { seller } from "@/lib/seller";
+import { readPage } from "./reader";
 
 const DAY = 86_400_000;
 
@@ -121,7 +122,9 @@ export class WebResearch implements ResearchSource {
     const chosen = (["exa", "tavily", "serp"] as Engine[]).find((e) => e === hint.engine);
     const order = (chosen ? [chosen, ...preferred.filter((e) => e !== chosen)] : preferred).filter((e) => this.keys[e]);
     const name = companyName.toLowerCase().split(/\s+/)[0];
+    const all = hint.breadth === "all";
     let lastError: unknown = null;
+    const found: ResearchPage[] = [];
     for (const engine of order) {
       let pages: ResearchPage[];
       try {
@@ -131,13 +134,30 @@ export class WebResearch implements ResearchSource {
         hint.onAttempt?.({ engine, results: 0, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
         continue;
       }
-      // Keep only pages that actually mention the company. Stop at the first engine
-      // with usable results: no paying a second engine to repeat the same answer.
+      // Keep only pages that actually mention the company.
       const relevant = pages.filter((p) => `${p.title} ${p.text}`.toLowerCase().includes(name) || (domain && p.url.includes(domain)));
       hint.onAttempt?.({ engine, results: relevant.length });
-      if (relevant.length) return relevant.slice(0, 5).map((p) => ({ ...p, engine }));
+      for (const p of relevant) if (!found.some((f) => f.url === p.url)) found.push({ ...p, engine });
+      // Usually stop at the first engine with results; "all" asks every engine (high-value or disconfirming questions).
+      if (found.length && !all) break;
     }
-    if (lastError && order.length) throw lastError;
-    return [];
+    if (!found.length) {
+      if (lastError && order.length) throw lastError;
+      return [];
+    }
+    // Read the best pages in full where the site allows it; otherwise keep the snippet.
+    const top = found.slice(0, all ? 8 : 5);
+    const read = key === "website" ? top.map(() => null) : await Promise.all(top.map((p) => readPage(p.url).catch(() => null)));
+    const now = new Date();
+    return top.map((p, i) => {
+      let publisher = "";
+      try {
+        publisher = new URL(p.url).hostname.replace(/^www\./, "");
+      } catch {
+        publisher = "";
+      }
+      const full = read[i];
+      return { ...p, text: full ?? p.text, full: Boolean(full), publisher, retrievedAt: now };
+    });
   }
 }

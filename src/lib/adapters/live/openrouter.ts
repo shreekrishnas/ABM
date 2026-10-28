@@ -11,7 +11,17 @@ import { inferFunction } from "@/lib/pipeline/normalize";
 import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
 import { JOURNEY_STAGES, STAGE_INFO } from "@/lib/journey/stages";
-import { plainText } from "@/lib/pipeline/gates";
+import { companyMarks, plainText } from "@/lib/pipeline/gates";
+import { relevantText } from "./reader";
+import { relevanceText } from "@/lib/brain/relevance";
+import { connectSchema, emailAuditSchema, investigateSchema, validateSchema, type ConnectInput, type EmailAuditInput, type InvestigateInput, type InvestigationFact, type ValidateInput } from "@/lib/brain/research-types";
+
+const factLine = (f: InvestigationFact) => `${f.id} [${f.key}${f.negative ? ", NEGATIVE" : ""}, ${f.status}, ${f.publisher ?? "?"}, ${f.publishedAt}] ${f.claim}${f.quote ? ` — source says: "${f.quote.slice(0, 240)}"` : ""}`;
+
+const CLASS_RULES =
+  "Classes, weakest to strongest: irrelevant (no defensible link to the client's offering), inconclusive (relevant question unresolved), verified_event (a dated event is supported — an event alone is NOT intent), " +
+  "relevant_development (the event plausibly relates to a client capability), supported_opportunity (several connected facts support a specific possible need), " +
+  "direct_intent (a source EXPLICITLY says the company is evaluating, tendering, selecting or budgeting for this kind of solution). Never upgrade on confidence alone; correlation is not causation.";
 
 const FUNCTIONS = ["data", "it", "procurement", "finance", "sales", "operations", "compliance", "security", "engineering", "marketing", "hr", "executive"] as const;
 const NEGATIVE = ["layoffs", "hiring_freeze", "acquired", "bankrupt", "competitor_signed"] as const;
@@ -76,7 +86,7 @@ export class OpenRouterLLM implements LLM {
     throw new Error(`OpenRouter output invalid after retry: ${lastError}`);
   }
 
-  async extractEvidence(pages: ResearchPage[], key: string, known: { id: string; claim: string }[] = []): Promise<ExtractedEvidence[]> {
+  async extractEvidence(pages: ResearchPage[], key: string, known: { id: string; claim: string }[] = [], guideIn?: { company: string; domain: string | null; question?: string }): Promise<ExtractedEvidence[]> {
     if (!pages.length) return [];
     const sp = seller();
     const fixed: Record<string, string> = {
@@ -84,7 +94,10 @@ export class OpenRouterLLM implements LLM {
       negative: `Only explicit negative events about this exact company. kind must be one of: ${NEGATIVE.join(", ")}, not_a_blocker. Definitions: ${BLOCKER_DEFINITIONS}`,
     };
     const q = sp.researchQuestions.find((x) => x.key === key);
-    const guide: Record<string, string> = { [key]: fixed[key] ?? q?.extract ?? q?.question ?? key };
+    const guide: Record<string, string> = { [key]: fixed[key] ?? q?.extract ?? guideIn?.question ?? q?.question ?? key };
+    // Long pages: read the paragraphs that name the company (with context), not just the first screen.
+    const marks = guideIn ? companyMarks(guideIn.company, guideIn.domain) : [];
+    const body = (p: ResearchPage) => plainText(relevantText(p.text, marks, p.full ? 5_000 : 2_500)).slice(0, p.full ? 5_000 : 2_500);
     if (key === "owner_function") guide[key] += ` value must be one of: ${FUNCTIONS.join(", ")}.`;
     const schema = z.object({
       // Lengths are trimmed afterwards, never a reason to fail the whole answer.
@@ -93,7 +106,7 @@ export class OpenRouterLLM implements LLM {
     const out = await this.json(
       schema,
       "You extract facts from web pages for B2B account research. Extract only what a page states explicitly — never infer or combine pages. For every item, copy into \"quote\" the exact sentence from the page that supports it, character for character. Write each claim as one short sentence that starts with the company name. If nothing relevant is stated, return {\"items\": []}.",
-      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${plainText(p.text).slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
+      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${body(p)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
     );
     return out.items.slice(0, 8).flatMap((raw) => {
       const it = { ...raw, claim: clip(raw.claim, 240)!, quote: clip(raw.quote, 400), value: clip(raw.value, 120) };
@@ -227,6 +240,70 @@ export class OpenRouterLLM implements LLM {
     }
   }
 
+  // ── The research engine ──
+
+  async investigate(input: InvestigateInput) {
+    return this.json(
+      investigateSchema,
+      `${BRAIN(input.relevance.client)} You investigate one company like an analyst. Only follow developments with a defensible potential link to the client's offering; never collect unrelated news. ` +
+        "Loop: observe a sourced event (never call an event intent) → hypothesise a connection to a client use case, stating assumptions → ask the questions whose answers would MOST change the commercial conclusion, " +
+        "including questions that could DISPROVE it (an incumbent supplier, the programme already finished, the change not touching the client's processes) → connect by shared programme, team, geography, timing, technology or owner. " +
+        "Each query must name the company in quotes and be specific (programme names, places, roles, dates). Use different wording and source types than queries already asked. Set done=true when more searching is unlikely to change the conclusion.",
+      [
+        `COMPANY: ${input.company.name} (${input.company.domain ?? "no domain"}) · ${input.company.industry ?? "industry unknown"} · ${input.company.employees ?? "?"} employees · ${input.company.country ?? "?"}`,
+        relevanceText(input.relevance),
+        `FACTS (id [key, status, publisher, date] claim — source says):
+${input.facts.map(factLine).join("\n") || "none yet"}`,
+        `HYPOTHESES SO FAR:
+${input.hypotheses.map((h) => `${h.id} [${h.classification}/${h.status}] ${h.text} (support: ${h.supportIds.join(",") || "none"}; counter: ${h.counterIds.join(",") || "none"})`).join("\n") || "none"}`,
+        `QUERIES ALREADY ASKED (do not repeat): ${input.asked.join(" | ") || "none"}`,
+        `Round ${input.round}. Propose up to ${input.maxQuestions + 2} questions; value 5 = the answer could flip the conclusion, 1 = nice to know.`,
+        `Return {"hypotheses":[{"ref":"<existing id or new>","text":"...","useCase":"<use case key or null>","assumptions":["..."],"supportIds":["<fact id>"],"counterIds":["<fact id>"]}],"questions":[{"question":"...","query":"...","purpose":"baseline|confirm|disconfirm|connect|discover","hypothesisRef":"<id or null>","value":1-5,"why":"what the answer decides"}],"done":false,"doneWhy":"..."}`,
+      ].join("\n\n"),
+      1400,
+    );
+  }
+
+  async connectEvidence(input: ConnectInput) {
+    return this.json(
+      connectSchema,
+      `${BRAIN(input.relevance.client)} Connect the evidence about one company into typed links and classify each hypothesis honestly. ${CLASS_RULES} ` +
+        "Every link needs a rationale and the fact ids it rests on; a link you cannot support with fact ids must have an empty evidenceIds list (it will be shown as an assumption). Name credible alternative explanations.",
+      [
+        `COMPANY: ${input.company.name} (${input.company.domain ?? "?"})`,
+        relevanceText(input.relevance),
+        `FACTS:
+${input.facts.map(factLine).join("\n") || "none"}`,
+        `HYPOTHESES:
+${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"}; support ${h.supportIds.join(",") || "none"}; counter ${h.counterIds.join(",") || "none"}; assumptions: ${h.assumptions.join("; ") || "none"})`).join("\n")}`,
+        `Refs: fact:<id>, capability:<use case key>, hypothesis:<id>, entity:<name>. Relations: announced_by, part_of, responsible_for, may_create_need_for, contradicts, supported_by, same_programme, same_owner, same_timeframe.`,
+        `Return {"hypotheses":[{"id":"...","classification":"...","useCase":"<key or null>","rationale":"...","supportIds":[],"counterIds":[],"alternatives":["..."]}],"links":[{"hypothesisId":"<id or null>","from":"fact:<id>","relation":"may_create_need_for","to":"capability:<key>","rationale":"...","evidenceIds":["<fact id>"]}]}`,
+      ].join("\n\n"),
+      1600,
+    );
+  }
+
+  async auditEmail(input: EmailAuditInput) {
+    return this.json(
+      emailAuditSchema,
+      "You audit a B2B email sentence by sentence. For EVERY sentence say whether it states something about the prospect company or person (aboutProspect). If it does: kind=fact when stated as true — then it must be fully supported by the given facts and their source quotes (no added numbers, names, dates, scope or certainty); kind=hypothesis when it is a possible need or pain — then it must be phrased as a question or a possibility (phrasedAsHypothesis). Sentences about the sender's own product are kind=seller.",
+      `Company: ${input.company}\n\nFACTS:\n${input.facts.map((f) => `${f.id}: ${f.claim}${f.quote ? ` (source says: "${f.quote}")` : ""}`).join("\n") || "none"}\n\nHYPOTHESES (may only be raised as questions/possibilities):\n${input.hypotheses.join("\n") || "none"}\n\nEMAIL:\n${input.body}\n\nReturn {"sentences":[{"text":"...","aboutProspect":true,"kind":"fact|hypothesis|seller|other","supported":true,"factIds":["..."],"phrasedAsHypothesis":false,"reason":"..."}]}`,
+      1200,
+    );
+  }
+
+  async validateResearch(input: ValidateInput) {
+    return this.json(
+      validateSchema,
+      "You are an independent research validator. You did not do this research and you are not trying to sell anything. For each hypothesis: reread every supporting quote and passage, and check (1) the passage is about THIS company and this time period, " +
+        "(2) each claim says no more than its quote, (3) linked events really share a programme, owner, timeframe or dependency — not just appear together, (4) copies of one press release (same fingerprint) are one source, " +
+        "(5) the evidence is fresh, (6) 'direct_intent' is explicitly stated by a source. Offer credible alternative explanations. Verdicts: upheld, downgrade (give the lower class), reject (not supported), " +
+        `needs_research (give up to 3 precise repair questions with queries naming the company). You may only keep or LOWER a class. ${CLASS_RULES}`,
+      `COMPANY: ${input.company.name} (${input.company.domain ?? "?"}) · today ${input.today}\n\n${input.hypotheses.map((h) => `HYPOTHESIS ${h.id} [${h.classification}]: ${h.text}\nRationale: ${h.rationale ?? "—"}\nSUPPORT:\n${h.support.map((s) => `- ${s.id} (${s.publisher ?? "?"}, ${s.publishedAt}, fp ${s.fingerprint ?? "—"}): ${s.claim}\n  quote: "${s.quote ?? "—"}"\n  passage: ${s.passage?.slice(0, 700) ?? "—"}`).join("\n") || "- none"}\nCOUNTER:\n${h.counter.map((c) => `- ${c.id}: ${c.claim}${c.quote ? ` ("${c.quote}")` : ""}`).join("\n") || "- none"}\nLINKS:\n${h.links.map((l) => `- ${l.from} ${l.relation} ${l.to} [${l.evidenceIds.join(",") || "no evidence"}]: ${l.rationale}`).join("\n") || "- none"}`).join("\n\n")}\n\nReturn {"results":[{"hypothesisId":"...","verdict":"upheld|downgrade|reject|needs_research","classification":"...","issues":["..."],"alternatives":["..."],"repairQuestions":[{"question":"...","query":"..."}]}]}`,
+      1600,
+    );
+  }
+
   // ── The brain ──
 
   async planResearch(input: PlanResearchInput) {
@@ -258,6 +335,7 @@ export class OpenRouterLLM implements LLM {
         `FIT ${input.company.fitScore ?? "?"}/100: ${input.company.fitReasons.join("; ")}`,
         `FACTS:\n${input.facts.map((f) => `${f.id} [${f.key}, ${f.status}, ${f.sourceType}] ${f.claim}`).join("\n") || "none"}`,
         `INFERENCES: ${input.inferences.join(" | ") || "none"}`,
+        input.investigation?.length ? `INVESTIGATION (class decides the wording you may use — verified_event: "the company announced X"; relevant_development: "X may be relevant to Y"; supported_opportunity: "evidence suggests a potential need for Y"; direct_intent: "the company is evaluating Y" only if validated; only status=validated conclusions may drive a strong verdict):\n${input.investigation.map((h) => `- [${h.classification}/${h.status}] ${h.text} (facts ${h.supportIds.join(",") || "none"})${h.note ? ` — validator: ${h.note.slice(0, 160)}` : ""}`).join("\n")}` : "INVESTIGATION: no client-relevant hypothesis yet",
         `NEGATIVE NEWS: ${input.negatives.join(" | ") || "none found"}`,
         `UNKNOWN: ${input.unknowns.join(", ") || "nothing"}`,
         `RESEARCH HYPOTHESES: ${input.hypotheses.join(" | ") || "none"}`,
