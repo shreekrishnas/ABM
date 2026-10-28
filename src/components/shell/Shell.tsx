@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LogOut, Send, Settings2, ShieldCheck, Sun, Upload, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
 import { isOn, locate, type Counts } from "@/lib/nav";
@@ -19,6 +20,8 @@ const RAIL = [
   { key: "sales", href: "/handoffs", label: "Sales", short: "Sales", icon: Handshake, count: "handoffs" as const },
   { key: "insights", href: "/overview", label: "Insights", short: "Insights", icon: BarChart3 },
 ];
+
+const PHONE = ["home", "today", "research", "outreach"];
 
 export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null;
 
@@ -40,7 +43,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             {RAIL.map((r) => {
               const n = r.count ? counts[r.count] : 0;
               return (
-                <Link key={r.key} href={r.href} className={`sh-item${active === r.key ? " on" : ""}`} data-tip={r.label} aria-label={r.label} aria-current={active === r.key ? "page" : undefined}>
+                <Link key={r.key} href={r.href} className={`sh-item${active === r.key ? " on" : ""}${PHONE.includes(r.key) ? "" : " sh-desk"}`} data-tip={r.label} aria-label={r.label} aria-current={active === r.key ? "page" : undefined}>
                   <r.icon size={20} strokeWidth={1.9} aria-hidden />
                   <span className="sh-lbl">{r.short}</span>
                   {n > 0 && <span className="sh-badge tnum" aria-label={`${n} waiting`}>{n > 99 ? "99+" : n}</span>}
@@ -49,16 +52,11 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             })}
           </div>
           <div className="sh-rail-foot">
-            {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} /></Link>}
-            {access?.canSuperAdmin && (
-              <form action={switchModeAction.bind(null, sup ? "user" : "super")}>
-                <button type="submit" className={`sh-item sh-mode${sup ? " on" : ""}`} data-tip={sup ? "Switch to User" : "Switch to Super Admin"} aria-label={sup ? "Switch to User" : "Switch to Super Admin"}><ShieldCheck size={20} strokeWidth={1.9} /></button>
-              </form>
-            )}
-            <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} /></Link>
-            <span className="sh-sep" aria-hidden />
-            <form action={signOutAction}><button type="submit" className="sh-item" data-tip="Sign out" aria-label="Sign out"><LogOut size={20} strokeWidth={1.9} /></button></form>
+            {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
+            <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
+            {access && <AccountMenu access={access} sup={sup} />}
           </div>
+          <MoreSheet active={active} sup={sup} counts={counts} />
         </nav>
         <div className="sh-body" id="sh-scroll">
           {sup && (
@@ -92,6 +90,67 @@ function ClientBar({ choices, picked, everyClient }: { choices: { id: string; na
       })}
       {!picked && <span className="sh-clients-note">Pick one client to import or add companies</span>}
     </div>
+  );
+}
+
+/** Name, client, Super Admin switch and sign out, behind the person's initials. */
+function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close); document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [open]);
+  const initials = access.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+  return (
+    <div className="sh-acct" ref={ref}>
+      <button type="button" className="sh-item sh-acct-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Account: ${access.name}`} data-tip="Account" onClick={() => setOpen(!open)}>
+        <span className={`sh-av${sup ? " sup" : ""}`} aria-hidden>{initials}</span><span className="sh-lbl">{access.name.split(" ")[0] || "Account"}</span>
+      </button>
+      {open && (
+        <div className="sh-menu" role="menu">
+          <div className="sh-menu-who"><b>{access.name}</b><span>{access.email}</span>{access.clients.length > 0 && <span>{access.clients.join(", ")}</span>}{sup && <span className="sh-menu-sup"><ShieldCheck size={12} /> Super Admin on</span>}</div>
+          {access.canSuperAdmin && (
+            <form action={switchModeAction.bind(null, sup ? "user" : "super")}>
+              <button type="submit" role="menuitem" className="sh-menu-i"><ShieldCheck size={15} /> {sup ? "Switch to User" : "Switch to Super Admin"}</button>
+            </form>
+          )}
+          <Link href="/settings" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> Settings</Link>
+          <div className="sh-menu-sep" />
+          <form action={signOutAction}><button type="submit" role="menuitem" className="sh-menu-i danger"><LogOut size={15} /> Sign out</button></form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Phone only: the fifth bar item opens everything that doesn't fit in the bar. */
+function MoreSheet({ active, sup, counts }: { active: string; sup: boolean; counts: Counts }) {
+  const [open, setOpen] = useState(false);
+  const path = usePathname();
+  useEffect(() => setOpen(false), [path]);
+  const rest = RAIL.filter((r) => !PHONE.includes(r.key));
+  const n = rest.reduce((t, r) => t + (r.count ? counts[r.count] : 0), 0);
+  return (
+    <>
+      <button type="button" className={`sh-item sh-more${open || rest.some((r) => r.key === active) ? " on" : ""}`} aria-expanded={open} aria-label="More" onClick={() => setOpen(!open)}>
+        <MoreHorizontal size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">More</span>
+        {n > 0 && <span className="sh-badge tnum">{n}</span>}
+      </button>
+      {open && (
+        <div className="sh-sheet" role="dialog" aria-label="More">
+          <div className="sh-sheet-h"><b>More</b><button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Close" onClick={() => setOpen(false)}><X size={16} /></button></div>
+          <div className="sh-sheet-g">
+            {rest.map((r) => <Link key={r.key} href={r.href} className={`sh-sheet-i${active === r.key ? " on" : ""}`}><r.icon size={18} aria-hidden />{r.label}{r.count && counts[r.count] > 0 && <span className="sh-badge tnum">{counts[r.count]}</span>}</Link>)}
+            {sup && <Link href="/team" className="sh-sheet-i"><Users size={18} aria-hidden />Team &amp; Access</Link>}
+            <Link href="/settings" className="sh-sheet-i"><Settings2 size={18} aria-hidden />Settings</Link>
+          </div>
+          <form action={signOutAction} className="sh-sheet-out"><button type="submit" className="btn btn-secondary btn-sm"><LogOut size={14} /> Sign out</button></form>
+        </div>
+      )}
+    </>
   );
 }
 

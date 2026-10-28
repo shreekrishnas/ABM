@@ -33,30 +33,29 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
     trail.push({ label: "Import data", href: "/import" });
     if (at.page) trail.push({ label: at.page.label, href: at.page.href });
   }
+  // One breadcrumb: Home › area or section › page. The page's own header carries the title.
+  const crumbs: { label: string; href: string }[] = path.startsWith("/brain") ? [{ label: "Account Brain", href: "/brain" }]
+    : path.startsWith("/team") ? [{ label: "Team & Access", href: "/team" }]
+    : path.startsWith("/settings") ? [{ label: "Settings", href: "/settings" }]
+    : at.area === "import" ? trail
+    : [...(at.section ? [{ label: at.section.label, href: sectionHref(at.section) }] : []), ...(at.page && at.page.label !== at.section?.label ? [{ label: at.page.label, href: at.page.href }] : [])];
   const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 ? at.section.items : [];
   const sectionCount = (items: (typeof SECTIONS)[number]["items"]) => items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
 
   return (
     <header className="nav">
       <div className="nav-row">
-        <div className="nav-title">
-          <span className="nav-eyebrow">{path.startsWith("/brain") ? "Account" : path.startsWith("/team") ? "Super Admin" : at.area === "import" ? "Import data" : "Workspace"}</span>
-          <span className="nav-heading">{path.startsWith("/brain") ? "Account Brain" : path.startsWith("/team") ? "Team & Access" : at.page?.label ?? at.section?.label ?? (at.area === "import" ? "Import data" : "Workspace")}</span>
-        </div>
-
-        {trail.length > 0 && (
-          <nav className="nav-trail" aria-label="You are here">
-            <ol>
-              <li><Link href="/">Home</Link></li>
-              {trail.map((t, i) => (
-                <li key={t.href}>
-                  <ChevronRight size={14} aria-hidden />
-                  {i === trail.length - 1 && t.href === path ? <span aria-current="page">{t.label}</span> : <Link href={t.href}>{t.label}</Link>}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
+        <nav className="nav-crumbs" aria-label="You are here">
+          <ol>
+            <li><Link href="/">Home</Link></li>
+            {crumbs.map((c, i) => (
+              <li key={c.href + i}>
+                <ChevronRight size={13} aria-hidden />
+                {i === crumbs.length - 1 ? <span aria-current="page" title={c.label}>{c.label}</span> : <Link href={c.href}>{c.label}</Link>}
+              </li>
+            ))}
+          </ol>
+        </nav>
 
         {at.area === "work" && (
           <nav className="nav-sections" aria-label="Workspace sections">
