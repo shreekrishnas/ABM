@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Download, Globe } from "lucide-react";
 import { db } from "@/lib/db";
 import { nextBestAction, type PriorityParts } from "@/lib/brain/priority";
-import { Avatar, TierBadge } from "@/components/ui";
-import { IntentPill, SectionLabel, type IntentLevel } from "@/components/v2";
+import { Avatar } from "@/components/ui";
+import { Badge, DataTable, type Column } from "@/components/kit";
+import type { IntentLevel } from "@/components/v2";
 
 const DAY = 86_400_000;
 type Reading = { score: number; level: IntentLevel; whyNow: string | null };
@@ -45,29 +46,29 @@ export async function TopOpportunities({ now }: { now: Date }) {
     return { a, r, parts: a.priorityParts as unknown as PriorityParts | null, action, href, visited: Boolean(visit) };
   });
 
+  type R = (typeof rows)[number];
+  const columns: Column<R>[] = [
+    { key: "co", header: "Company", primary: true, cell: ({ a, visited }) => (
+      <Link href={`/accounts/${a.id}`} className="td2-co"><Avatar name={a.name} id={a.id} size={28} /><span className="min-w-0"><b>{a.name}</b><span className="td2-co-m">{a.tier && <Badge>{a.tier}</Badge>}{visited && <Badge tone="danger" icon={<Globe size={11} aria-hidden />}>On our site</Badge>}</span></span></Link>
+    ) },
+    { key: "p", header: "Priority", align: "right", cell: ({ a, parts }) => (
+      <span title={parts ? `Weights: intent ${parts.weights.intent}%, fit ${parts.weights.fit}%, value ${parts.weights.value}%, timing ${parts.weights.timing}%` : undefined}><b className="tnum">{a.priorityScore}</b>{parts && <span className="td2-s tnum">I {parts.intent} · F {parts.fit} · V {parts.value} · T {parts.timing}</span>}</span>
+    ) },
+    { key: "i", header: "Intent", cell: ({ r }) => (r ? <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)} · {Math.round(r.score)}</Badge> : <span className="td2-s">—</span>) },
+    { key: "w", header: "Why", priority: 2, cell: ({ r }) => <span className="td2-why">{r?.whyNow ?? "No converging signals yet"}</span> },
+    { key: "n", header: "Next best action", cell: ({ action, href }) => <span className="td2-next"><Link href={href} className="btn btn-secondary btn-sm">{action.text}</Link><span className="td2-s">{action.why}</span></span> },
+  ];
+
   return (
-    <section className="mb-6">
-      <SectionLabel count={rows.length} action={<span className="flex items-center gap-3"><Link href="/accounts?view=list&sort=priority" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>All by priority</Link><a href="/accounts/export" className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}><Download size={12} /> Export</a></span>}>Top opportunities: who to work first</SectionLabel>
-      <div className="glass-card-static table-wrap">
-        <table className="data">
-          <thead><tr><th>Company</th><th>Priority</th><th>Intent</th><th className="hide-sm">Why</th><th>Next best action</th></tr></thead>
-          <tbody>
-            {rows.map(({ a, r, parts, action, href, visited }) => (
-              <tr key={a.id}>
-                <td className="strong"><Link href={`/accounts/${a.id}`} className="flex items-center gap-2.5"><Avatar name={a.name} id={a.id} size={30} /><span className="min-w-0"><span className="block truncate hover:underline">{a.name}</span><span className="flex items-center gap-1.5"><TierBadge tier={a.tier} />{visited && <span className="chip" title="Pricing or demo page in the last 14 days" style={{ ["--c" as string]: "var(--intent-hot)" }}><Globe size={11} /> On our site</span>}</span></span></Link></td>
-                <td>
-                  <div className="tnum text-base font-bold" style={{ color: "var(--text-primary)" }}>{a.priorityScore}</div>
-                  {parts && <div className="muted whitespace-nowrap text-[0.68rem]" title={`Weights: intent ${parts.weights.intent}%, fit ${parts.weights.fit}%, value ${parts.weights.value}%, timing ${parts.weights.timing}%`}>I {parts.intent} · F {parts.fit} · V {parts.value} · T {parts.timing}</div>}
-                </td>
-                <td>{r ? <IntentPill level={r.level} score={r.score} /> : <span className="muted text-xs">—</span>}</td>
-                <td className="hide-sm max-w-[320px]"><span className="line-clamp-2 text-xs secondary">{r?.whyNow ?? "No converging signals yet"}</span></td>
-                <td><Link href={href} className="btn btn-secondary btn-sm whitespace-nowrap">{action.text}</Link><div className="muted mt-1 text-[0.68rem]">{action.why}</div></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="muted mt-2 text-[0.72rem]">Priority = intent, fit, company value (size) and timing (freshness of the newest signal), weighted in your seller settings. I/F/V/T show each part out of 100.</p>
+    <section className="td2-sec td2-top">
+      <header>
+        <h2>Who to work first</h2>
+        <Badge tone="accent">{rows.length}</Badge>
+        <Link href="/accounts?view=list&sort=priority" className="td2-link">All by priority</Link>
+        <a href="/accounts/export" className="td2-link"><Download size={12} /> Export</a>
+      </header>
+      <DataTable columns={columns} rows={rows} rowKey={(x) => x.a.id} caption="Top opportunities" />
+      <p className="td2-note">Priority = intent, fit, company value (size) and timing (freshness of the newest signal), weighted in your Account Brain. I/F/V/T show each part out of 100.</p>
     </section>
   );
 }

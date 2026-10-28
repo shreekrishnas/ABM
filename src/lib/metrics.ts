@@ -31,7 +31,11 @@ const defs = [
   { key: "flow_handoff", label: "Handed to sales", define: "A hand-off was created", href: "/handoffs" },
   { key: "flow_opportunity", label: "Opportunity", define: "An opportunity record exists", href: "/crm/opportunities" },
   // Today
-  { key: "decisions_today", label: "Decisions", define: "The 5 oldest open decisions that aren't email approvals; the full list is in Decisions", href: "/review" },
+  { key: "decisions_today", label: "Decisions", define: "Open decisions that aren't email approvals (identity, blockers, conflicts). Today lists the 5 oldest; all are in Approvals", href: "/review" },
+  { key: "replies_open", label: "Replies", define: "People who answered and are waiting on us: asked for details, interested, neutral reply or referred us", href: "/people" },
+  { key: "followups_due", label: "Follow-ups due", define: "LinkedIn follow-ups whose due date has passed, for companies not ruled out", href: "/people" },
+  { key: "hot_companies", label: "Hot companies", define: "Companies whose buying intent is hot: two or more independent signals agree", href: "/accounts?sort=intent" },
+  { key: "live_conversations", label: "Live conversations", define: "People who replied or moved further on LinkedIn (details, interest, call or demo)", href: "/people" },
   // Spend: one definition everywhere
   { key: "spend_total", label: "Spend to date", define: "Every cost recorded: AI, web search, paid lookups and verification", href: "/analytics", unit: "usd" },
 ] as const satisfies readonly MetricDef[];
