@@ -20,7 +20,7 @@ export function DecisionCard({ type, title, context, href, actions = [], variant
   return (
     <article className={`k-dc ${variant}${outcome ? " done" : ""}`}>
       <div className="k-dc-main">
-        <Badge tone={type === "possible_blocker" || type === "bounce_breaker" ? "danger" : type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(type)}</Badge>
+        <Badge tone={type === "possible_blocker" || type === "proposed_rejection" || type === "bounce_breaker" ? "danger" : type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(type)}</Badge>
         {href ? <Link href={href} className="k-dc-title">{title}</Link> : <b className="k-dc-title">{title}</b>}
         {context && <div className="k-dc-ctx">{context}</div>}
         {notInspected && <span className="k-dc-ctx">Details not inspected yet.</span>}

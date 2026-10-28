@@ -9,6 +9,7 @@ import { CONFIG } from "@/lib/config";
 import { bannedClaimGate, specificityGate, complianceGate, decideReadiness, factGuardrail, needsHumanApproval, type Claim } from "../gates";
 import { addToWatchlist, BudgetExceeded, charge, isSuppressed, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { contactFields } from "../fields";
+import { proposeRejection } from "../rejection";
 import { liveEvidence } from "./research";
 import { seller, sellerContext } from "@/lib/seller";
 import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
@@ -49,10 +50,10 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
   }, ctx.now);
 
   if (probe.outcome === "disqualified") {
-    await db.account.update({ where: { id: account.id }, data: { stage: "DISQUALIFIED", disqualifyReason: probe.reasons[0] } });
-    await db.contact.updateMany({ where: { id: { in: people.map((p) => p.id) } }, data: { readiness: "disqualified", readinessReasons: probe.reasons } });
+    // Even a confirmed blocker only proposes the rejection: a person approves it.
     await logEvent(ctx, { accountId: account.id, stage: S, step: "readiness.negative_evidence", outcome: "block", reason: probe.reasons[0] });
-    throw new StopRun(probe.reasons[0]);
+    const reports = evidence.filter((e) => e.isNegative && e.negativeKind).map((e) => ({ kind: e.negativeKind, claim: e.claim, quote: e.quote, sourceUrl: e.sourceUrl, publishedAt: e.publishedAt.toISOString() }));
+    await proposeRejection(account, ctx, "blocker", probe.reasons[0], S, { reports });
   }
   if (probe.blocker) {
     // Never ruled out on one article: paused, with the evidence, for a person to decide.

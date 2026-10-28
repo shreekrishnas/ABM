@@ -150,6 +150,8 @@ enum ReviewType {
   retry_exhausted
   /// Bad news that might rule the company out, reported by one source only: a person decides.
   possible_blocker
+  /// A rule would rule the company out (targeting, fit, relationship, confirmed blocker): a person approves it first.
+  proposed_rejection
   other
 }
 

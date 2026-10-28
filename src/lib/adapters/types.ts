@@ -54,6 +54,8 @@ export type ResearchPass = "main" | "followup" | "reopen" | "refresh";
 export interface ResearchSource {
   /** True for real web search; the evidence gate then refuses mock evidence. */
   readonly live?: boolean;
+  /** False when real research can't run (missing search or AI key): the run stops instead of using sample data. */
+  readonly connected?: boolean;
   /** Engines this source can use, so the brain can route questions between them. */
   engines(): string[];
   /** The brain may give a tailored query and a preferred engine. */
@@ -215,6 +217,8 @@ export interface EmailSender {
 }
 
 export interface IntentProvider {
+  /** False when no real intent provider is connected: nothing reads or acts on its score. */
+  readonly connected?: boolean;
   /** 0–100 topic intent for a domain, plus the topics surging. */
   intent(domain: string): Promise<{ score: number; topics: string[] }>;
 }

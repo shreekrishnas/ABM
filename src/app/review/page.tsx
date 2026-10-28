@@ -31,7 +31,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const prev = idx > 0 ? href({ pick: items[idx - 1].id }) : undefined;
   const next = idx < items.length - 1 ? href({ pick: items[idx + 1].id }) : undefined;
   const draft = r?.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
-  const reports = r?.type === "possible_blocker" ? ((r.payload as { reports?: { kind: string; claim: string; quote: string | null; sourceUrl: string; publishedAt: string }[] } | null)?.reports ?? []) : [];
+  const reports = r?.type === "possible_blocker" || r?.type === "proposed_rejection" ? ((r.payload as { reports?: { kind: string; claim: string; quote: string | null; sourceUrl: string; publishedAt: string }[] } | null)?.reports ?? []) : [];
 
   return (
     <div className="page-enter">
@@ -53,7 +53,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             <p className="dz-count">{idx + 1} of {items.length}{items.length === 50 ? "+" : ""}</p>
             {items.map((it) => (
               <Link key={it.id} href={href({ pick: it.id })} scroll={false} className={`dz-item${it.id === r?.id ? " on" : ""}`} aria-current={it.id === r?.id ? "true" : undefined}>
-                <Kb tone={it.type === "possible_blocker" || it.type === "bounce_breaker" || it.type === "budget_exceeded" ? "danger" : it.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(it.type)}</Kb>
+                <Kb tone={it.type === "possible_blocker" || it.type === "proposed_rejection" || type === "proposed_rejection" || it.type === "bounce_breaker" || it.type === "budget_exceeded" ? "danger" : it.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(it.type)}</Kb>
                 <b>{[it.contact?.fullName, it.account?.name].filter(Boolean).join(" · ") || reviewLabel(it.type)}</b>
                 <span>{it.reason}</span>
                 {it.dueAt && it.dueAt < new Date() && <span className="dz-over">Overdue</span>}
@@ -65,7 +65,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             <section className="dz-pane" aria-label="Decision">
               <header className="dz-head">
                 <div className="min-w-0">
-                  <Kb tone={r.type === "possible_blocker" ? "danger" : r.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(r.type)}</Kb>
+                  <Kb tone={r.type === "possible_blocker" || r.type === "proposed_rejection" ? "danger" : r.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(r.type)}</Kb>
                   <h2>{r.reason}</h2>
                   <p className="dz-meta">
                     {r.account && <Link href={`/accounts/${r.account.id}`}>{r.account.name}</Link>}
@@ -75,9 +75,9 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                 <p className="dz-keys"><kbd>J</kbd> next · <kbd>K</kbd> previous</p>
               </header>
 
-              {r.type === "possible_blocker" && (
+              {(r.type === "possible_blocker" || r.type === "proposed_rejection") && (
                 <div className="dz-body">
-                  <p className="dz-explain">The research found news that might rule this company out, but only one source reports it. Nothing is ruled out until you decide.</p>
+                  <p className="dz-explain">{r.type === "possible_blocker" ? "The research found news that might rule this company out, but only one source reports it. Nothing is ruled out until you decide." : "A rule would rule this company out. It stays paused, not rejected, until you decide. Keep it and the rule no longer stops it."}</p>
                   <ul className="dz-reports">
                     {reports.map((x, i) => (
                       <li key={i}>
@@ -147,7 +147,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
 
               {r.type === "needs_human_reply" && (r.payload as { body?: string } | null)?.body && <blockquote className="dz-quote">“{(r.payload as { body: string }).body}”</blockquote>}
 
-              {!["possible_blocker", "identity_conflict", "draft_approval"].includes(r.type) && (
+              {!["possible_blocker", "proposed_rejection", "identity_conflict", "draft_approval"].includes(r.type) && (
                 <div className="dz-actions">
                   <DecideButton action={resolveReviewAction.bind(null, r.id, "resolved", undefined)} label={<><Check size={14} /> Resolve</>} done="Resolved" kind="primary" next={next} />
                   <DecideButton action={resolveReviewAction.bind(null, r.id, "dismissed", undefined)} label="Dismiss" done="Dismissed" kind="ghost" next={next} />

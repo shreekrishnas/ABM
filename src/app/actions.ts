@@ -798,9 +798,13 @@ export async function keepCompanyAction(reviewId: string): Promise<ActionState> 
   const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
   if (!r?.accountId) return { ok: false, message: "This decision has no company" };
   const me = await (await import("@/lib/me")).getMe();
-  await db.evidence.updateMany({ where: { accountId: r.accountId, isNegative: true, flagged: false }, data: { flagged: true, flagReason: `Not a blocker: kept by ${me?.name ?? "a person"}` } });
+  const gate = (r.payload as { gate?: string } | null)?.gate;
+  // Bad news: set those reports aside and carry on from the readiness check. A rule (targeting, fit,
+  // relationship): the "Kept" decision stops that rule from pausing the company again; carry on from fit.
+  const badNews = r.type === "possible_blocker" || gate === "blocker";
+  if (badNews) await db.evidence.updateMany({ where: { accountId: r.accountId, isNegative: true, flagged: false }, data: { flagged: true, flagReason: `Not a blocker: kept by ${me?.name ?? "a person"}` } });
   await db.reviewItem.update({ where: { id: reviewId }, data: { status: "resolved", resolution: `Kept by ${me?.email ?? "a person"}`, resolvedAt: new Date() } });
-  await db.account.update({ where: { id: r.accountId }, data: { pipelineStatus: "queued", queuedFromStage: 10, nextRetryAt: null } });
+  await db.account.update({ where: { id: r.accountId }, data: { pipelineStatus: "queued", queuedFromStage: badNews ? 10 : 3, nextRetryAt: null, disqualifyReason: null } });
   await startBackgroundQueue();
   refresh("/review", "/", `/accounts/${r.accountId}`);
   return { ok: true, message: "Kept: research carries on from the readiness check" };

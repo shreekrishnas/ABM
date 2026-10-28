@@ -3,7 +3,7 @@ import type { Adapters } from "./types";
 import { createMockAdapters } from "./mock";
 import { WebResearch } from "./live/research";
 import { OpenRouterLLM } from "./live/openrouter";
-import { DisconnectedSender, MxVerifier, NoProvider, SmtpSender } from "./live/email";
+import { DisconnectedResearch, DisconnectedSender, MxVerifier, NoIntent, NoProvider, SmtpSender } from "./live/email";
 import { OpenRouterEmbedder } from "./live/embeddings";
 
 // Each external service goes live on its own once its API key is set in the
@@ -43,7 +43,7 @@ export function serviceStatus(): ServiceStatus[] {
   const smtp = env("SMTP_URL");
   const m = (connected: boolean): ServiceMode => (sample ? "sample" : connected ? "live" : "off");
   return [
-    { key: "research", label: "Web research", mode: m(Boolean(engines)), via: engines || "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
+    { key: "research", label: "Web research", mode: m(Boolean(engines && llmKey)), via: engines ? (llmKey ? engines : `${engines} — paused until OPENROUTER_API_KEY is set (the AI that reads the pages)`) : "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
     { key: "llm", label: "LLM (extract, draft, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
     { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
     { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
@@ -58,8 +58,12 @@ export function createAdapters(): Adapters {
   const a: Adapters = createMockAdapters();
   if (forcedMock()) return a;
   const r = researchKeys();
-  if (r.exa || r.tavily || r.serp) a.research = new WebResearch(r);
   const llmKey = env("OPENROUTER_API_KEY");
+  const search = Boolean(r.exa || r.tavily || r.serp);
+  // Live search with the sample extractor would turn page titles into "facts": both or neither.
+  a.research = search && llmKey ? new WebResearch(r) : new DisconnectedResearch(!search ? "set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" : "set OPENROUTER_API_KEY (the AI that reads the pages)");
+  // No third-party intent provider is integrated yet: never a sample score on a real company.
+  a.intent = new NoIntent();
   if (llmKey) {
     a.llm = new OpenRouterLLM(llmKey);
     a.embedder = new OpenRouterEmbedder(llmKey);

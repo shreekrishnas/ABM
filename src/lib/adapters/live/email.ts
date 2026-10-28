@@ -3,7 +3,7 @@
 // can plug in later without touching the core.
 
 import { promises as dns } from "node:dns";
-import type { DataProvider, EmailSender, MailboxVerifier, ProviderPerson } from "../types";
+import type { DataProvider, EmailSender, IntentProvider, MailboxVerifier, ProviderPerson, ResearchSource } from "../types";
 
 /** No people-data provider connected: never invent people or emails on real companies. */
 export class NoProvider implements DataProvider {
@@ -62,6 +62,27 @@ export class SmtpSender implements EmailSender {
 }
 
 /** No mailbox connected: the channel refuses to send (safer than pretending). */
+/** No third-party intent provider is connected: a real company never gets a made-up intent score. */
+export class NoIntent implements IntentProvider {
+  readonly connected = false;
+  async intent(): Promise<{ score: number; topics: string[] }> {
+    return { score: 0, topics: [] };
+  }
+}
+
+/** Real research needs both a search engine and the AI extractor; with either missing the run stops, never falls back to sample data. */
+export class DisconnectedResearch implements ResearchSource {
+  readonly live = true;
+  readonly connected = false;
+  constructor(readonly reason: string) {}
+  engines(): string[] {
+    return [];
+  }
+  async search(): Promise<never> {
+    throw new Error(`Research not connected: ${this.reason}`);
+  }
+}
+
 export class DisconnectedSender implements EmailSender {
   readonly connected = false;
   async send(): Promise<{ providerId: string }> {

@@ -64,7 +64,10 @@ describe("Manch targeting: India and more than 5,000 employees", () => {
     await runAccount(abroad);
     for (const id of [small, abroad]) {
       const a = await db.account.findUniqueOrThrow({ where: { id } });
-      expect(a.stage).toBe("DISQUALIFIED");
+      // Proposed for rejection, not ruled out: a person approves first.
+      expect(a.stage).not.toBe("DISQUALIFIED");
+      expect(a.disqualifyReason).toMatch(/Too small|Outside target countries/);
+      expect(await db.reviewItem.count({ where: { accountId: id, type: "proposed_rejection", status: "open" } })).toBe(1);
       expect(await db.researchQuery.count({ where: { accountId: id, key: { notIn: ["website", "firmographics"] } } })).toBe(0);
     }
   });

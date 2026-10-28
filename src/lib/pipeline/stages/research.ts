@@ -10,7 +10,7 @@ import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
 import { queryFor } from "@/lib/adapters/live/research";
 import { entityGate, evidenceGate, quoteGate, factStatus, findContradictions, isStale, resolveContradiction, type FreshnessKind } from "../gates";
 import { dataConfidence } from "../scoring";
-import { BudgetExceeded, charge, ensureBudget, logEvent, openReview, recordCost, type RunContext } from "../context";
+import { BudgetExceeded, charge, ensureBudget, logEvent, openReview, recordCost, StopRun, type RunContext } from "../context";
 import { sha256 } from "../crypto";
 import { seller } from "@/lib/seller";
 import { directResearch, type DirectedQuestion } from "@/lib/brain/plan";
@@ -31,6 +31,12 @@ export async function liveEvidence(accountId: string): Promise<Evidence[]> {
 
 export async function s05ResearchPlan(account: Account, ctx: RunContext, reason: "initial" | "refresh" | "intent_surge" = "initial"): Promise<Account> {
   const S = 5;
+  // No sample research on real companies: without search and the AI reader, stop and say why.
+  if (ctx.adapters.research.connected === false) {
+    const why = ctx.adapters.research.engines().length ? "" : (ctx.adapters.research as { reason?: string }).reason ?? "";
+    await logEvent(ctx, { accountId: account.id, stage: S, step: "research_plan.not_connected", outcome: "block", reason: `Research not connected${why ? `: ${why}` : ""}` });
+    throw new StopRun(`Research not connected${why ? `: ${why}` : ""}`);
+  }
   const evidence = await liveEvidence(account.id);
   const knownFresh = new Set(
     evidence.filter((e) => (e.status === "verified" || e.status === "probable") && !isStale(e.publishedAt, freshnessKindFor(e.key), ctx.now)).map((e) => e.key),

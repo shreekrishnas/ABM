@@ -76,9 +76,14 @@ describe("pipeline scenarios", () => {
     expect(await db.draft.count()).toBe(0);
   });
 
-  it("acquired → disqualified", async () => {
+  it("acquired (confirmed) → rejection proposed; ruled out only once a person approves", async () => {
     const id = await account("acquired-delta.com");
     await runAccount(id);
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).not.toBe("DISQUALIFIED");
+    const r = await db.reviewItem.findFirstOrThrow({ where: { accountId: id, type: "proposed_rejection", status: "open" } });
+    expect((r.payload as { gate: string }).gate).toBe("blocker");
+    await db.reviewItem.update({ where: { id: r.id }, data: { status: "resolved", resolution: "Rejection approved by test", resolvedAt: new Date() } });
+    await runAccount(id, { fromStage: 10 });
     expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).toBe("DISQUALIFIED");
   });
 
@@ -155,7 +160,9 @@ describe("pipeline scenarios", () => {
     await db.account.update({ where: { id }, data: { relationship: "competitor" } });
     await runAccount(id);
     expect(await db.ledgerEntry.count({ where: { accountId: id } })).toBe(0);
-    expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).toBe("DISQUALIFIED");
+    // A competitor is proposed for rejection, never ruled out without a person.
+    expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).not.toBe("DISQUALIFIED");
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "proposed_rejection" } })).toBe(1);
   });
 
   it("budget cap stops the run and queues a review", async () => {
@@ -531,8 +538,11 @@ describe("re-research from scratch", () => {
     const { prepareReResearch } = await import("@/lib/pipeline/orchestrator");
     const id = await account("acquired-mu.com");
     await runAccount(id);
-    expect((await db.account.findUniqueOrThrow({ where: { id } })).stage).toBe("DISQUALIFIED");
+    // A confirmed blocker proposes the rejection; a person approves it.
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "proposed_rejection", status: "open" } })).toBe(1);
+    await db.account.update({ where: { id }, data: { stage: "DISQUALIFIED" } });
     expect(await prepareReResearch(id)).toBe(true);
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "proposed_rejection", status: "open" } })).toBe(0);
     const a = await db.account.findUniqueOrThrow({ where: { id } });
     expect(a.stage).toBe("UNAWARE");
     expect(a.disqualifyReason).toBeNull();
@@ -540,5 +550,46 @@ describe("re-research from scratch", () => {
     expect(a.queuedFromStage).toBe(4);
     expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: false } })).toBe(0);
     expect(await db.evidence.count({ where: { accountId: id, isNegative: true, flagged: true } })).toBeGreaterThan(0);
+  });
+});
+
+describe("P0: no sample data in live decisions, no rejection without a person", () => {
+  it("research that is not connected stops the run instead of using sample findings", async () => {
+    const { DisconnectedResearch } = await import("@/lib/adapters/live/email");
+    setAdapters({ ...createMockAdapters(), research: new DisconnectedResearch("set OPENROUTER_API_KEY") });
+    try {
+      const id = await account("strong-nu.com");
+      const r = await runAccount(id);
+      expect(r.status).toBe("blocked");
+      expect(r.reason).toMatch(/Research not connected/);
+      expect(await db.evidence.count({ where: { accountId: id } })).toBe(0);
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+  });
+
+  it("without a real intent provider nothing scores, surges or re-runs a watched company", async () => {
+    const { NoIntent } = await import("@/lib/adapters/live/email");
+    const { processIntent } = await import("@/lib/pipeline/orchestrator");
+    setAdapters({ ...createMockAdapters(), intent: new NoIntent() });
+    try {
+      const id = await account("strong-xi.com");
+      await db.account.update({ where: { id }, data: { stage: "WATCH" } });
+      expect(await processIntent(newContext())).toEqual([]);
+      expect(await db.signal.count({ where: { accountId: id, type: "intent_surge" } })).toBe(0);
+    } finally {
+      setAdapters(createMockAdapters());
+    }
+  });
+
+  it("a person keeping a company against a rule lets it carry on; the rule doesn't pause it again", async () => {
+    const id = await account("strong-omicron.com");
+    await db.account.update({ where: { id }, data: { relationship: "partner" } });
+    await runAccount(id);
+    const r = await db.reviewItem.findFirstOrThrow({ where: { accountId: id, type: "proposed_rejection", status: "open" } });
+    await db.reviewItem.update({ where: { id: r.id }, data: { status: "resolved", resolution: "Kept by test", resolvedAt: new Date() } });
+    const again = await runAccount(id, { fromStage: 3 });
+    expect(again.reason).not.toMatch(/Rejection proposed/);
+    expect(await db.reviewItem.count({ where: { accountId: id, type: "proposed_rejection", status: "open" } })).toBe(0);
   });
 });

@@ -17,6 +17,7 @@ export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
   draft_refresh: "Email needs a fresh version",
   retry_exhausted: "Research keeps failing",
   possible_blocker: "Possible blocker",
+  proposed_rejection: "Rule out this company?",
   other: "Suggestion or other",
 };
 

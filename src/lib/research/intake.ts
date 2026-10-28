@@ -124,6 +124,10 @@ export async function fillGaps(account: Account, ctx: RunContext, search: Search
   const filled: string[] = [];
   const name = account.name;
   const place = [account.city, account.country].filter(Boolean).join(" ");
+  if (ctx.adapters.research.connected === false) {
+    await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.gap_fill", outcome: "info", reason: "Gap fill skipped — research not connected" });
+    return account;
+  }
 
   try {
     // 1. Website — without it identity and email cannot be verified.

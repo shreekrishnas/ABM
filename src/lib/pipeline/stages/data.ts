@@ -19,7 +19,8 @@ import {
 } from "../normalize";
 import { exclusionGate, fitFloorGate, mustHaveGate, emailDomainStatus, isStale, phoneCountryStatus } from "../gates";
 import { dataConfidence, identityConfidence, researchPriority, scoreFit, tierFor } from "../scoring";
-import { charge, logEvent, openReview, StopRun, type RunContext } from "../context";
+import { addToWatchlist, charge, logEvent, openReview, StopRun, type RunContext } from "../context";
+import { proposeRejection } from "../rejection";
 import { seller } from "@/lib/seller";
 import { pickUseCase } from "@/lib/seller/fit";
 import { contactFields, setAccountField, setContactField } from "../fields";
@@ -122,9 +123,24 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   });
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.exclusions", outcome: ex.pass ? "pass" : "block", reason: ex.reason });
   if (!ex.pass) {
-    const stage = account.relationship === "customer" ? "CUSTOMER" : openOpp ? "OPPORTUNITY" : "DISQUALIFIED";
-    await db.account.update({ where: { id: account.id }, data: { stage, disqualifyReason: ex.reason } });
-    throw new StopRun(ex.reason);
+    // Sales already owns it: not a rejection.
+    if (account.relationship === "customer" || openOpp) {
+      await db.account.update({ where: { id: account.id }, data: { stage: account.relationship === "customer" ? "CUSTOMER" : "OPPORTUNITY", disqualifyReason: ex.reason } });
+      throw new StopRun(ex.reason);
+    }
+    // Do-not-contact is compliance: enforced at once.
+    if (account.doNotContact) {
+      await db.account.update({ where: { id: account.id }, data: { stage: "DISQUALIFIED", disqualifyReason: ex.reason } });
+      throw new StopRun(ex.reason);
+    }
+    // A lost deal is a pause, not a rejection: watch until the cooldown ends.
+    if (lastLost?.closedAt && !["competitor", "partner"].includes(account.relationship)) {
+      const left = Math.max(1, Math.ceil(CONFIG.fit.lostDealCooldownDays - (ctx.now.getTime() - lastLost.closedAt.getTime()) / 86_400_000));
+      await addToWatchlist(account.id, ex.reason, left, ctx.now);
+      await db.account.update({ where: { id: account.id }, data: { stage: "WATCH", disqualifyReason: null } });
+      throw new StopRun(`${ex.reason} — watching ${left} days`);
+    }
+    await proposeRejection(account, ctx, "relationship", ex.reason, S);
   }
 
   // Hard targeting rules from the seller pack, after the gap fill has had its chance.
@@ -133,10 +149,9 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   if (!must.pass) {
     if (must.unknown) {
       await db.account.update({ where: { id: account.id }, data: { disqualifyReason: must.reason } });
-    } else {
-      await db.account.update({ where: { id: account.id }, data: { stage: "DISQUALIFIED", disqualifyReason: must.reason } });
+      throw new StopRun(must.reason);
     }
-    throw new StopRun(must.reason);
+    await proposeRejection(account, ctx, "targeting", must.reason, S, { country: account.country, employees: account.employees });
   }
   // Newer data now meets the rules: lift an earlier targeting stop.
   if (account.disqualifyReason && /^(Outside target countries|Too small|Can't confirm)/.test(account.disqualifyReason)) {
@@ -153,8 +168,8 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   });
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.fit_floor", outcome: floor.pass ? "pass" : "block", reason: floor.reason });
   if (!floor.pass) {
-    await db.account.update({ where: { id: account.id }, data: { fitScore: fit.fit, fitReasons: fit.reasons, useCase, stage: "DISQUALIFIED", disqualifyReason: floor.reason } });
-    throw new StopRun(floor.reason);
+    await db.account.update({ where: { id: account.id }, data: { fitScore: fit.fit, fitReasons: fit.reasons, useCase } });
+    await proposeRejection(account, ctx, "fit", floor.reason, S, { fit: fit.fit, reasons: fit.reasons });
   }
 
   // Firmographic fields came from the import: one credible source → probable.

@@ -155,10 +155,17 @@ describe("adapter selection", () => {
     vi.stubEnv("EXA_API_KEY", "exa-test");
     vi.stubEnv("OPENROUTER_API_KEY", "");
     const a = createAdapters();
-    expect(a.research.live).toBe(true);
+    // Search without the AI reader would turn page titles into facts: research stays off.
+    expect(a.research.connected).toBe(false);
     expect(a.llm).not.toBeInstanceOf(OpenRouterLLM);
+    // No third-party intent provider is integrated: never a sample score on real companies.
+    expect(a.intent.connected).toBe(false);
     const s = Object.fromEntries(serviceStatus().map((x) => [x.key, x.mode]));
-    expect(s).toMatchObject({ research: "live", llm: "off", provider: "off", mailbox: "live", email: "off" });
+    expect(s).toMatchObject({ research: "off", llm: "off", provider: "off", mailbox: "live", email: "off" });
+    vi.stubEnv("OPENROUTER_API_KEY", "or-test");
+    const b = createAdapters();
+    expect(b.research.live).toBe(true);
+    expect(b.research.connected).not.toBe(false);
     // Real data never gets sample people, and nothing is "sent" without a real mailbox.
     expect(a.provider).toBeInstanceOf(NoProvider);
     expect(a.email.connected).toBe(false);
