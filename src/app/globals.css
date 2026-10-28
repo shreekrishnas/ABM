@@ -1915,20 +1915,6 @@ body:has(.overlay, .palette-backdrop) .sh-body > * { transform: scale(0.985); op
 .ft-l { font-size: 0.68rem; font-weight: 650; color: var(--text-secondary); text-align: center; line-height: 1.2; padding: 0 2px; }
 @media (max-width: 640px) { .ft-track { overflow-x: auto; grid-template-columns: repeat(8, 72px) !important; } }
 
-/* ── Type: Poppins everywhere (text and figures); monospace only for code and shortcuts ── */
-:root, html {
-  --font-poppins: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-ui: var(--font-poppins);
-  --font-figure: var(--font-poppins);
-  --font-display: var(--font-poppins);
-  --font-sans: var(--font-poppins);
-  --font-geist-sans: var(--font-poppins);
-}
-body, button, input, select, textarea, .nav, .lg-root { font-family: var(--font-poppins); }
-/* Poppins runs wider and taller than the old faces: a touch tighter, never cramped. */
-body { font-size: 0.9rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
-.stat-strip .v, .display-num, .kpi .v, .hm-k-value, .cc-k-value, .hm-st-n, .sort-n, .hub-title { font-variation-settings: normal; letter-spacing: -0.02em; }
-
 /* ── Spacing system: one page gutter shared by the section bar and the content, one card
    padding, one gap. Every page lines up on the same left and right edge. ── */
 :root { --gutter: 2rem; --card-pad: 1.25rem; --stack: 1.25rem; }
