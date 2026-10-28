@@ -7,7 +7,7 @@ import { STAGE_INFO } from "@/lib/journey/stages";
 import { ActionButton } from "@/components/client";
 import { Avatar } from "@/components/ui";
 import { FamilyChip, type IntentLevel } from "@/components/v2";
-import { Badge, DecisionCard, EmptyState, PageHeader, Stat, StatRow } from "@/components/kit";
+import { Badge, DecisionCard, EmptyState } from "@/components/kit";
 import { reviewLabel } from "@/lib/review-labels";
 import { runAllAction, setTaskStatusAction } from "../../actions";
 import { TopOpportunities } from "./top-opportunities";
@@ -19,7 +19,8 @@ type Reading = { score: number; level: IntentLevel; whyNow: string | null; famil
 const REPLY_ACTION: Record<string, string> = { details_requested: "Send the details", interested: "Book the call", replied_neutral: "Reply with context", referred: "Reach the referral" };
 
 /** Today: only what needs a person, each with one action. Everything else runs in the backend. */
-export default async function Today() {
+export default async function Today({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams;
   const now = new Date();
   const week = new Date(now.getTime() - 7 * 86_400_000);
   const [replies, approvals, approvalsCount, hotRaw, followCandidates, decisions, sentWeek, repliesWeek, liveConversations] = await Promise.all([
@@ -53,64 +54,65 @@ export default async function Today() {
 
   const decisionsOpen = await db.reviewItem.count({ where: { status: "open", type: { notIn: ["draft_approval"] } } });
 
+  const tabs = [
+    { key: "decisions", label: "Decisions", n: decisionsOpen },
+    { key: "replies", label: "Replies", n: replies.length },
+    { key: "approvals", label: "Emails to approve", n: approvalsCount },
+    { key: "followups", label: "Follow-ups", n: followUps.length },
+    { key: "tasks", label: "Tasks", n: myTasks.length },
+    { key: "hot", label: "Hot", n: hotRaw.length },
+  ];
+  // The queue opens on the first tab with work in it (decisions first), unless one was picked.
+  const active = tabs.find((t) => t.key === q)?.key ?? tabs.find((t) => t.n > 0)?.key ?? "decisions";
+  const date = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
   return (
-    <div className="page-enter td2">
-      <PageHeader
-        title={`${greet}${firstName ? `, ${firstName}` : ""}`}
-        description={total ? <><b>{total} thing{total > 1 ? "s" : ""}</b> need a person today. Everything else runs on its own.</> : "Nothing needs you right now. Research, scoring and drafting are running on their own."}
-        meta={now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-        actions={<>
+    <div className="page-enter td3">
+      <header className="td3-head">
+        <div className="min-w-0">
+          <h1>Today <span className="td3-date">· {date}</span></h1>
+          <p>{total ? <><b>{total}</b> need you{firstName ? `, ${firstName}` : ""}. Everything else runs on its own.</> : `${greet}${firstName ? `, ${firstName}` : ""}. Nothing needs you right now.`}</p>
+        </div>
+        <div className="td3-actions">
           <ActionButton action={runAllAction} className="btn btn-primary">Process new companies</ActionButton>
           <Link href="/import" className="btn btn-secondary"><Upload size={15} /> Import</Link>
-        </>}
-      />
+        </div>
+      </header>
 
-      <StatRow>
-        <Stat id="replies_open" value={replies.length} tone={replies.length ? "success" : "default"} sub={`${repliesWeek} this week · ${sentWeek} emails sent`} />
-        <Stat id="emails_to_approve" value={approvalsCount} tone={approvalsCount ? "warning" : "default"} sub={approvalsCount ? "Oldest first below" : "All clear"} />
-        <Stat id="followups_due" value={followUps.length} sub="On LinkedIn" />
-        <Stat id="decisions_today" value={decisionsOpen} tone={decisionsOpen ? "warning" : "default"} sub={decisionsOpen > decisions.length ? `${decisions.length} oldest shown below` : "All shown below"} />
-        <Stat id="hot_companies" value={hotRaw.length} tone={hotRaw.length ? "danger" : "default"} sub="Signals converging" />
-        <Stat id="live_conversations" value={liveConversations} sub="Replied or further" />
-      </StatRow>
-
-      <TopOpportunities now={now} />
-
-      <div className="td2-grid">
-        <div className="td2-col">
-          <Section id="replies" title="Reply to people who answered" count={replies.length}>
-            {replies.length === 0 ? <EmptyState title="No open replies" /> : replies.map((j) => (
+      <div className="td3-split">
+        <section className="td3-queue" aria-label="Your queue">
+          <nav className="tabs td3-tabs" aria-label="Queue">
+            {tabs.map((t) => (
+              <Link key={t.key} href={`/work/today?q=${t.key}`} scroll={false} className={`tab${active === t.key ? " active" : ""}`} aria-current={active === t.key ? "page" : undefined}>
+                {t.label}<span className={`td3-n tnum${t.n ? " on" : ""}`}>{t.n}</span>
+              </Link>
+            ))}
+          </nav>
+          <div className="td3-panel">
+            {active === "decisions" && (decisions.length === 0 ? <EmptyState title="No open decisions" text="Research, identity checks and rejections that need a person land here." /> : <>
+              {decisions.map((r) => (
+                <DecisionCard key={r.id} variant="queue" type={r.type} href={`/review?type=${r.type}`} title={[r.contact?.fullName, r.account?.name].filter(Boolean).join(" · ") || reviewLabel(r.type)} context={r.reason} />
+              ))}
+              {decisionsOpen > decisions.length && <Link href="/review" className="td3-more">All {decisionsOpen} decisions <ArrowRight size={14} /></Link>}
+            </>)}
+            {active === "replies" && (replies.length === 0 ? <EmptyState title="No open replies" /> : replies.map((j) => (
               <Row key={j.id} href={`/people/${j.contactId}`} lead={<Avatar name={j.contact.fullName} id={j.contactId} size={32} round />}
                 title={`${j.contact.fullName} · ${j.contact.account.name}`}
                 sub={j.events[0]?.detail ? `“${j.events[0].detail.split(" · ")[0].slice(0, 140)}”` : `${STAGE_INFO[j.stage].label} on LinkedIn`}
                 tags={<><Badge tone="success">{STAGE_INFO[j.stage].label}</Badge><Badge>{j.sender.name}</Badge></>}
                 action={REPLY_ACTION[j.stage] ?? "Open"} />
-            ))}
-          </Section>
-
-          <Section id="approvals" title="Emails to approve" count={approvalsCount} link={approvalsCount > approvals.length ? { href: "/review", label: `All ${approvalsCount}` } : undefined}>
-            {approvals.length === 0 ? <EmptyState title="Nothing to approve" /> : approvals.map((d) => (
-              <Row key={d.id} href="/review" title={`${d.contact.fullName} · ${d.contact.account.name}`} sub={`“${d.subject}”${d.painPoint ? ` — ${d.painPoint}` : ""}`}
-                tags={d.rewrites ? <Badge tone="accent">Rewritten {d.rewrites}× by the brain</Badge> : undefined} action="Review" />
-            ))}
-          </Section>
-
-          <Section id="decisions" title="Needs a decision" count={decisionsOpen} note={decisionsOpen > decisions.length ? `${decisions.length} oldest shown · ${decisionsOpen} open in Approvals` : undefined} link={{ href: "/review", label: "Open Approvals" }}>
-            {decisions.length === 0 ? <EmptyState title="No open questions" /> : decisions.map((r) => (
-              <DecisionCard key={r.id} variant="queue" type={r.type} href={`/review?type=${r.type}`} title={[r.contact?.fullName, r.account?.name].filter(Boolean).join(" · ") || reviewLabel(r.type)} context={r.reason} />
-            ))}
-          </Section>
-
-          <Section id="followups" title="Follow-ups due on LinkedIn" count={followUps.length}>
-            {followUps.length === 0 ? <EmptyState title="No follow-ups due" /> : followUps.map(({ j, n }) => (
+            )))}
+            {active === "approvals" && (approvals.length === 0 ? <EmptyState title="Nothing to approve" /> : <>
+              {approvals.map((d) => (
+                <Row key={d.id} href="/review" title={`${d.contact.fullName} · ${d.contact.account.name}`} sub={`“${d.subject}”${d.painPoint ? ` — ${d.painPoint}` : ""}`}
+                  tags={d.rewrites ? <Badge tone="accent">Rewritten {d.rewrites}× by the brain</Badge> : undefined} action="Review" />
+              ))}
+              {approvalsCount > approvals.length && <Link href="/review" className="td3-more">All {approvalsCount} emails <ArrowRight size={14} /></Link>}
+            </>)}
+            {active === "followups" && (followUps.length === 0 ? <EmptyState title="No follow-ups due" /> : followUps.map(({ j, n }) => (
               <Row key={j.id} href={`/people/${j.contactId}`} title={`${j.contact.fullName} · ${j.contact.account.name}`} sub={`${n.text} · ${j.sender.name}`} action="Do it" />
-            ))}
-          </Section>
-        </div>
-
-        <div className="td2-col">
-          <Section id="tasks" title="Your tasks due today" count={myTasks.length} link={{ href: "/crm/tasks", label: "All tasks" }}>
-            {myTasks.length === 0 ? <EmptyState title="No tasks due" text="Add one from any company, person or signal." /> : (
+            )))}
+            {active === "tasks" && (myTasks.length === 0 ? <EmptyState title="No tasks due" text="Add one from any company, person or signal." /> : (
               <ul className="td2-tasks">
                 {myTasks.map((t) => (
                   <li key={t.id}>
@@ -123,34 +125,18 @@ export default async function Today() {
                   </li>
                 ))}
               </ul>
-            )}
-          </Section>
-
-          <Section id="hot" title="Hot companies to act on now" count={hotRaw.length} link={{ href: "/accounts?sort=intent", label: "All companies" }}>
-            {hot.length === 0 ? <EmptyState title="No company is hot yet" text="Hot needs at least two independent signals agreeing." /> : hot.map((a) => (
+            ))}
+            {active === "hot" && (hot.length === 0 ? <EmptyState title="No company is hot yet" text="Hot needs at least two independent signals agreeing." /> : hot.map((a) => (
               <Row key={a.id} href={`/accounts/${a.id}`} lead={<Avatar name={a.name} id={a.id} size={32} />}
                 title={<span className="inline-flex items-center gap-2">{a.name} <Badge tone="danger">Hot · {Math.round(a.r.score)}</Badge></span>}
                 sub={a.r.whyNow ?? undefined} tags={a.r.families.slice(0, 4).map((f) => <FamilyChip key={f} family={f} />)} action="Open" />
-            ))}
-          </Section>
-        </div>
+            )))}
+          </div>
+        </section>
+
+        <TopOpportunities now={now} compact />
       </div>
     </div>
-  );
-}
-
-/** A titled list on Today; the count says how many, the note says what's shown when it's capped. */
-function Section({ id, title, count, note, link, children }: { id: string; title: string; count: number; note?: string; link?: { href: string; label: string }; children: React.ReactNode }) {
-  return (
-    <section id={id} className="td2-sec">
-      <header>
-        <h2>{title}</h2>
-        <Badge tone={count ? "accent" : "neutral"}>{count}</Badge>
-        {link && <Link href={link.href} className="td2-link">{link.label}</Link>}
-      </header>
-      {note && <p className="td2-note">{note}</p>}
-      <div className="td2-list">{children}</div>
-    </section>
   );
 }
 

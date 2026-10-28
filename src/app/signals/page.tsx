@@ -27,12 +27,11 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     <div className="page-enter">
       <ListKeys />
       <PeekPanel peek={peek} close="/signals" />
-      <PageHeader eyebrow="Continuous" title="Signals" sub="Intent, website visits, job changes and engagement feed one account-level score. Anonymous and uncontacted activity counts at half weight instead of being thrown away." />
-      <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <PageHeader eyebrow="Continuous" title="Signals" sub={`Intent, website visits, job changes and engagement feed one account-level score. Anonymous activity counts at half weight. Signals fade with a ${CONFIG.engagement.halfLifeDays}-day half-life; sales-ready at ${CONFIG.engagement.stages.MQA} points.`} />
+      <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Signals (30d)" value={total} meta={`${anon} anonymous`} />
         <Kpi label="Intent surging" value={surging.length} accent="#0EA5E9" meta={`Intent ≥ ${CONFIG.intent.surgeThreshold}`} />
         <Kpi label="Pricing visits (30d)" value={byType.find((t) => t.type === "pricing_visit")?._count ?? 0} accent="#7C3AED" meta={`+${CONFIG.engagement.points.pricing_visit} pts each`} />
-        <Kpi label="Half-life" value={`${CONFIG.engagement.halfLifeDays}d`} accent="#10B981" meta={`MQA at ${CONFIG.engagement.stages.MQA} points`} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">

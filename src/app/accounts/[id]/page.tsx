@@ -11,6 +11,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
 import { addNoteAction, correctFactAction, flagFactAction, manualHandoffAction, reResearchAction, runAccountAction, unflagFactAction, updateAccountAction } from "../../actions";
 import { latestBrief } from "@/lib/brain/strategist";
+import { reviewLabel } from "@/lib/review-labels";
 import { FamilyChip, NextAction, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
@@ -71,6 +72,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const stageName = PROGRESS_LABEL[a.pipelineStage] ?? "Not started";
   const reading = a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null; families: string[]; explain: string } | null;
   const drafts = a.contacts.flatMap((c) => c.drafts.map((d) => ({ ...d, contact: c })));
+  const blockers = a.reviewItems.filter((r) => r.type === "possible_blocker" || r.type === "proposed_rejection");
 
   return (
     <div className="page-enter">
@@ -100,46 +102,65 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           </div>
         </div>
 
-        <HeaderSignals
-          account={a}
-          brief={brief}
-          intent={reading ? { score: reading.score, level: reading.level } : null}
-          progress={{ step: FLOW_STEPS.indexOf(accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })), steps: [...FLOW_STEPS], stopped: a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null }}
-        />
-
-        <div className="ch-body">
-          <div className="ch-why">
-            <div className="ch-sec">
-              <span className="ch-l">Why now</span>
-              {reading && <span className="ch-chips">{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</span>}
-            </div>
-            {reading ? <WhyNow brief={brief} fallback={reading.whyNow} /> : <p className="co-muted">No buying signals read yet.</p>}
+        {blockers.length > 0 && (
+          <div className="rec-blocker" role="alert">
+            <ShieldAlert size={16} aria-hidden />
+            <span className="min-w-0 flex-1"><b>{blockers[0].type === "proposed_rejection" ? "Rejection proposed" : "Possible blocker"}</b> · {blockers[0].reason}. Nothing is ruled out until a person decides.</span>
+            <Link href={`/review?type=${blockers[0].type}`} className="btn btn-secondary btn-sm">Decide</Link>
           </div>
-          <div className="ch-side">
-            {brief?.nextBestAction && <NextAction text={brief.nextBestAction} why={brief.verdictWhy} />}
-            {a.disqualifyReason && <div className="co-warn"><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
-            {a.watchlist[0] && <div className="co-muted">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
-            {a.technologies.length > 0 && <div className="ch-kv"><span className="ch-l">Stack</span><span>{a.technologies.join(", ")}</span></div>}
-            {a.keywords.length > 0 && <div className="ch-tags">{a.keywords.slice(0, 10).map((k) => <span key={k}>{k}</span>)}</div>}
-            {a.companyNotes && <p className="co-muted">{a.companyNotes}</p>}
-          </div>
-        </div>
+        )}
       </section>
 
-      <TabLinks
-        base={`/accounts/${a.id}`}
-        active={tab}
-        tabs={[
-          { id: "overview", label: "Evidence twin" },
-          { id: "research", label: "Research trace" },
-          { id: "intake", label: "Data → research" },
-          { id: "people", label: "Buying group", count: a.contacts.length },
-          { id: "outreach", label: "Drafts", count: drafts.length },
-          { id: "activity", label: "Activity & notes", count: a._count.signals + a.notes.length },
-          { id: "crm", label: "CRM", count: a.opportunities.length + a.tasks.length },
-          { id: "pipeline", label: "Audit trail", count: a._count.events },
-        ]}
-      />
+      <div className="rec-tabs">
+        <TabLinks
+          base={`/accounts/${a.id}`}
+          active={tab}
+          tabs={[
+            { id: "overview", label: "Evidence twin" },
+            { id: "research", label: "Research trace" },
+            { id: "intake", label: "Data → research" },
+            { id: "people", label: "Buying group", count: a.contacts.length },
+            { id: "outreach", label: "Drafts", count: drafts.length },
+            { id: "activity", label: "Activity & notes", count: a._count.signals + a.notes.length },
+            { id: "crm", label: "CRM", count: a.opportunities.length + a.tasks.length },
+            { id: "pipeline", label: "Audit trail", count: a._count.events },
+          ]}
+        />
+      </div>
+
+      {tab === "overview" && (
+        <section className="ch ch-ov">
+        <HeaderSignals
+            account={a}
+            brief={brief}
+            intent={reading ? { score: reading.score, level: reading.level } : null}
+            progress={{ step: FLOW_STEPS.indexOf(accountStep(a, { drafts: drafts.filter((d) => d.status === "pending_review").length, handoff: a.stage === "MQA" || a.stage === "OPPORTUNITY" })), steps: [...FLOW_STEPS], stopped: a.pipelineStatus === "blocked" ? a.disqualifyReason ?? "Stopped at a check" : null }}
+          />
+
+          <div className="ch-body">
+            <div className="ch-why">
+              <div className="ch-sec">
+                <span className="ch-l">Why now</span>
+                {reading && <span className="ch-chips">{reading.families.map((f) => <FamilyChip key={f} family={f} />)}</span>}
+              </div>
+              {reading ? <WhyNow brief={brief} fallback={reading.whyNow} /> : <p className="co-muted">No buying signals read yet.</p>}
+            </div>
+            <div className="ch-side">
+              {brief?.nextBestAction && <NextAction text={brief.nextBestAction} why={brief.verdictWhy} />}
+              {a.disqualifyReason && <div className="co-warn"><AlertTriangle size={13} /> {a.disqualifyReason}</div>}
+              {a.watchlist[0] && <div className="co-muted">On the watchlist: {a.watchlist[0].reason} · re-check {date(a.watchlist[0].recheckAt)}</div>}
+              {a.technologies.length > 0 && (
+              <div className="ch-kv"><span className="ch-l">Tech stack ({a.technologies.length})</span>
+                <span className="rec-chips">{a.technologies.slice(0, 8).map((t) => <span key={t}>{t}</span>)}{a.technologies.length > 8 && <span title={a.technologies.slice(8).join(", ")} className="more">+{a.technologies.length - 8}</span>}</span>
+              </div>
+            )}
+              {a.keywords.length > 0 && <div className="ch-tags">{a.keywords.slice(0, 10).map((k) => <span key={k}>{k}</span>)}</div>}
+              {a.companyNotes && <p className="co-muted">{a.companyNotes}</p>}
+            </div>
+          </div>
+        </section>
+      )}
+
 
       {tab === "overview" && <div className="mb-5"><TimelineCard accountId={a.id} /></div>}
       {tab === "overview" && (
@@ -149,7 +170,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               {!twin || twin.facts.length === 0 ? <Empty icon={<FileText size={20} />} title="No evidence yet" sub="Run the pipeline to research this account." /> : (
                 <ul className="grid gap-2.5">
                   {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
-                    <li key={f.id} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>
+                    <li key={f.id} className={`ev ev-${f.status}`}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <span className="min-w-[12rem] flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
                         <span className="flex shrink-0 items-center gap-1.5">
@@ -202,7 +223,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <Card title="Inferences" sub="Labelled as inference — never stated as fact in a draft">
                 <ul className="grid gap-2">
                   {twin.inferences.map((i, k) => (
-                    <li key={k} className="flex gap-2.5 text-sm secondary"><Lightbulb size={16} className="mt-0.5 shrink-0" style={{ color: "#8B5CF6" }} /><span>{i.text} <span className="muted text-xs">· based on {i.basedOn.length} fact{i.basedOn.length > 1 ? "s" : ""}</span></span></li>
+                    <li key={k} className="ev ev-inference flex gap-2.5 text-sm"><Lightbulb size={16} className="mt-0.5 shrink-0" aria-hidden /><span>{i.text} <span className="muted text-xs">· based on {i.basedOn.length} fact{i.basedOn.length > 1 ? "s" : ""}</span></span></li>
                   ))}
                 </ul>
               </Card>
@@ -269,7 +290,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             </Card>
             {a.reviewItems.length > 0 && (
               <Card title="Open review items">
-                <ul className="grid gap-2 text-xs secondary">{a.reviewItems.map((r) => <li key={r.id}><b style={{ color: "var(--text-primary)" }}>{r.type.replaceAll("_", " ")}</b> — {r.reason}</li>)}</ul>
+                <ul className="grid gap-2 text-xs secondary">{a.reviewItems.map((r) => <li key={r.id}><b style={{ color: "var(--text-primary)" }}>{reviewLabel(r.type)}</b> — {r.reason}</li>)}</ul>
                 <Link href="/review" className="btn btn-secondary btn-sm mt-3">Open review queue</Link>
               </Card>
             )}

@@ -3,20 +3,20 @@ import { Download, Globe } from "lucide-react";
 import { db } from "@/lib/db";
 import { nextBestAction, type PriorityParts } from "@/lib/brain/priority";
 import { Avatar } from "@/components/ui";
-import { Badge, DataTable, type Column } from "@/components/kit";
+import { Badge, DataTable, EmptyState, type Column } from "@/components/kit";
 import type { IntentLevel } from "@/components/v2";
 
 const DAY = 86_400_000;
 type Reading = { score: number; level: IntentLevel; whyNow: string | null };
 
 /** Who to work first: the combined priority score, why, and the one next move for each company. */
-export async function TopOpportunities({ now }: { now: Date }) {
+export async function TopOpportunities({ now, compact }: { now: Date; compact?: boolean }) {
   const accounts = await db.account.findMany({
     where: { mergedIntoId: null, priorityScore: { not: null }, disqualifyReason: null, stage: { notIn: ["CUSTOMER", "DISQUALIFIED"] } },
     orderBy: { priorityScore: "desc" }, take: 10,
     select: { id: true, name: true, tier: true, stage: true, pipelineStatus: true, disqualifyReason: true, priorityScore: true, priorityParts: true, intentReading: true },
   });
-  if (!accounts.length) return null;
+  if (!accounts.length) return compact ? <section className="td3-opps"><header><h2>Who to work first</h2></header><EmptyState title="No scored companies yet" text="Companies appear here once research has scored them." /></section> : null;
   const ids = accounts.map((a) => a.id);
   const since = new Date(now.getTime() - 14 * DAY);
   const [handoffs, drafts, contacts, messages, journeys, visits] = await Promise.all([
@@ -45,6 +45,32 @@ export async function TopOpportunities({ now }: { now: Date }) {
     const href = action.href === "review" ? "/review" : action.href === "handoffs" ? "/handoffs" : action.href === "people" ? `/accounts/${a.id}?tab=people` : `/accounts/${a.id}`;
     return { a, r, parts: a.priorityParts as unknown as PriorityParts | null, action, href, visited: Boolean(visit) };
   });
+
+  if (compact) {
+    return (
+      <section className="td3-opps" aria-labelledby="td3-opps-h">
+        <header>
+          <h2 id="td3-opps-h">Who to work first</h2>
+          <Link href="/accounts?sort=priority" className="td2-link">All by priority</Link>
+        </header>
+        <ol>
+          {rows.slice(0, 6).map(({ a, r, parts, action, href }) => (
+            <li key={a.id}>
+              <Link href={`/accounts/${a.id}`} className="td3-o-co">
+                <Avatar name={a.name} id={a.id} size={28} />
+                <span className="min-w-0">
+                  <b>{a.name}</b>
+                  <span className="td3-o-meta">{a.tier && <Badge>{a.tier}</Badge>}<span className="tnum" title={parts ? `I ${parts.intent} · F ${parts.fit} · V ${parts.value} · T ${parts.timing}` : undefined}>Priority {a.priorityScore}</span>{r && <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)}</Badge>}</span>
+                </span>
+              </Link>
+              <p className="td3-o-why">{r?.whyNow ?? "No converging signals yet"}</p>
+              <Link href={href} className="btn btn-secondary btn-sm td3-o-act">{action.text}</Link>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  }
 
   type R = (typeof rows)[number];
   const columns: Column<R>[] = [

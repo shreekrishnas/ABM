@@ -82,10 +82,10 @@ export async function ResearchTrace({ accountId }: { accountId: string }) {
                   {h.validatorNote && <p className="rt-small"><b>Validator:</b> {h.validatorNote}</p>}
                   <ul className="rt-facts">
                     {h.supportIds.map((id) => fact.get(id)).filter(Boolean).map((f) => (
-                      <li key={f!.id}><Badge tone="success">For</Badge> {f!.claim} <a href={f!.sourceUrl} target="_blank" rel="noreferrer">{f!.publisher ?? host(f!.sourceUrl)} · {f!.publishedAt.toISOString().slice(0, 10)}{f!.fullText ? "" : " · snippet"} <ExternalLink size={11} aria-hidden /></a></li>
+                      <li key={f!.id} className={`ev ev-${f!.status}`}><Badge tone="success">For</Badge> {f!.claim} <a href={f!.sourceUrl} target="_blank" rel="noreferrer">{f!.publisher ?? host(f!.sourceUrl)} · {f!.publishedAt.toISOString().slice(0, 10)}{f!.fullText ? "" : " · snippet"} <ExternalLink size={11} aria-hidden /></a></li>
                     ))}
                     {h.counterIds.map((id) => fact.get(id)).filter(Boolean).map((f) => (
-                      <li key={f!.id}><Badge tone="danger">Against</Badge> {f!.claim} <a href={f!.sourceUrl} target="_blank" rel="noreferrer">{f!.publisher ?? host(f!.sourceUrl)} <ExternalLink size={11} aria-hidden /></a></li>
+                      <li key={f!.id} className="ev ev-conflicting"><Badge tone="danger">Against</Badge> {f!.claim} <a href={f!.sourceUrl} target="_blank" rel="noreferrer">{f!.publisher ?? host(f!.sourceUrl)} <ExternalLink size={11} aria-hidden /></a></li>
                     ))}
                   </ul>
                   {links.filter((l) => l.hypothesisId === h.id).length > 0 && (

@@ -70,9 +70,9 @@ export default async function ProgramOverview() {
         { label: metric("spend_total").label, value: `$${spendUsd.toFixed(2)}`, meta: `$${target ? (spendUsd / Math.max(1, target)).toFixed(2) : "0.00"} per target company` },
       ]} />
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-3">
-        <Card title="Buying-stage funnel" sub="Accounts by stage, account-level engagement" className="xl:col-span-2">
-          <HBars data={funnel} unit="accounts" />
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card title="Buying-stage funnel" sub="Accounts by stage, account-level engagement">
+          <HBars data={funnel} unit="accounts" empty="No accounts have reached a buying stage yet." />
         </Card>
         <Card title="Active accounts by tier" sub="T1 1:1 · T2 1:few · T3 1:many">
           <TierDonut data={(["T1", "T2", "T3"] as const).map((t) => ({ label: t === "T1" ? "T1 · 1:1" : t === "T2" ? "T2 · 1:few" : "T3 · 1:many", value: tierGroups.find((g) => g.tier === t)?._count ?? 0 }))} />
@@ -80,9 +80,9 @@ export default async function ProgramOverview() {
         </Card>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-3">
-        <Card title="Engagement points, last 30 days" sub="All signals at all target accounts, including anonymous visits" className="xl:col-span-2">
-          <AreaTrend data={days} unit="points" />
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card title="Engagement points, last 30 days" sub="Daily total of all signals at target accounts, including anonymous visits">
+          <AreaTrend data={days} unit="points" empty="No engagement recorded in the last 30 days. This fills once emails are sent or visits arrive." />
         </Card>
         <Card title="Gate blocks by stage" sub="Where records stop — every block is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Pipeline <ArrowRight size={14} /></Link>}>
           {blocksByStage.length ? <HBars data={blocksByStage} unit="blocks" height={Math.max(140, blocksByStage.length * 40)} /> : <Empty title="No blocks yet" sub="Every stop is logged here with its reason." />}

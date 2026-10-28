@@ -4,6 +4,7 @@ import { ImportWizard } from "@/components/import-wizard";
 import { Badge, Card, Empty, PageHeader, ago } from "@/components/ui";
 import { QueuePanel } from "@/components/queue-panel";
 import { ImportRequirements } from "@/components/import-layers";
+import { IMPORT_FIELDS } from "@/lib/import/fields";
 
 export const metadata = { title: "Upload CSV · Import" };
 // Each upload step is a short request; processing steps can take a while.
@@ -22,31 +23,39 @@ export default async function UploadPage() {
       <PageHeader
         eyebrow="Import data · Upload CSV"
         title="Import Companies & People"
-        sub="One CSV creates linked company and people records, assigns the campaign and LinkedIn sender profile you choose, and starts each person's journey. Re-upload any time — existing companies and people are updated, never duplicated."
+        sub="One CSV creates linked company and people records and starts each person's journey. Re-upload any time: existing records are updated, never duplicated."
         actions={<a href="/import/template" className="btn btn-secondary"><Download size={15} /> Download template</a>}
       />
 
-      <ImportRequirements />
+      {/* Action first: the drop zone and mapping, full width. The reference is one click away. */}
+      <section id="upload" className="up-main">
+        <ImportWizard campaigns={campaigns} senders={senders} />
+      </section>
 
-      <div id="upload" className="grid gap-5 xl:grid-cols-3">
-        <Card title="Upload, map columns, preview" className="xl:col-span-2">
-          <ImportWizard campaigns={campaigns} senders={senders} />
-        </Card>
-        <Card title="How re-uploads work">
-          <ul className="grid gap-2.5 text-sm secondary">
-            <li><b style={{ color: "var(--text-primary)" }}>Companies</b> match on website, then company LinkedIn URL, then normalized name.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>People</b> match on LinkedIn URL, then email, then full name within the company.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Journeys</b> are unique per person + campaign + sender. The same list for Sender 2 reuses the people and creates only Sender 2&apos;s journeys — Sender 1&apos;s activity is never overwritten.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Stage.</b> LinkedIn activity columns set the starting stage; otherwise people start at Not Contacted. A reply&apos;s meaning sets the stage.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Updating.</b> Newer non-blank values replace old ones. Blank cells never erase anything.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Re-checking.</b> Only changed fields lose their verified status (e.g. a new job title is re-verified before any email).</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Automatic.</b> New and changed accounts run through the pipeline right after upload, in the background, so you can close this page. Unchanged ones are skipped — no repeated spend.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Strict.</b> Only mapped, predefined fields are stored; other columns are ignored and listed. Rows with invalid values are rejected with the row number and reason.</li>
-            <li><b style={{ color: "var(--text-primary)" }}>Safe.</b> People erased under GDPR are never re-imported; unsubscribed people stay suppressed.</li>
-          </ul>
-          <QueuePanel className="mt-4" />
-        </Card>
-      </div>
+      <details className="up-more">
+        <summary>
+          <b>What your file needs</b>
+          <span>Required: {IMPORT_FIELDS.filter((f) => f.requirement === "required").map((f) => f.label).join(", ")} · recommended: {IMPORT_FIELDS.filter((f) => f.requirement === "recommended").slice(0, 3).map((f) => f.label).join(", ")} · see all {IMPORT_FIELDS.length}</span>
+        </summary>
+        <div className="up-more-in"><ImportRequirements /></div>
+      </details>
+
+      <details className="up-more">
+        <summary><b>How re-uploads work</b><span>Matching, updating, stages and what is never overwritten</span></summary>
+        <ul className="up-rules">
+          <li><b>Companies</b> match on website, then company LinkedIn URL, then normalized name.</li>
+          <li><b>People</b> match on LinkedIn URL, then email, then full name within the company.</li>
+          <li><b>Journeys</b> are unique per person + campaign + sender. The same list for Sender 2 reuses the people and creates only Sender 2&apos;s journeys — Sender 1&apos;s activity is never overwritten.</li>
+          <li><b>Stage.</b> LinkedIn activity columns set the starting stage; otherwise people start at Not Contacted. A reply&apos;s meaning sets the stage.</li>
+          <li><b>Updating.</b> Newer non-blank values replace old ones. Blank cells never erase anything.</li>
+          <li><b>Re-checking.</b> Only changed fields lose their verified status (e.g. a new job title is re-verified before any email).</li>
+          <li><b>Automatic.</b> New and changed accounts run through the pipeline right after upload, in the background, so you can close this page. Unchanged ones are skipped — no repeated spend.</li>
+          <li><b>Strict.</b> Only mapped, predefined fields are stored; other columns are ignored and listed. Rows with invalid values are rejected with the row number and reason.</li>
+          <li><b>Safe.</b> People erased under GDPR are never re-imported; unsubscribed people stay suppressed.</li>
+        </ul>
+      </details>
+
+      <QueuePanel className="mt-5" />
 
       <Card title="Import history" pad={false} className="mt-5">
         {batches.length === 0 ? <Empty title="No imports yet" sub="Download the template, fill it in, and upload it above." /> : (

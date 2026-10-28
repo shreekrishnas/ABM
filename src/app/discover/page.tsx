@@ -15,9 +15,10 @@ import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction,
 export const metadata = { title: "Discover" };
 
 const MOMENTUM: Record<Momentum, { word: string; color: string }> = {
-  rising: { word: "Rising", color: "var(--intent-hot)" },
-  steady: { word: "Steady", color: "var(--intent-warm)" },
-  cooling: { word: "Cooling", color: "var(--intent-cold)" },
+  // Growth is opportunity, so blue, never red (red is for conflicts and blockers only).
+  rising: { word: "Rising", color: "var(--info)" },
+  steady: { word: "Steady", color: "var(--muted)" },
+  cooling: { word: "Cooling", color: "var(--warning)" },
   quiet: { word: "Quiet", color: "var(--text-muted)" },
 };
 const STATUS = ["new", "watching", "needs_check", "added", "dismissed", "excluded"] as const;
@@ -71,41 +72,40 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         {trends.every((t) => t.momentum === "quiet" && !t.internalTriggers) ? (
           <Empty icon={<Radar size={22} />} title="No market data yet" sub="Run a scan to see which industries are heating up." />
         ) : (
-          <ul className="divide-y" style={{ borderColor: "var(--glass-border)" }}>
-            {trends.filter((t) => t.momentum !== "quiet" || t.internalTriggers || t.hotAccounts).map((t) => {
-              const m = MOMENTUM[t.momentum];
-              return (
-                <li key={t.key} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <Link href={link({ industry: t.key, status: "new" })} className="min-w-0 font-semibold" style={{ color: "var(--text-primary)" }}>{t.label}</Link>
-                    <span className="chip" style={{ ["--c" as string]: m.color }}>
-                      {t.momentum === "rising" ? <TrendingUp size={13} /> : t.momentum === "cooling" ? <TrendingDown size={13} /> : <span className="dot" />} {m.word}
-                    </span>
-                    {t.underCovered && <span className="chip" style={{ ["--c" as string]: "var(--intent-hot)" }}>Under-covered</span>}
-                    {t.packTier === "secondary" && <span className="chip">Secondary in your pack</span>}
-                    <span className="muted ml-auto text-xs tnum">{t.recent} in 30d · {t.prior.toFixed(t.prior % 1 ? 1 : 0)}/mo before · {t.held} held</span>
-                  </div>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ background: "var(--glass-border)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.round((t.heat / maxHeat) * 100)}%`, background: m.color }} />
-                  </div>
-                  <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>{t.narrative}</p>
-                  {t.evidence.length > 0 && (
-                    <details className="more mt-1">
-                      <summary>Evidence ({t.evidence.length})</summary>
-                      <ul className="mt-2 space-y-1.5 text-sm">
-                        {t.evidence.map((e) => (
-                          <li key={e.url + e.company} className="flex min-w-0 items-start gap-2">
-                            <a href={e.url} target="_blank" rel="noreferrer" className="shrink-0 pt-0.5" aria-label="Open source"><ExternalLink size={14} /></a>
-                            <span className="min-w-0 break-words">{e.claim} <span className="muted text-xs">· {ago(e.at)}</span></span>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="table-wrap">
+            <table className="data rd-table">
+              <thead><tr><th>Industry</th><th>Events, last 30 days</th><th className="text-right">Before (per month)</th><th className="text-right">Held</th><th>Momentum</th></tr></thead>
+              <tbody>
+                {trends.filter((t) => t.momentum !== "quiet" || t.internalTriggers || t.hotAccounts).sort((x, y) => y.heat - x.heat).map((t) => {
+                  const m = MOMENTUM[t.momentum];
+                  const up = t.recent > t.prior;
+                  return (
+                    <tr key={t.key}>
+                      <td>
+                        <Link href={link({ industry: t.key, status: "new" })} className="strong">{t.label}</Link>
+                        <div className="rd-tags">{t.underCovered && <span className="rd-tag">Under-covered</span>}{t.packTier === "secondary" && <span className="rd-tag">Secondary in your pack</span>}</div>
+                        <details className="rd-more">
+                          <summary>Why</summary>
+                          <p>{t.narrative}</p>
+                          {t.evidence.length > 0 && (
+                            <ul>
+                              {t.evidence.map((e) => (
+                                <li key={e.url + e.company}><a href={e.url} target="_blank" rel="noreferrer" aria-label="Open source"><ExternalLink size={12} /></a> {e.claim} <span className="muted">· {ago(e.at)}</span></li>
+                              ))}
+                            </ul>
+                          )}
+                        </details>
+                      </td>
+                      <td><span className="rd-bar"><i style={{ width: `${Math.round((t.heat / maxHeat) * 100)}%`, background: m.color }} /></span><span className="tnum">{t.recent}</span></td>
+                      <td className="text-right tnum">{t.prior.toFixed(t.prior % 1 ? 1 : 0)} <span className={up ? "rd-up" : "rd-down"}>{t.recent === t.prior ? "" : up ? "▲" : "▼"}</span></td>
+                      <td className="text-right tnum">{t.held}</td>
+                      <td><span className="rd-mom" style={{ color: m.color }}>{t.momentum === "rising" ? <TrendingUp size={13} /> : t.momentum === "cooling" ? <TrendingDown size={13} /> : null} {m.word}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 

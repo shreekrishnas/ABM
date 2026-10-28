@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
+import { ArrowRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
@@ -9,7 +9,7 @@ import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
-import { CountUp, RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
+import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 
 export const metadata = { title: "Home" };
 
@@ -61,6 +61,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     return "New";
   };
   const stageCount = (k: string) => byStage.find((s) => s.stage === k)?._count ?? 0;
+  // What last happened to each company, so "status" says something ("Research finished", "Blocker raised").
+  const lastEvents = await Promise.all(recent.map((a) => db.pipelineEvent.findFirst({ where: { accountId: a.id, outcome: { in: ["pass", "block"] } }, orderBy: { createdAt: "desc" }, select: { step: true, outcome: true, reason: true } })));
+  const eventText = (e: (typeof lastEvents)[number]) => {
+    if (!e) return "—";
+    const [area] = e.step.split(".");
+    const what: Record<string, string> = { research_plan: "Research planned", account_research: "Research ran", account_twin: "Evidence updated", investigate: "Investigation", readiness: e.outcome === "block" ? "Held at readiness" : "Ready for outreach", draft_review: "Draft written", rejection: "Rejection proposed", fit_tier: e.outcome === "block" ? "Stopped at fit" : "Fit scored", intake: "Data filled", brain: "Brief written", orchestrator: e.outcome === "block" ? "Stopped" : "Run finished" };
+    return what[area] ?? area.replace(/_/g, " ");
+  };
+  const actionable = ["approve", "overdue"].map((k) => cc.kpis.find((x) => x.key.includes(k))).filter(Boolean) as typeof cc.kpis;
+  const context = cc.kpis.filter((k) => !actionable.includes(k));
 
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
@@ -85,37 +95,45 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </header>
 
-        <section className="cc-kpis" aria-label="What needs doing">
-          {cc.kpis.map((k) => (
-            <Link key={k.key} href={k.href} className={`cc-k ${k.tone}`} title={k.define}>
-              <span className="cc-k-label">{k.label}</span>
-              <span className="cc-k-value tnum"><CountUp value={k.value} /></span>
-              <span className="cc-k-note">{k.note}</span>
-              <ArrowUpRight size={15} className="cc-k-go" />
+        <section className="hm2-kpis" aria-label="What needs doing">
+          {actionable.map((k) => (
+            <Link key={k.key} href={k.href} className={`hm2-q${k.value ? " due" : ""}`} title={k.define}>
+              <span className="hm2-q-l">{k.label}</span>
+              <span className="hm2-q-v tnum">{k.value}</span>
+              <span className="hm2-q-n">{k.note}</span>
             </Link>
           ))}
+          <div className="hm2-ctx" aria-label="Context">
+            {context.map((k) => (
+              <Link key={k.key} href={k.href} className="hm2-c" title={k.define}>
+                <span className="hm2-c-l">{k.label}</span>
+                <span className="hm2-c-v tnum">{k.value}</span>
+                <span className="hm2-c-n">{k.note}</span>
+              </Link>
+            ))}
+          </div>
         </section>
 
-        <section className="cc-mid">
-          <div className="cc-panel">
-            <div className="hm-sec-head">
+        <section className="hm2-grid">
+          <div className="hm2-card">
+            <div className="hm2-head">
               <h2>Company flow</h2>
-              <span className="hm-sec-meta">Bubble size = companies reaching each step</span>
+              <span className="hm2-meta">Bar height = companies reaching each step</span>
             </div>
             <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
-            <p className="cc-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
+            <p className="hm2-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>
           </div>
 
-          <div className="cc-panel" id="attention">
-            <div className="hm-sec-head">
+          <div className="hm2-card" id="attention">
+            <div className="hm2-head">
               <h2>Needs attention</h2>
-              <span className="hm-sec-meta">{cc.attention.length ? `${cc.attention.length} item${cc.attention.length === 1 ? "" : "s"}` : "All clear"}</span>
+              <span className="hm2-meta">{cc.attention.length ? `${cc.attention.length} item${cc.attention.length === 1 ? "" : "s"}` : "All clear"}</span>
             </div>
             {cc.attention.length === 0 ? (
-              <p className="hm-empty">Nothing is stuck, overdue or paused.</p>
+              <p className="hm-empty">All clear · checked {ago(cc.freshAt)}. Nothing is stuck, overdue or paused.</p>
             ) : (
               <ul className="cc-att">
-                {cc.attention.slice(0, 8).map((a, i) => (
+                {cc.attention.slice(0, 4).map((a, i) => (
                   <li key={i}>
                     <Link href={a.href} className={`cc-a ${a.tone}`}>
                       <i />
@@ -124,42 +142,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
                     </Link>
                   </li>
                 ))}
+                {cc.attention.length > 4 && <li><Link href="/review" className="hm2-more">All {cc.attention.length} <ArrowRight size={14} /></Link></li>}
               </ul>
             )}
-          </div>
-        </section>
-
-        <section className="hm-doors">
-          <Link href="/work" className="hm-work">
-            <span className="hm-work-kicker">Workspace</span>
-            <span className="hm-work-title">Pick up where the work is.</span>
-            <span className="hm-work-text">Today&apos;s list, research, email drafting, sales hand-offs and insights.</span>
-            <span className="hm-work-facts">
-              <span><b className="tnum">{companies}</b> compan{companies === 1 ? "y" : "ies"}</span>
-              <span><b className="tnum">{toApprove}</b> to approve</span>
-              <span><b className="tnum">{draftsReady}</b> ready to send</span>
-            </span>
-            <span className="hm-work-go">Open workspace <ArrowRight size={17} strokeWidth={2} /></span>
-          </Link>
-
-          <div className="hm-import">
-            <div className="hm-sec-head"><h2>Import</h2><Link href="/import" className="hm-sec-link">All options</Link></div>
-            <ul>
-              {[
-                { href: "/import/upload", icon: FileSpreadsheet, label: "Upload a CSV", hint: "Map columns, preview, import" },
-                { href: "/import/lookalikes", icon: Sparkles, label: "Find lookalikes", hint: "Companies like one website" },
-                { href: "/import/apollo", icon: Radar, label: "Website visitors", hint: "Identified by Apollo" },
-              ].map((r, i) => (
-                <li key={r.href}>
-                  <Link href={r.href} className="hm-imp-row">
-                    <span className="hm-imp-i">{String(i + 1).padStart(2, "0")}</span>
-                    <r.icon size={18} strokeWidth={1.8} className="hm-imp-ic" />
-                    <span className="min-w-0 flex-1"><span className="hm-imp-l">{r.label}</span><span className="hm-imp-h">{r.hint}</span></span>
-                    <ArrowRight size={16} className="hm-imp-go" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
 
@@ -172,13 +157,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <p className="hm-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. <Link href="/import">Import companies</Link> to get started.</p>
           ) : (
             <table className="hm-table">
-              <thead><tr><th>Company</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
+              <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
               <tbody>
-                {recent.map((a) => {
+                {recent.map((a, i) => {
                   const s = statusOf(a);
                   return (
                     <tr key={a.id}>
-                      <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: `linear-gradient(135deg, ${brandColor(a.id)}, ${brandColor(a.id)}CC)`, boxShadow: `0 6px 14px ${brandColor(a.id)}40` }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
+                      <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
+                      <td data-l="Last event" title={lastEvents[i]?.reason ?? undefined}>{eventText(lastEvents[i])}</td>
                       <td data-l="Status"><span className={`hm-status ${STATUS_TONE[s]}`}><i />{s}</span></td>
                       <td data-l="Owner" className="hm-dim">{a.owner?.name ?? "Unassigned"}</td>
                       <td data-l="Updated" className="hm-dim r tnum">{ago(a.updatedAt)}</td>
@@ -189,6 +175,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             </table>
           )}
         </section>
+
+        {companies < 10 && (
+          <section className="hm2-card hm2-onboard" aria-label="Import">
+            <div className="hm2-head"><h2>Get companies in</h2><Link href="/import" className="hm-sec-link">All options</Link></div>
+            <ul className="hm2-imp">
+              {[
+                { href: "/import/upload", icon: FileSpreadsheet, label: "Upload a CSV", hint: "Map columns, preview, import" },
+                { href: "/import/lookalikes", icon: Sparkles, label: "Find lookalikes", hint: "Companies like one website" },
+                { href: "/import/apollo", icon: Radar, label: "Website visitors", hint: "Identified by Apollo" },
+              ].map((r) => (
+                <li key={r.href}><Link href={r.href}><r.icon size={16} strokeWidth={1.75} /><span><b>{r.label}</b><small>{r.hint}</small></span><ArrowRight size={14} /></Link></li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <footer className="hm-foot">{p.name} · ABM account intelligence</footer>
     </div>

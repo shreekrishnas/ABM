@@ -21,7 +21,21 @@ export async function EmailThreads({ selected }: { selected?: string }) {
     orderBy: { updatedAt: "desc" },
     take: 80,
   });
-  if (people.length === 0) return <div className="glass-card-static card-pad"><Empty icon={<Mail size={20} />} title="No conversations yet" sub="Emails appear here as soon as the brain drafts one." /></div>;
+  if (people.length === 0) {
+    // Say what is holding drafts back, so the empty page points to the next step.
+    const [decisions, held, notReady] = await Promise.all([
+      db.reviewItem.count({ where: { status: "open", type: { notIn: ["draft_approval"] } } }),
+      db.draft.count({ where: { status: "blocked" } }),
+      db.contact.count({ where: { mergedIntoId: null, readiness: { in: ["human_review", "targeted_re_research", "watch"] } } }),
+    ]);
+    const why = [decisions && `${decisions} decision${decisions === 1 ? "" : "s"} waiting for a person`, held && `${held} draft${held === 1 ? "" : "s"} held by the checks`, notReady && `${notReady} ${notReady === 1 ? "person" : "people"} not yet ready to contact`].filter(Boolean).join(" · ");
+    return (
+      <div className="glass-card-static card-pad">
+        <Empty icon={<Mail size={20} />} title="No conversations yet" sub={why ? `Emails appear once the brain drafts one. What's holding drafts: ${why}.` : "Emails appear here as soon as the brain drafts one."} />
+        {decisions > 0 && <div className="mt-3 text-center"><Link href="/review" className="btn btn-secondary btn-sm">Open decisions</Link></div>}
+      </div>
+    );
+  }
   const current = people.find((p) => p.id === selected) ?? people[0];
   const c = await db.contact.findUniqueOrThrow({
     where: { id: current.id },

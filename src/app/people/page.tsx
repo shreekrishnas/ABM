@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { JourneyStage, Prisma } from "@prisma/client";
 import { Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
 import { ViewSwitch } from "@/components/v2";
-import { JourneyBoard, type BoardCard } from "./journey-board";
+import { JourneyBoard, LANES, type BoardCard } from "./journey-board";
 import { db } from "@/lib/db";
 import { JOURNEY_STAGES, STAGE_INFO, stageLabel, CLOSED } from "@/lib/journey/stages";
 import { eligibleToCall, nextAction } from "@/lib/journey/engine";
@@ -53,7 +53,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     return `/people${p.toString() ? `?${p}` : ""}`;
   };
   const bulkReady = Boolean(sp.campaign && sp.sender);
-  const view = sp.view === "list" ? "list" : "board";
+  // When one lane holds most people the board is mostly empty columns: open on the list instead.
+  const laneTotals = LANES.map((l) => l.stages.reduce((n, k) => n + (stageCounts.find((x) => x.stage === k)?._count ?? 0), 0));
+  const allJourneys = laneTotals.reduce((a, b) => a + b, 0);
+  const skewed = allJourneys > 0 && Math.max(...laneTotals) / allJourneys > 0.6;
+  const view = sp.view === "list" || sp.view === "board" ? sp.view : skewed ? "list" : "board";
   const boardJourneys = view === "board" ? await db.journey.findMany({ where: { ...scope, contact: { AND: and } }, take: 800, orderBy: { updatedAt: "desc" }, include: { contact: { select: { id: true, fullName: true, titleNormalized: true, title: true, account: { select: { name: true } } } }, sender: { select: { name: true } } } }) : [];
   const cards: BoardCard[] = boardJourneys.map((j) => ({ journeyId: j.id, contactId: j.contact.id, name: j.contact.fullName, title: j.contact.titleNormalized ?? j.contact.title, company: j.contact.account.name, sender: j.sender.name, stage: j.stage, followUps: j.followUpCount, last: j.lastEngagementAt ?? j.updatedAt }));
 
@@ -66,17 +70,25 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         actions={<><ViewSwitch base="/people" params={{ q: sp.q, campaign: sp.campaign, sender: sp.sender, call: sp.call }} current={view} views={[{ id: "board", label: "Journey board", icon: <Columns3 size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /><Link href="/import" className="btn btn-brand"><Upload size={15} /> Import</Link></>}
       />
 
-      {view === "list" && <div className="mb-4 flex flex-wrap gap-1.5">
-        {JOURNEY_STAGES.map((k) => {
-          const n = stageCounts.find((s) => s.stage === k)?._count ?? 0;
-          const active = stage === k;
-          return (
-            <Link key={k} href={qs({ stage: active ? undefined : k, page: undefined })} className="badge" style={{ background: active ? hexA(STAGE_INFO[k].color, 0.2) : "var(--surface-card-header)", color: active ? STAGE_INFO[k].color : "var(--text-secondary)", border: `1px solid ${active ? STAGE_INFO[k].color : "transparent"}` }}>
-              {STAGE_INFO[k].n}. {STAGE_INFO[k].label} <b className="tnum ml-1">{n}</b>
-            </Link>
-          );
-        })}
-      </div>}
+      {view === "list" && (() => {
+        const live = JOURNEY_STAGES.map((k) => ({ k, n: stageCounts.find((x) => x.stage === k)?._count ?? 0 })).filter((x) => x.n > 0 || x.k === stage);
+        const sum = live.reduce((t, x) => t + x.n, 0) || 1;
+        return (
+          <div className="pp-stages">
+            <div className="pp-bar" role="img" aria-label={live.map((x) => `${STAGE_INFO[x.k].label} ${x.n}`).join(", ")}>
+              {live.filter((x) => x.n).map((x) => <i key={x.k} style={{ width: `${(x.n / sum) * 100}%`, background: STAGE_INFO[x.k].color }} title={`${STAGE_INFO[x.k].label}: ${x.n}`} />)}
+            </div>
+            <div className="pp-chips">
+              {live.map(({ k, n }) => (
+                <Link key={k} href={qs({ stage: stage === k ? undefined : k, page: undefined })} className={`chip-filter${stage === k ? " on" : ""}`}>
+                  <i className="pp-dot" style={{ background: STAGE_INFO[k].color }} />{STAGE_INFO[k].label} <b className="tnum">{n}</b>
+                </Link>
+              ))}
+              <span className="pp-hint">{JOURNEY_STAGES.length - live.length} empty stage{JOURNEY_STAGES.length - live.length === 1 ? "" : "s"} hidden · pick any in the Stage filter</span>
+            </div>
+          </div>
+        );
+      })()}
 
       <form className="mb-4 flex flex-wrap items-end gap-2" action="/people">
         <div className="relative min-w-[260px] flex-[2]">

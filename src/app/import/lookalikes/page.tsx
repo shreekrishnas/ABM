@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { db } from "@/lib/db";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
@@ -11,6 +13,11 @@ export default async function LookalikesPage({ searchParams }: { searchParams: P
   await ensureSellerPacks();
   const { seed } = await searchParams;
   const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
+  // Recent seeds and the best existing accounts give the empty page something useful to start from.
+  const [recent, best] = await Promise.all([
+    db.prospectSuggestion.groupBy({ by: ["seed"], where: { origin: "lookalike", seed: { not: null } }, _count: true, _max: { createdAt: true }, orderBy: { _max: { createdAt: "desc" } }, take: 6 }),
+    db.account.findMany({ where: { mergedIntoId: null, domain: { not: null }, OR: [{ stage: { in: ["CUSTOMER", "OPPORTUNITY", "MQA"] } }, { tier: "T1" }] }, orderBy: { priorityScore: { sort: "desc", nulls: "last" } }, take: 3, select: { name: true, domain: true } }),
+  ]);
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Import data · Lookalikes" title="Find companies like one website" sub={`Enter a customer or a great prospect. ${apollo ? "Apollo's company database and the web find" : "A web search finds"} similar companies, and each is sorted by your targeting rule.`} />
@@ -20,6 +27,22 @@ export default async function LookalikesPage({ searchParams }: { searchParams: P
           <SubmitButton className="btn btn-primary">Find similar</SubmitButton>
         </ActionForm>
       </Card>
+      {!seed && (recent.length > 0 || best.length > 0) && (
+        <div className="lk-start">
+          {recent.length > 0 && (
+            <section>
+              <h2>Recent lookalike searches</h2>
+              <ul>{recent.map((r) => <li key={r.seed}><Link href={`/import/lookalikes?seed=${encodeURIComponent(r.seed!)}`}>{r.seed}</Link><span className="tnum">{r._count} found</span></li>)}</ul>
+            </section>
+          )}
+          {best.length > 0 && (
+            <section>
+              <h2>Start from your best accounts</h2>
+              <ul>{best.map((b) => <li key={b.domain}><Link href={`/import/lookalikes?seed=${encodeURIComponent(b.domain!)}`}>{b.name}</Link><span className="mono">{b.domain}</span></li>)}</ul>
+            </section>
+          )}
+        </div>
+      )}
       <SuggestionReview origin="lookalike" seed={seed} emptyText={seed ? `No similar companies saved for ${seed} yet.` : "Enter a website above. Results appear here, sorted into what will be used and what won't."} />
     </div>
   );

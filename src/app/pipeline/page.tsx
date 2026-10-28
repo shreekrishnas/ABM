@@ -8,6 +8,7 @@ import { Badge, Card, Empty, Kpi, PageHeader, ago, cx } from "@/components/ui";
 import { runAllAction, tickAction } from "../actions";
 import { QueuePanel } from "@/components/queue-panel";
 import { researchQuality } from "@/lib/brain/quality";
+import { humanize, READINESS_LABEL } from "@/lib/review-labels";
 import { Stat, StatRow } from "@/components/kit";
 
 export const metadata = { title: "Pipeline" };
@@ -95,7 +96,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
           <h2 className="mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{stage.name}</h2>
           <p className="secondary mt-2 text-sm">{doc.purpose}</p>
           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div><div className="micro">Starts when</div><code className="mono secondary">{doc.trigger}</code></div>
+            <div><div className="micro">Starts when</div><span className="secondary" title={doc.trigger}>{humanize(doc.trigger.replace(/\./g, " "))}</span></div>
             <div><div className="micro">Produces</div><span className="secondary">{doc.output}</span></div>
           </div>
           <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: "var(--surface-card-header)" }}><div className="micro mb-0.5">Control rule</div><span className="secondary">{doc.rule}</span></div>
@@ -108,7 +109,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                 <tbody>
                   {[...steps.entries()].map(([k, v]) => (
                     <tr key={k}>
-                      <td className="mono strong">{k.split(".")[1] ?? k}</td>
+                      <td className="strong" title={k}>{humanize(k.split(".")[1] ?? k)}</td>
                       <td className="tnum" style={{ color: v.pass ? "#059669" : undefined }}>{v.pass}</td>
                       <td className="tnum" style={{ color: v.block ? "#B45309" : undefined }}>{v.block}</td>
                       <td className="tnum">{v.info}</td>
@@ -154,7 +155,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                   ["human_review", "Identity not verified/probable, no lawful basis, or not a decision maker/champion"],
                   ["ready", `Identity ok, DM or champion, ${CONFIG.readiness.minVerifiedTriggers} verified or ${CONFIG.readiness.minUsableTriggers} usable triggers in ${CONFIG.readiness.triggerWindowDays}d`],
                 ].map(([k, when], i) => (
-                  <tr key={k}><td className="tnum">{i + 1}</td><td className="mono strong">{k}</td><td>{when}</td><td className="tnum font-semibold" style={{ color: "var(--text-primary)" }}>{R(k)}</td></tr>
+                  <tr key={k}><td className="tnum">{i + 1}</td><td className="strong" title={k}>{READINESS_LABEL[k as keyof typeof READINESS_LABEL] ?? humanize(k)}</td><td>{when}</td><td className="tnum font-semibold" style={{ color: "var(--text-primary)" }}>{R(k)}</td></tr>
                 ))}
               </tbody>
             </table>

@@ -20,9 +20,11 @@ export interface BoardCard { journeyId: string; contactId: string; name: string;
 export function JourneyBoard({ cards }: { cards: BoardCard[] }) {
   return (
     <div className="-mx-1 overflow-x-auto pb-2">
-      <div className="flex gap-3 px-1" style={{ minWidth: LANES.length * 236 }}>
+      <div className="flex gap-3 px-1">
         {LANES.map((lane) => {
           const items = cards.filter((c) => lane.stages.includes(c.stage)).sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
+          // An empty lane collapses to a thin sliver with its count, so the board shows the journey, not empty space.
+          if (items.length === 0) return <section key={lane.id} className="jb-empty" aria-label={`${lane.title}: nobody`} title={`${lane.title}: nobody here yet`}><span>{lane.title}</span><b className="tnum">0</b></section>;
           return (
             <section key={lane.id} className="glass-card-static flex w-[228px] shrink-0 flex-col" style={{ padding: "0.75rem", borderRadius: "1.25rem", borderTop: `3px solid ${lane.color}` }} aria-label={lane.title}>
               <header className="mb-2 flex items-baseline justify-between px-1">

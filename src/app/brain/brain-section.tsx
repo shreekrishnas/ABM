@@ -87,7 +87,7 @@ export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: s
         </div>
         {canEdit && (
           <button type="button" className="br-ai" onClick={fill} disabled={thinking} title="Suggest items from the website and uploaded files">
-            {thinking ? <Loader2 size={15} className="lg-spin" /> : <Sparkles size={15} />} {spec.single ? "AI fill" : "AI suggest"}
+            {thinking ? <Loader2 size={15} className="lg-spin" /> : <Sparkles size={14} />} {spec.single ? "Fill" : "Suggest"}
           </button>
         )}
       </header>
@@ -136,7 +136,7 @@ export function BrainSection({ clientId, spec, initial, canEdit }: { clientId: s
           {dirty && <span className="br-dirty">Unsaved changes</span>}
           <span className="ml-auto flex gap-2">
             {dirty && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setItems(spec.single ? (initial.length ? initial : [blank(spec.fields)]) : initial); setDirty(false); setSuggestions([]); }}><RotateCcw size={14} /> Discard</button>}
-            <button type="button" className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={14} className="lg-spin" /> : <Check size={14} />} Save</button>
+            <button type="button" className={`btn btn-sm ${dirty ? "btn-primary" : "btn-secondary"}`} disabled={!dirty || saving} onClick={save}>{saving ? <Loader2 size={14} className="lg-spin" /> : <Check size={14} />} Save</button>
           </span>
         </footer>
       )}

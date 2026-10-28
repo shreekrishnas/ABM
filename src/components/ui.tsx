@@ -41,12 +41,11 @@ export function StageBadge({ stage }: { stage: BuyingStage }) {
 }
 
 export const TIER_COLOR: Record<Tier, string> = { T1: "var(--chart-1)", T2: "var(--chart-2)", T3: "var(--chart-3)" };
-const TIER_HEX: Record<Tier, string> = { T1: "#4F46E5", T2: "#0D9488", T3: "#C2410C" };
 
 export function TierBadge({ tier }: { tier: Tier | null }) {
   if (!tier) return <span className="muted text-xs">—</span>;
   return (
-    <span className="badge" style={{ color: TIER_HEX[tier], background: hexA(TIER_HEX[tier], 0.1) }}>
+    <span className={`badge tier-${tier}`}>
       {tier} · {tier === "T1" ? "1:1" : tier === "T2" ? "1:few" : "1:many"}
     </span>
   );
@@ -109,9 +108,9 @@ export function Kpi({ label, value, meta, accent, icon }: { label: string; value
   );
 }
 
-export function Card({ title, sub, action, children, className, pad = true }: { title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
+export function Card({ title, sub, action, children, className, pad = true, id }: { title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean; id?: string }) {
   return (
-    <section className={cx("glass-card-static", pad && "card-pad", className)}>
+    <section id={id} className={cx("glass-card-static", pad && "card-pad", className)}>
       {(title || action) && (
         <div className={cx("card-head", !pad && "px-5 pt-5")}>
           <div>

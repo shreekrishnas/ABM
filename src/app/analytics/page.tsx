@@ -89,7 +89,7 @@ export default async function AnalyticsPage() {
           </div>
         </Card>
         <Card title="Reply classes" sub="How replies were routed">
-          <HBars data={replyClasses} unit="replies" height={220} />
+          <HBars data={replyClasses} unit="replies" height={220} empty="No replies yet. This fills once emails are sent." />
         </Card>
       </div>
 
@@ -106,8 +106,8 @@ export default async function AnalyticsPage() {
             </table>
           </div>
         </Card>
-        <Card title="Spend by stage" sub="Where the per-account budget goes">
-          <HBars data={stageSpend} unit="USD" height={Math.max(160, stageSpend.length * 34)} />
+        <Card title={`Spend by stage · $${stageSpend.reduce((t, x) => t + x.value, 0).toFixed(2)} total`} sub="Where the per-account budget goes (all recorded costs, every stage)">
+          <HBars data={stageSpend} unit="USD" empty="No spend recorded yet." height={Math.max(160, stageSpend.length * 34)} />
         </Card>
       </div>
     </div>
