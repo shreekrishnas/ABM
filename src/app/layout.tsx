@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { QuickTask } from "@/components/shell/QuickTask";
+import { UndoProvider } from "@/components/kit/undo";
 
 export const metadata: Metadata = {
   title: { default: "ABM Intelligence", template: "%s · ABM Intelligence" },
@@ -51,7 +52,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
           <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} />
-          <main className="app-main" id="main">{children}</main>
+          <main className="app-main" id="main"><UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
         <CommandPalette canAct={Boolean(access && access.state === "ok")} />
