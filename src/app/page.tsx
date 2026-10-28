@@ -118,7 +118,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="hm2-card">
             <div className="hm2-head">
               <h2>Company flow</h2>
-              <span className="hm2-meta">Bar height = companies reaching each step</span>
+              <span className="hm2-meta">Companies reaching each step · % from the step before</span>
             </div>
             <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
             <p className="hm2-foot">LinkedIn counts only what the team logged. Meetings appear once they are recorded; nothing here is estimated.</p>

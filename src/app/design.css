@@ -816,3 +816,21 @@ html, body { background: var(--canvas) !important; }
 .segmented, .k-seg { background: var(--glass) !important; border-color: var(--glass-border) !important; }
 .tabs, .sh .tabs { border-bottom-color: var(--border) !important; }
 .rec-tabs { background: transparent; backdrop-filter: none; }
+
+/* Company flow: compact funnel rows (label · bar · count · conversion · stopped) */
+.fr-list { display: grid; gap: 2px; margin: var(--sp-3) 0 var(--sp-2); }
+.fr-row { display: grid; grid-template-columns: minmax(0, 1fr) 48px 44px; align-items: center; gap: var(--sp-2); transition: opacity 150ms; }
+.fr-row.dim { opacity: 0.4; }
+.fr-main { display: grid; grid-template-columns: 116px minmax(0, 1fr) 32px; align-items: center; gap: var(--sp-3); height: 30px; padding: 0 var(--sp-2); border-radius: var(--r-sm); background: transparent; text-align: left; }
+.fr-main:not(:disabled):hover, .fr-main.on { background: var(--glass-hover); }
+.fr-l { font-size: var(--fs-13); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fr-bar { height: 8px; border-radius: var(--r-full); background: var(--subtle); overflow: hidden; }
+.fr-bar i { display: block; height: 100%; border-radius: var(--r-full); background: var(--pill); }
+.fr-v { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--text); text-align: right; }
+.fr-c { font-size: var(--fs-12); color: var(--muted); text-align: right; }
+.fr-c.worst { color: var(--warning); font-weight: var(--fw-semibold); }
+.fr-out { justify-self: start; height: 20px; padding: 0 var(--sp-2); border-radius: var(--r-full); font-size: var(--fs-12); color: var(--text-2); background: var(--subtle); }
+.fr-out:hover, .fr-out.on { color: var(--accent); background: var(--accent-subtle); }
+.fr-row.zero .fr-l, .fr-row.zero .fr-v { color: var(--muted); }
+.fr-row.zero .fr-main { cursor: default; }
+@media (max-width: 639px) { .fr-main { grid-template-columns: 92px minmax(0, 1fr) 28px; gap: var(--sp-2); } .fr-row { grid-template-columns: minmax(0, 1fr) 40px 36px; } }

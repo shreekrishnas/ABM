@@ -1,8 +1,8 @@
 "use client";
 
-// Funnel track: stepped bars, one per step. Bar height is the number of companies that reached
-// the step (exact, comparable); the count and the step-to-step conversion are printed under it,
-// the biggest drop marked. "N stopped" lists who stopped there. Tier chips re-filter.
+// Company flow: one slim row per step — label, a proportional bar, the count, conversion from
+// the step before (the biggest drop marked) and how many stopped there (click to list them).
+// Steps nobody reached fade back. Tier chips re-filter.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -30,19 +30,20 @@ export function FunnelTrack({ steps, accounts }: { steps: { key: string; label: 
         {["all", "T1", "T2", "T3"].map((t) => <button key={t} type="button" className={`viz-chip${tier === t ? " on" : ""}`} onClick={() => { setTier(t); setSel(null); }}>{t === "all" ? "All" : t}</button>)}
         {worst > 0 && drops[worst] > 0 && <span className="viz-hint">Biggest drop: <b>{steps[worst - 1].label} → {steps[worst].label}</b></span>}
       </div>
-      <ol className="fs-track" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }} aria-label="Companies reaching each step">
+      <ol className="fr-list" aria-label="Companies reaching each step">
         {steps.map((s, i) => {
           const v = reached[i].length, st = stopped[i].length;
-          const conv = i && reached[i - 1].length ? Math.round((v / reached[i - 1].length) * 100) : null;
+          const prev = i ? reached[i - 1].length : null;
+          const conv = prev ? Math.round((v / prev) * 100) : null;
           return (
-            <li key={s.key} className={`fs-step${sel && sel.i !== i ? " dim" : ""}`}>
-              <button type="button" className={`fs-col${sel?.kind === "step" && sel.i === i ? " on" : ""}`} onClick={() => toggle({ kind: "step", i })} title={`${s.define} · ${v} companies`}>
-                <b className="tnum">{v}</b>
-                <span className="fs-bar"><i style={{ height: `${Math.max(v ? 6 : 2, (v / top) * 100)}%` }} /></span>
+            <li key={s.key} className={`fr-row${v ? "" : " zero"}${sel && sel.i !== i ? " dim" : ""}`}>
+              <button type="button" className={`fr-main${sel?.kind === "step" && sel.i === i ? " on" : ""}`} onClick={() => toggle({ kind: "step", i })} title={s.define} disabled={!v}>
+                <span className="fr-l">{s.label}</span>
+                <span className="fr-bar" aria-hidden><i style={{ width: `${(v / top) * 100}%` }} /></span>
+                <b className="fr-v tnum">{v}</b>
               </button>
-              <span className="fs-l">{s.label}</span>
-              <span className={`fs-conv tnum${i === worst && drops[i] > 0 ? " worst" : ""}`}>{conv == null ? "start" : `${conv}% of previous`}</span>
-              {st > 0 && <button type="button" className={`fs-out${sel?.kind === "exit" && sel.i === i ? " on" : ""}`} onClick={() => toggle({ kind: "exit", i })} title={`${st} stopped here: ${reasons(stopped[i]).map(([k, v]) => `${k} ${v}`).join(", ")}`}>{st} stopped</button>}
+              <span className={`fr-c tnum${i === worst && drops[i] > 0 ? " worst" : ""}`}>{i === 0 ? "" : conv == null ? "—" : `${conv}%`}</span>
+              {st > 0 ? <button type="button" className={`fr-out${sel?.kind === "exit" && sel.i === i ? " on" : ""}`} onClick={() => toggle({ kind: "exit", i })} title={`${st} stopped here: ${reasons(stopped[i]).map(([k, v]) => `${k} ${v}`).join(", ")}`}>−{st}</button> : <span className="fr-out-none" />}
             </li>
           );
         })}
