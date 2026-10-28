@@ -58,14 +58,16 @@ export default async function AnalyticsPage() {
   });
 
   const spend = (k: string) => (ledgerByKind.find((l) => l.kind === k)?._sum.amountMicros ?? 0) / 1e6;
-  const totalSpend = spend("llm") + spend("lookup") + spend("verification");
+  // One definition everywhere: every cost recorded (AI, web search, paid lookups, verification).
+  const totalSpend = spend("llm") + spend("search") + spend("lookup") + spend("verification");
   const stageSpend = ledgerByStage.sort((a, b) => a.stage - b.stage).map((s) => ({ label: STAGE_SHORT[s.stage] ?? `Stage ${s.stage}`, value: Math.round(((s._sum.amountMicros ?? 0) / 1e6) * 100) / 100 }));
 
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Learning loop" title="Analytics" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
       <StatStrip items={[
-        { label: "Total spend", value: `$${totalSpend.toFixed(2)}`, meta: "AI + lookups + verification" },
+        { label: "Total spend", value: `$${totalSpend.toFixed(2)}`, meta: "AI + search + lookups + verification" },
+        { label: "Web search", value: `$${spend("search").toFixed(2)}`, meta: `${ledgerByKind.find((l) => l.kind === "search")?._count ?? 0} searches` },
         { label: "AI (research and writing)", value: `$${spend("llm").toFixed(2)}`, meta: `${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls` },
         { label: "Paid lookups", value: `$${spend("lookup").toFixed(2)}`, meta: "Only for missing fields" },
         { label: "Emails sent", value: messages.length, meta: `${replies.length} replies` },

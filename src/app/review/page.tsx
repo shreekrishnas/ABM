@@ -7,7 +7,7 @@ import { Badge, Card, Empty, FieldBadge, PageHeader, TierBadge, ago, cx, date } 
 import { resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
 import { ViewSwitch } from "@/components/v2";
 import { ApprovalStack } from "./approval-stack";
-import { REVIEW_TYPE_LABEL as TYPE_LABEL } from "@/lib/review-labels";
+import { reviewLabel } from "@/lib/review-labels";
 
 export const metadata = { title: "Review queue" };
 
@@ -37,7 +37,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         <Link href="/review" className="badge" style={{ background: !type ? "var(--accent-indigo)" : "var(--surface-card)", color: !type ? "#fff" : "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>All · {total}</Link>
         {counts.sort((a, b) => b._count - a._count).map((c) => (
           <Link key={c.type} href={`/review?type=${c.type}`} className="badge" style={{ background: type === c.type ? "var(--accent-indigo)" : "var(--surface-card)", color: type === c.type ? "#fff" : "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
-            {TYPE_LABEL[c.type] ?? c.type} · {c._count}
+            {reviewLabel(c.type)} · {c._count}
           </Link>
         ))}
       </div>
@@ -57,7 +57,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge color="#7C3AED">{TYPE_LABEL[r.type] ?? r.type}</Badge>
+                      <Badge color="#7C3AED">{reviewLabel(r.type)}</Badge>
                                             {overdue && <Badge color="#DC2626">overdue</Badge>}
                     </div>
                     <div className="mt-1.5 text-[0.95rem] font-semibold" style={{ color: "var(--text-primary)" }}>{r.reason}</div>
@@ -81,7 +81,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                       <div><label className="field-label">To</label><div className="text-sm secondary">{r.contact ? <Link href={`/people/${r.contact.id}`} className="hover:underline">{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></div></div>
                       <div><label className="field-label" htmlFor={`s-${draft.id}`}>Subject</label><input id={`s-${draft.id}`} name="subject" defaultValue={draft.subject} className="glass-input" /></div>
                       <div><label className="field-label" htmlFor={`b-${draft.id}`}>Body</label><textarea id={`b-${draft.id}`} name="body" defaultValue={draft.body} className="glass-textarea" rows={11} /></div>
-                      <input name="note" className="glass-input" placeholder="Optional note for the log" />
+                      <input name="note" className="glass-input" placeholder="Optional note for the log" aria-label="Note for the log (optional)" />
                       <div className="flex flex-wrap justify-end gap-2">
                         <SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject</SubmitButton>
                         <SubmitButton name="decision" value="approve" className="btn btn-success"><Check size={15} /> Approve</SubmitButton>

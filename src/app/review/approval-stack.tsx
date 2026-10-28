@@ -58,7 +58,7 @@ export function ApprovalStack({ items: all, pick, hrefFor }: { items: Item[]; pi
             <input type="hidden" name="draftId" value={d.id} />
             <input name="subject" defaultValue={d.subject} aria-label="Subject" className="glass-input text-[0.95rem] font-semibold" />
             <textarea name="body" defaultValue={d.body} aria-label="Email body" className="glass-textarea" rows={12} style={{ lineHeight: 1.6 }} />
-            <input name="note" className="glass-input" placeholder="Note for the log (optional)" />
+            <input name="note" className="glass-input" placeholder="Note for the log (optional)" aria-label="Note for the log (optional)" />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="muted text-xs">Edits are kept and teach the brain. The unsubscribe line and address must stay.</span>
               <div className="flex gap-2">

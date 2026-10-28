@@ -158,7 +158,7 @@ describe("adapter selection", () => {
     expect(a.research.live).toBe(true);
     expect(a.llm).not.toBeInstanceOf(OpenRouterLLM);
     const s = Object.fromEntries(serviceStatus().map((x) => [x.key, x.mode]));
-    expect(s).toMatchObject({ research: "live", llm: "mock", provider: "live", mailbox: "live", email: "mock" });
+    expect(s).toMatchObject({ research: "live", llm: "off", provider: "off", mailbox: "live", email: "off" });
     // Real data never gets sample people, and nothing is "sent" without a real mailbox.
     expect(a.provider).toBeInstanceOf(NoProvider);
     expect(a.email.connected).toBe(false);
@@ -171,6 +171,7 @@ describe("adapter selection", () => {
     const a = createAdapters();
     expect(a.research.live).toBeFalsy();
     expect(a.llm).not.toBeInstanceOf(OpenRouterLLM);
+    expect(serviceStatus().every((x) => x.mode === "sample" || x.mode === "planned")).toBe(true);
   });
 
   it("evidence gate refuses mock evidence when research is live", () => {

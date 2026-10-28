@@ -11,8 +11,6 @@ import { OpenRouterEmbedder } from "./live/embeddings";
 // the interfaces. Keys live in Vercel env vars, never in the repo.
 
 export type ServiceKey = keyof Adapters;
-export interface ServiceStatus { key: ServiceKey; label: string; mode: "live" | "mock"; via: string }
-
 function env(name: string): string | undefined {
   const v = process.env[name]?.trim();
   return v ? v : undefined;
@@ -27,20 +25,32 @@ function researchKeys() {
   return { exa: env("EXA_API_KEY"), tavily: env("TAVILY_API_KEY"), serp: env("SERPAPI_API_KEY") };
 }
 
+/**
+ * Each integration's real state: live (connected and in use), off (not connected, so that part
+ * is skipped or held) or sample (ADAPTER_MODE=mock: sample data everywhere, never on a real run).
+ */
+export type ServiceMode = "live" | "off" | "sample" | "planned";
+export interface ServiceStatus { key: ServiceKey; label: string; mode: ServiceMode; via: string }
+export const SERVICE_MODE_LABEL: Record<ServiceMode, string> = { live: "Live", off: "Not connected", sample: "Sample data", planned: "Planned" };
+
 export function serviceStatus(): ServiceStatus[] {
-  const off = forcedMock();
+  const sample = forcedMock();
   const r = researchKeys();
   const engines = [r.exa && "Exa", r.tavily && "Tavily", r.serp && "SerpAPI"].filter(Boolean).join(" + ");
   const llmKey = env("OPENROUTER_API_KEY");
+  const apollo = env("APOLLO_API_KEY");
+  const visitors = env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID");
+  const smtp = env("SMTP_URL");
+  const m = (connected: boolean): ServiceMode => (sample ? "sample" : connected ? "live" : "off");
   return [
-    { key: "research", label: "Web research", mode: !off && engines ? "live" : "mock", via: engines || "Exa / Tavily / SerpAPI" },
-    { key: "llm", label: "LLM (extract, draft, classify)", mode: !off && llmKey ? "live" : "mock", via: `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` },
-    { key: "embedder", label: "Knowledge base embeddings", mode: !off && llmKey ? "live" : "mock", via: !off && llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching (set OPENROUTER_API_KEY for meaning-based search)" },
-    { key: "provider", label: "Contact data provider", mode: off ? "mock" : "live", via: off ? "Sample people" : env("APOLLO_API_KEY") ? "Apollo · people search and email lookup" : "None connected — only imported people are used (set APOLLO_API_KEY)" },
-    { key: "mailbox", label: "Email verification", mode: off ? "mock" : "live", via: "Free MX check (domain accepts email)" },
-    { key: "email", label: "Email sending", mode: !off && env("SMTP_URL") ? "live" : "mock", via: env("SMTP_URL") ? "SMTP mailbox" : off ? "Sample sender" : "Not connected — approved emails are held (set SMTP_URL)" },
-    { key: "intent", label: "Website visitors", mode: !off && env("APOLLO_API_KEY") && (env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")) ? "live" : "mock", via: env("APOLLO_API_KEY") ? ((env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")) ? "Apollo website visitors · synced daily" : "Apollo connected — set APOLLO_VISITOR_LIST to the visitors list name") : "Apollo website visitors (set APOLLO_API_KEY and APOLLO_VISITOR_LIST) · own tracking script" },
-    { key: "notifier", label: "Alerts", mode: "mock", via: "Slack / Teams webhook (planned)" },
+    { key: "research", label: "Web research", mode: m(Boolean(engines)), via: engines || "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
+    { key: "llm", label: "LLM (extract, draft, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
+    { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
+    { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
+    { key: "mailbox", label: "Email verification", mode: m(true), via: "Free MX check (domain accepts email)" },
+    { key: "email", label: "Email sending", mode: m(Boolean(smtp)), via: smtp ? "SMTP mailbox" : "Approved emails are held (set SMTP_URL)" },
+    { key: "intent", label: "Website visitors", mode: m(Boolean(apollo && visitors)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Set APOLLO_VISITOR_LIST to the visitors list name") : "Set APOLLO_API_KEY and APOLLO_VISITOR_LIST" },
+    { key: "notifier", label: "Alerts", mode: "planned", via: "Slack / Teams webhook" },
   ];
 }
 

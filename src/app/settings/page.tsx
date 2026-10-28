@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { createCampaignFormAction, createSenderFormAction, seedDemoAction } from "../actions";
-import { serviceStatus } from "@/lib/adapters";
+import { SERVICE_MODE_LABEL, serviceStatus } from "@/lib/adapters";
 import { securityStatus } from "@/lib/api";
 import { headers } from "next/headers";
 import { DEFAULT_PRIORITY_WEIGHTS } from "@/lib/brain/priority";
@@ -72,7 +72,7 @@ export default async function SettingsPage() {
       <div className="grid gap-5 xl:grid-cols-3">
         <Card title="Integrations" sub="Each service goes live once its API key is set in Vercel">
           {services.map((x) => (
-            <Row key={x.key} k={<span>{x.label}<span className="muted block text-xs font-normal">{x.via}</span></span>} v={<Badge color={x.mode === "live" ? "#059669" : "#64748B"}>{x.mode}</Badge>} />
+            <Row key={x.key} k={<span>{x.label}<span className="muted block text-xs font-normal">{x.via}</span></span>} v={<Badge color={x.mode === "live" ? "#059669" : x.mode === "off" ? "#B45309" : "#64748B"}>{SERVICE_MODE_LABEL[x.mode]}</Badge>} />
           ))}
           <p className="muted mt-3 text-xs">When web research is live the evidence gate refuses mock evidence, so test data can never reach a real send. Sample data always runs on mocks.</p>
         </Card>

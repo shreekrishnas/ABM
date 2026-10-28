@@ -320,7 +320,7 @@ export function PackEditor({ sellerId, base, builtIn, source, revisions }: { sel
             </ul>
           )}
           <Field label="What changed and why" hint="Shown in the history.">
-            <input className="glass-input" value={note} maxLength={500} placeholder="e.g. Added full postal address" onChange={(e) => setNote(e.target.value)} />
+            <input className="glass-input" aria-label="What changed (saved with this version)" value={note} maxLength={500} placeholder="e.g. Added full postal address" onChange={(e) => setNote(e.target.value)} />
           </Field>
           <div className="mt-3 flex gap-2">
             <button type="button" className="btn btn-brand flex-1" disabled={pending || !dirty || (mode === "form" && problems.length > 0)} onClick={save}><Save size={15} /> {pending ? "Saving…" : "Save new version"}</button>

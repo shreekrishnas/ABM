@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useId } from "react";
 import { Check, Loader2, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "@/components/client";
 import type { BrainField, BrainItem, BrainSection as Spec } from "@/lib/seller/brain";
@@ -14,26 +14,32 @@ const summary = (it: BrainItem, fields: BrainField[]) => {
   return String(label ?? "").trim() || "Untitled";
 };
 
-function Input({ field, value, onChange }: { field: BrainField; value: BrainItem[string]; onChange: (v: BrainItem[string]) => void }) {
-  if (field.kind === "long") return <textarea className="glass-input br-area" rows={3} value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
-  if (field.kind === "lines") return <textarea className="glass-input br-area" rows={3} value={Array.isArray(value) ? value.join("\n") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split("\n"))} onBlur={(e) => onChange(e.target.value.split("\n").map((x) => x.trim()).filter(Boolean))} />;
-  if (field.kind === "list") return <input className="glass-input" value={Array.isArray(value) ? value.join(", ") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split(",").map((x) => x.trimStart()))} onBlur={(e) => onChange(e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} />;
-  if (field.kind === "number") return <input className="glass-input tnum" type="number" inputMode="numeric" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
-  if (field.kind === "bool") return <label className="br-check"><input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} /> Yes</label>;
-  if (field.kind === "select") return <select className="glass-input" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>{field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
-  return <input className="glass-input" value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
+function Input({ field, value, onChange, id, hintId }: { field: BrainField; value: BrainItem[string]; onChange: (v: BrainItem[string]) => void; id: string; hintId?: string }) {
+  const a = { id, "aria-describedby": hintId, "aria-required": field.need === "research" ? true : undefined } as const;
+  if (field.kind === "long") return <textarea {...a} className="glass-input br-area" rows={3} value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
+  if (field.kind === "lines") return <textarea {...a} className="glass-input br-area" rows={3} value={Array.isArray(value) ? value.join("\n") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split("\n"))} onBlur={(e) => onChange(e.target.value.split("\n").map((x) => x.trim()).filter(Boolean))} />;
+  if (field.kind === "list") return <input {...a} className="glass-input" value={Array.isArray(value) ? value.join(", ") : String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value.split(",").map((x) => x.trimStart()))} onBlur={(e) => onChange(e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} />;
+  if (field.kind === "number") return <input {...a} className="glass-input tnum" type="number" inputMode="numeric" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
+  if (field.kind === "bool") return <span className="br-check"><input {...a} type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} /> Yes</span>;
+  if (field.kind === "select") return <select {...a} className="glass-input" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>{field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+  return <input {...a} className="glass-input" value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
 }
 
 function Fields({ fields, item, onChange }: { fields: BrainField[]; item: BrainItem; onChange: (it: BrainItem) => void }) {
+  const base = useId();
   return (
     <div className="br-fields">
-      {fields.map((f) => (
-        <label key={f.key} className={`br-field${f.kind === "long" || f.kind === "lines" ? " wide" : ""}`}>
-          <span>{f.label}{f.need && <em className={`br-need ${f.need}`}>{f.need === "research" ? "Required" : "Needed for emails"}</em>}</span>
-          <Input field={f} value={item[f.key]} onChange={(v) => onChange({ ...item, [f.key]: v })} />
-          {f.hint && <small>{f.hint}</small>}
-        </label>
-      ))}
+      {fields.map((f) => {
+        const id = `${base}-${f.key}`;
+        const hintId = f.hint ? `${id}-hint` : undefined;
+        return (
+          <div key={f.key} className={`br-field${f.kind === "long" || f.kind === "lines" ? " wide" : ""}`}>
+            <label htmlFor={id}>{f.label}{f.need && <em className={`br-need ${f.need}`}>{f.need === "research" ? "Required" : "Needed for emails"}</em>}</label>
+            <Input field={f} id={id} hintId={hintId} value={item[f.key]} onChange={(v) => onChange({ ...item, [f.key]: v })} />
+            {f.hint && <small id={hintId}>{f.hint}</small>}
+          </div>
+        );
+      })}
     </div>
   );
 }

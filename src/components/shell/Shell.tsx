@@ -10,14 +10,14 @@ import { isOn, locate, type Counts } from "@/lib/nav";
 // Rail entries: Home, Import, then the workspace sections. Active state follows the
 // nav map, so every page inside a section lights its rail icon.
 const RAIL = [
-  { key: "home", href: "/", label: "Home", icon: HomeIcon },
-  { key: "import", href: "/import", label: "Import", icon: Upload },
-  { key: "brain", href: "/brain", label: "Account Brain", icon: Brain },
-  { key: "today", href: "/work/today", label: "Today", icon: Sun },
-  { key: "research", href: "/accounts", label: "Research", icon: Building2 },
-  { key: "outreach", href: "/review", label: "Email drafting", icon: Send, count: "review" as const },
-  { key: "sales", href: "/handoffs", label: "Sales", icon: Handshake, count: "handoffs" as const },
-  { key: "insights", href: "/overview", label: "Insights", icon: BarChart3 },
+  { key: "home", href: "/", label: "Home", short: "Home", icon: HomeIcon },
+  { key: "import", href: "/import", label: "Import", short: "Import", icon: Upload },
+  { key: "brain", href: "/brain", label: "Account Brain", short: "Brain", icon: Brain },
+  { key: "today", href: "/work/today", label: "Today", short: "Today", icon: Sun },
+  { key: "research", href: "/accounts", label: "Research", short: "Research", icon: Building2 },
+  { key: "outreach", href: "/review", label: "Email drafting", short: "Emails", icon: Send, count: "review" as const },
+  { key: "sales", href: "/handoffs", label: "Sales", short: "Sales", icon: Handshake, count: "handoffs" as const },
+  { key: "insights", href: "/overview", label: "Insights", short: "Insights", icon: BarChart3 },
 ];
 
 export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null;
@@ -41,8 +41,9 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
               const n = r.count ? counts[r.count] : 0;
               return (
                 <Link key={r.key} href={r.href} className={`sh-item${active === r.key ? " on" : ""}`} data-tip={r.label} aria-label={r.label} aria-current={active === r.key ? "page" : undefined}>
-                  <r.icon size={20} strokeWidth={1.9} />
-                  {n > 0 && <span className="sh-badge tnum">{n > 99 ? "99+" : n}</span>}
+                  <r.icon size={20} strokeWidth={1.9} aria-hidden />
+                  <span className="sh-lbl">{r.short}</span>
+                  {n > 0 && <span className="sh-badge tnum" aria-label={`${n} waiting`}>{n > 99 ? "99+" : n}</span>}
                 </Link>
               );
             })}
@@ -55,6 +56,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
               </form>
             )}
             <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} /></Link>
+            <span className="sh-sep" aria-hidden />
             <form action={signOutAction}><button type="submit" className="sh-item" data-tip="Sign out" aria-label="Sign out"><LogOut size={20} strokeWidth={1.9} /></button></form>
           </div>
         </nav>

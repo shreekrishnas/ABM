@@ -5,7 +5,7 @@ import { STAGES } from "@/lib/config";
 import { AreaTrend, HBars, TierDonut } from "@/components/charts";
 import { StatStrip } from "@/components/v2";
 import { STAGE_SHORT } from "@/lib/stage-docs";
-import { REVIEW_TYPE_LABEL } from "@/lib/review-labels";
+import { reviewLabel } from "@/lib/review-labels";
 import { STAGE_STYLE, Avatar, Card, Empty, Meter, PageHeader, StageBadge, TierBadge, ago, money } from "@/components/ui";
 import { ActionButton } from "@/components/client";
 import { runAllAction, tickAction } from "../actions";
@@ -115,7 +115,7 @@ export default async function ProgramOverview() {
               {reviewItems.map((r) => (
                 <li key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: "var(--surface-card-header)", borderLeft: `3px solid ${r.type === "draft_approval" ? "#8B5CF6" : r.type === "budget_exceeded" ? "#EF4444" : "#F59E0B"}` }}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="micro">{REVIEW_TYPE_LABEL[r.type] ?? r.type.replaceAll("_", " ")}</span>
+                    <span className="micro">{reviewLabel(r.type)}</span>
                     <span className="muted text-[0.7rem]">{ago(r.createdAt)}</span>
                   </div>
                   <div className="mt-0.5 line-clamp-2 text-[0.82rem] secondary">{r.reason}</div>
