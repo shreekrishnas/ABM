@@ -2,7 +2,7 @@
 // Used by the top bar (trail and sibling pages), the hub pages and the command palette.
 
 import {
-  BadgeDollarSign, BarChart3, Building2, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Radar, Send, Settings2, Sparkles, Sun, Table2, Users, Workflow,
+  BadgeDollarSign, BarChart3, Building2, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Radar, Send, Settings2, Sparkles, Sun, Users, Workflow,
 } from "lucide-react";
 
 export type Counts = { review: number; handoffs: number; tasks: number };
@@ -21,8 +21,7 @@ export const SECTIONS: NavSection[] = [
   {
     key: "research", label: "Research", blurb: "Companies, people and the signals behind them", icon: Building2,
     items: [
-      { href: "/accounts", label: "Companies", blurb: "Every company, its priority and next step", icon: Building2 },
-      { href: "/companies", label: "All companies", blurb: "Filter every company by industry, technology, source, size and intent", icon: Table2 },
+      { href: "/accounts", label: "Companies", blurb: "Every company: filter, sort, table or priority map", icon: Building2 },
       { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users },
       { href: "/people", label: "People", blurb: "The buying group at each company", icon: Users },
       { href: "/signals", label: "Signals", blurb: "Buying events, with sources", icon: Radar },

@@ -21,7 +21,7 @@ const ACTIONS: Hit[] = [
   { id: "a-import", kind: "action", label: "Import a file", sub: "CSV or Excel of companies and people", href: "/import/upload" },
   { id: "a-scan", kind: "action", label: "Scan the market for new companies", sub: "Discover", href: "/discover" },
   { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Discover → Website visitors", href: "/discover?origin=website_visitor" },
-  { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?view=list&sort=priority" },
+  { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?sort=priority" },
 ];
 const PAGES: Hit[] = [...IMPORT_PAGES.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: "Import data", href: it.href })), ...SECTIONS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label, href: it.href })))];
 
@@ -107,7 +107,7 @@ export function CommandPalette({ canAct = true }: { canAct?: boolean }) {
     ];
     return [
       { id: "open", label: "Open", sub: target.label, run: () => go(target) },
-      { id: "preview", label: "Preview beside the list", sub: "Companies list with this one open", run: () => { setOpen(false); router.push(`/accounts?view=list&sel=${id}`); } },
+      { id: "preview", label: "Preview beside the list", sub: "Companies list with this one open", run: () => { setOpen(false); router.push(`/accounts?sel=${id}`); } },
       ...(canAct ? [
         { id: "mine", label: "Assign to me", sub: "Become the owner", run: () => done(assignToMeAction(id)) },
         { id: "run", label: "Run research now", sub: "Continue the pipeline from its next stage", run: () => done(runAccountAction(id, undefined)) },

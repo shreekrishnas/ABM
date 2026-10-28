@@ -64,7 +64,7 @@ export async function TopOpportunities({ now }: { now: Date }) {
       <header>
         <h2>Who to work first</h2>
         <Badge tone="accent">{rows.length}</Badge>
-        <Link href="/accounts?view=list&sort=priority" className="td2-link">All by priority</Link>
+        <Link href="/accounts?sort=priority" className="td2-link">All by priority</Link>
         <a href="/accounts/export" className="td2-link"><Download size={12} /> Export</a>
       </header>
       <DataTable columns={columns} rows={rows} rowKey={(x) => x.a.id} caption="Top opportunities" />

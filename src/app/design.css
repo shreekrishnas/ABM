@@ -458,3 +458,10 @@ a.k-dc-title:hover { color: var(--accent); }
 .dz-claims li { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); padding: var(--sp-3); border-radius: var(--r-md); background: var(--subtle); font-size: var(--fs-13); color: var(--text-2); }
 @media (max-width: 1100px) { .dz-draft { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 900px) { .dz { grid-template-columns: minmax(0, 1fr); } .dz-list { position: static; max-height: 320px; } .dz-keys { display: none; } }
+
+/* Segmented control (Table | Map, tier) */
+.k-seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--subtle); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.k-seg button { font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--text-2); padding: var(--sp-1) var(--sp-3); border-radius: calc(var(--r-sm) - 2px); background: transparent; }
+.k-seg button:hover { color: var(--text); }
+.k-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+.k-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
