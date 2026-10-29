@@ -13,7 +13,8 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
   const c = `"${company}"`;
   if (key === "website") return { q: `${c} official website`, days: null, news: false };
   if (key === "firmographics") return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
-  if (key === "lookalike") return { q: "", days: null, news: false };
+  if (key === "lookalike_intent") return { q: `${c} expansion OR investment OR hiring OR new plant OR digital transformation`, days: 365, news: true };
+  if (key.startsWith("lookalike")) return { q: "", days: null, news: false };
   if (key === "market:hiring") return { q: "", days: 60, news: false };
   if (key.startsWith("market")) return { q: "", days: 90, news: true };
   const s = seller().researchQuestions.find((x) => x.key === key)?.search;
@@ -21,6 +22,9 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
   if (key === "negative") return { q: `${c} (layoffs OR job cuts OR hiring freeze OR acquired OR insolvency OR bankruptcy)`, days: 120, news: true };
   return { q: `${c} ${key.replace(/_/g, " ")}`, days: 365, news: false };
 }
+
+/** Profile-style lookups (a company's own site, what it does) need no date; news and intent do. */
+const undatedAllowed = (key: string) => key === "website" || key === "firmographics" || (key.startsWith("lookalike") && key !== "lookalike_intent");
 
 export function classifySource(url: string, domain: string): ResearchPage["sourceType"] {
   let host = "";
@@ -112,6 +116,18 @@ export class WebResearch implements ResearchSource {
     return this.serp(q, news, domain, undatedOk);
   }
 
+  /** Exa's "find similar": pages of companies whose sites resemble this one (lookalike discovery). */
+  async findSimilar(url: string): Promise<ResearchPage[]> {
+    if (!this.keys.exa) return [];
+    const res = await fetchJson<{ results?: ExaResult[] }>("Exa", "https://api.exa.ai/findSimilar", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": this.keys.exa },
+      body: JSON.stringify({ url, numResults: 15, excludeSourceDomain: true, contents: { text: { maxCharacters: 1500 } } }),
+    });
+    const now = new Date();
+    return (res.results ?? []).map((r) => ({ url: r.url, title: r.title ?? r.url, publishedAt: parseLooseDate(r.publishedDate ?? r.published_date) ?? now, text: (r.text ?? r.title ?? "").slice(0, 1500), sourceType: "official" as const, engine: "exa" }));
+  }
+
   async search(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
     const base = queryFor(key, companyName);
     const q = hint.query?.trim() || base.q;
@@ -128,7 +144,7 @@ export class WebResearch implements ResearchSource {
     for (const engine of order) {
       let pages: ResearchPage[];
       try {
-        pages = await this.run(engine, q, days, news, domain, key === "website" || key === "firmographics");
+        pages = await this.run(engine, q, days, news, domain, undatedAllowed(key));
       } catch (e) {
         lastError = e; // quota or outage on one engine — try the next
         hint.onAttempt?.({ engine, results: 0, error: e instanceof Error ? e.message.slice(0, 200) : "error" });

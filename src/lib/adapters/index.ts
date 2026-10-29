@@ -4,6 +4,7 @@ import { createMockAdapters } from "./mock";
 import { WebResearch } from "./live/research";
 import { OpenRouterLLM } from "./live/openrouter";
 import { DisconnectedResearch, DisconnectedSender, MxVerifier, NoIntent, NoProvider, SmtpSender } from "./live/email";
+import { approvalGated } from "@/lib/discover/approval";
 import { OpenRouterEmbedder } from "./live/embeddings";
 
 // Each external service goes live on its own once its API key is set in the
@@ -73,7 +74,8 @@ export function createAdapters(): Adapters {
   }
   // Real data: never use sample people or a pretend mailbox on real companies.
   const apollo = env("APOLLO_API_KEY");
-  a.provider = apollo ? new ApolloProvider(apollo) : new NoProvider();
+  // Contact data only for companies a person approved (code-enforced on every call).
+  a.provider = approvalGated(apollo ? new ApolloProvider(apollo) : new NoProvider());
   a.mailbox = new MxVerifier();
   const smtp = env("SMTP_URL");
   a.email = smtp ? new SmtpSender(smtp, env("SMTP_FROM")) : new DisconnectedSender();

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebResearch, classifySource, queryFor } from "@/lib/adapters/live/research";
-import { NoProvider } from "@/lib/adapters/live/email";
 import { OpenRouterLLM } from "@/lib/adapters/live/openrouter";
 import { ApiError, parseLooseDate } from "@/lib/adapters/live/http";
 import { createAdapters, serviceStatus } from "@/lib/adapters";
@@ -183,7 +182,8 @@ describe("adapter selection", () => {
     expect(b.research.live).toBe(true);
     expect(b.research.connected).not.toBe(false);
     // Real data never gets sample people, and nothing is "sent" without a real mailbox.
-    expect(a.provider).toBeInstanceOf(NoProvider);
+    // (wrapped so contact lookups need a person's approval of the company first)
+    expect(a.provider.name).toBe("none");
     expect(a.email.connected).toBe(false);
   });
 

@@ -66,6 +66,8 @@ export interface ResearchSource {
   engines(): string[];
   /** The brain may give a tailored query and a preferred engine. */
   search(domain: string, companyName: string, questionKey: string, pass: ResearchPass, hint?: SearchHint): Promise<ResearchPage[]>;
+  /** Companies whose websites resemble this one (Exa "find similar"); optional. */
+  findSimilar?(url: string): Promise<ResearchPage[]>;
 }
 
 export interface SearchHint {
@@ -197,6 +199,15 @@ export interface LLM {
   suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]>;
   /** Meaning of a LinkedIn/email reply as one of the 17 People stages (a suggestion a person confirms). */
   classifyJourneyReply(text: string, context: { company: string; title: string | null; stage: string }): Promise<{ stage: Stage; reason: string; nextAction: string }>;
+  // ── Lookalikes ──
+  /** What a company does and how it operates, from its own pages (quotes required). */
+  profileCompany(pages: ResearchPage[], company: string, offering: string): Promise<LookalikeProfile | null>;
+  /** The next questions worth asking about a candidate, given what is known. done = enough to judge. */
+  planLookalike(input: LookalikePlanInput): Promise<{ questions: LookalikeQuestion[]; done: boolean; why: string }>;
+  /** Facts about the candidate that answer one question, each with an exact quote. */
+  extractLookalikeFacts(pages: ResearchPage[], company: string, question: LookalikeQuestion): Promise<LookalikeFact[]>;
+  /** Fit per dimension, buying readiness and plain reasons, from the facts only. */
+  judgeLookalike(input: LookalikeJudgeInput): Promise<LookalikeJudgement>;
   // ── The research engine ──
   /** Investigator: hypotheses and the next questions, ranked by how much the answer would change the conclusion. */
   investigate(input: InvestigateInput): Promise<InvestigateOutput>;
@@ -279,4 +290,74 @@ export interface BrainSuggestInput {
   /** The account's website pages and uploaded files. */
   context: { title: string; url?: string | null; text: string }[];
   single: boolean;
+}
+
+// ── Lookalikes ──
+
+export type LookalikeDimension = "business_model" | "operations" | "industry" | "scale" | "offering" | "intent";
+
+export interface LookalikeProfile {
+  summary: string;
+  businessModel: string;
+  operations: string;
+  industry: string | null;
+  customers: string;
+  scale: string;
+  /** Why this company buys (or would buy) what the client sells. */
+  offeringFit: string;
+}
+
+export interface LookalikeQuestion {
+  question: string;
+  why: string;
+  query: string;
+  engine: "exa" | "tavily";
+  dimension: LookalikeDimension;
+}
+
+export interface LookalikeFact {
+  page: number;
+  claim: string;
+  quote: string;
+  dimension: LookalikeDimension;
+}
+
+export interface LookalikeKnownFact {
+  claim: string;
+  dimension: LookalikeDimension;
+  verified: boolean;
+}
+
+export interface LookalikePlanInput {
+  seed: LookalikeProfile & { name: string };
+  company: { name: string; domain: string | null };
+  offering: string;
+  focus: string[];
+  avoid: string[];
+  facts: LookalikeKnownFact[];
+  asked: string[];
+  /** A person's request ("Research more"): answered first. */
+  note?: string | null;
+  round: number;
+  maxRounds: number;
+}
+
+export interface LookalikeJudgeInput {
+  seed: LookalikeProfile & { name: string };
+  company: { name: string; domain: string | null };
+  offering: string;
+  focus: string[];
+  avoid: string[];
+  facts: LookalikeKnownFact[];
+}
+
+export interface LookalikeJudgement {
+  /** 0–100 per dimension of similarity to the seed and relevance to the client's offering. */
+  dims: { business_model: number; operations: number; industry: number; scale: number; offering: number };
+  readiness: "ready" | "emerging" | "early" | "none";
+  readinessScore: number;
+  reasons: string[];
+  concerns: string[];
+  /** The "rule out" item this company matches, if any. */
+  avoidHit: string | null;
 }

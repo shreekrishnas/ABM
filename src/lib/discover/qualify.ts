@@ -29,11 +29,11 @@ export interface Firmo {
 
 const apolloKey = () => (process.env.ADAPTER_MODE === "mock" ? undefined : process.env.APOLLO_API_KEY?.trim() || undefined);
 
-/** Size, country and industry: what we were given, then Apollo, then a web search. */
-export async function firmographicsFor(ctx: RunContext, c: Candidate): Promise<Firmo> {
+/** Size, country and industry: what we were given, then Apollo (unless turned off), then a web search. */
+export async function firmographicsFor(ctx: RunContext, c: Candidate, opts: { apollo?: boolean } = {}): Promise<Firmo> {
   let f: Firmo = { industry: c.industry ?? null, employees: c.employees ?? null, country: normalizeCountry(c.country) };
   if (f.employees != null && f.country) return f;
-  const key = apolloKey();
+  const key = opts.apollo === false ? undefined : apolloKey();
   const domain = normalizeDomain(c.domain);
   if (key && domain) {
     try {

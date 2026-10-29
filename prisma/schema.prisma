@@ -1041,9 +1041,28 @@ model ProspectSuggestion {
   resurfacedAt DateTime?
   reason       String?
   accountId    String?
+  /// Lookalikes: how closely it matches the company it was found from, 0–100 (AI investigation).
+  fitScore       Int?
+  /// Lookalikes: how ready it looks to buy: ready | emerging | early | none.
+  readiness      String?
+  readinessScore Int?
+  /// Lookalikes: plain reasons for the recommendation.
+  reasons        String[]  @default([])
+  /// Lookalikes: evidence [{ claim, quote, url, publisher, at, dimension, verified, sources }].
+  evidence       Json?
+  /// Lookalikes: the investigation (profile, dimension scores, rounds of questions, stop reason).
+  research       Json?
+  /// Lookalikes: queued | running | done | failed. Investigations run in the background.
+  researchStatus String?
+  /// What a person asked the AI to look into ("Research more").
+  researchNote   String?
+  researchedAt   DateTime?
+  /// Who approved or rejected it.
+  decidedBy      String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@index([sellerId, researchStatus])
   @@unique([sellerId, nameKey])
   @@index([sellerId, status, score])
 }

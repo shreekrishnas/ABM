@@ -102,10 +102,25 @@ export interface SellerProfile {
   autonomy: "review_all" | "auto_t3" | "auto_all";
   /** AI prospect discovery: how often the market scan runs for this client (days). Default 3. */
   discovery?: { everyDays: number };
+  /** Lookalikes: what "similar" means for this client and how deep the AI digs (all optional). */
+  lookalike?: LookalikeCriteria;
   /** Wording for the rule-based fallback brain; {tech} and {tools} are filled in. */
   ruleHints: { techHypothesis: string; toolingPain: string };
   /** Writing knowledge base: personas, market norms, objections, examples. */
   writing?: WritingKnowledge;
+}
+
+export interface LookalikeCriteria {
+  /** What a good lookalike must share (e.g. "runs a large distributor network"). */
+  focus?: string[];
+  /** What rules a company out (e.g. "pure software vendors"). */
+  avoid?: string[];
+  /** Below this fit score (0–100) a company isn't recommended. Default 55. */
+  minFit?: number;
+  /** Companies investigated per search. Default 8. */
+  candidates?: number;
+  /** Investigation rounds per company. Default 3. */
+  rounds?: number;
 }
 
 export interface ResearchQuestion {

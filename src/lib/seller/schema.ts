@@ -77,6 +77,7 @@ export const packSchema = z
     bannedClaims: strList,
     autonomy: z.enum(["review_all", "auto_t3", "auto_all"]),
     discovery: z.object({ everyDays: z.number().min(1).max(30) }).strict().optional(),
+    lookalike: z.object({ focus: z.array(z.string()).optional(), avoid: z.array(z.string()).optional(), minFit: z.number().min(0).max(100).optional(), candidates: z.number().int().min(1).max(25).optional(), rounds: z.number().int().min(1).max(6).optional() }).strict().optional(),
     ruleHints: z.object({ techHypothesis: z.string().includes("{tech}"), toolingPain: z.string().includes("{tools}") }).strict(),
     writing: writingSchema.optional(),
   })

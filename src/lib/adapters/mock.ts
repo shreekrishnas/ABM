@@ -28,6 +28,12 @@ import type {
   ResearchPage,
   MarketEventExtract,
   SimilarCompanyExtract,
+  LookalikeFact,
+  LookalikeJudgeInput,
+  LookalikeJudgement,
+  LookalikePlanInput,
+  LookalikeProfile,
+  LookalikeQuestion,
   ResearchPass,
   ResearchSource,
   SearchHint,
@@ -232,7 +238,28 @@ class MockResearch implements ResearchSource {
       const m = MARKET_BY_NAME.get(companyName.toLowerCase())!;
       return [{ url: `https://companies.example.org/${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news", publishedAt: daysAgo(30), title: `About ${companyName}`, text: `${companyName} is a ${m.industry} company headquartered in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees.` }];
     }
-    if (key === "lookalike") {
+    if (key === "lookalike_profile") {
+      // What the company does: its own site and a directory both describe it (two sources).
+      const m = MARKET_BY_NAME.get(companyName.toLowerCase());
+      const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const about = m
+        ? `${companyName} is a ${m.industry} company headquartered in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees. ${companyName} sells through a network of distributors and runs several manufacturing plants.`
+        : `${companyName} is a fmcg company headquartered in India with about 9,000 employees. ${companyName} sells through a network of distributors and runs several manufacturing plants.`;
+      return [
+        { url: `https://www.${slug}.example.in/about`, sourceType: "official", publishedAt: daysAgo(30), title: `About ${companyName}`, text: about },
+        { url: `https://companies.example.org/${slug}`, sourceType: "news", publishedAt: daysAgo(60), title: `${companyName} company profile`, text: about },
+      ];
+    }
+    if (key === "lookalike_intent") {
+      const m = MARKET_BY_NAME.get(companyName.toLowerCase());
+      if (!m || m.trigger === "hiring") return [];
+      const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      return [
+        { url: `https://marketwire.example.com/${slug}-${m.trigger}`, sourceType: "news", publishedAt: daysAgo(m.days), title: `${companyName} ${m.claim}`, text: `${companyName} ${m.claim}.` },
+        { url: `https://businessdaily.example.in/${slug}`, sourceType: "press", publishedAt: daysAgo(m.days + 2), title: `${companyName} ${m.claim}`, text: `${companyName} ${m.claim}.` },
+      ];
+    }
+    if (key === "lookalike" || key === "lookalike_discover") {
       // A "companies like X" page naming peers from the sample market.
       return [{ url: `https://peerlist.example.com/${(domain || companyName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news" as const, publishedAt: daysAgo(40), title: `Companies similar to ${companyName}`, text: MOCK_MARKET.map((m) => `${m.name} is a ${m.industry} company and a peer of ${companyName}.`).join(" ") }];
     }
@@ -369,6 +396,52 @@ class MockLLM implements LLM {
     for (const [i, p] of pages.entries())
       for (const m of MOCK_MARKET) if (p.text.includes(`${m.name} is a`) && m.name !== seed.name) out.push({ page: i, name: m.name, domain: null, reason: `${m.industry} peer`, quote: `${m.name} is a ${m.industry} company` });
     return out;
+  }
+
+  // ── Lookalikes (deterministic) ──
+
+  async profileCompany(pages: ResearchPage[], company: string): Promise<LookalikeProfile | null> {
+    const p = pages.find((x) => x.text.includes(company));
+    if (!p) return null;
+    const industry = p.text.match(/is an? (.+?) company/)?.[1] ?? null;
+    return { summary: p.text.split(/(?<=\.)\s/)[0], businessModel: "Makes and sells products through distributors", operations: "Manufacturing plants and a distributor network", industry, customers: "Distributors and retailers", scale: p.text.match(/about ([\d,]+) employees/)?.[0] ?? "unknown", offeringFit: "Onboards many partners and vendors" };
+  }
+
+  async planLookalike(input: LookalikePlanInput): Promise<{ questions: LookalikeQuestion[]; done: boolean; why: string }> {
+    const c = input.company.name;
+    const ask = (question: string, dimension: LookalikeQuestion["dimension"], engine: "exa" | "tavily"): LookalikeQuestion => ({ question, why: "Changes the conclusion", query: `"${c}" ${question}`, engine, dimension });
+    let qs: LookalikeQuestion[] = [];
+    if (input.round === 1) qs = [ask("What does it do and how does it operate?", "operations", "exa"), ask("Any recent expansion, system change or hiring?", "intent", "tavily")];
+    else if (input.note) qs = [ask(input.note, "offering", "exa")];
+    qs = qs.filter((q) => !input.asked.includes(q.question));
+    return { questions: qs, done: !qs.length || input.round >= Math.min(2, input.maxRounds), why: qs.length ? "Open questions" : "Enough to judge" };
+  }
+
+  async extractLookalikeFacts(pages: ResearchPage[], company: string, question: LookalikeQuestion): Promise<LookalikeFact[]> {
+    const out: LookalikeFact[] = [];
+    for (const [i, p] of pages.entries())
+      for (const sentence of p.text.split(/(?<=\.)\s/).filter((x) => x.includes(company)).slice(0, 2)) {
+        const dimension = question.dimension === "intent" ? "intent" : /distributor|plant/.test(sentence) ? "operations" : /employees/.test(sentence) ? "scale" : question.dimension;
+        out.push({ page: i, claim: sentence.replace(/\.$/, ""), quote: sentence, dimension });
+      }
+    return out;
+  }
+
+  async judgeLookalike(input: LookalikeJudgeInput): Promise<LookalikeJudgement> {
+    const text = input.facts.map((f) => f.claim.toLowerCase()).join(" ");
+    const has = (d: string) => input.facts.some((f) => f.dimension === d);
+    const industry = input.seed.industry && text.includes(input.seed.industry.toLowerCase()) ? 85 : has("industry") || has("scale") ? 45 : 30;
+    const intent = input.facts.filter((f) => f.dimension === "intent");
+    const verifiedIntent = intent.filter((f) => f.verified).length;
+    const avoidHit = input.avoid.find((a) => text.includes(a.toLowerCase())) ?? null;
+    return {
+      dims: { business_model: has("operations") ? 75 : 30, operations: has("operations") ? 80 : 30, industry, scale: has("scale") ? 70 : 30, offering: /distributor|vendor|erp|sap|master data/.test(text) ? 75 : 40 },
+      readiness: verifiedIntent ? "ready" : intent.length ? "emerging" : "early",
+      readinessScore: verifiedIntent ? 80 : intent.length ? 55 : 25,
+      reasons: input.facts.slice(0, 3).map((f) => f.claim),
+      concerns: intent.length ? [] : ["No current buying event found"],
+      avoidHit,
+    };
   }
 
   async suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]> {

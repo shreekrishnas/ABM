@@ -59,6 +59,17 @@ export const BRAIN_SECTIONS: BrainSection[] = [
     ],
   },
   {
+    key: "lookalikes", label: "Lookalikes", single: true, help: "What \"similar\" means for this account when the AI looks for companies like a customer, and how deep it researches each one.",
+    aiAsk: "what the companies that buy from this company have in common (business model, operations, scale) and what kinds of companies are a poor fit",
+    fields: [
+      { key: "focus", label: "Must share", kind: "lines", hint: "One per line, e.g. \"runs a large distributor network\"" },
+      { key: "avoid", label: "Rule out", kind: "lines", hint: "One per line, e.g. \"pure software vendors\"" },
+      { key: "minFit", label: "Minimum fit score to recommend", kind: "number", hint: "0–100. Empty = 55" },
+      { key: "candidates", label: "Companies researched per search", kind: "number", hint: "1–25. Empty = 8" },
+      { key: "rounds", label: "Research rounds per company", kind: "number", hint: "1–6. Empty = 3" },
+    ],
+  },
+  {
     key: "industries", label: "Industries", help: "Where this account wins. Match words are how the app recognises a company's industry.",
     aiAsk: "the industries this company sells into, each with 3-5 words that identify a company in that industry",
     fields: [
@@ -150,6 +161,7 @@ export function readSection(p: SellerProfile, key: string): BrainItem[] {
   switch (key) {
     case "overview": return [{ name: p.name, website: p.website, hq: p.hq, summary: p.summary, positioning: p.positioning, tone: p.tone, cta: p.messaging.cta, defaultMessage: p.messaging.default }];
     case "targeting": return [{ countries: p.icp.geos.primary, secondaryCountries: p.icp.geos.secondary, minEmployees: p.icp.mustHave?.minEmployees ?? p.icp.employees.min, midEmployees: p.icp.employees.mid, sweetSpot: p.icp.employees.sweetSpot, discoveryDays: p.discovery?.everyDays ?? null }];
+    case "lookalikes": return [{ focus: p.lookalike?.focus ?? [], avoid: p.lookalike?.avoid ?? [], minFit: p.lookalike?.minFit ?? null, candidates: p.lookalike?.candidates ?? null, rounds: p.lookalike?.rounds ?? null }];
     case "industries": return p.icp.industries.map((i) => ({ _key: i.key, label: i.label, tier: i.tier, match: i.match, useCases: i.useCases.map((k) => ucName.get(k) ?? k) }));
     case "products": return p.products.map((x) => ({ name: x.name, what: x.what, useCases: (x.useCases ?? []).map((k) => ucName.get(k) ?? k) }));
     case "useCases": return p.useCases.map((u) => ({ _key: u.key, name: u.name, pains: u.pains, outcome: u.outcome }));
@@ -195,6 +207,13 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
       // The hard gate reads mustHave: keep it in step with what people edit here.
       next.icp.mustHave = targetingRule(next.icp.geos, one.minEmployees == null || one.minEmployees === "" ? undefined : next.icp.employees.min);
       break;
+    case "lookalikes": {
+      const num = (v: unknown, lo: number, hi: number) => { const x = Number(v); return v != null && v !== "" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : undefined; };
+      const l = { focus: strs(one.focus, /\n/), avoid: strs(one.avoid, /\n/), minFit: num(one.minFit, 0, 100), candidates: num(one.candidates, 1, 25), rounds: num(one.rounds, 1, 6) };
+      const clean = Object.fromEntries(Object.entries(l).filter(([, v]) => (Array.isArray(v) ? v.length : v != null)));
+      if (Object.keys(clean).length) next.lookalike = clean; else delete next.lookalike;
+      break;
+    }
     case "industries": {
       const byName = new Map(next.useCases.map((u) => [u.name.toLowerCase(), u.key]));
       const old = new Map(p.icp.industries.map((i) => [i.key, i]));

@@ -4,6 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
+import type { LookalikeFact, LookalikeJudgeInput, LookalikeJudgement, LookalikePlanInput, LookalikeProfile, LookalikeQuestion } from "../types";
 import type { BrainSuggestInput, MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
@@ -420,6 +421,60 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
       1500,
     );
     return out.items.filter((x) => pages[x.page]);
+  }
+
+  // ── Lookalikes ──
+
+  async profileCompany(pages: ResearchPage[], company: string, offering: string): Promise<LookalikeProfile | null> {
+    if (!pages.length) return null;
+    const t = z.string().max(400);
+    const schema = z.object({ found: z.boolean(), summary: t, businessModel: t, operations: t, industry: z.string().max(80).nullable(), customers: t, scale: t, offeringFit: t });
+    const out = await this.json(
+      schema,
+      `You profile a company from its own and reputable pages, to find other companies like it. Describe what it actually does, not its marketing: how it makes money (businessModel), how it runs (operations: plants, distribution, branches, field teams, supply chain, systems), its industry, who its customers are, its scale (employees, revenue, locations, only if stated) and why it would buy what this seller offers: ${offering}. Use only what the pages state; write "unknown" for anything not stated. found=false if the pages are not about this company.`,
+      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"found": true, "summary": "...", "businessModel": "...", "operations": "...", "industry": "...", "customers": "...", "scale": "...", "offeringFit": "..."}`,
+      900,
+    );
+    if (!out.found) return null;
+    const { found: _found, ...profile } = out;
+    void _found;
+    return profile;
+  }
+
+  async planLookalike(input: LookalikePlanInput): Promise<{ questions: LookalikeQuestion[]; done: boolean; why: string }> {
+    const dim = z.enum(["business_model", "operations", "industry", "scale", "offering", "intent"]);
+    const schema = z.object({ done: z.boolean(), why: z.string().max(300), questions: z.array(z.object({ question: z.string().max(200), why: z.string().max(200), query: z.string().max(200), engine: z.enum(["exa", "tavily"]), dimension: dim })).max(4) });
+    const facts = input.facts.length ? input.facts.map((f) => `- [${f.dimension}${f.verified ? ", verified" : ", one source"}] ${f.claim}`).join("\n") : "- nothing yet";
+    return this.json(
+      schema,
+      `You investigate whether ${input.company.name} is genuinely like ${input.seed.name} (a company that buys from the seller) and whether it may be ready to buy. Do not match on keywords: compare business model, operations, industry, scale and relevance to the offering, and look for real buying intent (expansion, new plants or markets, system changes, leadership hires, hiring for the relevant team, regulation). Each round, ask the 1-4 questions whose answers would most change the conclusion, including ones that could DISPROVE the match. Never repeat a question already asked. Prefer engine "exa" for what a company is and does, "tavily" for recent news and events. query = a web search query naming the company. done=true when the evidence is enough to judge confidently, or further searching is unlikely to change it.${input.note ? " A person asked you to look into something specific: answer that first." : ""}`,
+      `Seller offering: ${input.offering}\nMust share: ${input.focus.join("; ") || "(not set)"}\nRule out: ${input.avoid.join("; ") || "(not set)"}\n\n${input.seed.name} (the reference): ${input.seed.summary}\nBusiness model: ${input.seed.businessModel}\nOperations: ${input.seed.operations}\nIndustry: ${input.seed.industry ?? "unknown"}\nCustomers: ${input.seed.customers}\nScale: ${input.seed.scale}\nWhy it buys: ${input.seed.offeringFit}\n\nCandidate: ${input.company.name}${input.company.domain ? ` (${input.company.domain})` : ""}\nKnown so far:\n${facts}\n\nAlready asked:\n${input.asked.map((q) => `- ${q}`).join("\n") || "- nothing"}\n${input.note ? `\nPerson's request: ${input.note}\n` : ""}\nRound ${input.round} of ${input.maxRounds}. Return {"done": false, "why": "...", "questions": [{"question": "...", "why": "...", "query": "...", "engine": "exa", "dimension": "operations"}]}`,
+      700,
+    );
+  }
+
+  async extractLookalikeFacts(pages: ResearchPage[], company: string, question: LookalikeQuestion): Promise<LookalikeFact[]> {
+    if (!pages.length) return [];
+    const schema = z.object({ items: z.array(z.object({ page: z.number().int(), claim: z.string().max(240), quote: z.string().max(400), dimension: z.enum(["business_model", "operations", "industry", "scale", "offering", "intent"]) })).max(8) });
+    const out = await this.json(
+      schema,
+      `You read pages and list facts about ${company} that answer the question. Only facts a page states about THIS company (never a competitor, the publisher or a vendor). claim = one plain sentence. quote = the exact words copied from the page that support it. dimension = what the fact is about. Return no items if the pages don't answer it.`,
+      `Question: ${question.question} (${question.dimension})\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "claim": "...", "quote": "...", "dimension": "${question.dimension}"}]}`,
+      900,
+    );
+    return out.items.filter((x) => pages[x.page]);
+  }
+
+  async judgeLookalike(input: LookalikeJudgeInput): Promise<LookalikeJudgement> {
+    const n = z.number().min(0).max(100);
+    const schema = z.object({ dims: z.object({ business_model: n, operations: n, industry: n, scale: n, offering: n }), readiness: z.enum(["ready", "emerging", "early", "none"]), readinessScore: n, reasons: z.array(z.string().max(220)).max(5), concerns: z.array(z.string().max(220)).max(4), avoidHit: z.string().max(160).nullable() });
+    const facts = input.facts.map((f) => `- [${f.dimension}${f.verified ? ", verified" : ", one source"}] ${f.claim}`).join("\n") || "- no facts found";
+    return this.json(
+      schema,
+      `You judge, from the facts only, how closely ${input.company.name} resembles ${input.seed.name} and how ready it is to buy the seller's offering. Score each dimension 0-100; with no facts on a dimension score it 30 (unknown), never higher. Facts from one source count less than verified ones. readiness: ready = recent, verified buying events tied to the offering; emerging = some relevant change underway; early = good fit but no current event; none = evidence suggests no need. reasons = up to 5 short sentences a salesperson can check, each grounded in a fact. concerns = what weakens the case. avoidHit = the rule-out item it matches, or null.`,
+      `Seller offering: ${input.offering}\nMust share: ${input.focus.join("; ") || "(not set)"}\nRule out: ${input.avoid.join("; ") || "(not set)"}\n\nReference ${input.seed.name}: ${input.seed.summary} | model: ${input.seed.businessModel} | operations: ${input.seed.operations} | industry: ${input.seed.industry ?? "unknown"} | scale: ${input.seed.scale}\n\nCandidate ${input.company.name}:\n${facts}\n\nReturn {"dims": {"business_model": 0, "operations": 0, "industry": 0, "scale": 0, "offering": 0}, "readiness": "early", "readinessScore": 0, "reasons": ["..."], "concerns": ["..."], "avoidHit": null}`,
+      900,
+    );
   }
 
   async suggestBrainItems(input: BrainSuggestInput): Promise<Record<string, string>[]> {
