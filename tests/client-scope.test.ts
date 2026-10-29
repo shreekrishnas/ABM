@@ -42,9 +42,10 @@ describe("client separation", () => {
     expect((await scopeFor("asha@trilliantdigital.com", false, null)).ids).toEqual(["acme"]);
     expect((await scopeFor("asha@trilliantdigital.com", false, "manch")).ids).toEqual(["acme"]); // can't pick a client they aren't on
     expect((await scopeFor("super@trilliantdigital.com", false, null)).ids).toEqual(["manch"]);
-    // A Super Admin can open any account, even one they're not assigned to.
-    expect((await scopeFor("super@trilliantdigital.com", false, null)).choices.map((c) => c.id)).toEqual(["acme", "manch"]);
-    expect((await scopeFor("super@trilliantdigital.com", false, "acme")).ids).toEqual(["acme"]);
+    // In User mode a Super Admin sees only assigned accounts; in Super Admin mode, every account.
+    expect((await scopeFor("super@trilliantdigital.com", false, null)).choices.map((c) => c.id)).toEqual(["manch"]);
+    expect((await scopeFor("super@trilliantdigital.com", false, "acme")).ids).toEqual(["manch"]);
+    expect((await scopeFor("super@trilliantdigital.com", true, null)).choices.map((c) => c.id)).toEqual(["acme", "manch"]);
     const sup = await scopeFor("super@trilliantdigital.com", true, null);
     expect(sup.ids).toBeNull();
     expect(sup.active).toBeNull();
