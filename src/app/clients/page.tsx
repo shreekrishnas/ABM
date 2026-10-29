@@ -50,12 +50,6 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                 </div>
               </div>
               <p className="ac-desc">{c.description ?? "No description yet. Add one in the Account Brain."}</p>
-              <dl className="ac-stats">
-                <div><dt>Companies</dt><dd className="tnum">{c.companies}</dd></div>
-                <div><dt>People</dt><dd className="tnum">{c.people}</dd></div>
-                <div className={c.toApprove ? "due" : undefined}><dt>To approve</dt><dd className="tnum">{c.toApprove}</dd></div>
-                <div className={c.decisions ? "due" : undefined}><dt>Decisions</dt><dd className="tnum">{c.decisions}</dd></div>
-              </dl>
               <div className="ac-foot">
                 <span className="ac-when">{c.lastActivity ? `Updated ${ago(c.lastActivity)}` : "No activity yet"}</span>
                 <form action={switchClientAction.bind(null, c.id, "/")}>
