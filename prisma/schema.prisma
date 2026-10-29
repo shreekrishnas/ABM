@@ -1156,6 +1156,8 @@ model WebVisit {
 model Client {
   id        String       @id
   name      String
+  /// Logo image URL (or a favicon worked out from the website). Shown instead of the initials.
+  logoUrl   String?
   createdAt DateTime     @default(now())
   users     UserClient[]
 }

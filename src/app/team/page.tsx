@@ -6,7 +6,8 @@ import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
-import { addClientAction, addUserAction, clearWorkspaceDataAction, setAssignmentAction, setUserStatusAction } from "./actions";
+import { AccountLogo } from "@/components/account-logo";
+import { addClientAction, addUserAction, setClientLogoAction, clearWorkspaceDataAction, setAssignmentAction, setUserStatusAction } from "./actions";
 import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
@@ -78,14 +79,19 @@ export default async function TeamPage() {
         <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Accounts</span>} sub="Each account is its own workspace with its own brain.">
           <ul className="mb-3 grid gap-1.5 text-sm">
             {clients.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-2">
-                <span className="font-semibold">{c.name}</span>
-                <span className="muted text-xs"><Link href={`/brain?client=${c.id}`} className="underline">Brain</Link> · {c._count.users} user{c._count.users === 1 ? "" : "s"}</span>
+              <li key={c.id} className="tm-acct">
+                <AccountLogo name={c.name} url={c.logoUrl} className="tm-acct-av" />
+                <span className="min-w-0"><span className="font-semibold">{c.name}</span> <span className="muted text-xs"><Link href={`/brain?client=${c.id}`} className="underline">Brain</Link> · {c._count.users} user{c._count.users === 1 ? "" : "s"}</span></span>
+                <ActionForm action={setClientLogoAction.bind(null, c.id)} className="tm-acct-logo">
+                  <input name="logo" className="glass-input" defaultValue={c.logoUrl ?? ""} placeholder="Logo link or website" aria-label={`${c.name} logo link or website`} />
+                  <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
+                </ActionForm>
               </li>
             ))}
           </ul>
           <ActionForm action={addClientAction} className="grid gap-3">
             <label className="grid gap-1.5"><span className="text-xs font-semibold">Account name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
+            <label className="grid gap-1.5"><span className="text-xs font-semibold">Logo <span className="muted font-normal">(optional)</span></span><input name="logo" className="glass-input" placeholder="Logo image link, or the website (e.g. acme.com)" /><span className="muted text-xs">Paste the logo image address, or just the website and its logo is picked up automatically.</span></label>
             <fieldset className="grid gap-1.5"><legend className="mb-1 text-xs font-semibold">Assigned people</legend>
               <div className="flex flex-wrap gap-2">
                 {users.filter((u) => u.status === "active").map((u) => (

@@ -4,12 +4,10 @@ import { resolveScope } from "@/lib/scope";
 import { accountCards } from "@/lib/clients";
 import { switchClientAction } from "../login/actions";
 import { EmptyState } from "@/components/kit";
-import { ago } from "@/components/ui";
+import { AccountLogo } from "@/components/account-logo";
 import { AccountSearch } from "./search";
 
 export const metadata = { title: "Accounts" };
-
-const initials = (name: string) => name.split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 /** Every client account this person can open, one card each. Opening one makes it the active workspace. */
 export default async function AccountsPage({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
@@ -43,7 +41,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           {cards.map((c) => (
             <li key={c.id} className={`ac-card${active === c.id ? " on" : ""}`} data-name={c.name.toLowerCase()}>
               <div className="ac-top">
-                <span className="ac-av" aria-hidden>{initials(c.name)}</span>
+                <AccountLogo name={c.name} url={c.logoUrl} className="ac-av" />
                 <div className="min-w-0">
                   <h2>{c.name}</h2>
                   {active === c.id && <span className="ac-badge">Open now</span>}
@@ -51,8 +49,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
               </div>
               <p className="ac-desc">{c.description ?? "No description yet. Add one in the Account Brain."}</p>
               <div className="ac-foot">
-                <span className="ac-when">{c.lastActivity ? `Updated ${ago(c.lastActivity)}` : "No activity yet"}</span>
-                <form action={switchClientAction.bind(null, c.id, "/")}>
+                                <form action={switchClientAction.bind(null, c.id, "/")}>
                   <button type="submit" className="btn btn-primary btn-sm">{active === c.id ? "Go to dashboard" : "Open account"} <ArrowRight size={14} /></button>
                 </form>
               </div>

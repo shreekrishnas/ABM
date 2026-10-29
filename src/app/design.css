@@ -929,7 +929,7 @@ html, body { background: var(--canvas) !important; }
 .ac-stats dt { font-size: var(--fs-12); color: var(--muted); }
 .ac-stats dd { font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--text); }
 .ac-stats .due dd { color: var(--warning); }
-.ac-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
+.ac-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
 .ac-when { font-size: var(--fs-12); color: var(--muted); }
 .ac-none, .ac-note { font-size: var(--fs-13); color: var(--muted); margin-top: var(--sp-4); }
 .ac-note a { color: var(--accent); }
@@ -962,7 +962,8 @@ html, body { background: var(--canvas) !important; }
 }
 .sh-accts-chev { margin-left: auto; color: var(--muted); transition: transform 160ms; }
 .sh-accts.open .sh-accts-chev { transform: rotate(180deg); }
-.sh-accts-cur { margin-left: var(--sp-2); padding: 0 var(--sp-2); max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: var(--r-full); background: var(--pill-subtle); color: var(--pill); font-size: var(--fs-12); }
+.sh-accts-cur { margin-left: auto; display: flex; }
+.sh-accts-cur + .sh-accts-chev { margin-left: var(--sp-2); }
 .sh-accts-opt { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 32px; padding: 0 var(--sp-2); border-radius: var(--r-sm); background: transparent; font-size: var(--fs-13); color: var(--text-2); text-align: left; }
 .sh-accts-opt:hover { background: var(--subtle); color: var(--text); }
 .sh-accts-opt.on { background: var(--pill-subtle); color: var(--pill); font-weight: var(--fw-medium); }
@@ -977,3 +978,10 @@ html, body { background: var(--canvas) !important; }
   .sh-rail .sh-accts .sh-accts-icon { display: none !important; }
   .sh-rail .sh-accts .sh-accts-toggle { display: flex !important; }
 }
+/* Account logos: shown instead of the initials when set. */
+.ac-av.has-logo, .sh-accts-av.has-logo, .tm-acct-av.has-logo { background: var(--surface); border: 1px solid var(--border); overflow: hidden; }
+.has-logo img { width: 100%; height: 100%; object-fit: contain; padding: 2px; }
+.tm-acct { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--sp-1) var(--sp-2); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.tm-acct-av { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-xs); background: linear-gradient(135deg, var(--accent), var(--pill)); color: var(--on-accent); font-size: var(--fs-12); font-weight: var(--fw-semibold); }
+.tm-acct-logo { grid-column: 2; display: flex; gap: var(--sp-2); }
+.tm-acct-logo input { flex: 1; min-width: 0; height: 32px; font-size: var(--fs-13); }

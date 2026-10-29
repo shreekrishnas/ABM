@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { BarChart3, Brain, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
+import { AccountLogo } from "@/components/account-logo";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
 // Rail entries: Home, Import, then the workspace sections. Active state follows the
@@ -23,7 +24,7 @@ const RAIL = [
 
 const PHONE = ["home", "today", "research", "outreach"];
 
-export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null;
+export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string; logoUrl?: string | null }[]; picked: string | null; everyClient: boolean } | null;
 
 /** The glass shell every signed-in page lives in: atmosphere → glass panel → rail + content. */
 export function Shell({ counts, access, children }: { counts: Counts; access: Access; children: React.ReactNode }) {
@@ -151,7 +152,7 @@ function Gate({ title, text }: { title: string; text: string }) {
 }
 
 /** Accounts, its own sidebar section: open it to see every account you can work on, click one to switch. */
-function AccountsNav({ choices, picked, on }: { choices: { id: string; name: string }[]; picked: string | null; on: boolean }) {
+function AccountsNav({ choices, picked, on }: { choices: { id: string; name: string; logoUrl?: string | null }[]; picked: string | null; on: boolean }) {
   const [open, setOpen] = useState(on);
   useEffect(() => {
     try {
@@ -173,7 +174,7 @@ function AccountsNav({ choices, picked, on }: { choices: { id: string; name: str
       <button type="button" className={`sh-item sh-accts-toggle${on ? " on" : ""}`} aria-expanded={open} aria-controls="sh-accts-list" onClick={toggle}>
         <LayoutGrid size={20} strokeWidth={1.9} aria-hidden />
         <span className="sh-lbl">Accounts</span>
-        {current && !open && <span className="sh-accts-cur">{current.name}</span>}
+        {current && !open && <span className="sh-accts-cur" title={`Open now: ${current.name}`}><AccountLogo name={current.name} url={current.logoUrl} className="sh-accts-av" /></span>}
         <ChevronDown size={14} className="sh-accts-chev" aria-hidden />
       </button>
       {open && (
@@ -182,7 +183,7 @@ function AccountsNav({ choices, picked, on }: { choices: { id: string; name: str
             <li key={c.id}>
               <form action={switchClientAction.bind(null, c.id)}>
                 <button type="submit" className={`sh-accts-opt${picked === c.id ? " on" : ""}`} aria-current={picked === c.id ? "true" : undefined} title={`Open ${c.name}`}>
-                  <span className="sh-accts-av" aria-hidden>{c.name.slice(0, 1).toUpperCase()}</span>
+                  <AccountLogo name={c.name} url={c.logoUrl} className="sh-accts-av" />
                   <span className="sh-accts-n">{c.name}</span>
                   {picked === c.id && <Check size={14} aria-hidden />}
                 </button>

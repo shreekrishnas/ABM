@@ -17,7 +17,7 @@ export type Scope = {
   /** The one client new companies and imports go to; null when several are in view. */
   active: string | null;
   /** Clients this person can switch between. */
-  choices: { id: string; name: string }[];
+  choices: { id: string; name: string; logoUrl?: string | null }[];
   /** Super Admin is switched on. */
   all: boolean;
 };
@@ -75,8 +75,8 @@ export async function scopeFor(email: string | null, superMode: boolean, picked:
   const all = user.superAdmin && superMode;
   // A Super Admin can open every account (in either mode); everyone else only their own.
   const choices = user.superAdmin
-    ? await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
-    : user.clients.map((c) => ({ id: c.client.id, name: c.client.name })).sort((a, b) => a.name.localeCompare(b.name));
+    ? await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true } })
+    : user.clients.map((c) => ({ id: c.client.id, name: c.client.name, logoUrl: c.client.logoUrl })).sort((a, b) => a.name.localeCompare(b.name));
   const pick = choices.find((c) => c.id === picked)?.id ?? null;
   // With no account picked: Super Admin mode sees everything; otherwise the person's own accounts.
   const own = user.clients.map((c) => c.client.id);

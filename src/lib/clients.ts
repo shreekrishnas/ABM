@@ -9,6 +9,7 @@ import type { Scope } from "@/lib/scope";
 export interface AccountCard {
   id: string;
   name: string;
+  logoUrl: string | null;
   description: string | null;
   companies: number;
   people: number;
@@ -19,7 +20,7 @@ export interface AccountCard {
 
 /** Cards for the accounts in this scope (null scope = local, sign-in off: every account). */
 export async function accountCards(scope: Scope | null): Promise<AccountCard[]> {
-  const choices = scope ? scope.choices : await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const choices = scope ? scope.choices : await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true } });
   return Promise.all(
     choices.map(async (c) => {
       const acct = { sellerId: c.id };
@@ -37,7 +38,7 @@ export async function accountCards(scope: Scope | null): Promise<AccountCard[]> 
       } catch {
         description = null;
       }
-      return { id: c.id, name: c.name, description, companies, people, toApprove, decisions, lastActivity: last?.updatedAt ?? null };
+      return { id: c.id, name: c.name, logoUrl: c.logoUrl ?? null, description, companies, people, toApprove, decisions, lastActivity: last?.updatedAt ?? null };
     }),
   );
 }
