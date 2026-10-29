@@ -44,7 +44,7 @@ export default async function HandoffsPage() {
 
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Sales" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
+      <PageHeader eyebrow="CRM" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Kpi label="Waiting for a decision" value={open.length} accent="#7C3AED" />
         <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "#DC2626" : "#10B981"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />

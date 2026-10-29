@@ -18,7 +18,7 @@ const RAIL = [
   { key: "today", href: "/work/today", label: "Today", short: "Today", icon: Sun },
   { key: "research", href: "/accounts", label: "Research", short: "Research", icon: Building2 },
   { key: "outreach", href: "/review", label: "Email drafting", short: "Emails", icon: Send, count: "review" as const },
-  { key: "sales", href: "/handoffs", label: "Sales", short: "Sales", icon: Handshake, count: "handoffs" as const },
+  { key: "sales", href: "/handoffs", label: "CRM", short: "CRM", icon: Handshake, count: "handoffs" as const },
   { key: "insights", href: "/overview", label: "Insights", short: "Insights", icon: BarChart3 },
 ];
 

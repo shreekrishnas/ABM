@@ -36,7 +36,7 @@ export const SECTIONS: NavSection[] = [
     ],
   },
   {
-    key: "sales", label: "Sales", blurb: "Hand-offs, opportunities and tasks", icon: Handshake,
+    key: "sales", label: "CRM", blurb: "Hand-offs, opportunities and tasks", icon: Handshake,
     items: [
       { href: "/handoffs", label: "Hand-offs", blurb: "Companies ready for a rep", icon: Handshake, count: "handoffs" },
       { href: "/crm/opportunities", label: "Opportunities", blurb: "Open deals by stage", icon: BadgeDollarSign },
