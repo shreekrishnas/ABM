@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
+import { BarChart3, Brain, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { signOutAction, switchModeAction } from "@/app/login/actions";
+import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
 // Rail entries: Home, Import, then the workspace sections. Active state follows the
@@ -50,9 +50,9 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
                 </Link>
               );
             })}
+            {access && (access.choices.length > 1 || sup || access.canSuperAdmin) && <AccountsNav choices={access.choices} picked={access.picked} on={active === "clients"} />}
           </div>
           <div className="sh-rail-foot">
-            {access && access.choices.length > 1 && <Link href="/clients" className={`sh-item${active === "clients" ? " on" : ""}`} data-tip="Accounts" aria-label="Accounts"><LayoutGrid size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Accounts</span></Link>}
             {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
             <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
@@ -126,6 +126,7 @@ function MoreSheet({ active, sup, counts }: { active: string; sup: boolean; coun
           <div className="sh-sheet-h"><b>More</b><button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Close" onClick={() => setOpen(false)}><X size={16} /></button></div>
           <div className="sh-sheet-g">
             {rest.map((r) => <Link key={r.key} href={r.href} className={`sh-sheet-i${active === r.key ? " on" : ""}`}><r.icon size={18} aria-hidden />{r.label}{r.count && counts[r.count] > 0 && <span className="sh-badge tnum">{counts[r.count]}</span>}</Link>)}
+            <Link href="/clients" className={`sh-sheet-i${active === "clients" ? " on" : ""}`}><LayoutGrid size={18} aria-hidden />Accounts</Link>
             {sup && <Link href="/team" className="sh-sheet-i"><Users size={18} aria-hidden />Team &amp; Access</Link>}
             <Link href="/settings" className="sh-sheet-i"><Settings2 size={18} aria-hidden />Settings</Link>
           </div>
@@ -145,6 +146,59 @@ function Gate({ title, text }: { title: string; text: string }) {
         <p>{text}</p>
         <form action={signOutAction}><button type="submit" className="btn btn-secondary">Sign out</button></form>
       </div>
+    </div>
+  );
+}
+
+/** Accounts, its own sidebar section: open it to see every account you can work on, click one to switch. */
+function AccountsNav({ choices, picked, on }: { choices: { id: string; name: string }[]; picked: string | null; on: boolean }) {
+  const [open, setOpen] = useState(on);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("abm:accounts-open") === "1") setOpen(true);
+    } catch {}
+  }, []);
+  const toggle = () => {
+    setOpen((o) => {
+      try { localStorage.setItem("abm:accounts-open", o ? "0" : "1"); } catch {}
+      return !o;
+    });
+  };
+  const current = choices.find((c) => c.id === picked);
+  return (
+    <div className={`sh-accts sh-desk${open ? " open" : ""}`}>
+      {/* Narrow rail (icons only): the icon opens the Accounts page. */}
+      <Link href="/clients" className={`sh-item sh-accts-icon${on ? " on" : ""}`} data-tip="Accounts" aria-label="Accounts"><LayoutGrid size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Accounts</span></Link>
+      {/* Wide rail: a section that opens to list the accounts. */}
+      <button type="button" className={`sh-item sh-accts-toggle${on ? " on" : ""}`} aria-expanded={open} aria-controls="sh-accts-list" onClick={toggle}>
+        <LayoutGrid size={20} strokeWidth={1.9} aria-hidden />
+        <span className="sh-lbl">Accounts</span>
+        {current && !open && <span className="sh-accts-cur">{current.name}</span>}
+        <ChevronDown size={14} className="sh-accts-chev" aria-hidden />
+      </button>
+      {open && (
+        <ul id="sh-accts-list" className="sh-accts-list">
+          {choices.map((c) => (
+            <li key={c.id}>
+              <form action={switchClientAction.bind(null, c.id)}>
+                <button type="submit" className={`sh-accts-opt${picked === c.id ? " on" : ""}`} aria-current={picked === c.id ? "true" : undefined} title={`Open ${c.name}`}>
+                  <span className="sh-accts-av" aria-hidden>{c.name.slice(0, 1).toUpperCase()}</span>
+                  <span className="sh-accts-n">{c.name}</span>
+                  {picked === c.id && <Check size={14} aria-hidden />}
+                </button>
+              </form>
+            </li>
+          ))}
+          {choices.length > 1 && (
+            <li>
+              <form action={switchClientAction.bind(null, "all")}>
+                <button type="submit" className={`sh-accts-opt sub${!picked ? " on" : ""}`}>All together{!picked && <Check size={14} aria-hidden />}</button>
+              </form>
+            </li>
+          )}
+          <li><Link href="/clients" className={`sh-accts-opt sub link${on ? " on" : ""}`}>All accounts</Link></li>
+        </ul>
+      )}
     </div>
   );
 }

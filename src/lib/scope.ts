@@ -73,11 +73,14 @@ export async function scopeFor(email: string | null, superMode: boolean, picked:
   const user = await baseDb.user.findUnique({ where: { email }, include: { clients: { include: { client: true } } } });
   if (!user || user.status !== "active") return NOTHING;
   const all = user.superAdmin && superMode;
-  const choices = all
+  // A Super Admin can open every account (in either mode); everyone else only their own.
+  const choices = user.superAdmin
     ? await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
     : user.clients.map((c) => ({ id: c.client.id, name: c.client.name })).sort((a, b) => a.name.localeCompare(b.name));
   const pick = choices.find((c) => c.id === picked)?.id ?? null;
-  const ids = pick ? [pick] : all ? null : choices.map((c) => c.id);
+  // With no account picked: Super Admin mode sees everything; otherwise the person's own accounts.
+  const own = user.clients.map((c) => c.client.id);
+  const ids = pick ? [pick] : all ? null : user.superAdmin && own.length ? own : choices.map((c) => c.id);
   return { ids, active: pick ?? (choices.length === 1 ? choices[0].id : null), choices, all };
 }
 

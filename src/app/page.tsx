@@ -5,8 +5,7 @@ import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { ensureSellerPacks } from "@/lib/seller";
-import { activeSeller, resolveScope } from "@/lib/scope";
-import { AccountSwitch } from "@/components/shell/AppNav";
+import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
@@ -35,7 +34,6 @@ function greeting(d: Date) {
 export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   await ensureSellerPacks();
   const p = await activeSeller();
-  const scope = await resolveScope();
   const { range = "week" } = await searchParams;
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
@@ -91,7 +89,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <p className="hm-brief">{toApprove ? <><b>{toApprove} draft{toApprove === 1 ? "" : "s"}</b> waiting for your approval</> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
           </div>
           <div className="hm-tools">
-            {scope && scope.choices.length > 1 && <AccountSwitch choices={scope.choices} picked={scope.active && scope.ids?.length === 1 ? scope.active : null} everyClient={scope.all} />}
             <SearchPill />
             <ThemePill />
             {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
