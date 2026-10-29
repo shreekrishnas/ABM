@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowRight, Building2, Check, ShieldAlert } from "lucide-react";
 import { resolveScope } from "@/lib/scope";
 import { accountCards } from "@/lib/clients";
@@ -57,7 +56,6 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           ))}
         </AccountSearch>
       )}
-      {cards.length > 0 && <p className="ac-note">Need another account? A Super Admin adds people to accounts in <Link href="/team">Team &amp; Access</Link>.</p>}
     </div>
   );
 }
