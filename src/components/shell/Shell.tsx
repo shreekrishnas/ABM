@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
+import { BarChart3, Brain, Building2, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
+import { signOutAction, switchModeAction } from "@/app/login/actions";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
 // Rail entries: Home, Import, then the workspace sections. Active state follows the
@@ -32,7 +32,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   if (access?.state === "removed") return <Gate title="Your access has been removed" text="Ask ShreeKrishna if you think this is a mistake." />;
   if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text="You're on the team, but no client is assigned to you yet. ShreeKrishna will assign one; this page opens up as soon as he does." />;
   const at = locate(path);
-  const active = isOn(path, "/team") ? "team" : isOn(path, "/brain") ? "brain" : at.area === "home" ? "home" : at.area === "import" ? "import" : isOn(path, "/settings") ? "settings" : (at.section?.key ?? "");
+  const active = isOn(path, "/clients") ? "clients" : isOn(path, "/team") ? "team" : isOn(path, "/brain") ? "brain" : at.area === "home" ? "home" : at.area === "import" ? "import" : isOn(path, "/settings") ? "settings" : (at.section?.key ?? "");
   const sup = Boolean(access?.superAdmin);
   return (
     <div className="sh-outer">
@@ -52,6 +52,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             })}
           </div>
           <div className="sh-rail-foot">
+            {access && access.choices.length > 1 && <Link href="/clients" className={`sh-item${active === "clients" ? " on" : ""}`} data-tip="Accounts" aria-label="Accounts"><LayoutGrid size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Accounts</span></Link>}
             {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
             <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
@@ -66,7 +67,6 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
               <form action={switchModeAction.bind(null, "user")}><button type="submit" className="sh-super-btn">Switch to User</button></form>
             </div>
           )}
-          {access && access.choices.length > 1 && <ClientBar choices={access.choices} picked={access.picked} everyClient={access.everyClient} />}
           {children}
         </div>
       </div>
@@ -74,24 +74,6 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   );
 }
 
-/** Which client's companies every page shows. Only there when a person has more than one. */
-function ClientBar({ choices, picked, everyClient }: { choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean }) {
-  const opts = [{ id: "all", name: everyClient ? "All clients" : "All my clients" }, ...choices];
-  return (
-    <div className="sh-clients" role="group" aria-label="Client">
-      <span className="sh-clients-k">Client</span>
-      {opts.map((c) => {
-        const on = (picked ?? "all") === c.id;
-        return (
-          <form key={c.id} action={switchClientAction.bind(null, c.id)}>
-            <button type="submit" className={`sh-client${on ? " on" : ""}`} aria-pressed={on}>{c.name}</button>
-          </form>
-        );
-      })}
-      {!picked && <span className="sh-clients-note">Pick one client to import or add companies</span>}
-    </div>
-  );
-}
 
 /** Name, client, Super Admin switch and sign out, behind the person's initials. */
 function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolean }) {

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
+import { switchClientAction } from "@/app/login/actions";
 import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
 
 /**
@@ -11,7 +12,7 @@ import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "
  * Workspace: section tabs, with the section's pages underneath.
  * Everything opens in this tab; only the URL changes.
  */
-export function AppNav({ counts, discover, sellerName }: { counts: Counts; discover: number; sellerName: string }) {
+export function AppNav({ counts, discover, sellerName, account }: { counts: Counts; discover: number; sellerName: string; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
   const path = usePathname();
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(document.documentElement.dataset.theme === "dark"), []);
@@ -45,9 +46,15 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
   return (
     <header className="nav">
       <div className="nav-row">
+        {account?.many && <AccountSwitch choices={account.choices} picked={account.picked} everyClient={account.everyClient} />}
         <nav className="nav-crumbs" aria-label="You are here">
           <ol>
-            <li><Link href="/">Home</Link></li>
+            {account?.many ? (
+              <>
+                <li><Link href="/clients">Accounts</Link></li>
+                {path !== "/clients" && <li><ChevronRight size={13} aria-hidden /><Link href="/">{account.name}</Link></li>}
+              </>
+            ) : <li><Link href="/">Home</Link></li>}
             {crumbs.map((c, i) => (
               <li key={c.href + i}>
                 <ChevronRight size={13} aria-hidden />
@@ -105,5 +112,34 @@ export function AppNav({ counts, discover, sellerName }: { counts: Counts; disco
         </nav>
       )}
     </header>
+  );
+}
+
+/** The active account and a switcher between the accounts this person works on (in the header). */
+export function AccountSwitch({ choices, picked, everyClient }: { choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean }) {
+  const current = choices.find((c) => c.id === picked);
+  const label = current?.name ?? (everyClient ? "All accounts" : "All my accounts");
+  return (
+    <details className="sh-acct-pick">
+      <summary aria-label={`Account: ${label}. Switch account`}>
+        <span className="sh-acct-av" aria-hidden>{label.slice(0, 1).toUpperCase()}</span>
+        <b>{label}</b>
+        <ChevronDown size={14} aria-hidden />
+      </summary>
+      <div className="sh-acct-menu" role="menu">
+        <span className="sh-acct-h">Switch account</span>
+        {choices.map((c) => (
+          <form key={c.id} action={switchClientAction.bind(null, c.id)}>
+            <button type="submit" role="menuitemradio" aria-checked={picked === c.id} className={`sh-acct-opt${picked === c.id ? " on" : ""}`}>
+              <span className="sh-acct-av" aria-hidden>{c.name.slice(0, 1).toUpperCase()}</span>{c.name}{picked === c.id && <Check size={14} className="ml-auto" aria-hidden />}
+            </button>
+          </form>
+        ))}
+        <form action={switchClientAction.bind(null, "all")}>
+          <button type="submit" role="menuitemradio" aria-checked={!picked} className={`sh-acct-opt${!picked ? " on" : ""}`}>{everyClient ? "All accounts together" : "All my accounts together"}{!picked && <Check size={14} className="ml-auto" aria-hidden />}</button>
+        </form>
+        <Link href="/clients" className="sh-acct-all">Back to Accounts <ArrowRight size={13} aria-hidden /></Link>
+      </div>
+    </details>
   );
 }

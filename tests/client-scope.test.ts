@@ -65,3 +65,37 @@ describe("client separation", () => {
     });
   });
 });
+
+describe("Accounts page: switching between client accounts", () => {
+  it("a person with several accounts gets one card each, counted only from that account", async () => {
+    await baseDb.userClient.create({ data: { userId: "u1", clientId: "manch" } });
+    const { accountCards } = await import("@/lib/clients");
+    const scope = await scopeFor("asha@trilliantdigital.com", false, null);
+    const cards = await accountCards(scope);
+    expect(cards.map((c) => c.name)).toEqual(["Acme", "Manch"]);
+    expect(cards.find((c) => c.id === "acme")).toMatchObject({ companies: 1, people: 1 });
+    expect(cards.find((c) => c.id === "manch")).toMatchObject({ companies: 1, people: 1 });
+  });
+
+  it("only assigned accounts appear; picking an account you're not on opens nothing from it", async () => {
+    const { accountCards } = await import("@/lib/clients");
+    const scope = await scopeFor("asha@trilliantdigital.com", false, "manch"); // tampered pick
+    expect((await accountCards(scope)).map((c) => c.id)).toEqual(["acme"]);
+    // The tampered pick is ignored: the request stays inside Acme.
+    expect(scope.ids).toEqual(["acme"]);
+    await withScope(scope, async () => {
+      expect((await db.account.findMany()).map((x) => x.name)).toEqual(["Acme Target"]);
+    });
+  });
+
+  it("switching accounts changes every query at once: nothing from the previous account remains", async () => {
+    await baseDb.userClient.create({ data: { userId: "u1", clientId: "manch" } });
+    const inAcme = await scopeFor("asha@trilliantdigital.com", false, "acme");
+    const inManch = await scopeFor("asha@trilliantdigital.com", false, "manch");
+    await withScope(inAcme, async () => expect((await db.contact.findMany()).map((c) => c.fullName)).toEqual(["Ana A"]));
+    await withScope(inManch, async () => {
+      expect((await db.contact.findMany()).map((c) => c.fullName)).toEqual(["Ravi M"]);
+      expect(await db.task.count()).toBe(1);
+    });
+  });
+});

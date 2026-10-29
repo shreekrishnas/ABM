@@ -49,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
-          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} />
+          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
           <main className="app-main" id="main"><UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />

@@ -32,9 +32,12 @@ export async function signOutAction() {
 }
 
 /** Which client to work on ("all" = every client this person may see). Checked again on every query. */
-export async function switchClientAction(id: string) {
-  const { CLIENT_COOKIE, clearScopeCache } = await import("@/lib/scope");
+export async function switchClientAction(id: string, to?: string | FormData) {
+  const { CLIENT_COOKIE, clearScopeCache, resolveScope } = await import("@/lib/scope");
   const jar = await cookies();
+  // Only an account this person is assigned to can be opened (every query also re-checks this).
+  const scope = await resolveScope();
+  if (id !== "all" && scope && !scope.choices.some((c) => c.id === id)) redirect("/clients?denied=1");
   if (id === "all") jar.delete(CLIENT_COOKIE);
   else jar.set(CLIENT_COOKIE, id, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
   clearScopeCache();
@@ -45,6 +48,9 @@ export async function switchClientAction(id: string) {
   try {
     if (ref) back = new URL(ref).pathname + new URL(ref).search;
   } catch {}
+  // Opening an account from the Accounts page lands on its Home; switching elsewhere stays on the page.
+  if (typeof to === "string" && to.startsWith("/") && !to.startsWith("//")) back = to;
+  else if (back.startsWith("/clients")) back = "/";
   redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/");
 }
 
