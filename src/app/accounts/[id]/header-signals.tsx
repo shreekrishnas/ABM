@@ -83,7 +83,13 @@ export async function WhyNow({ brief, fallback }: { brief: StoredBrief | null; f
   if (!brief?.whyNow && !fallback) return null;
   return (
     <div className="wn">
-      <p className="co-why"><b>Why now:</b> {brief?.whyNow?.text ?? fallback}</p>
+      {(() => {
+        // Several reasons are joined with "; and ": show one per line.
+        const reasons = (brief?.whyNow?.text ?? fallback ?? "").split(/;\s*and\s+/).map((r) => r.replace(/\s*[—–-]\s*$/, "").trim()).filter(Boolean);
+        return reasons.length > 1
+          ? <ul className="wn-list">{reasons.map((r, i) => <li key={i}>{r.charAt(0).toUpperCase() + r.slice(1)}</li>)}</ul>
+          : <p className="co-why">{reasons[0]}</p>;
+      })()}
       {facts.length > 0 ? (
         <ul className="wn-src">
           {facts.map((f) => {

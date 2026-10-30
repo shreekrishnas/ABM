@@ -482,7 +482,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
                 <li><b style={{ color: "var(--text-primary)" }}>{phase.summary.research.deepDives}</b> deep-dive research run{phase.summary.research.deepDives === 1 ? "" : "s"}{phase.summary.research.engagedDeepDives ? `, ${phase.summary.research.engagedDeepDives} because someone already replied on LinkedIn` : ""}.</li>
                 {phase.summary.research.skippedKnown > 0 && <li>{phase.summary.research.skippedKnown} search{phase.summary.research.skippedKnown > 1 ? "es" : ""} skipped because the file already answered them (tech stack).</li>}
               </ul>
-              <p className="muted mt-1.5 text-xs">Open any company → <b>Data → research</b> to see the full mapping.</p>
+              <p className="muted mt-1.5 text-xs">Open any company → <b>Imported data</b> to see the full mapping.</p>
             </div>
           )}
           {phase.summary.errors.length > 0 && (

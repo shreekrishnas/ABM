@@ -7,6 +7,18 @@ import { classifyTrigger, pickUseCase } from "@/lib/seller/fit";
 import { queryFor } from "@/lib/adapters/live/research";
 import type { AccountBriefData, BrainStats, BriefInput, ClaimToCheck, InsightSummary, PlanResearchInput, PlanResearchOutput } from "./types";
 
+/** Whole "; and "-joined clauses up to max characters: never cut a reason mid-sentence. */
+export function fitClauses(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const parts = text.split("; and ");
+  let out = parts[0].length <= max ? parts[0] : `${parts[0].slice(0, max - 1).replace(/\s+\S*$/, "")}…`;
+  for (const p of parts.slice(1)) {
+    if (out.length + 6 + p.length > max) break;
+    out += `; and ${p}`;
+  }
+  return out;
+}
+
 export function rulePlan(input: PlanResearchInput): PlanResearchOutput {
   const sp = seller();
   const kw = input.imported?.keywords.slice(0, 2).map((k) => `"${k}"`).join(" OR ");
@@ -77,7 +89,7 @@ export function ruleBrief(input: BriefInput): AccountBriefData {
   return {
     verdict,
     verdictWhy: `Fit ${fit}/100${input.company.fitReasons[0] ? ` (${input.company.fitReasons[0]})` : ""}; ${triggers.length} trigger fact(s)${owner ? `, ${owner.claim.toLowerCase()}` : ""}.`,
-    whyNow: triggers[0] ? { text: input.intent?.whyNow && input.intent.level !== "cold" ? input.intent.whyNow.slice(0, 300) : triggers[0].claim, factIds: [triggers[0].id] } : null,
+    whyNow: triggers[0] ? { text: input.intent?.whyNow && input.intent.level !== "cold" ? fitClauses(input.intent.whyNow, 300) : triggers[0].claim, factIds: [triggers[0].id] } : null,
     painPoints,
     personaAngles,
     hypotheses: [...input.hypotheses.slice(0, 2), ...input.unknowns.map((u) => `Unknown — confirm in discovery: ${u.replace(/_/g, " ")}`)].slice(0, 5),

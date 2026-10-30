@@ -18,7 +18,7 @@ import { IntakeTab } from "./intake-tab";
 import { ResearchTrace } from "./research-trace";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
-const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Data → research", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
+const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Imported data", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
 import { WebVisitsCard } from "@/components/web-visits";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { BuyingGroupPlan } from "./buying-group";
@@ -67,6 +67,11 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const flaggedIds = new Set(flagged.map((f) => f.id));
   const spent = (ledger._sum.amountMicros ?? 0) / 1_000_000;
   const sp = (() => { try { return sellerFor(a.sellerId); } catch { return seller(); } })();
+  // Research question keys as people read them (this account's pack, then generic names).
+  const GENERIC: Record<string, string> = { website: "Official website", firmographics: "Industry, size, country", negative: "Negative news", trigger: "Buying trigger", owner_function: "Who owns it", partner_network: "Partner network" };
+  const label = (key: string) => sp.researchQuestions.find((q) => q.key === key)?.label ?? GENERIC[key] ?? key.replace(/_/g, " ");
+  // "New owner_function: …" → "New · Who owns it: …"
+  const changeText = (c: string) => c.replace(/^(\w+) ([a-z0-9_]+):/, (_, verb: string, key: string) => `${verb} · ${label(key)}:`);
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
   const stageName = PROGRESS_LABEL[a.pipelineStage] ?? "Not started";
@@ -116,9 +121,9 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           base={`/accounts/${a.id}`}
           active={tab}
           tabs={[
-            { id: "overview", label: "Evidence twin" },
+            { id: "overview", label: "Overview" },
             { id: "research", label: "Research trace" },
-            { id: "intake", label: "Data → research" },
+            { id: "intake", label: "Imported data" },
             { id: "people", label: "Buying group", count: a.contacts.length },
             { id: "outreach", label: "Drafts", count: drafts.length },
             { id: "activity", label: "Activity & notes", count: a._count.signals + a.notes.length },
@@ -164,9 +169,9 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
       {tab === "overview" && <div className="mb-5"><TimelineCard accountId={a.id} /></div>}
       {tab === "overview" && (
-        <div className="grid gap-5 xl:grid-cols-3">
-          <div className="grid gap-5 xl:col-span-2">
-            <Card title="Facts" sub={twin ? `Twin v${a.twins[0].version} · ${date(a.twins[0].createdAt)} · every fact keeps a status and a source` : undefined}>
+        <div className="grid items-start gap-5 xl:grid-cols-3">
+          <div className="grid content-start gap-5 xl:col-span-2">
+            <Card title="Facts" sub={twin ? `Researched ${date(a.twins[0].createdAt)} · version ${a.twins[0].version} · every fact has a status and a source` : undefined}>
               {!twin || twin.facts.length === 0 ? <Empty icon={<FileText size={20} />} title="No evidence yet" sub="Run the pipeline to research this account." /> : (
                 <ul className="grid gap-2.5">
                   {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
@@ -196,11 +201,11 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                           </Modal>
                         </span>
                       </div>
-                      <div className="mono muted mt-1.5 flex flex-wrap gap-x-3">
-                        <span className="micro" style={{ letterSpacing: "0.06em" }}>{f.key.replace("_", " ")}</span>
+                      <div className="ev-meta">
+                        <span className="ev-key">{label(f.key)}</span>
                         {f.sourceType === "team" ? <span>Corrected by the team</span> : <a href={f.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.sourceType} · {new URL(f.sourceUrl).hostname}</a>}
                         <span>{date(f.publishedAt)}</span>
-                        {engineOf.get(f.id) && <span>via {engineOf.get(f.id)}</span>}
+                        {engineOf.get(f.id) && engineOf.get(f.id) !== "mock" && <span>found with {engineOf.get(f.id)}</span>}
                       </div>
                     </li>
                   ))}
@@ -235,7 +240,6 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <Badge color={VERDICT_COLOR[brief.verdict]} dot>{brief.verdict}</Badge>
                 <p className="secondary mt-2 text-sm">{brief.verdictWhy}</p>
                 {brief.painPoints[0] && <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Top pain:</b> {brief.painPoints[0].pain}</p>}
-                <p className="mt-2 text-xs secondary"><b style={{ color: "var(--text-primary)" }}>Next:</b> {brief.nextBestAction}</p>
               </Card>
             )}
             <div id="fit" className="contents" />
@@ -262,7 +266,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <div className="grid gap-3 text-sm">
                 <div>
                   <div className="micro mb-1.5">Still unknown</div>
-                  {twin?.unknowns.length ? <div className="flex flex-wrap gap-1.5">{twin.unknowns.map((u) => <Badge key={u} color="#64748B">{u.replace("_", " ")}</Badge>)}</div> : <span className="muted text-xs">Nothing open</span>}
+                  {twin?.unknowns.length ? <div className="flex flex-wrap gap-1.5">{twin.unknowns.map((u) => <Badge key={u} color="#64748B">{label(u)}</Badge>)}</div> : <span className="muted text-xs">Nothing open</span>}
                 </div>
                 <div>
                   <div className="micro mb-1.5">Negative evidence</div>
@@ -270,12 +274,12 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 </div>
                 <div>
                   <div className="micro mb-1.5">Contradictions</div>
-                  {twin?.contradictions.length ? twin.contradictions.map((c) => <div key={c.key} className="text-xs secondary"><b style={{ color: "var(--text-primary)" }}>{c.key}</b>: {c.values.join(" vs ")} — {c.resolution}</div>) : <span className="muted text-xs">None</span>}
+                  {twin?.contradictions.length ? twin.contradictions.map((c) => <div key={c.key} className="text-xs secondary"><b style={{ color: "var(--text-primary)" }}>{label(c.key)}</b>: {c.values.join(" vs ")} — {c.resolution}</div>) : <span className="muted text-xs">None</span>}
                 </div>
                 {twin?.changed.length ? (
                   <div>
                     <div className="micro mb-1.5">Changed in this version</div>
-                    <ul className="grid gap-1 text-xs secondary">{twin.changed.slice(0, 6).map((c, i) => <li key={i}>· {c}</li>)}</ul>
+                    <ul className="grid gap-1 text-xs secondary">{twin.changed.slice(0, 6).map((c, i) => <li key={i}>· {changeText(c)}</li>)}</ul>
                   </div>
                 ) : null}
               </div>
@@ -283,8 +287,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
             <Card title="Research plan" sub={a.plans[0] ? `${a.plans[0].reason} · ${ago(a.plans[0].createdAt)}` : undefined}>
               {!a.plans[0] ? <span className="muted text-xs">No plan yet</span> : (
                 <div className="grid gap-2 text-xs">
-                  {(a.plans[0].questions as { key: string; importance: string }[]).map((q) => <div key={q.key} className="flex items-center justify-between"><span className="secondary">{q.key.replace("_", " ")}</span><Badge color={q.importance === "high" ? "#DC2626" : "#B45309"}>{q.importance}</Badge></div>)}
-                  {(a.plans[0].skipped as { key: string; reason: string }[]).map((s) => <div key={s.key} className="muted">Skipped {s.key.replace("_", " ")}: {s.reason}</div>)}
+                  {(a.plans[0].questions as { key: string; importance: string }[]).map((q) => <div key={q.key} className="flex items-center justify-between"><span className="secondary">{label(q.key)}</span><Badge color={q.importance === "high" ? "#DC2626" : "#B45309"}>{q.importance}</Badge></div>)}
+                  {(a.plans[0].skipped as { key: string; reason: string }[]).map((s) => <div key={s.key} className="muted">Skipped {label(s.key)}: {s.reason}</div>)}
                 </div>
               )}
             </Card>

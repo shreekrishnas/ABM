@@ -1066,3 +1066,10 @@ html, body { background: var(--canvas) !important; }
 .tm-filter select { height: 32px; font-size: var(--fs-13); max-width: 220px; }
 .sh-mode-tag { display: flex; align-items: center; gap: var(--sp-1); margin: 0 var(--sp-2) var(--sp-1); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); background: var(--warning-bg); color: var(--warning); font-size: var(--fs-12); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; }
 .dz-chip.out { gap: var(--sp-1); border-style: dashed; color: var(--accent); }
+
+/* Company page: why-now reasons, fact meta, summary notes that wrap */
+.wn-list { display: grid; gap: var(--sp-1); padding-left: var(--sp-4); list-style: disc; font-size: var(--fs-14); color: var(--text); line-height: 1.5; }
+.ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); margin-top: var(--sp-1); font-size: var(--fs-12); color: var(--muted); }
+.ev-meta a:hover { text-decoration: underline; }
+.ev-key { padding: 0 var(--sp-2); border-radius: var(--r-full); background: var(--subtle); color: var(--text-2); font-weight: var(--fw-medium); }
+.ch-strip .ch-n { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
