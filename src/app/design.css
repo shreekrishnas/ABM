@@ -1123,3 +1123,19 @@ html, body { background: var(--canvas) !important; }
 .ho-done-co { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--text); }
 .ho-done-co:hover { text-decoration: underline; }
 .ho-done-meta { flex: 1; min-width: 160px; font-size: var(--fs-12); color: var(--muted); }
+
+/* Account Brain: section list with status, one section at a time */
+.br-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+.br-side { position: sticky; top: var(--sp-4); display: grid; gap: 2px; padding: var(--sp-2); border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--glass-border); }
+.br-side a { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--text-2); }
+.br-side a:hover { background: var(--subtle); color: var(--text); }
+.br-side a.on { background: var(--pill-subtle); color: var(--pill); }
+.br-side small { font-size: var(--fs-12); color: var(--muted); font-weight: var(--fw-medium); white-space: nowrap; }
+.br-side a.todo small { color: var(--warning); }
+.br-main { display: grid; gap: var(--sp-4); min-width: 0; }
+.br-ready li a { text-decoration: underline; }
+@media (max-width: 899px) {
+  .br-layout { grid-template-columns: minmax(0, 1fr); }
+  .br-side { position: static; display: flex; overflow-x: auto; scrollbar-width: none; }
+  .br-side a { flex-shrink: 0; }
+}
