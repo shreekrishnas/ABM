@@ -11,6 +11,7 @@ import { Badge, DecisionCard, EmptyState } from "@/components/kit";
 import { reviewLabel } from "@/lib/review-labels";
 import { runAllAction, setTaskStatusAction } from "../../actions";
 import { TopOpportunities } from "./top-opportunities";
+import { whyNowReasons } from "@/lib/why-now";
 
 export const metadata = { title: "Today" };
 
@@ -79,6 +80,13 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
         </div>
       </header>
 
+      <ul className="td3-week" aria-label="This week">
+        <li><b className="tnum">{sentWeek}</b> emails sent this week</li>
+        <li><b className="tnum">{repliesWeek}</b> replies this week</li>
+        <li><b className="tnum">{liveConversations}</b> conversations under way</li>
+        <li><b className="tnum">{hotRaw.length}</b> hot companies</li>
+      </ul>
+
       <div className="td3-split">
         <section className="td3-queue" aria-label="Your queue">
           <nav className="tabs td3-tabs" aria-label="Queue">
@@ -91,7 +99,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
           <div className="td3-panel">
             {active === "decisions" && (decisions.length === 0 ? <EmptyState title="No open decisions" text="Research, identity checks and rejections that need a person land here." /> : <>
               {decisions.map((r) => (
-                <DecisionCard key={r.id} variant="queue" type={r.type} href={`/review?type=${r.type}`} title={[r.contact?.fullName, r.account?.name].filter(Boolean).join(" · ") || reviewLabel(r.type)} context={r.reason} />
+                <DecisionCard key={r.id} variant="queue" type={r.type} href={`/review?type=${r.type}&pick=${r.id}`} title={[r.contact?.fullName, r.account?.name].filter(Boolean).join(" · ") || reviewLabel(r.type)} context={r.reason} />
               ))}
               {decisionsOpen > decisions.length && <Link href="/review" className="td3-more">All {decisionsOpen} decisions <ArrowRight size={14} /></Link>}
             </>)}
@@ -129,7 +137,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
             {active === "hot" && (hot.length === 0 ? <EmptyState title="No company is hot yet" text="Hot needs at least two independent signals agreeing." /> : hot.map((a) => (
               <Row key={a.id} href={`/accounts/${a.id}`} lead={<Avatar name={a.name} id={a.id} size={32} />}
                 title={<span className="inline-flex items-center gap-2">{a.name} <Badge tone="danger">Hot · {Math.round(a.r.score)}</Badge></span>}
-                sub={a.r.whyNow ?? undefined} tags={a.r.families.slice(0, 4).map((f) => <FamilyChip key={f} family={f} />)} action="Open" />
+                sub={whyNowReasons(a.r.whyNow).join(" · ") || undefined} tags={a.r.families.slice(0, 4).map((f) => <FamilyChip key={f} family={f} />)} action="Open" />
             )))}
           </div>
         </section>

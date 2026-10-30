@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Download, Globe } from "lucide-react";
 import { db } from "@/lib/db";
-import { nextBestAction, type PriorityParts } from "@/lib/brain/priority";
+import { nextBestAction, priorityFor, type PriorityParts } from "@/lib/brain/priority";
 import { Avatar } from "@/components/ui";
+import { whyNowReasons, whyNowShort } from "@/lib/why-now";
 import { Badge, DataTable, EmptyState, type Column } from "@/components/kit";
 import type { IntentLevel } from "@/components/v2";
 
@@ -11,11 +12,20 @@ type Reading = { score: number; level: IntentLevel; whyNow: string | null };
 
 /** Who to work first: the combined priority score, why, and the one next move for each company. */
 export async function TopOpportunities({ now, compact }: { now: Date; compact?: boolean }) {
-  const accounts = await db.account.findMany({
-    where: { mergedIntoId: null, priorityScore: { not: null }, disqualifyReason: null, stage: { notIn: ["CUSTOMER", "DISQUALIFIED"] } },
-    orderBy: { priorityScore: "desc" }, take: 10,
-    select: { id: true, name: true, tier: true, stage: true, pipelineStatus: true, disqualifyReason: true, priorityScore: true, priorityParts: true, intentReading: true },
+  // Scored companies; one with fit or intent but no stored priority yet gets it worked out here.
+  const candidates = await db.account.findMany({
+    where: { mergedIntoId: null, disqualifyReason: null, stage: { notIn: ["CUSTOMER", "DISQUALIFIED"] }, OR: [{ priorityScore: { not: null } }, { fitScore: { not: null } }] },
+    orderBy: [{ priorityScore: { sort: "desc", nulls: "last" } }, { fitScore: { sort: "desc", nulls: "last" } }], take: 60,
+    select: { id: true, name: true, tier: true, stage: true, pipelineStatus: true, disqualifyReason: true, priorityScore: true, priorityParts: true, intentReading: true, fitScore: true, employees: true },
   });
+  const accounts = candidates
+    .map((a) => {
+      if (a.priorityScore != null) return a;
+      const p = priorityFor(a, a.intentReading as unknown as Parameters<typeof priorityFor>[1], now);
+      return { ...a, priorityScore: p.score, priorityParts: p.parts as unknown as typeof a.priorityParts };
+    })
+    .sort((x, y) => (y.priorityScore ?? 0) - (x.priorityScore ?? 0))
+    .slice(0, 10);
   if (!accounts.length) return compact ? <section className="td3-opps"><header><h2>Who to work first</h2></header><EmptyState title="No scored companies yet" text="Companies appear here once research has scored them." /></section> : null;
   const ids = accounts.map((a) => a.id);
   const since = new Date(now.getTime() - 14 * DAY);
@@ -63,7 +73,7 @@ export async function TopOpportunities({ now, compact }: { now: Date; compact?: 
                   <span className="td3-o-meta">{a.tier && <Badge>{a.tier}</Badge>}<span className="tnum" title={parts ? `I ${parts.intent} · F ${parts.fit} · V ${parts.value} · T ${parts.timing}` : undefined}>Priority {a.priorityScore}</span>{r && <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)}</Badge>}</span>
                 </span>
               </Link>
-              <p className="td3-o-why">{r?.whyNow ?? "No converging signals yet"}</p>
+              {(() => { const w = whyNowShort(r?.whyNow); return <p className="td3-o-why">{w.first ?? "No converging signals yet"}{w.more > 0 && <span className="td3-more-n"> +{w.more} more</span>}</p>; })()}
               <Link href={href} className="btn btn-secondary btn-sm td3-o-act">{action.text}</Link>
             </li>
           ))}
@@ -81,7 +91,7 @@ export async function TopOpportunities({ now, compact }: { now: Date; compact?: 
       <span title={parts ? `Weights: intent ${parts.weights.intent}%, fit ${parts.weights.fit}%, value ${parts.weights.value}%, timing ${parts.weights.timing}%` : undefined}><b className="tnum">{a.priorityScore}</b>{parts && <span className="td2-s tnum">I {parts.intent} · F {parts.fit} · V {parts.value} · T {parts.timing}</span>}</span>
     ) },
     { key: "i", header: "Intent", cell: ({ r }) => (r ? <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)} · {Math.round(r.score)}</Badge> : <span className="td2-s">—</span>) },
-    { key: "w", header: "Why", priority: 2, cell: ({ r }) => <span className="td2-why">{r?.whyNow ?? "No converging signals yet"}</span> },
+    { key: "w", header: "Why", priority: 2, cell: ({ r }) => <span className="td2-why">{whyNowReasons(r?.whyNow).join(" · ") || "No converging signals yet"}</span> },
     { key: "n", header: "Next best action", cell: ({ action, href }) => <span className="td2-next"><Link href={href} className="btn btn-secondary btn-sm">{action.text}</Link><span className="td2-s">{action.why}</span></span> },
   ];
 

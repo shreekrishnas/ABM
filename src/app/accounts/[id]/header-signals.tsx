@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { ago, date } from "@/components/ui";
 import type { StoredBrief } from "@/lib/brain/strategist";
+import { whyNowReasons } from "@/lib/why-now";
 
 type Tone = "ok" | "warn" | "risk" | "muted";
 const CHIP: Record<string, { label: string; tone: Tone }> = {
@@ -85,9 +86,9 @@ export async function WhyNow({ brief, fallback }: { brief: StoredBrief | null; f
     <div className="wn">
       {(() => {
         // Several reasons are joined with "; and ": show one per line.
-        const reasons = (brief?.whyNow?.text ?? fallback ?? "").split(/;\s*and\s+/).map((r) => r.replace(/\s*[—–-]\s*$/, "").trim()).filter(Boolean);
+        const reasons = whyNowReasons(brief?.whyNow?.text ?? fallback);
         return reasons.length > 1
-          ? <ul className="wn-list">{reasons.map((r, i) => <li key={i}>{r.charAt(0).toUpperCase() + r.slice(1)}</li>)}</ul>
+          ? <ul className="wn-list">{reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
           : <p className="co-why">{reasons[0]}</p>;
       })()}
       {facts.length > 0 ? (

@@ -1073,3 +1073,8 @@ html, body { background: var(--canvas) !important; }
 .ev-meta a:hover { text-decoration: underline; }
 .ev-key { padding: 0 var(--sp-2); border-radius: var(--r-full); background: var(--subtle); color: var(--text-2); font-weight: var(--fw-medium); }
 .ch-strip .ch-n { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+/* Today: this week at a glance */
+.td3-week { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.td3-week li { display: inline-flex; align-items: baseline; gap: var(--sp-1); padding: var(--sp-1) var(--sp-3); border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--glass-border); font-size: var(--fs-13); color: var(--text-2); }
+.td3-week b { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--text); }
+.td3-more-n { color: var(--muted); font-size: var(--fs-12); white-space: nowrap; }
