@@ -2,7 +2,7 @@ import { ActionButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
-import { fetchApolloVisitorsAction } from "../../actions";
+import { fetchApolloVisitorsAction } from "@/app/discover/actions";
 
 export const metadata = { title: "Via Apollo · Import" };
 export const maxDuration = 300;

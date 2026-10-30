@@ -33,10 +33,10 @@ beforeEach(async () => {
 
 describe("Super Admin: clearing data", () => {
   it("clears one account only after its name is typed, and leaves the others untouched", async () => {
-    expect((await clearAccountDataAction("manch", idle, fd({ confirm: "acme" }))).ok).toBe(false);
+    expect((await clearAccountDataAction("manch", idle, fd({ confirm: "acme" })))?.ok).toBe(false);
     expect(await baseDb.account.count()).toBe(2);
     const r = await clearAccountDataAction("manch", idle, fd({ confirm: "manch" }));
-    expect(r.ok).toBe(true);
+    expect(r?.ok).toBe(true);
     expect((await baseDb.account.findMany()).map((a) => a.name)).toEqual(["Acme Target"]);
     expect(await baseDb.prospectSuggestion.count()).toBe(0);
     expect(await baseDb.client.count()).toBe(2); // the account itself stays
@@ -44,9 +44,9 @@ describe("Super Admin: clearing data", () => {
   });
 
   it("clearing every account needs the phrase typed", async () => {
-    expect((await clearWorkspaceDataAction(idle, fd({ confirm: "yes" }))).ok).toBe(false);
+    expect((await clearWorkspaceDataAction(idle, fd({ confirm: "yes" })))?.ok).toBe(false);
     expect(await baseDb.account.count()).toBe(2);
-    expect((await clearWorkspaceDataAction(idle, fd({ confirm: "Delete everything" }))).ok).toBe(true);
+    expect((await clearWorkspaceDataAction(idle, fd({ confirm: "Delete everything" })))?.ok).toBe(true);
     expect(await baseDb.account.count()).toBe(0);
   });
 });

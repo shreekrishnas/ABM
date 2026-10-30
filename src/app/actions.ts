@@ -15,33 +15,11 @@ import { prepareReResearch, runAccount, tick, processIntent, processQueue } from
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
+import { refresh, requestOrigin, startBackgroundQueue, str } from "@/lib/action-utils";
 import { kickDrain } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
 
-const refresh = (...paths: string[]) => {
-  for (const p of ["/", "/work/today", ...paths]) revalidatePath(p);
-};
-
-/** This deployment's own origin, so the background queue can call its route. */
-async function requestOrigin() {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return null;
-  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
-/** Start the background queue once this response is sent. */
-async function startBackgroundQueue() {
-  const origin = await requestOrigin();
-  after(() => kickDrain(origin));
-}
-
-const str = (fd: FormData, k: string) => {
-  const v = fd.get(k);
-  return typeof v === "string" && v.trim() ? v.trim() : undefined;
-};
 
 // ── Pipeline ──
 
@@ -722,90 +700,6 @@ export async function importResearchSummaryAction(batchId: string) {
 
 // ── Discover ──
 
-export async function scanMarketAction(): Promise<ActionState> {
-  const { scanMarket } = await import("@/lib/discover/scan");
-  const r = await scanMarket(newContext());
-  refresh("/discover");
-  return { ok: true, message: `Scanned ${r.searches} searches · ${r.events} buying events · ${r.suggestions} companies suggested · ${r.excluded} outside your targeting rule` };
-}
-
-/** Approve one suggested company: it becomes a company, research starts now, and you land on its page. */
-export async function addSuggestionAction(id: string): Promise<ActionState> {
-  const { addSuggestion } = await import("@/lib/discover/scan");
-  const accountId = await addSuggestion(id, await decider());
-  if (!accountId) return { ok: false, message: "Couldn't add this company (is it still being researched?)" };
-  await startBackgroundQueue();
-  refresh("/discover", "/accounts");
-  redirect(`/accounts/${accountId}`);
-}
-
-/** Approve several suggested companies at once; research starts in the background. */
-export async function approveSuggestionsAction(_: ActionState, fd: FormData): Promise<ActionState> {
-  const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string");
-  if (!ids.length) return { ok: false, message: "Select at least one company" };
-  const { addSuggestion } = await import("@/lib/discover/scan");
-  let added = 0;
-  const by = await decider();
-  for (const id of ids.slice(0, 100)) if (await addSuggestion(id, by)) added++;
-  await startBackgroundQueue();
-  refresh("/discover", "/accounts", "/import/lookalikes", "/import/apollo");
-  return { ok: added > 0, message: `Approved ${added} compan${added === 1 ? "y" : "ies"} — research has started; they appear under Companies` };
-}
-
-/** Who is deciding (for the record). */
-async function decider() {
-  const { getMe } = await import("@/lib/me");
-  return (await getMe())?.email ?? null;
-}
-
-/** Find companies similar to one website; the AI investigates each in the background, then a person decides. */
-export async function findLookalikesAction(_: ActionState, fd: FormData): Promise<ActionState> {
-  const site = str(fd, "website");
-  if (!site || site.length > 200) return { ok: false, message: "Enter a company website, e.g. example.com" };
-  const { findLookalikes } = await import("@/lib/discover/lookalike");
-  const r = await findLookalikes(site, newContext());
-  if (r.suggested) await startBackgroundQueue();
-  refresh("/discover", "/import/lookalikes");
-  if (!r.found) return { ok: false, message: `No similar companies found for ${r.seed} — try its main website` };
-  redirect(`/import/lookalikes?seed=${encodeURIComponent(r.seed)}`);
-}
-
-/** Reject a recommended lookalike, with an optional reason. Nothing is looked up for it. */
-export async function rejectLookalikeAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
-  const { dismissSuggestion } = await import("@/lib/discover/scan");
-  await dismissSuggestion(id, await decider(), str(fd, "reason") ? `Rejected: ${str(fd, "reason")}` : "Rejected");
-  refresh("/import/lookalikes", "/discover");
-  return { ok: true, message: "Rejected" };
-}
-
-/** Ask the AI to research a lookalike further (optionally: what to look into). */
-export async function researchMoreAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
-  const s = await db.prospectSuggestion.findUnique({ where: { id } });
-  if (!s || s.origin !== "lookalike") return { ok: false, message: "Company not found" };
-  if (s.status === "added") return { ok: false, message: "Already approved: research continues on its company page" };
-  const { requestMoreResearch } = await import("@/lib/discover/lookalike");
-  await requestMoreResearch(id, str(fd, "note") ?? null);
-  await startBackgroundQueue();
-  refresh("/import/lookalikes");
-  return { ok: true, message: `Researching ${s.name} further; the results update here in a few minutes` };
-}
-
-/** Pull website visitors from Apollo now (normally daily); new companies wait in Discover for approval. */
-export async function fetchApolloVisitorsAction(): Promise<ActionState> {
-  const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
-  const r = await syncApolloVisitors(newContext(), { force: true });
-  if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY and APOLLO_VISITOR_LIST in Vercel" };
-  refresh("/discover", "/accounts");
-  if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — check the list name, or see Behind the scenes for the error" };
-  redirect("/import/apollo");
-}
-
-export async function dismissSuggestionAction(id: string): Promise<ActionState> {
-  const { dismissSuggestion } = await import("@/lib/discover/scan");
-  await dismissSuggestion(id, await decider());
-  refresh("/discover");
-  return { ok: true, message: "Dismissed" };
-}
 
 
 /** Lift a company-wide outreach pause (after an objection was handled, or to end a "not now" early). */

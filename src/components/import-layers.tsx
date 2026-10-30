@@ -9,7 +9,7 @@ import { IMPORT_FIELDS } from "@/lib/import/fields";
 import { ActionForm, SelectAll, SubmitButton } from "@/components/client";
 import { Card, ago } from "@/components/ui";
 import { similarity, type SeedProfile } from "@/lib/discover/similarity";
-import { approveSuggestionsAction } from "@/app/actions";
+import { approveSuggestionsAction } from "@/app/discover/actions";
 
 /** The seller's targeting rule in words, e.g. "IN, more than 999 employees". */
 export async function ruleText(): Promise<string | null> {

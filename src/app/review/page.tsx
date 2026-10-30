@@ -15,9 +15,13 @@ export const metadata = { title: "Approvals" };
 export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string; pick?: string }> }) {
   const sp = await searchParams;
   const type = sp.type as ReviewType | undefined;
-  const [counts, items] = await Promise.all([
+  const [counts, items, companies, lookalikes, handoffs] = await Promise.all([
     db.reviewItem.groupBy({ by: ["type"], where: { status: "open" }, _count: true }),
     db.reviewItem.findMany({ where: { status: "open", ...(type ? { type } : {}) }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
+    // Waiting elsewhere, so everything a person must decide is listed here.
+    db.prospectSuggestion.count({ where: { status: "new", origin: { not: "lookalike" } } }),
+    db.prospectSuggestion.count({ where: { status: "new", origin: "lookalike", researchStatus: { in: ["done", "failed"] } } }),
+    db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
   ]);
   const draftIds = items.map((i) => i.draftId).filter(Boolean) as string[];
   const drafts = await db.draft.findMany({ where: { id: { in: draftIds } } });
@@ -42,6 +46,9 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         {counts.sort((a, b) => b._count - a._count).map((c) => (
           <Link key={c.type} href={`/review?type=${c.type}`} className={`dz-chip${type === c.type ? " on" : ""}`}>{reviewLabel(c.type)} · {c._count}</Link>
         ))}
+        {companies > 0 && <Link href="/discover" className="dz-chip out">Companies to approve · {companies} <ExternalLink size={12} aria-hidden /></Link>}
+        {lookalikes > 0 && <Link href="/import/lookalikes?view=review" className="dz-chip out">Lookalikes to review · {lookalikes} <ExternalLink size={12} aria-hidden /></Link>}
+        {handoffs > 0 && <Link href="/handoffs" className="dz-chip out">Hand-offs to accept · {handoffs} <ExternalLink size={12} aria-hidden /></Link>}
       </div>
 
       {items.length === 0 ? (

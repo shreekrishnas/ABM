@@ -4,7 +4,7 @@ import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
 import { LookalikeReview } from "./review";
 import { ensureSellerPacks } from "@/lib/seller";
-import { findLookalikesAction } from "../../actions";
+import { findLookalikesAction } from "@/app/discover/actions";
 
 export const metadata = { title: "Lookalikes · Import" };
 export const maxDuration = 300;

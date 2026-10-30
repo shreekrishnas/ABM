@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
+import { tablesWithoutAccess } from "@/lib/admin/health";
 
 // Public liveness check for uptime monitors. Reports only whether the database
 // answers — never data, never connection details.
@@ -27,7 +28,9 @@ export async function GET() {
   const started = Date.now();
   try {
     const accounts = await db.account.count();
-    return NextResponse.json({ ok: true, db: "connected", seeded: accounts > 0, ms: Date.now() - started });
+    // Whether every table is usable by the app (names are not exposed here; see Team & Access).
+    const tablesOk = await tablesWithoutAccess().then((t) => t.length === 0).catch(() => null);
+    return NextResponse.json({ ok: tablesOk !== false, db: "connected", seeded: accounts > 0, tablesOk, ms: Date.now() - started }, { status: tablesOk === false ? 503 : 200 });
   } catch (e) {
     const message = e instanceof Error ? e.message : "";
     const tenantNotFound = /tenant\/user .* not found/i.test(message);

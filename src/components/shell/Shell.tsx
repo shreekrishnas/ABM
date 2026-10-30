@@ -54,7 +54,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             {access && (access.choices.length > 1 || sup || access.canSuperAdmin) && <AccountsNav choices={access.choices} picked={access.picked} on={active === "clients"} />}
           </div>
           <div className="sh-rail-foot">
-            {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin · all accounts</span></span>}
+            {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
             {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
             <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}

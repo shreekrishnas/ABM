@@ -10,7 +10,7 @@ import { History, RefreshCw } from "lucide-react";
 import { ActionButton, ActionForm, SelectAll, SubmitButton } from "@/components/client";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
-import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction, scanMarketAction } from "../actions";
+import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction, scanMarketAction } from "@/app/discover/actions";
 
 export const metadata = { title: "Discover" };
 
@@ -29,6 +29,8 @@ const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: 
 
 const ORIGINS = ["market", "lookalike", "website_visitor"] as const;
 const ORIGIN_WORD: Record<string, string> = { market: "News & hiring", lookalike: "Similar companies", website_visitor: "Website visitors" };
+
+const READY_WORD: Record<string, string> = { ready: "Ready to buy", emerging: "Emerging", early: "Early", none: "No need seen" };
 
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string; origin?: string; seed?: string }> }) {
   await ensureSellerPacks();
@@ -145,11 +147,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               const sources = (s.sources as Source[]) ?? [];
               const fit = sellerFit({ industry: s.industry, employees: s.employees, country: s.country }, p).fit;
               const fresh = sources.filter((x) => x.newSinceIgnored);
+              const look = s.origin === "lookalike";
+              const researching = look && (s.researchStatus === "queued" || s.researchStatus === "running");
               return (
                 <article key={s.id} className="glass-card-static card-pad min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-2.5">
-                      {s.status === "new" && <input type="checkbox" name="ids" value={s.id} className="mt-1" aria-label={`Select ${s.name}`} />}
+                      {s.status === "new" && !researching && <input type="checkbox" name="ids" value={s.id} className="mt-1" aria-label={`Select ${s.name}`} />}
                       <div className="min-w-0">
                       <h3 className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{s.name} <span className="chip ml-1 align-middle">{ORIGIN_WORD[s.origin] ?? s.origin}</span>
                         {s.version > 1 && <span className="ds-mark" title={`Revised ${s.version - 1} time${s.version > 2 ? "s" : ""} with stronger evidence`}><RefreshCw size={12} /></span>}
@@ -160,7 +164,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       </div>
                       </div>
                     </div>
-                    <span className="flex shrink-0 flex-col items-end gap-1"><IntentPill level={s.level as IntentLevel} score={s.score} />{fit != null && <span className="muted text-xs tnum">Fit {fit}</span>}</span>
+                    {look ? (
+                      <span className="flex shrink-0 flex-col items-end gap-1">
+                        {researching ? <span className="lk-busy">Researching</span> : <span className="lk-fit"><b className="tnum">{s.fitScore ?? "—"}</b><small>fit</small></span>}
+                        {s.readiness && <span className="muted text-xs">{READY_WORD[s.readiness] ?? s.readiness}</span>}
+                      </span>
+                    ) : (
+                      <span className="flex shrink-0 flex-col items-end gap-1"><IntentPill level={s.level as IntentLevel} score={s.score} />{fit != null && <span className="muted text-xs tnum">Fit {fit}</span>}</span>
+                    )}
                   </div>
                   {s.resurfacedAt && (
                     <details className="ds-prev mt-3">
@@ -172,6 +183,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   )}
                   {s.origin === "market" && <p className="mt-2 text-xs muted">{sources.length} independent signal{sources.length === 1 ? "" : "s"}{sources.some((x) => (x.reports ?? 1) > 1) ? ` · ${sources.reduce((n, x) => n + (x.reports ?? 1), 0)} reports grouped` : ""}</p>}
                   <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}><span className="font-semibold" style={{ color: "var(--text-primary)" }}>{s.origin === "lookalike" ? "Why: " : "Why now: "}</span>{s.whyNow}</p>
+                  {look && <p className="mt-2 text-xs"><Link href={`/import/lookalikes?seed=${encodeURIComponent(s.seed ?? "")}`} className="underline">See the full evidence and research{s.reasons.length ? ` (${s.reasons.length} reasons)` : ""}</Link></p>}
                   {s.families.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{s.families.map((f) => <FamilyChip key={f} family={f} />)}</div>}
                   {s.reason && <p className="mt-2 text-xs" style={{ color: "var(--intent-hot)" }}>{s.reason}</p>}
                   {sources.length > 0 && (
@@ -192,7 +204,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       <Link href={`/accounts/${s.accountId}`} className="btn btn-secondary">Open company</Link>
                     ) : s.status !== "added" ? (
                       <>
-                        {(s.status === "new" || s.status === "dismissed") && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Approve &amp; start research</ActionButton>}
+                        {(s.status === "new" || s.status === "dismissed") && !researching && <ActionButton action={addSuggestionAction.bind(null, s.id)} className="btn btn-primary"><Plus size={15} /> Approve &amp; start research</ActionButton>}
                         {s.status !== "dismissed" && s.status !== "excluded" && <ActionButton action={dismissSuggestionAction.bind(null, s.id)} className="btn btn-secondary">Ignore</ActionButton>}
                       </>
                     ) : null}

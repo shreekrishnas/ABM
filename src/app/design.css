@@ -1065,3 +1065,4 @@ html, body { background: var(--canvas) !important; }
 .tm-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); }
 .tm-filter select { height: 32px; font-size: var(--fs-13); max-width: 220px; }
 .sh-mode-tag { display: flex; align-items: center; gap: var(--sp-1); margin: 0 var(--sp-2) var(--sp-1); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); background: var(--warning-bg); color: var(--warning); font-size: var(--fs-12); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; }
+.dz-chip.out { gap: var(--sp-1); border-style: dashed; color: var(--accent); }

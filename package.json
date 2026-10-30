@@ -15,7 +15,8 @@
     "pipeline:run": "tsx scripts/run-pipeline.ts",
     "postinstall": "prisma generate",
     "lint:tokens": "node scripts/check-tokens.mjs",
-    "bench": "tsx scripts/bench.ts"
+    "bench": "tsx scripts/bench.ts",
+    "db:sync": "node scripts/db-sync.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

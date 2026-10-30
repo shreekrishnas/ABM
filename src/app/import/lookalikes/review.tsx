@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { activeSeller } from "@/lib/scope";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { DIMENSION_LABEL, FIT_WEIGHTS, lookalikeCriteria, type LookalikeEvidence, type LookalikeResearch } from "@/lib/discover/lookalike";
-import { approveSuggestionsAction, rejectLookalikeAction, researchMoreAction } from "../../actions";
+import { approveSuggestionsAction, rejectLookalikeAction, researchMoreAction } from "@/app/discover/actions";
 import { RefreshWhileResearching } from "./refresh";
 
 const READINESS: Record<string, { label: string; tone: string; text: string }> = {
