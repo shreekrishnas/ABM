@@ -1043,3 +1043,25 @@ html, body { background: var(--canvas) !important; }
 .lk-inline { display: flex; gap: var(--sp-2); flex: 1 1 260px; min-width: 0; }
 .lk-inline input { flex: 1; min-width: 0; height: 32px; font-size: var(--fs-13); }
 @media (max-width: 639px) { .lk-top { flex-direction: column; } }
+
+/* Team & Access tabs */
+.tm-tabs { flex-wrap: wrap; }
+.tm-tabs a { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--text-2); padding: var(--sp-1) var(--sp-3); border-radius: calc(var(--r-sm) - 2px); }
+.tm-tabs a:hover { color: var(--text); }
+.tm-tabs a.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+.tm-alert { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 var(--sp-1); border-radius: var(--r-full); background: var(--danger); color: var(--on-accent); font-size: var(--fs-12); }
+.tm-accts { padding: 0 var(--sp-5) var(--sp-2); }
+.tm-ok { font-size: var(--fs-13); color: var(--success); }
+.tm-warn { font-size: var(--fs-13); color: var(--danger); margin-bottom: var(--sp-3); }
+.tm-queue { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-13); color: var(--text-2); margin-bottom: var(--sp-3); }
+.tm-queue b { color: var(--text); }
+.tm-svc { font-size: var(--fs-12); padding: 0 var(--sp-2); border-radius: var(--r-full); background: var(--subtle); color: var(--text-2); }
+.tm-svc.live { background: var(--success-bg); color: var(--success); }
+.tm-svc.off { background: var(--warning-bg); color: var(--warning); }
+.tm-danger { display: grid; gap: var(--sp-2); }
+.tm-danger li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.tm-confirm { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.tm-confirm input { width: 240px; max-width: 100%; height: 32px; font-size: var(--fs-13); }
+.tm-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); }
+.tm-filter select { height: 32px; font-size: var(--fs-13); max-width: 220px; }
+.sh-mode-tag { display: flex; align-items: center; gap: var(--sp-1); margin: 0 var(--sp-2) var(--sp-1); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); background: var(--warning-bg); color: var(--warning); font-size: var(--fs-12); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; }

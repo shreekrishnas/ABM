@@ -54,6 +54,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             {access && (access.choices.length > 1 || sup || access.canSuperAdmin) && <AccountsNav choices={access.choices} picked={access.picked} on={active === "clients"} />}
           </div>
           <div className="sh-rail-foot">
+            {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin · all accounts</span></span>}
             {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
             <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
@@ -63,7 +64,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
         <div className="sh-body" id="sh-scroll">
           {sup && (
             <div className="sh-super" role="status">
-              <ShieldCheck size={16} /> <b>Super Admin mode</b> <span className="hide-sm">Team, clients and access can be changed. Every action is logged.</span>
+              <ShieldCheck size={16} /> <b>Super Admin mode</b> <span className="hide-sm">You can see and open every account, and change team and access. Every action is logged.</span>
               <Link href="/team" className="sh-super-link">Team & Access</Link>
               <form action={switchModeAction.bind(null, "user")}><button type="submit" className="sh-super-btn">Switch to User</button></form>
             </div>

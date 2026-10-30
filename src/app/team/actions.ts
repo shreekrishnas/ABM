@@ -9,6 +9,8 @@ import type { ActionState } from "../actions";
 import type { Prisma } from "@prisma/client";
 import { starterPack } from "@/lib/seller/brain";
 import { logoFromInput } from "@/lib/logo";
+import { headers } from "next/headers";
+import { kickDrain } from "@/lib/queue/drain";
 import { hashPack } from "@/lib/seller";
 
 const fail = (e: unknown): ActionState => ({ ok: false, message: e instanceof Error ? e.message : "Something went wrong" });
@@ -111,9 +113,10 @@ export async function setClientLogoAction(clientId: string, _: ActionState, fd: 
  * Removes companies (and everything attached to them), imports, suggestions, visits, mailboxes,
  * suppressions, insights, brain logs and demo (@company.com) logins.
  */
-export async function clearWorkspaceDataAction(): Promise<ActionState> {
+export async function clearWorkspaceDataAction(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
+    if (text(fd, "confirm").toLowerCase() !== "delete everything") return { ok: false, message: 'Type "delete everything" to confirm' };
     const before = await baseDb.account.count();
     const [accounts] = await baseDb.$transaction([
       baseDb.account.deleteMany({}),
@@ -132,6 +135,53 @@ export async function clearWorkspaceDataAction(): Promise<ActionState> {
     await audit(me.email, "data.clear", { before: { companies: before }, after: { companies: 0 } });
     revalidatePath("/", "layout");
     return { ok: true, message: `Removed ${accounts.count} companies and everything attached. Team, clients, Account Brain and sequences kept.` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Super Admin: remove one account's company data only (companies and everything attached,
+ * imports, suggestions, market events, signals, decisions, proposals). Its team, brain,
+ * knowledge files and every other account are untouched. The account's name must be typed.
+ */
+export async function clearAccountDataAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const client = await baseDb.client.findUnique({ where: { id: clientId } });
+    if (!client) return { ok: false, message: "That account no longer exists" };
+    if (text(fd, "confirm").toLowerCase() !== client.name.toLowerCase()) return { ok: false, message: `Type the account name (${client.name}) to confirm` };
+    const own = { sellerId: clientId };
+    const ids = (await baseDb.account.findMany({ where: own, select: { id: true } })).map((a) => a.id);
+    const [, accounts] = await baseDb.$transaction([
+      baseDb.webVisit.deleteMany({ where: { accountId: { in: ids } } }),
+      baseDb.account.deleteMany({ where: own }),
+      baseDb.importBatch.deleteMany({ where: own }),
+      baseDb.prospectSuggestion.deleteMany({ where: own }),
+      baseDb.marketEvent.deleteMany({ where: own }),
+      baseDb.brainSignal.deleteMany({ where: own }),
+      baseDb.decision.deleteMany({ where: own }),
+      baseDb.proposal.deleteMany({ where: own }),
+    ]);
+    await audit(me.email, "data.clear_account", { target: client.name, clientId, before: { companies: ids.length }, after: { companies: 0 } });
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Removed ${accounts.count} companies from ${client.name}. Its team, brain and the other accounts are untouched.` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Super Admin: restart the background queue (when it has stopped). */
+export async function restartQueueAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const origin = host ? `${h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https")}://${host}` : null;
+    const started = await kickDrain(origin);
+    await audit(me.email, "queue.restart", { after: { started } });
+    revalidatePath("/team");
+    return { ok: started, message: started ? "Background queue restarted" : "Couldn't reach the queue. Check APP_URL and ABM_API_KEY in Vercel" };
   } catch (e) {
     return fail(e);
   }
