@@ -17,7 +17,7 @@ export const metadata = { title: "People" };
 const PAGE = 50;
 const NOT_CALLABLE: JourneyStage[] = ["not_contacted", "connection_sent", ...CLOSED];
 
-type SP = { q?: string; campaign?: string; sender?: string; stage?: string; call?: string; page?: string; view?: string; sel?: string };
+type SP = { q?: string; campaign?: string; sender?: string; stage?: string; lane?: string; call?: string; page?: string; view?: string; sel?: string };
 
 export default async function PeoplePage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -29,7 +29,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   // Every filter is its own clause so none overwrites another.
   const and: Prisma.ContactWhereInput[] = [{ mergedIntoId: null }];
   if (sp.q) and.push({ OR: [{ fullName: { contains: sp.q, mode: "insensitive" } }, { email: { contains: sp.q, mode: "insensitive" } }, { title: { contains: sp.q, mode: "insensitive" } }, { account: { name: { contains: sp.q, mode: "insensitive" } } }] });
-  if (scoped || stage) and.push({ journeys: { some: { ...scope, ...(stage ? { stage } : {}) } } });
+  // A board lane ("Show all") covers several stages.
+  const lane = LANES.find((l) => l.id === sp.lane);
+  if (scoped || stage || lane) and.push({ journeys: { some: { ...scope, ...(stage ? { stage } : lane ? { stage: { in: lane.stages } } : {}) } } });
   if (sp.call === "yes") and.push({ phone: { not: null }, state: { notIn: ["suppressed", "do_not_contact"] }, account: { doNotContact: false }, journeys: { some: { ...scope, stage: { notIn: NOT_CALLABLE } } } });
   if (sp.call === "no") and.push({ OR: [{ phone: null }, { state: { in: ["suppressed", "do_not_contact"] } }, { account: { doNotContact: true } }, { journeys: { none: { ...scope, stage: { notIn: NOT_CALLABLE } } } }] });
   const where: Prisma.ContactWhereInput = { AND: and };
@@ -58,8 +60,12 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const allJourneys = laneTotals.reduce((a, b) => a + b, 0);
   const skewed = allJourneys > 0 && Math.max(...laneTotals) / allJourneys > 0.6;
   const view = sp.view === "list" || sp.view === "board" ? sp.view : skewed ? "list" : "board";
-  const boardJourneys = view === "board" ? await db.journey.findMany({ where: { ...scope, contact: { AND: and } }, take: 800, orderBy: { updatedAt: "desc" }, include: { contact: { select: { id: true, fullName: true, titleNormalized: true, title: true, account: { select: { name: true } } } }, sender: { select: { name: true } } } }) : [];
-  const cards: BoardCard[] = boardJourneys.map((j) => ({ journeyId: j.id, contactId: j.contact.id, name: j.contact.fullName, title: j.contact.titleNormalized ?? j.contact.title, company: j.contact.account.name, sender: j.sender.name, stage: j.stage, followUps: j.followUpCount, last: j.lastEngagementAt ?? j.updatedAt }));
+  const boardJourneys = view === "board" ? await db.journey.findMany({ where: { ...scope, contact: { AND: and } }, take: 800, orderBy: { updatedAt: "desc" }, include: { contact: { select: { id: true, fullName: true, titleNormalized: true, title: true, account: { select: { name: true, stage: true, disqualifyReason: true } } } }, sender: { select: { name: true } } } }) : [];
+  const cards: BoardCard[] = boardJourneys.map((j) => ({ journeyId: j.id, contactId: j.contact.id, name: j.contact.fullName, title: j.contact.titleNormalized ?? j.contact.title, company: j.contact.account.name, sender: j.sender.name, stage: j.stage, followUps: j.followUpCount, last: j.lastEngagementAt ?? j.updatedAt,
+    due: (() => {
+      const n = nextAction({ stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement }, now, { disqualifyReason: j.contact.account.stage === "DISQUALIFIED" ? j.contact.account.disqualifyReason : null });
+      return n.dueAt && n.dueAt <= now && !n.text.startsWith("No outreach") ? n.text : null;
+    })() }));
 
   return (
     <div className="page-enter">
@@ -79,6 +85,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
               {live.filter((x) => x.n).map((x) => <i key={x.k} style={{ width: `${(x.n / sum) * 100}%`, background: STAGE_INFO[x.k].color }} title={`${STAGE_INFO[x.k].label}: ${x.n}`} />)}
             </div>
             <div className="pp-chips">
+              {lane && <Link href={qs({ lane: undefined, page: undefined })} className="chip-filter on" title="Clear">Column: {lane.title} ×</Link>}
               {live.map(({ k, n }) => (
                 <Link key={k} href={qs({ stage: stage === k ? undefined : k, page: undefined })} className={`chip-filter${stage === k ? " on" : ""}`}>
                   <i className="pp-dot" style={{ background: STAGE_INFO[k].color }} />{STAGE_INFO[k].label} <b className="tnum">{n}</b>
@@ -101,7 +108,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         <select name="call" defaultValue={sp.call ?? ""} className="glass-select" style={{ maxWidth: 170 }} aria-label="Eligible to call"><option value="">Call: any</option><option value="yes">Eligible to call</option><option value="no">Not eligible</option></select>
         {view === "list" && <input type="hidden" name="view" value="list" />}
         <button className="btn btn-primary">Filter</button>
-        {(sp.q || scoped || stage || sp.call) && <Link href="/people" className="btn btn-ghost">Clear</Link>}
+        {lane && <input type="hidden" name="lane" value={lane.id} />}
+        {(sp.q || scoped || stage || lane || sp.call) && <Link href="/people" className="btn btn-ghost">Clear</Link>}
       </form>
 
       {view === "board" ? <JourneyBoard cards={cards} /> : <div className={sp.sel ? "split" : undefined}><ListKeys /><Card pad={false}>
@@ -179,7 +187,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         )}
       </Card>{sp.sel && <PersonPeek id={sp.sel} close={qs({})} />}</div>}
 
-      {total > PAGE && (
+      {view === "list" && total > PAGE && (
         <div className="mt-4 flex items-center justify-between text-sm">
           <span className="muted">Page {page} of {Math.ceil(total / PAGE)}</span>
           <div className="flex gap-2">

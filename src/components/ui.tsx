@@ -183,8 +183,10 @@ export function ago(d: Date | string | null | undefined) {
   const s = (Date.now() - t.getTime()) / 1000;
   const abs = Math.abs(s);
   const fmt = (v: number, u: string) => `${Math.round(v)}${u}`;
-  const str = abs < 60 ? "just now" : abs < 3600 ? fmt(abs / 60, "m") : abs < 86400 ? fmt(abs / 3600, "h") : abs < 86400 * 30 ? fmt(abs / 86400, "d") : t.toISOString().slice(0, 10);
-  if (str === "just now" || str.includes("-")) return str;
+  const str = abs < 60 ? "just now" : abs < 3600 ? fmt(abs / 60, "m") : abs < 86400 ? fmt(abs / 3600, "h") : abs < 86400 * 30 ? fmt(abs / 86400, "d") : null;
+  // Older than a month: the date itself ("29 Sept", with the year when it isn't this year).
+  if (str === null) return t.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(t.getFullYear() !== new Date().getFullYear() ? { year: "numeric" } : {}) });
+  if (str === "just now") return str;
   return s >= 0 ? `${str} ago` : `in ${str}`;
 }
 

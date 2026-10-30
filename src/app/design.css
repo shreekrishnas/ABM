@@ -1078,3 +1078,9 @@ html, body { background: var(--canvas) !important; }
 .td3-week li { display: inline-flex; align-items: baseline; gap: var(--sp-1); padding: var(--sp-1) var(--sp-3); border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--glass-border); font-size: var(--fs-13); color: var(--text-2); }
 .td3-week b { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--text); }
 .td3-more-n { color: var(--muted); font-size: var(--fs-12); white-space: nowrap; }
+/* People board: what is due, and the rest one click away */
+.jb-count { display: inline-flex; align-items: baseline; gap: var(--sp-2); }
+.jb-due-n { font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--warning); }
+.jb-due { margin-top: var(--sp-1); padding: 2px var(--sp-2); border-radius: var(--r-xs); background: var(--warning-bg); color: var(--warning); font-size: var(--fs-12); line-height: 1.35; }
+.jb-all { display: block; padding: var(--sp-1); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--accent); text-align: center; }
+.jb-all:hover { text-decoration: underline; }

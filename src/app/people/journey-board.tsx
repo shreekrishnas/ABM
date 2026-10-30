@@ -15,25 +15,30 @@ export const LANES: { id: string; title: string; hint: string; stages: JourneySt
   { id: "parked", title: "Parked", hint: "Later or closed", stages: ["nurture", "not_interested", "disqualified", "closed_lost"], color: "#94A3B8" },
 ];
 
-export interface BoardCard { journeyId: string; contactId: string; name: string; title: string | null; company: string; sender: string; stage: JourneyStage; followUps: number; last: Date | null }
+export interface BoardCard { journeyId: string; contactId: string; name: string; title: string | null; company: string; sender: string; stage: JourneyStage; followUps: number; last: Date | null; /** The next step, when it is due now. */ due: string | null }
+
+/** Cards shown per lane; the rest are one click away in the list. */
+const PER_LANE = 8;
 
 export function JourneyBoard({ cards }: { cards: BoardCard[] }) {
   return (
     <div className="-mx-1 overflow-x-auto pb-2">
       <div className="flex gap-3 px-1">
         {LANES.map((lane) => {
-          const items = cards.filter((c) => lane.stages.includes(c.stage)).sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
+          // Whoever needs a step now comes first, then the most recent.
+          const items = cards.filter((c) => lane.stages.includes(c.stage)).sort((a, b) => Number(Boolean(b.due)) - Number(Boolean(a.due)) || (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
+          const due = items.filter((c) => c.due).length;
           // An empty lane collapses to a thin sliver with its count, so the board shows the journey, not empty space.
           if (items.length === 0) return <section key={lane.id} className="jb-empty" aria-label={`${lane.title}: nobody`} title={`${lane.title}: nobody here yet`}><span>{lane.title}</span><b className="tnum">0</b></section>;
           return (
             <section key={lane.id} className="glass-card-static flex w-[228px] shrink-0 flex-col" style={{ padding: "0.75rem", borderRadius: "1.25rem", borderTop: `3px solid ${lane.color}` }} aria-label={lane.title}>
               <header className="mb-2 flex items-baseline justify-between px-1">
                 <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{lane.title}</span>
-                <span className="tnum muted text-xs font-semibold">{items.length}</span>
+                <span className="jb-count">{due > 0 && <span className="jb-due-n" title={`${due} need a step now`}>{due} due</span>}<span className="tnum muted text-xs font-semibold">{items.length}</span></span>
               </header>
               <p className="muted mb-2 px-1 text-[0.7rem]">{lane.hint}</p>
               <div className="grid gap-2">
-                {items.slice(0, 40).map((c) => (
+                {items.slice(0, PER_LANE).map((c) => (
                   <Link key={c.journeyId} href={`/people/${c.contactId}`} className="read-surface block rounded-xl p-2.5 transition-transform hover:-translate-y-0.5" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-read)" }}>
                     <div className="flex items-center gap-2">
                       <Avatar name={c.name} id={c.contactId} size={26} round />
@@ -46,9 +51,10 @@ export function JourneyBoard({ cards }: { cards: BoardCard[] }) {
                       {lane.stages.length > 1 && <span className="chip" style={{ ["--c" as string]: STAGE_INFO[c.stage].color }}>{STAGE_INFO[c.stage].label}{c.stage === "follow_up_sent" && c.followUps ? ` ${c.followUps}` : ""}</span>}
                       <span className="muted text-[0.68rem]">{c.sender} · {ago(c.last)}</span>
                     </div>
+                    {c.due && <div className="jb-due">{c.due}</div>}
                   </Link>
                 ))}
-                {items.length > 40 && <Link href={`/people?view=list&stage=${lane.stages[0]}`} className="muted px-1 text-xs hover:underline">+{items.length - 40} more</Link>}
+                {items.length > PER_LANE && <Link href={`/people?view=list&lane=${lane.id}`} className="jb-all">Show all {items.length}</Link>}
                 {items.length === 0 && <div className="muted rounded-xl px-2 py-4 text-center text-xs" style={{ border: "1px dashed var(--border-default)" }}>Nobody here</div>}
               </div>
             </section>
