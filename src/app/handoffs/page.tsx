@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { visitSummary } from "@/lib/web/visits";
 import { latestBrief } from "@/lib/brain/strategist";
+import { sellerFor } from "@/lib/seller";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Kpi, PageHeader, StageBadge, ago } from "@/components/ui";
 import { decideHandoffAction } from "../actions";
@@ -12,6 +13,12 @@ import { AddTaskButton } from "@/components/shell/QuickTask";
 export const metadata = { title: "Sales hand-offs" };
 
 type Brief = { whyNow: string; facts: { text: string; factId: string }[]; unknowns: string[]; engaged: { name: string; title: string | null; signals: string[] }[]; anonymousSignals?: number };
+
+/** Why the hand-off happened, in words. */
+const TRIGGER_LABEL: Record<string, string> = { positive_reply: "Positive reply", mqa_threshold: `Engagement reached ${CONFIG.engagement.stages.MQA}`, manual: "Handed off by hand" };
+
+/** The briefing's "why now" without the company-name prefix or a trailing "Triggered by …" (the badge says that). */
+const cleanWhy = (text: string, company: string) => text.replace(new RegExp(`^${company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\s*`, "i"), "").replace(/\s*Triggered by [^.]*\.?$/i, "").trim();
 
 const SEND_BACK_REASONS = ["Not ready yet", "Wrong person engaged", "No budget or timing", "Not a fit for us", "Already in talks elsewhere"];
 
@@ -24,7 +31,10 @@ function timer(due: Date | null, now: Date) {
 /** Hand-offs: everything a rep needs to make the first call, and a clear accept or send-back. */
 export default async function HandoffsPage() {
   const now = new Date();
-  const handoffs = await db.handoff.findMany({ orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 40, include: { account: true, owner: true } });
+  const all = await db.handoff.findMany({ orderBy: { createdAt: "desc" }, take: 60, include: { account: true, owner: true } });
+  // Waiting for a decision first (most overdue on top), then held ones; decided ones are listed compactly below.
+  const rank = (h: (typeof all)[number]) => (h.status === "open" && !h.blocked ? 0 : h.status === "open" ? 1 : 2);
+  const handoffs = [...all].sort((a, b) => rank(a) - rank(b) || (a.ackDueAt?.getTime() ?? Infinity) - (b.ackDueAt?.getTime() ?? Infinity));
   const open = handoffs.filter((h) => h.status === "open" && !h.blocked);
   const overdue = open.filter((h) => h.ackDueAt && h.ackDueAt < now);
   const decided = handoffs.filter((h) => h.status !== "open");
@@ -32,7 +42,9 @@ export default async function HandoffsPage() {
   const accepted = decided.filter((h) => h.status === "accepted");
 
   // The packet: what they read, what they said, and a suggested first call.
-  const packets = new Map(await Promise.all(handoffs.slice(0, 20).map(async (h) => {
+  const active = handoffs.filter((h) => h.status === "open");
+  const label = (sellerId: string, key: string) => { try { return sellerFor(sellerId).researchQuestions.find((q) => q.key === key)?.label ?? key.replace(/_/g, " "); } catch { return key.replace(/_/g, " "); } };
+  const packets = new Map(await Promise.all(active.slice(0, 20).map(async (h) => {
     const [visits, replies, sent, brief] = await Promise.all([
       visitSummary({ accountId: h.accountId }, now, 30),
       db.reply.findMany({ where: { contact: { accountId: h.accountId } }, orderBy: { receivedAt: "desc" }, take: 2, include: { contact: { select: { fullName: true, title: true } } } }),
@@ -53,7 +65,9 @@ export default async function HandoffsPage() {
       </div>
 
       <div className="mt-5 grid gap-4">
-        {handoffs.length === 0 ? <Card><Empty icon={<Handshake size={20} />} title="No hand-offs yet" sub="They appear when an account becomes ready for sales or someone replies positively." /></Card> : handoffs.map((h) => {
+        {handoffs.length === 0 && <Card><Empty icon={<Handshake size={20} />} title="No hand-offs yet" sub="They appear when an account becomes ready for sales or someone replies positively." /></Card>}
+        {handoffs.length > 0 && active.length === 0 && <p className="ho-none"><Check size={15} /> Nothing waiting: every hand-off has been decided.</p>}
+        {active.map((h) => {
           const b = h.briefing as unknown as Brief;
           const pk = packets.get(h.id);
           const t = h.status === "open" && !h.blocked ? timer(h.ackDueAt, now) : null;
@@ -64,7 +78,7 @@ export default async function HandoffsPage() {
                 <div className="flex items-center gap-3">
                   <Avatar name={h.account.name} id={h.account.id} size={44} />
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><Badge color="#4F46E5">{h.trigger.replace(/_/g, " ")}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><span className="ho-trig">{TRIGGER_LABEL[h.trigger] ?? h.trigger.replace(/_/g, " ")}</span></div>
                     <div className="muted mt-0.5 text-xs">To {h.owner?.name ?? "the unassigned queue"} · {ago(h.createdAt)}{h.escalatedAt ? " · escalated to a manager" : ""}</div>
                   </div>
                 </div>
@@ -77,9 +91,9 @@ export default async function HandoffsPage() {
               <div className="ho-grid">
                 <div>
                   <div className="micro mb-1">Why now</div>
-                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>{b.whyNow}</p>
+                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>{cleanWhy(b.whyNow, h.account.name)}</p>
                   {b.facts.length > 0 && <><div className="micro mb-1 mt-3">Facts (each from a source)</div><ul className="grid gap-1 text-sm secondary">{b.facts.slice(0, 4).map((f) => <li key={f.factId}>· {f.text}</li>)}</ul></>}
-                  {b.unknowns.length > 0 && <p className="muted mt-2 text-xs">Still unknown: {b.unknowns.map((u) => u.replace(/_/g, " ")).join(", ")}</p>}
+                  {b.unknowns.length > 0 && <p className="muted mt-2 text-xs">Still unknown: {b.unknowns.map((u) => label(h.account.sellerId, u)).join(", ")}</p>}
                 </div>
                 <div>
                   <div className="micro mb-1">Who engaged</div>
@@ -96,7 +110,7 @@ export default async function HandoffsPage() {
                   {pk?.replies.length ? pk.replies.map((r) => <blockquote key={r.id} className="ho-quote">“{r.body.slice(0, 160)}{r.body.length > 160 ? "…" : ""}”<cite>{r.contact.fullName} · {ago(r.receivedAt)}</cite></blockquote>) : <span className="muted text-sm">No replies yet</span>}
                   {pk && <p className="muted mt-1 text-xs">{pk.sent} email{pk.sent === 1 ? "" : "s"} sent to this account</p>}
                   <div className="micro mb-1 mt-3 flex items-center gap-1"><Phone size={12} /> Suggested first call</div>
-                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>{pk?.next ?? (b.engaged[0] ? `Call ${b.engaged[0].name}${b.engaged[0].title ? ` (${b.engaged[0].title})` : ""} and open with: ${b.whyNow}` : "Open with the why-now above.")}</p>
+                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>{pk?.next ?? (b.engaged[0] ? `Call ${b.engaged[0].name}${b.engaged[0].title ? ` (${b.engaged[0].title})` : ""} and open with: ${cleanWhy(b.whyNow, h.account.name)}` : "Open with the why-now above.")}</p>
                 </div>
               </div>
 
@@ -122,6 +136,24 @@ export default async function HandoffsPage() {
           );
         })}
       </div>
+
+      {decided.length > 0 && (
+        <section className="ho-done" aria-labelledby="ho-done-h">
+          <h2 id="ho-done-h">Decided <span className="tnum">{decided.length}</span></h2>
+          <ul>
+            {decided.map((h) => (
+              <li key={h.id}>
+                <Avatar name={h.account.name} id={h.account.id} size={28} />
+                <Link href={`/accounts/${h.accountId}`} className="ho-done-co">{h.account.name}</Link>
+                <span className="ho-done-meta">{TRIGGER_LABEL[h.trigger] ?? h.trigger.replace(/_/g, " ")} · to {h.owner?.name ?? "unassigned"}</span>
+                {h.status === "accepted"
+                  ? <span className="ho-state ok"><Check size={13} /> Accepted{h.decidedBy ? ` by ${h.decidedBy.split("@")[0]}` : ""} · {ago(h.decidedAt ?? h.createdAt)}</span>
+                  : <span className="ho-state back"><Undo2 size={13} /> Sent back: {h.decisionReason ?? "no reason"} · {ago(h.decidedAt ?? h.createdAt)}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
