@@ -5,8 +5,9 @@ import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { OppMover } from "@/components/opp-mover";
-import { Avatar, Badge, Kpi, PageHeader, date, money } from "@/components/ui";
+import { Avatar, Kpi, PageHeader, date, money } from "@/components/ui";
 import { createOpportunityAction } from "../../actions";
+import { LIKELIHOOD, attention } from "@/lib/crm/opportunities";
 
 export const metadata = { title: "CRM · Opportunities" };
 
@@ -31,6 +32,9 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
   const lost = opps.filter((o) => o.stage === "lost");
   const abm = open.filter((o) => o.source === "abm");
   const winRate = won.length + lost.length ? Math.round((won.length / (won.length + lost.length)) * 100) : 0;
+  const now = new Date();
+  const weighted = open.reduce((a, o) => a + o.amountUsd * (LIKELIHOOD[o.stage] ?? 0), 0);
+  const needs = open.filter((o) => attention(o, now)).length;
 
   return (
     <div className="page-enter">
@@ -55,41 +59,44 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
         }
       />
       <div className="stagger mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Open pipeline" value={money(open.reduce((a, o) => a + o.amountUsd, 0))} meta={`${open.length} open deals`} />
+        <Kpi label="Open pipeline" value={money(open.reduce((a, o) => a + o.amountUsd, 0))} meta={`${open.length} open · ${money(Math.round(weighted))} weighted${needs ? ` · ${needs} need attention` : ""}`} />
         <Kpi label="ABM-sourced" value={money(abm.reduce((a, o) => a + o.amountUsd, 0))} accent="#7C3AED" meta={`${abm.length} deals from the program`} />
         <Kpi label="Won" value={money(won.reduce((a, o) => a + o.amountUsd, 0))} accent="#10B981" meta={`${won.length} deals`} />
         <Kpi label="Win rate" value={`${winRate}%`} accent="#0EA5E9" meta={`${won.length} won · ${lost.length} lost`} />
       </div>
       {account && <div className="mb-3 text-sm secondary">Filtered to one account · <Link href="/crm/opportunities" className="underline">show all</Link></div>}
       <div className="table-wrap pb-2">
-        <div className="grid min-w-[1100px] grid-cols-6 gap-3">
+        <div className="op-board">
           {COLUMNS.map((col) => {
             const items = opps.filter((o) => o.stage === col.id);
+            const flagged = items.filter((o) => attention(o, now)).length;
             return (
-              <div key={col.id} className="min-w-0 rounded-2xl p-2.5" style={{ background: "var(--surface-track)" }}>
-                <div className="mb-2.5 flex items-center justify-between px-1.5">
-                  <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--text-primary)" }}><span className="h-2 w-2 rounded-full" style={{ background: col.color }} />{col.label}</span>
-                  <span className="muted tnum text-xs">{items.length} · {money(items.reduce((a, o) => a + o.amountUsd, 0))}</span>
+              <div key={col.id} className="op-col">
+                <div className="op-col-h">
+                  <span className="op-col-t"><i style={{ background: col.color }} />{col.label}</span>
+                  <span className="op-col-n tnum">{items.length} · {money(items.reduce((a, o) => a + o.amountUsd, 0))}{flagged > 0 && <b title={`${flagged} need attention`}>{flagged} need attention</b>}</span>
                 </div>
                 <div className="grid gap-2">
-                  {items.map((o) => (
-                    <div key={o.id} className="glass-card min-w-0 overflow-hidden rounded-2xl p-3" style={{ borderRadius: "1rem" }}>
-                      <div className="flex items-start gap-2">
-                        <Avatar name={o.account.name} id={o.account.id} size={26} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[0.82rem] font-semibold" style={{ color: "var(--text-primary)" }}>{o.name}</div>
-                          <Link href={peekHref("/crm/opportunities", keep, "a", o.accountId)} scroll={false} className="muted block truncate text-xs hover:underline">{o.account.name}</Link>
+                  {items.length === 0 && <p className="op-empty">No deals</p>}
+                  {items.map((o) => {
+                    const warn = attention(o, now);
+                    return (
+                      <article key={o.id} className={`op-card${warn ? " warn" : ""}`}>
+                        <div className="op-top">
+                          <Avatar name={o.account.name} id={o.account.id} size={24} />
+                          <div className="min-w-0 flex-1">
+                            <h3 title={o.name}>{o.name}</h3>
+                            <Link href={peekHref("/crm/opportunities", keep, "a", o.accountId)} scroll={false} className="op-acct">{o.account.name}</Link>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="display-num tnum text-lg">{money(o.amountUsd)}</span>
-                        <Badge color={o.source === "abm" ? "#7C3AED" : "#64748B"}>{o.source}</Badge>
-                      </div>
-                      <div className="muted mt-1 text-[0.7rem]">{o.owner?.name ?? "No owner"} · {o.closedAt ? `closed ${date(o.closedAt)}` : o.closeDate ? `close ${date(o.closeDate)}` : "no close date"}</div>
-                      {o.lostReason && <div className="mt-1 text-[0.7rem] text-[#B45309]">{o.lostReason}</div>}
-                      {!["won", "lost"].includes(o.stage) && <OppMover id={o.id} stage={o.stage} />}
-                    </div>
-                  ))}
+                        <div className="op-amt"><b className="tnum">{money(o.amountUsd)}</b>{o.source !== "abm" && <span className="op-src">{o.source}</span>}</div>
+                        <p className="op-meta">{o.owner?.name ?? "No owner"} · {o.closedAt ? `closed ${date(o.closedAt)}` : o.closeDate ? `close ${date(o.closeDate)}` : "no close date"}</p>
+                        {warn && <p className="op-warn">{warn}</p>}
+                        {o.lostReason && <p className="op-lost">{o.lostReason}</p>}
+                        {!["won", "lost"].includes(o.stage) && <OppMover id={o.id} stage={o.stage} />}
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
             );
