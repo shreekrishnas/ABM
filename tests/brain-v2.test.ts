@@ -62,7 +62,8 @@ describe("seller packs", () => {
 
   it("no seller-specific words in core code", () => {
     const root = path.resolve(__dirname, "../src/lib");
-    const allowed = /(^|\/)(seller\/|seed\.ts$|adapters\/mock\.ts$|import\/fields\.ts$|pipeline\/normalize\.ts$)/;
+    // The technology catalog lists market products by name (SAP S/4HANA, Informatica MDM): data, not a seller.
+    const allowed = /(^|\/)(seller\/|seed\.ts$|adapters\/mock\.ts$|import\/fields\.ts$|pipeline\/normalize\.ts$|profile\/catalog\.ts$)/;
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const f of readdirSync(dir)) {

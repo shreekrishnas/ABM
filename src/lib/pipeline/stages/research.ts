@@ -255,6 +255,14 @@ export async function s06AccountResearch(account: Account, ctx: RunContext, opts
       const more = await researchKeys(account, ctx, unanswered, "followup");
       await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.targeted_followup", outcome: "info", reason: `Follow-up on ${unanswered.map((q) => q.key).join(", ")}: ${more.size} answered` });
     }
+    // Company profile (financials, funding, technologies, board). Parts still fresh are skipped;
+    // a failure here is logged and never stops the run.
+    try {
+      const { researchCompanyProfile } = await import("@/lib/profile/run");
+      await researchCompanyProfile(account, ctx);
+    } catch (e) {
+      await logEvent(ctx, { accountId: account.id, stage: S, step: "company_profile.error", outcome: "info", reason: `Company profile not completed: ${e instanceof Error ? e.message.slice(0, 160) : String(e)}` });
+    }
   }
   return account;
 }

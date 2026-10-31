@@ -40,6 +40,7 @@ import type {
   Validator,
 } from "./types";
 import { inferFunction } from "@/lib/pipeline/normalize";
+import type { ProfileItems, ProfileKind } from "@/lib/profile/types";
 import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
 
@@ -238,6 +239,7 @@ class MockResearch implements ResearchSource {
       const m = MARKET_BY_NAME.get(companyName.toLowerCase())!;
       return [{ url: `https://companies.example.org/${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news", publishedAt: daysAgo(30), title: `About ${companyName}`, text: `${companyName} is a ${m.industry} company headquartered in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees.` }];
     }
+    if (key.startsWith("profile:")) return mockProfilePages(key.slice(8), domain, companyName, h);
     if (key === "lookalike_profile") {
       // What the company does: its own site and a directory both describe it (two sources).
       const m = MARKET_BY_NAME.get(companyName.toLowerCase());
@@ -372,6 +374,10 @@ class MockLLM implements LLM {
 
   insights(stats: BrainStats) {
     return Promise.resolve(ruleInsights(stats));
+  }
+
+  async extractProfile<K extends ProfileKind>(kind: K, pages: ResearchPage[]): Promise<ProfileItems[K]> {
+    return mockExtractProfile(kind, pages) as ProfileItems[K];
   }
 
   async extractFirmographics(pages: ResearchPage[]) {
@@ -650,3 +656,70 @@ class MockValidator implements Validator {
 }
 
 export type MockAdapters = ReturnType<typeof createMockAdapters>;
+
+// ── Company profile (sample data in the formats real sources use) ──
+
+/**
+ * Sample profile pages. Every company gets two years of results (one on its own investor page,
+ * one in the press, so the latest year is corroborated), a job post naming its ERP and CRM, and a
+ * board page. Companies whose domain hash is divisible by 3 also announced a funding round.
+ */
+export function mockProfilePages(kind: string, domain: string, company: string, h: number): ResearchPage[] {
+  const slug = domain || company.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const rev = 2000 + (h % 4000);
+  const prev = Math.round(rev * 0.9);
+  const profit = Math.round(rev * 0.08);
+  if (kind === "financials") {
+    const fy = `${company} reported revenue from operations of ₹${rev.toLocaleString("en-IN")} crore for FY2024-25, with net profit of ₹${profit.toLocaleString("en-IN")} crore.`;
+    const fyPrev = `For FY2023-24, ${company} posted revenue of ₹${prev.toLocaleString("en-IN")} crore and a net profit of ₹${Math.round(prev * 0.07).toLocaleString("en-IN")} crore.`;
+    return [
+      { url: `https://${slug}/investors/annual-results-fy25`, sourceType: "official", publishedAt: daysAgo(120), title: `${company} annual results FY2024-25`, text: `${fy} ${fyPrev}` },
+      { url: `https://businessdaily.example.com/${slug}-fy25-results`, sourceType: "news", publishedAt: daysAgo(118), title: `${company} FY25 results`, text: fy },
+    ];
+  }
+  if (kind === "funding") {
+    if (h % 3 !== 0) return [];
+    const amt = 20 + (h % 60);
+    return [{ url: `https://startupwire.example.com/${slug}-series-b`, sourceType: "news", publishedAt: daysAgo(200), title: `${company} raises Series B`, text: `${company} has raised $${amt} million in a Series B round led by Peak Growth Partners, with participation from Northstar Ventures.` }];
+  }
+  if (kind === "tech_stack") {
+    return [{ url: `https://careers.example.com/${slug}/sap-lead`, sourceType: "careers", publishedAt: daysAgo(30), title: `${company} hiring SAP S/4HANA functional lead`, text: `${company} is hiring an SAP S/4HANA functional lead to support its migration from SAP ECC. Experience with Salesforce Sales Cloud integration is a plus.` }];
+  }
+  if (kind === "board") {
+    return [{ url: `https://${slug}/about/board-of-directors`, sourceType: "official", publishedAt: daysAgo(60), title: `${company} board of directors`, text: `Meera Iyer is an Independent Director of ${company}. Rajiv Menon is the Chairman and Managing Director of ${company}. Dr. Anil Kapoor serves as a Strategic Adviser to ${company}.` }];
+  }
+  return [];
+}
+
+/** Reads the sample sentences above the way the AI reader would (numbers copied as written). */
+export function mockExtractProfile(kind: ProfileKind, pages: ResearchPage[]): ProfileItems[ProfileKind] {
+  const num = (x: string) => Number(x.replace(/,/g, ""));
+  const out: unknown[] = [];
+  pages.forEach((p, page) => {
+    const sentences = p.text.split(/(?<=\.)\s+/);
+    for (const q of sentences) {
+      if (kind === "financials") {
+        const m = q.match(/(FY\d{4}-\d{2}).*?revenue[^₹]*₹([\d,]+) crore.*?net profit of ₹([\d,]+) crore/i) ?? q.match(/revenue[^₹]*₹([\d,]+) crore for (FY\d{4}-\d{2}), with net profit of ₹([\d,]+) crore/i);
+        if (m) {
+          const [fy, r, n] = /^FY/.test(m[1]) ? [m[1], m[2], m[3]] : [m[2], m[1], m[3]];
+          out.push({ page, fiscalYear: fy, currency: "INR", unit: "crore", revenue: num(r), netProfit: num(n), ebitda: null, consolidated: null, quote: q });
+        }
+      } else if (kind === "funding") {
+        const m = q.match(/raised \$(\d+) million in a (Series [A-Z]) round led by ([^,]+), with participation from ([^.]+)\./);
+        if (m) out.push({ page, round: m[2], amount: Number(m[1]), currency: "USD", unit: "million", announced: null, investors: [m[3], m[4]], leadInvestors: [m[3]], quote: q });
+      } else if (kind === "tech_stack") {
+        if (/SAP S\/4HANA/.test(q)) out.push({ page, tool: "SAP S/4HANA", context: "migrating_to", quote: q });
+        if (/from SAP ECC/.test(q)) out.push({ page, tool: "SAP ECC", context: "migrating_from", quote: q });
+        if (/Salesforce Sales Cloud/.test(q)) out.push({ page, tool: "Salesforce Sales Cloud", context: "hiring_for", quote: q });
+      } else if (kind === "board") {
+        const m = q.match(/^((?:Dr\. )?[A-Z][a-z]+ [A-Z][a-z]+) (?:is an?|is the|serves as an?) ([A-Z][A-Za-z ]+?) (?:of|to) /);
+        if (m) {
+          const role = m[2].trim();
+          const type = /independent/i.test(role) ? "independent_director" : /adviser|advisor/i.test(role) ? "adviser" : /managing|executive|whole-time/i.test(role) ? "executive_director" : "board_member";
+          out.push({ page, name: m[1], role, type, quote: q });
+        }
+      }
+    }
+  });
+  return out as ProfileItems[ProfileKind];
+}

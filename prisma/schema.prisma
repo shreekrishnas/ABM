@@ -53,6 +53,14 @@ enum Priority {
   low
 }
 
+enum StakeholderType {
+  executive
+  board_member
+  independent_director
+  adviser
+  investor
+}
+
 enum BuyingRole {
   decision_maker
   champion
@@ -289,11 +297,24 @@ model Account {
   queuedFromStage     Int?
   lastImportBatchId   String?
 
-  ownerId      String?
-  owner        User?    @relation("AccountOwner", fields: [ownerId], references: [id])
-  mergedIntoId String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  ownerId          String?
+  owner            User?     @relation("AccountOwner", fields: [ownerId], references: [id])
+  /// Who brought the company in (email or "system"), how (csv | lookalike | discovery | website_visitor | market_scan | manual | api) and from what (file name, reference company, search brief).
+  addedBy          String?
+  addedVia         String?
+  originDetail     String?
+  /// Who approved it into the pipeline (lookalike, discovery and market suggestions).
+  approvedBy       String?
+  /// Company profile (financials, funding, technologies, board): when it was last researched and the health reading.
+  profileUpdatedAt DateTime?
+  /// profitable_growing | profitable | breakeven | loss_making | declining | unknown, with the numbers behind it.
+  financialHealth  String?
+  financialNote    String?
+  /// How the company goes to market, from research: a key from the seller's business models, with the evidence behind it.
+  businessModel    String?
+  mergedIntoId     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   contacts      Contact[]
   fieldStates   FieldState[]
@@ -314,6 +335,9 @@ model Account {
   handoffs      Handoff[]
   searches      ResearchQuery[]
   briefs        AccountBrief[]
+  financials    CompanyFinancial[]
+  fundingRounds FundingRound[]
+  techUses      TechUse[]
 
   @@index([stage])
   @@index([tier])
@@ -344,6 +368,12 @@ model Contact {
   personNotes        String?
   seniority          String? // c_level, vp, director, manager, ic
   buyingRole         BuyingRole        @default(unknown)
+  /// What kind of stakeholder: an employee (executive), or someone outside the org chart who still shapes the decision.
+  stakeholderType    StakeholderType   @default(executive)
+  /// Why this person matters to the decision (for influencers, board members and advisers), with the fact it rests on.
+  influenceReason    String?
+  /// How the person was found: import | provider | research | influencer_search | board_research
+  discoveredBy       String?
   /// Company contact plan: order in the buying group, when this person's outreach may start, and why.
   planOrder          Int?
   planStartAt        DateTime?
@@ -832,6 +862,8 @@ model ImportBatch {
   mapping        Json?
   toProcess      Int            @default(0)
   processed      Int            @default(0)
+  /// Who uploaded it.
+  createdBy      String?
   createdAt      DateTime       @default(now())
   finishedAt     DateTime?
 
@@ -1016,36 +1048,36 @@ model MarketEvent {
 
 /// A company the brain suggests adding, with the evidence behind it.
 model ProspectSuggestion {
-  id           String    @id @default(cuid())
-  sellerId     String
+  id             String    @id @default(cuid())
+  sellerId       String
   /// Where it came from: market (news scan) | lookalike (similar to a company you entered) | website_visitor (Apollo or tracking)
-  origin       String    @default("market")
+  origin         String    @default("market")
   /// For lookalikes: the company they resemble.
-  seed         String?
+  seed           String?
   /// For lookalikes: the seed company's profile { industry, employees, country, keywords }, to show which traits match.
-  seedProfile  Json?
-  name         String
-  nameKey      String
-  domain       String?
-  industry     String?
-  bucket       String
-  country      String?
-  employees    Int?
-  score        Int
-  level        String
-  whyNow       String
-  families     String[]  @default([])
-  sources      Json
+  seedProfile    Json?
+  name           String
+  nameKey        String
+  domain         String?
+  industry       String?
+  bucket         String
+  country        String?
+  employees      Int?
+  score          Int
+  level          String
+  whyNow         String
+  families       String[]  @default([])
+  sources        Json
   /// new | added | dismissed | excluded | needs_check (size or country unknown) | watching (fits, but fewer than two independent signals)
-  status       String    @default("new")
+  status         String    @default("new")
   /// When a person approved or ignored it; new evidence after this date can resurface an ignored company.
-  decidedAt    DateTime?
+  decidedAt      DateTime?
   /// Bumped each time a pending suggestion is revised with stronger evidence.
-  version      Int       @default(1)
+  version        Int       @default(1)
   /// Set when an ignored company came back on genuinely new evidence.
-  resurfacedAt DateTime?
-  reason       String?
-  accountId    String?
+  resurfacedAt   DateTime?
+  reason         String?
+  accountId      String?
   /// Lookalikes: how closely it matches the company it was found from, 0–100 (AI investigation).
   fitScore       Int?
   /// Lookalikes: how ready it looks to buy: ready | emerging | early | none.
@@ -1064,11 +1096,13 @@ model ProspectSuggestion {
   researchedAt   DateTime?
   /// Who approved or rejected it.
   decidedBy      String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  /// Who started the search that found it (lookalike or discovery).
+  requestedBy    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  @@index([sellerId, researchStatus])
   @@unique([sellerId, nameKey])
+  @@index([sellerId, researchStatus])
   @@index([sellerId, status, score])
 }
 
@@ -1178,14 +1212,14 @@ model WebVisit {
 
 /// A client workspace Trilliant runs ABM for. Its id is the seller pack id (e.g. "manch").
 model Client {
-  id        String       @id
-  name      String
+  id               String       @id
+  name             String
   /// Logo image URL (or a favicon worked out from the website). Shown instead of the initials.
-  logoUrl   String?
+  logoUrl          String?
   /// Monthly spending cap in dollars (search, AI and lookups). Empty = no cap.
   monthlyBudgetUsd Int?
-  createdAt DateTime     @default(now())
-  users     UserClient[]
+  createdAt        DateTime     @default(now())
+  users            UserClient[]
 }
 
 /// Which user works on which client. A user sees only the clients assigned here.
@@ -1318,4 +1352,108 @@ model SearchCache {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// One fiscal year of a company's financials. Web figures need a quote from the page; filings and
+/// licensed providers outrank the web. Amounts are absolute numbers in `currency` (no lakh/crore units).
+model CompanyFinancial {
+  id           String      @id @default(cuid())
+  accountId    String
+  account      Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// "FY2025" (year the fiscal year ends) — the key that groups reports of the same year.
+  fiscalYear   String
+  periodEnd    DateTime?
+  currency     String
+  revenue      Float?
+  netProfit    Float?
+  ebitda       Float?
+  totalAssets  Float?
+  totalDebt    Float?
+  /// Converted with the fixed rates in config (approximate; for comparison only).
+  revenueUsd   Float?
+  netProfitUsd Float?
+  /// web | filing | provider. filing = a legally obtained record a person uploaded; provider = licensed data feed.
+  source       String
+  provider     String?
+  sourceUrls   String[]    @default([])
+  quotes       String[]    @default([])
+  publisher    String?
+  /// verified = official source, filing, provider, or 2+ independent sites agreeing; probable = one site.
+  status       FieldStatus @default(probable)
+  reports      Int         @default(1)
+  addedBy      String?
+  note         String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([accountId, fiscalYear, source])
+  @@index([accountId])
+}
+
+/// A funding round (startups and private companies), from announcements with a quote, or a provider.
+model FundingRound {
+  id            String      @id @default(cuid())
+  accountId     String
+  account       Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// pre_seed | seed | series_a … series_h | growth | private_equity | debt | ipo | grant | undisclosed
+  stage         String
+  amount        Float?
+  currency      String?
+  amountUsd     Float?
+  announcedAt   DateTime?
+  investors     String[]    @default([])
+  leadInvestors String[]    @default([])
+  sourceUrls    String[]    @default([])
+  quotes        String[]    @default([])
+  status        FieldStatus @default(probable)
+  reports       Int         @default(1)
+  source        String      @default("web")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([accountId, stage, announcedAt])
+  @@index([accountId])
+}
+
+/// A technology the company uses, with every way we know it: detected on its website, stated in a
+/// job post or case study, reported by a tech-lookup provider, or given in an import.
+model TechUse {
+  id           String   @id @default(cuid())
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// Canonical product name from the catalog ("Salesforce Sales Cloud", "SAP S/4HANA").
+  name         String
+  vendor       String?
+  /// erp | crm | marketing_automation | mdm | workflow | kyc_esign | analytics | ecommerce | cms | cloud | hr | collaboration | security | customer_support | other
+  category     String
+  /// website | job_post | case_study | press | provider | import
+  sources      String[] @default([])
+  evidenceUrls String[] @default([])
+  /// What the detection rests on: the script or tag found, or the sentence quoted.
+  detail       String?
+  firstSeen    DateTime @default(now())
+  lastSeen     DateTime @default(now())
+
+  @@unique([accountId, name])
+  @@index([accountId, category])
+}
+
+/// A natural-language company search ("Indian pharma makers with 5,000+ staff moving to SAP").
+/// The AI turns the brief into criteria a person can edit; candidates become suggestions to approve.
+model DiscoverySearch {
+  id         String   @id @default(cuid())
+  sellerId   String
+  brief      String
+  /// { industries, countries, minEmployees, maxEmployees, businessModels, mustHave, niceToHave, exclude, funding, technologies, signals }
+  criteria   Json
+  /// draft (criteria shown for confirmation) | searching | done | failed
+  status     String   @default("draft")
+  candidates Int      @default(0)
+  queries    Json?
+  error      String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([sellerId, createdAt])
 }

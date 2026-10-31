@@ -189,6 +189,8 @@ export interface LLM {
   critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
+  /** Company profile facts (financials, funding, technologies, board) from pages, each with an exact quote. */
+  extractProfile<K extends import("@/lib/profile/types").ProfileKind>(kind: K, pages: ResearchPage[], company: { name: string; domain: string | null }): Promise<import("@/lib/profile/types").ProfileItems[K]>;
   /** Industry, employee count and country from company pages; `page` = index of the page it came from. */
   extractFirmographics(pages: ResearchPage[], company: string): Promise<{ industry: string | null; employees: number | null; country: string | null; page: number } | null>;
   /** Market scan: companies named in news pages with a buying event. `quote` must be exact words from the page. */

@@ -22,7 +22,8 @@ export async function s08BuyingGroup(account: Account, ctx: RunContext): Promise
   const owner = await ownerFunctionOf(account.id);
   await logEvent(ctx, { accountId: account.id, stage: S, step: "buying_group.affected_function", outcome: owner ? "pass" : "info", reason: owner ? `Owning function: ${owner}` : "Ownership unclear — no contacts will be guessed" });
 
-  const live = () => db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, state: { notIn: ["suppressed", "do_not_contact"] } } });
+  // Board members, advisers and investors shape the decision but are never emailed by a sequence.
+  const live = () => db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, stakeholderType: "executive", state: { notIn: ["suppressed", "do_not_contact"] } } });
   let contacts = await live();
 
   for (const c of contacts) {

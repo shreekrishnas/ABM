@@ -25,6 +25,10 @@ import { BuyingGroupPlan } from "./buying-group";
 import { TimelineCard } from "./timeline-card";
 import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
+import { ProfileCard } from "./profile-card";
+
+// "Refresh" on the company profile researches in the request (a few searches and AI reads).
+export const maxDuration = 300;
 
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await ensureSellerPacks();
@@ -168,6 +172,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
 
       {tab === "overview" && <div className="mb-5"><TimelineCard accountId={a.id} /></div>}
+      {tab === "overview" && <div className="mb-5"><ProfileCard accountId={a.id} /></div>}
       {tab === "overview" && (
         <div className="grid items-start gap-5 xl:grid-cols-3">
           <div className="grid content-start gap-5 xl:col-span-2">

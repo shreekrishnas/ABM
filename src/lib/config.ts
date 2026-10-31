@@ -110,6 +110,27 @@ export const CONFIG = {
     llmBrain: 0.004,
     /** Approximate cost of one web search per engine (paid tiers). */
     search: { exa: 0.01, tavily: 0.008, serp: 0.015, mock: 0 } as Record<string, number>,
+    /** One tech-lookup provider call (BuiltWith domain lookup), estimated per call. */
+    techLookup: 0.05,
+    /** One licensed company-financials lookup (government filings data provider), estimated per call. */
+    financialsLookup: 0.25,
+  },
+
+  profile: {
+    /** Which parts of the company profile each tier gets researched (website technology detection is free and runs for all). */
+    byTier: {
+      T1: ["financials", "funding", "tech_stack", "board"],
+      T2: ["financials", "funding", "tech_stack", "board"],
+      T3: ["financials", "tech_stack"],
+    } as Record<string, readonly string[]>,
+    /** A part researched within this many days is not searched again (results are yearly; boards change slowly). */
+    refreshDays: { financials: 120, funding: 90, tech_stack: 90, board: 180, website: 30 } as Record<string, number>,
+    /** Two web reports of the same year's revenue agree when within this share of each other. */
+    agreeWithin: 0.02,
+    /** Revenue per employee outside this range (USD) means the unit is probably misread: the figure is kept as probable with a warning. */
+    revenuePerEmployeeUsd: { min: 2_000, max: 5_000_000 },
+    /** Sites whose figures count as official (exchanges, regulators, registries) besides the company's own domain. */
+    officialHosts: ["bseindia.com", "nseindia.com", "mca.gov.in", "sebi.gov.in", "sec.gov", "companieshouse.gov.uk", "londonstockexchange.com", "sgx.com", "asx.com.au", "hkexnews.hk", "annualreports.com"],
   },
 
   brain: {
