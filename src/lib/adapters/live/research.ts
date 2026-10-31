@@ -5,6 +5,7 @@ import type { ResearchPage, ResearchPass, ResearchSource, SearchHint } from "../
 import { fetchJson, parseLooseDate } from "./http";
 import { seller } from "@/lib/seller";
 import { readPage } from "./reader";
+import { cachedPages, searchKey, storePages } from "@/lib/research/search-cache";
 
 const DAY = 86_400_000;
 
@@ -119,9 +120,18 @@ export class WebResearch implements ResearchSource {
   /** Exa's "find similar": pages of companies whose sites resemble this one (lookalike discovery). */
   async findSimilar(url: string): Promise<ResearchPage[]> {
     if (!this.keys.exa) return [];
+    const ck = searchKey(["similar", url]);
+    const hit = await cachedPages(ck);
+    if (hit) return hit;
+    const pages = await this.findSimilarLive(url);
+    await storePages(ck, pages);
+    return pages;
+  }
+
+  private async findSimilarLive(url: string): Promise<ResearchPage[]> {
     const res = await fetchJson<{ results?: ExaResult[] }>("Exa", "https://api.exa.ai/findSimilar", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": this.keys.exa },
+      headers: { "content-type": "application/json", "x-api-key": this.keys.exa ?? "" },
       body: JSON.stringify({ url, numResults: 15, excludeSourceDomain: true, contents: { text: { maxCharacters: 1500 } } }),
     });
     const now = new Date();
@@ -129,6 +139,16 @@ export class WebResearch implements ResearchSource {
   }
 
   async search(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
+    // The same search within 48 hours is served from the cache (no engine is queried, so nothing is charged).
+    const ck = searchKey(["search", domain, companyName, key, pass, hint.query, hint.engine, hint.breadth]);
+    const hit = await cachedPages(ck);
+    if (hit) return hit;
+    const pages = await this.searchLive(domain, companyName, key, pass, hint);
+    await storePages(ck, pages);
+    return pages;
+  }
+
+  private async searchLive(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
     const base = queryFor(key, companyName);
     const q = hint.query?.trim() || base.q;
     const { days, news } = base;

@@ -10,6 +10,8 @@ import { AppNav } from "@/components/shell/AppNav";
 import { Shell } from "@/components/shell/Shell";
 import { getMe, signedOutOrRemoved } from "@/lib/me";
 import { db } from "@/lib/db";
+import { after } from "next/server";
+import { requestOrigin } from "@/lib/action-utils";
 import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { QuickTask } from "@/components/shell/QuickTask";
@@ -34,6 +36,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
   const me = await getMe();
+  // While people use the app, restart a background queue that has stopped (checked at most every 5 minutes).
+  if (me) {
+    const origin = await requestOrigin().catch(() => null);
+    after(async () => {
+      const { watchQueue } = await import("@/lib/queue/watchdog");
+      await watchQueue(origin);
+    });
+  }
   const scope = await resolveScope();
   const sp = await activeSeller();
   const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);

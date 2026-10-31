@@ -23,6 +23,7 @@ import { ensureSellerPacks, loadSeller, sellerContext, withSeller } from "@/lib/
 import { isTriggerKey } from "@/lib/research/keys";
 import { evidenceQuality } from "./gates";
 import { liveEvidence } from "./stages/research";
+import { recordError } from "@/lib/admin/errors";
 import { validatedConclusions } from "@/lib/brain/investigate";
 
 type StageFn = (a: Account, ctx: RunContext) => Promise<Account>;
@@ -199,6 +200,7 @@ async function runWithSeller(accountId: string, opts: { fromStage?: number; reas
       return { accountId, status: "blocked", reachedStage: stage, reason: e.message, runId: ctx.runId };
     }
     const msg = e instanceof Error ? e.message : String(e);
+    await recordError(`pipeline stage ${stage}`, e, `company ${accountId}`);
     const done = Math.max(stage - 1, 1);
     const tries = account?.retryCount ?? 0;
     if (isTransient(msg) && tries < RETRY.max) {

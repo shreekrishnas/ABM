@@ -19,9 +19,12 @@ import { db } from "@/lib/db";
 import { seller, withSeller, type SellerProfile } from "@/lib/seller";
 import { quoteGate, mustHaveGate } from "@/lib/pipeline/gates";
 import { companyNameKey, normalizeDomain } from "@/lib/pipeline/normalize";
-import { logEvent, newContext, type RunContext } from "@/lib/pipeline/context";
+import { logEvent, newContext, recordAccountCost, type RunContext } from "@/lib/pipeline/context";
+import { CONFIG } from "@/lib/config";
+import { MonthlyBudgetExceeded, ensureMonthlyBudget } from "@/lib/budget";
 import type { LookalikeDimension, LookalikeKnownFact, LookalikeProfile, LookalikeQuestion, ResearchPage } from "@/lib/adapters/types";
 import { targetCountries } from "./scan";
+import { recordError } from "@/lib/admin/errors";
 import { firmographicsFor, heldKeys, saveSuggestion, type Candidate } from "./qualify";
 
 /** How much each dimension counts toward the fit score. */
@@ -31,6 +34,33 @@ export const DIMENSION_LABEL: Record<LookalikeDimension, string> = {
 };
 /** Candidates found per search before investigation (the best are investigated). */
 const FOUND_LIMIT = 25;
+
+/**
+ * Lookalike research costs, charged to the account as a whole (no company exists yet).
+ * Searches are counted per engine actually queried; AI steps at their usual rates.
+ */
+export function costMeter(sellerId: string) {
+  const searches: string[] = [];
+  let llmUsd = 0;
+  return {
+    onAttempt: (a: { engine: string; error?: string }) => {
+      if (!a.error) searches.push(a.engine);
+    },
+    search: (engine: string) => searches.push(engine),
+    llm: (usd: number = CONFIG.costsUsd.llmCheap) => {
+      llmUsd += usd;
+    },
+    /** Write what was used since the last flush. */
+    async flush(what: string) {
+      const searchUsd = searches.reduce((t, e) => t + (CONFIG.costsUsd.search[e] ?? 0.01), 0);
+      const n = searches.length;
+      searches.length = 0;
+      if (searchUsd > 0) await recordAccountCost(sellerId, "search", searchUsd, `${what}: ${n} search${n === 1 ? "" : "es"}`);
+      if (llmUsd > 0) await recordAccountCost(sellerId, "llm", llmUsd, `${what}: AI`);
+      llmUsd = 0;
+    },
+  };
+}
 
 /** This client's lookalike criteria, with defaults. */
 export function lookalikeCriteria(p: SellerProfile = seller()) {
@@ -84,15 +114,19 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
   const offering = offeringOf(p);
   const mode = ctx.adapters.research.live ? "live" : "mock";
   const parsed = parseSeed(input);
+  // A search costs a few cents; stop before starting if the account's monthly cap is reached.
+  await ensureMonthlyBudget(p.id, 0.05);
+  const m = costMeter(p.id);
   const seedName = parsed.name;
 
   // 1. Profile the reference company.
   let seedPages: ResearchPage[] = [];
   try {
-    seedPages = await ctx.adapters.research.search(parsed.domain ?? "", seedName, "lookalike_profile", "main", { query: `${parsed.domain ?? seedName} company overview what it does operations customers`, engine: "exa" });
+    seedPages = await ctx.adapters.research.search(parsed.domain ?? "", seedName, "lookalike_profile", "main", { query: `${parsed.domain ?? seedName} company overview what it does operations customers`, engine: "exa", onAttempt: m.onAttempt });
   } catch {
     seedPages = [];
   }
+  if (seedPages.length) m.llm();
   const profile = (await ctx.adapters.llm.profileCompany(seedPages, seedName, offering).catch(() => null)) ?? null;
   const seedFirmo = await firmographicsFor(ctx, { name: seedName, domain: parsed.domain }, { apollo: false });
   const seedRecord: SeedRecord = { industry: profile?.industry ?? seedFirmo.industry, employees: seedFirmo.employees, country: seedFirmo.country, keywords: [], ...(profile ? { profile } : {}) };
@@ -110,11 +144,11 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
     found.push(c);
   };
   const batches: { label: string; pages: () => Promise<ResearchPage[]> }[] = [];
-  if (parsed.domain && ctx.adapters.research.findSimilar) batches.push({ label: "Exa similar sites", pages: () => ctx.adapters.research.findSimilar!(`https://${parsed.domain}`) });
-  if (profile) batches.push({ label: "Exa business model", pages: () => ctx.adapters.research.search("", "", "lookalike_discover", "main", { query: `companies that ${profile.businessModel}; ${profile.operations}${profile.industry ? `; ${profile.industry}` : ""}${country ? ` in ${country}` : ""}`, engine: "exa" }) });
-  batches.push({ label: "Tavily peers", pages: () => ctx.adapters.research.search("", seedName, "lookalike_discover", "followup", { query: `"${seedName}" competitors OR alternatives OR "companies like"`, engine: "tavily" }) });
+  if (parsed.domain && ctx.adapters.research.findSimilar) batches.push({ label: "Exa similar sites", pages: () => (m.search("exa"), ctx.adapters.research.findSimilar!(`https://${parsed.domain}`)) });
+  if (profile) batches.push({ label: "Exa business model", pages: () => ctx.adapters.research.search("", "", "lookalike_discover", "main", { query: `companies that ${profile.businessModel}; ${profile.operations}${profile.industry ? `; ${profile.industry}` : ""}${country ? ` in ${country}` : ""}`, engine: "exa", onAttempt: m.onAttempt }) });
+  batches.push({ label: "Tavily peers", pages: () => ctx.adapters.research.search("", seedName, "lookalike_discover", "followup", { query: `"${seedName}" competitors OR alternatives OR "companies like"`, engine: "tavily", onAttempt: m.onAttempt }) });
   const industry = seedRecord.industry;
-  if (industry) batches.push({ label: "Tavily industry", pages: () => ctx.adapters.research.search("", "", "lookalike_discover", "followup", { query: `leading ${industry} companies ${country}`.trim(), engine: "tavily" }) });
+  if (industry) batches.push({ label: "Tavily industry", pages: () => ctx.adapters.research.search("", "", "lookalike_discover", "followup", { query: `leading ${industry} companies ${country}`.trim(), engine: "tavily", onAttempt: m.onAttempt }) });
   for (const b of batches) {
     if (found.length >= FOUND_LIMIT * 2) break;
     let pages: ResearchPage[] = [];
@@ -124,6 +158,7 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
       await logEvent(ctx, { stage: 0, step: "lookalike.discover", outcome: "error", reason: `${b.label}: ${e instanceof Error ? e.message.slice(0, 160) : "failed"}` });
       continue;
     }
+    if (pages.length) m.llm();
     const items = await ctx.adapters.llm.extractSimilarCompanies(pages, { name: seedName, industry }).catch(() => []);
     for (const it of items) {
       const page = pages[it.page];
@@ -154,6 +189,7 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
       await db.prospectSuggestion.delete({ where: { sellerId_nameKey: { sellerId: p.id, nameKey: companyNameKey(c.name) } } }).catch(() => undefined);
     }
   }
+  await m.flush(`Lookalikes like ${seedName}`);
   await logEvent(ctx, { stage: 0, step: "lookalike.search", outcome: "info", reason: `Companies like ${seedName}: ${found.length} found, ${suggested} queued for investigation, ${excluded} outside the targeting rule` });
   return { seed: seedName, found: found.length, suggested, excluded };
 }
@@ -242,6 +278,14 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
   const crit = lookalikeCriteria(p);
   const offering = offeringOf(p);
   const mode = ctx.adapters.research.live ? "live" : "mock";
+  // Over the account's monthly cap: don't start; say why on the card.
+  try {
+    await ensureMonthlyBudget(s.sellerId, 0.1);
+  } catch (e) {
+    if (!(e instanceof MonthlyBudgetExceeded)) throw e;
+    return db.prospectSuggestion.update({ where: { id }, data: { researchStatus: "failed", research: { ...((s.research as object | null) ?? {}), rounds: ((s.research as { rounds?: unknown[] } | null)?.rounds ?? []), error: e.message } as unknown as Prisma.InputJsonValue } });
+  }
+  const m = costMeter(s.sellerId);
   await db.prospectSuggestion.update({ where: { id }, data: { researchStatus: "running" } });
 
   const seedRec = (s.seedProfile ?? {}) as unknown as SeedRecord;
@@ -259,11 +303,13 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
 
   try {
     for (let round = start; round <= maxRounds; round++) {
+      m.llm();
       const plan = await ctx.adapters.llm.planLookalike({ seed, company, offering, focus: crit.focus, avoid: crit.avoid, facts: known(), asked, note: round === start ? s.researchNote : null, round, maxRounds });
       const done: LookalikeRound = { round, why: plan.why, questions: [] };
       for (const q of plan.questions.filter((x) => !asked.includes(x.question)).slice(0, 4)) {
         asked.push(q.question);
-        const pages = await searchFor(ctx, company, q);
+        const pages = await searchFor(ctx, company, q, m.onAttempt);
+        if (pages.length) m.llm();
         const facts = pages.length ? await ctx.adapters.llm.extractLookalikeFacts(pages, s.name, q).catch(() => []) : [];
         let kept = 0;
         for (const f of facts) {
@@ -282,6 +328,7 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
     }
 
     const evidence = mergeEvidence(raw, s.domain);
+    m.llm(CONFIG.costsUsd.llmBrain);
     const j = await ctx.adapters.llm.judgeLookalike({ seed, company, offering, focus: crit.focus, avoid: crit.avoid, facts: evidence.map((e) => ({ claim: e.claim, dimension: e.dimension, verified: e.verified })) });
     const { fit, readiness, readinessScore } = scoreLookalike(j, evidence);
     const gate = mustHaveGate({ country: s.country, employees: s.employees });
@@ -300,19 +347,22 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
       },
     });
     await logEvent(ctx, { stage: 0, step: "lookalike.investigate", outcome: "info", reason: `${s.name}: fit ${fit}, ${readiness}, ${evidence.length} facts (${evidence.filter((e) => e.verified).length} verified), ${rounds.length} rounds` });
+    await m.flush(`Lookalike research: ${s.name}`);
     return updated;
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : "Investigation failed";
+    await recordError("lookalike investigation", e, s.name);
     await logEvent(ctx, { stage: 0, step: "lookalike.investigate", outcome: "error", reason: `${s.name}: ${msg}` });
+    await m.flush(`Lookalike research: ${s.name}`).catch(() => undefined);
     return db.prospectSuggestion.update({ where: { id }, data: { researchStatus: "failed", research: { ...(prev ?? {}), rounds, error: msg } as unknown as Prisma.InputJsonValue } });
   }
 }
 
 /** One question → pages: company facts from profile-style searches, events from news. */
-async function searchFor(ctx: RunContext, company: { name: string; domain: string | null }, q: LookalikeQuestion): Promise<ResearchPage[]> {
+async function searchFor(ctx: RunContext, company: { name: string; domain: string | null }, q: LookalikeQuestion, onAttempt?: (a: { engine: string; results: number; error?: string }) => void): Promise<ResearchPage[]> {
   const key = q.dimension === "intent" ? "lookalike_intent" : "lookalike_profile";
   try {
-    return await ctx.adapters.research.search(company.domain ?? "", company.name, key, "main", { query: q.query, engine: q.engine });
+    return await ctx.adapters.research.search(company.domain ?? "", company.name, key, "main", { query: q.query, engine: q.engine, onAttempt });
   } catch {
     return [];
   }

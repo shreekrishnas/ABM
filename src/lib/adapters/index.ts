@@ -3,7 +3,7 @@ import type { Adapters } from "./types";
 import { createMockAdapters } from "./mock";
 import { WebResearch } from "./live/research";
 import { OpenRouterLLM } from "./live/openrouter";
-import { DisconnectedResearch, DisconnectedSender, MxVerifier, NoIntent, NoProvider, SmtpSender } from "./live/email";
+import { DisconnectedResearch, DisconnectedSender, MxVerifier, NoIntent, NoProvider, SmtpSender, ZeroBounceVerifier } from "./live/email";
 import { approvalGated } from "@/lib/discover/approval";
 import { OpenRouterEmbedder } from "./live/embeddings";
 
@@ -49,7 +49,7 @@ export function serviceStatus(): ServiceStatus[] {
     { key: "llm", label: "LLM (extract, draft, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
     { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
     { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
-    { key: "mailbox", label: "Email verification", mode: m(true), via: "Free MX check (domain accepts email)" },
+    { key: "mailbox", label: "Email verification", mode: m(true), via: env("ZEROBOUNCE_API_KEY") ? "ZeroBounce: mailbox exists, catch-all spotted" : "Free MX check only: domain accepts email (set ZEROBOUNCE_API_KEY to check mailboxes)" },
     { key: "email", label: "Email sending", mode: m(Boolean(smtp)), via: smtp ? "SMTP mailbox" : "Approved emails are held (set SMTP_URL)" },
     { key: "intent", label: "Website visitors", mode: m(Boolean(apollo && visitors)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Set APOLLO_VISITOR_LIST to the visitors list name") : "Set APOLLO_API_KEY and APOLLO_VISITOR_LIST" },
     { key: "notifier", label: "Alerts", mode: "planned", via: "Slack / Teams webhook" },
@@ -76,7 +76,9 @@ export function createAdapters(): Adapters {
   const apollo = env("APOLLO_API_KEY");
   // Contact data only for companies a person approved (code-enforced on every call).
   a.provider = approvalGated(apollo ? new ApolloProvider(apollo) : new NoProvider());
-  a.mailbox = new MxVerifier();
+  // Mailbox-level checks when a verification service is connected; the free MX check otherwise.
+  const zb = env("ZEROBOUNCE_API_KEY");
+  a.mailbox = zb ? new ZeroBounceVerifier(zb) : new MxVerifier();
   const smtp = env("SMTP_URL");
   a.email = smtp ? new SmtpSender(smtp, env("SMTP_FROM")) : new DisconnectedSender();
   return a;

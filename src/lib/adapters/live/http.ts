@@ -1,4 +1,5 @@
-// Small fetch helper for external APIs: timeout, one retry on 429/5xx, and
+// Small fetch helper for external APIs: timeout, retries with growing waits on 429/5xx and
+// network errors (honouring Retry-After), a short pause for a service that keeps failing, and
 // error messages that never include the API key.
 
 export class ApiError extends Error {
@@ -7,23 +8,62 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T>(service: string, url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
-  const { timeoutMs = 25_000, ...rest } = init;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+/** Attempts per call, and the wait before each retry (ms). */
+export const RETRY_WAITS = [1000, 3000];
+/** After this many failed calls in a row, a service is paused for PAUSE_MS so runs move on quickly. */
+export const BREAKER_AFTER = 5;
+export const PAUSE_MS = 2 * 60_000;
+
+const breaker = new Map<string, { fails: number; pausedUntil: number }>();
+
+/** Test hook. */
+export function resetBreakers() {
+  breaker.clear();
+}
+
+function note(service: string, ok: boolean, now = Date.now()) {
+  const b = breaker.get(service) ?? { fails: 0, pausedUntil: 0 };
+  if (ok) b.fails = 0;
+  else if (++b.fails >= BREAKER_AFTER) {
+    b.pausedUntil = now + PAUSE_MS;
+    b.fails = 0;
+  }
+  breaker.set(service, b);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function fetchJson<T>(service: string, url: string, init: RequestInit & { timeoutMs?: number; waits?: number[] } = {}): Promise<T> {
+  const { timeoutMs = 25_000, waits = RETRY_WAITS, ...rest } = init;
+  const paused = breaker.get(service)?.pausedUntil ?? 0;
+  // Another engine (or the next run) takes over instead of waiting on a service that is down.
+  if (paused > Date.now()) throw new ApiError(service, 503, `paused after repeated failures; retrying after ${new Date(paused).toISOString().slice(11, 16)} UTC`);
+  const attempts = waits.length + 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     let res: Response;
     try {
       res = await fetch(url, { ...rest, signal: AbortSignal.timeout(timeoutMs) });
     } catch (e) {
-      if (attempt === 2) throw new ApiError(service, 0, e instanceof Error ? e.message : "network error");
+      if (attempt === attempts) {
+        note(service, false);
+        throw new ApiError(service, 0, e instanceof Error ? e.message : "network error");
+      }
+      await sleep(waits[attempt - 1]);
       continue;
     }
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) {
+      note(service, true);
+      return (await res.json()) as T;
+    }
     const retryable = res.status === 429 || res.status >= 500;
-    if (!retryable || attempt === 2) {
+    if (!retryable || attempt === attempts) {
+      if (retryable) note(service, false);
       const body = (await res.text().catch(() => "")).slice(0, 300);
       throw new ApiError(service, res.status, body || res.statusText);
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    // Rate limited: wait what the service asks for (capped), else the next step of the backoff.
+    const after = Number(res.headers.get("retry-after"));
+    await sleep(Number.isFinite(after) && after > 0 ? Math.min(after * 1000, 10_000) : waits[attempt - 1]);
   }
   throw new ApiError(service, 0, "unreachable");
 }

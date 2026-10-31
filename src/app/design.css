@@ -1172,3 +1172,11 @@ html, body { background: var(--canvas) !important; }
   .sg-items li { grid-template-columns: minmax(0, 1fr) auto; }
   .sg-items li > :nth-child(2), .sg-items li > :nth-child(4) { display: none; }
 }
+.tm-cap { margin-left: var(--sp-2); font-size: var(--fs-12); font-weight: var(--fw-medium); padding: 0 var(--sp-2); border-radius: var(--r-full); }
+.tm-cap.warn { background: var(--warning-bg); color: var(--warning); }
+.tm-cap.over { background: var(--danger-bg); color: var(--danger); }
+.tm-errors li { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); }
+.tm-err-top { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-13); color: var(--danger); }
+.tm-err-top b { font-weight: var(--fw-medium); word-break: break-word; }
+.tm-err-top span { flex-shrink: 0; font-size: var(--fs-12); color: var(--muted); }
+.tm-err-src { margin-top: 2px; font-size: var(--fs-12); color: var(--muted); font-family: var(--font-mono, monospace); word-break: break-all; }

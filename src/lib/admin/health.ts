@@ -4,6 +4,7 @@
 import { baseDb } from "@/lib/db-base";
 import { queueStatus } from "@/lib/queue/drain";
 import { serviceStatus } from "@/lib/adapters";
+import { recentErrors } from "./errors";
 
 /** Tables the app's database role can't fully read and write (e.g. created by another role without grants). */
 export async function tablesWithoutAccess(): Promise<string[]> {
@@ -32,13 +33,14 @@ export async function queueHealth(now = new Date()) {
 export async function spendByAccount(now = new Date()): Promise<Map<string, { month: number; total: number; companies: number }>> {
   const since = new Date(now.getTime() - 30 * 86_400_000);
   const rows = await baseDb.$queryRaw<{ sellerId: string; month: bigint | null; total: bigint | null; companies: bigint }[]>`
-    SELECT a."sellerId", SUM(l."amountMicros") FILTER (WHERE l."createdAt" >= ${since}) AS month, SUM(l."amountMicros") AS total, COUNT(DISTINCT a.id) AS companies
-    FROM "LedgerEntry" l JOIN "Account" a ON a.id = l."accountId"
-    GROUP BY a."sellerId"`;
+    SELECT COALESCE(l."sellerId", a."sellerId") AS "sellerId", SUM(l."amountMicros") FILTER (WHERE l."createdAt" >= ${since}) AS month, SUM(l."amountMicros") AS total, COUNT(DISTINCT a.id) AS companies
+    FROM "LedgerEntry" l LEFT JOIN "Account" a ON a.id = l."accountId"
+    WHERE COALESCE(l."sellerId", a."sellerId") IS NOT NULL
+    GROUP BY 1`;
   return new Map(rows.map((r) => [r.sellerId, { month: Number(r.month ?? 0) / 1e6, total: Number(r.total ?? 0) / 1e6, companies: Number(r.companies) }]));
 }
 
 export async function systemHealth() {
-  const [tables, queue] = await Promise.all([tablesWithoutAccess().catch(() => null), queueHealth()]);
-  return { tables, queue, services: serviceStatus() };
+  const [tables, queue, errors] = await Promise.all([tablesWithoutAccess().catch(() => null), queueHealth(), recentErrors(20).catch(() => [])]);
+  return { tables, queue, services: serviceStatus(), errors };
 }

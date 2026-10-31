@@ -20,6 +20,16 @@ function signalWord(type: string) {
 
 type Sig = { id: string; accountId: string; account: { name: string }; contact: { id: string; fullName: string } | null; type: string; detail: string | null; points: number; occurredAt: Date; anonymous: boolean };
 
+/**
+ * The 50 most active companies in the window (ranked in the database), with their signals.
+ * Only those companies' rows are read, not every signal in the window.
+ */
+async function recentForTopCompanies(since: Date) {
+  const top = await db.signal.groupBy({ by: ["accountId"], where: { occurredAt: { gte: since } }, _sum: { points: true }, orderBy: { _sum: { points: "desc" } }, take: 50 });
+  if (!top.length) return [];
+  return db.signal.findMany({ where: { occurredAt: { gte: since }, accountId: { in: top.map((t) => t.accountId) } }, orderBy: { occurredAt: "desc" }, take: 1500, include: { account: true, contact: true } });
+}
+
 /** One entry per company: total points, kinds of activity, who, and the signals themselves. */
 function groupByCompany(signals: Sig[]) {
   const by = new Map<string, { accountId: string; name: string; points: number; last: Date; anonymous: number; people: string[]; kinds: Map<string, number>; items: Sig[] }>();
@@ -42,7 +52,9 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const sigType = (Object.values(SignalType) as string[]).includes(type ?? "") ? (type as SignalType) : undefined;
   const since = new Date(Date.now() - 30 * 86_400_000);
   const [signals, byType, anon, accounts, surging] = await Promise.all([
-    db.signal.findMany({ where: view === "all" ? (sigType ? { type: sigType } : {}) : { occurredAt: { gte: since } }, orderBy: { occurredAt: "desc" }, take: view === "all" ? 100 : 2000, include: { account: true, contact: true } }),
+    view === "all"
+      ? db.signal.findMany({ where: sigType ? { type: sigType } : {}, orderBy: { occurredAt: "desc" }, take: 100, include: { account: true, contact: true } })
+      : recentForTopCompanies(since),
     db.signal.groupBy({ by: ["type"], where: { occurredAt: { gte: since } }, _count: true, _sum: { points: true } }),
     db.signal.count({ where: { anonymous: true, occurredAt: { gte: since } } }),
     db.account.findMany({ where: { mergedIntoId: null, stage: { notIn: ["DISQUALIFIED"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),

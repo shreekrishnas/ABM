@@ -113,7 +113,6 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "ResearchPlan":
     case "Signal":
     case "WatchlistEntry":
-    case "LedgerEntry":
     case "Handoff":
     case "ResearchRun":
     case "Hypothesis":
@@ -132,6 +131,9 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "FieldState":
     case "ReviewItem":
       return { OR: [{ account: acct }, { accountId: null, ...viaContact }, { accountId: null, contactId: null }] };
+    case "LedgerEntry":
+      // Company costs follow the company; account-level costs (lookalike research) carry the account.
+      return { OR: [{ account: acct }, { accountId: null, ...acct }] };
     case "PipelineEvent":
       return { OR: [{ account: acct }, { accountId: null }] };
     default:

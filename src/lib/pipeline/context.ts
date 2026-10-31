@@ -4,13 +4,12 @@
 import type { EventOutcome, LedgerKind, Prisma, ReviewType, Tier } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
+import { baseDb } from "@/lib/db-base";
+import { BudgetExceeded, ensureMonthlyBudget } from "@/lib/budget";
 import { getAdapters, type Adapters } from "@/lib/adapters";
 
-export class BudgetExceeded extends Error {
-  constructor(public accountId: string, public spentUsd: number, public capUsd: number) {
-    super(`Budget reached: $${spentUsd.toFixed(2)} of $${capUsd.toFixed(2)}`);
-  }
-}
+// The budget error lives with the budget rules (no import cycle); re-exported for existing callers.
+export { BudgetExceeded } from "@/lib/budget";
 
 /** A stage stops the account's run (block, watch, review) without being an error. */
 export class StopRun extends Error {
@@ -68,26 +67,40 @@ export function budgetFor(tier: Tier | null): number {
  * BudgetExceeded instead of spending past the cap.
  */
 export async function charge(accountId: string, tier: Tier | null, kind: LedgerKind, usd: number, description: string, stage: number) {
+  const sellerId = await sellerOf(accountId);
+  // The account's monthly cap applies whenever one is set; the per-company cap only with ENFORCE_BUDGETS.
+  await ensureMonthlyBudget(sellerId, usd, accountId);
   if (budgetsEnforced()) {
     const cap = budgetFor(tier);
     const spent = await spentUsd(accountId);
     if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);
   }
-  await db.ledgerEntry.create({ data: { accountId, kind, amountMicros: toMicros(usd), description, stage } });
+  await db.ledgerEntry.create({ data: { accountId, sellerId, kind, amountMicros: toMicros(usd), description, stage } });
 }
 
 /** Record a cost already incurred (e.g. a search that just ran). Never throws on the cap. */
 export async function recordCost(accountId: string, kind: LedgerKind, usd: number, description: string, stage: number) {
   if (usd <= 0) return;
-  await db.ledgerEntry.create({ data: { accountId, kind, amountMicros: toMicros(usd), description, stage } });
+  await db.ledgerEntry.create({ data: { accountId, sellerId: await sellerOf(accountId), kind, amountMicros: toMicros(usd), description, stage } });
 }
 
-/** Throws BudgetExceeded if `usd` more would pass the tier cap. */
+/** A cost for the account as a whole, not one company (e.g. lookalike research). */
+export async function recordAccountCost(sellerId: string, kind: LedgerKind, usd: number, description: string) {
+  if (usd <= 0) return;
+  await db.ledgerEntry.create({ data: { accountId: null, sellerId, kind, amountMicros: toMicros(usd), description, stage: 0 } });
+}
+
+/** Throws BudgetExceeded if `usd` more would pass the account's monthly cap or the tier cap. */
 export async function ensureBudget(accountId: string, tier: Tier | null, usd: number) {
+  await ensureMonthlyBudget(await sellerOf(accountId), usd, accountId);
   if (!budgetsEnforced()) return;
   const cap = budgetFor(tier);
   const spent = await spentUsd(accountId);
   if (spent + usd > cap + 1e-9) throw new BudgetExceeded(accountId, spent, cap);
+}
+
+async function sellerOf(accountId: string): Promise<string | null> {
+  return (await baseDb.account.findUnique({ where: { id: accountId }, select: { sellerId: true } }))?.sellerId ?? null;
 }
 
 export async function openReview(r: {

@@ -11,6 +11,8 @@ import { AccountLogo } from "@/components/account-logo";
 import { SERVICE_MODE_LABEL } from "@/lib/adapters";
 import { spendByAccount, systemHealth } from "@/lib/admin/health";
 import { ACTION_WORD } from "@/lib/admin/audit";
+import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
+import { monthlyStatus } from "@/lib/budget";
 import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAssignmentAction, setClientLogoAction, setUserStatusAction } from "./actions";
 import { reResearchAllAction } from "@/app/actions";
 
@@ -34,8 +36,8 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const tab: Tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "people";
   const clients = await db.client.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } });
-  const health = await systemHealth();
-  const problems = (health.tables?.length ? 1 : 0) + (health.queue.stuck ? 1 : 0);
+  const [health, month] = await Promise.all([systemHealth(), monthlyStatus()]);
+  const problems = (health.tables?.length ? 1 : 0) + (health.queue.stuck ? 1 : 0) + [...month.values()].filter((m) => m.state !== "ok").length + (health.errors.length ? 1 : 0);
 
   return (
     <div className="page-enter space-y-5">
@@ -125,6 +127,10 @@ async function AccountsTab({ clients }: { clients: Clients }) {
                   <input name="logo" className="glass-input" defaultValue={c.logoUrl ?? ""} placeholder="Logo link or website" aria-label={`${c.name} logo link or website`} />
                   <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
                 </ActionForm>
+                <ActionForm action={setMonthlyBudgetAction.bind(null, c.id)} className="tm-acct-logo" resetOnSuccess={false}>
+                  <input name="budget" className="glass-input" inputMode="numeric" defaultValue={c.monthlyBudgetUsd ?? ""} placeholder="Monthly cap in $ (empty = no cap)" aria-label={`${c.name} monthly spending cap in dollars`} />
+                  <SubmitButton className="btn btn-secondary btn-sm">Set cap</SubmitButton>
+                </ActionForm>
               </li>
             );
           })}
@@ -145,7 +151,7 @@ async function AccountsTab({ clients }: { clients: Clients }) {
 }
 
 async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeof systemHealth>>; clients: Clients }) {
-  const spend = await spendByAccount();
+  const [spend, month] = await Promise.all([spendByAccount(), monthlyStatus()]);
   const q = health.queue;
   return (
     <>
@@ -164,15 +170,39 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
         {q.stuck && <p className="tm-warn">The queue has stopped: work is waiting and nothing has run for over 10 minutes.</p>}
         <ActionButton action={restartQueueAction} className={q.stuck ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}><RotateCcw size={14} /> Restart queue</ActionButton>
       </Card>
+      <Card title="Recent errors" sub="Server errors from pages, actions, background research and lookalikes, grouped by place and message. Kept here because the host keeps logs for only an hour." action={health.errors.length ? <ActionButton action={clearErrorsAction} className="btn btn-secondary btn-sm" confirm="Clear the error log?">Clear</ActionButton> : undefined} pad={false}>
+        {health.errors.length === 0 ? <p className="tm-ok px-5 py-4">No errors recorded.</p> : (
+          <ul className="tm-errors">
+            {health.errors.map((e) => (
+              <li key={e.id}>
+                <div className="tm-err-top"><b>{e.message}</b><span className="tnum">{e.count > 1 ? `×${e.count} · ` : ""}{ago(e.lastSeen)}</span></div>
+                <div className="tm-err-src">{e.source}{e.detail ? ` · ${e.detail.split("\n")[0]}` : ""}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
       <Card title="Services" pad={false}>
         <table className="data compact">
           <tbody>{health.services.map((s) => <tr key={s.key}><td className="strong">{s.label}</td><td><span className={`tm-svc ${s.mode}`}>{SERVICE_MODE_LABEL[s.mode]}</span></td><td className="muted text-xs">{s.via}</td></tr>)}</tbody>
         </table>
       </Card>
-      <Card title="Spend by account" sub="Search, AI and contact lookups recorded against companies." pad={false}>
+      <Card title="Spend by account" sub="Search, AI and contact lookups, including lookalike research. Set a monthly cap per account on the Accounts tab: research pauses for that account when it is reached." pad={false}>
         <table className="data compact">
-          <thead><tr><th>Account</th><th className="text-right">Last 30 days</th><th className="text-right">All time</th><th className="text-right">Companies charged</th></tr></thead>
-          <tbody>{clients.map((c) => { const s = spend.get(c.id); return <tr key={c.id}><td className="strong">{c.name}</td><td className="text-right tnum">{usd(s?.month ?? 0)}</td><td className="text-right tnum">{usd(s?.total ?? 0)}</td><td className="text-right tnum">{s?.companies ?? 0}</td></tr>; })}</tbody>
+          <thead><tr><th>Account</th><th className="text-right">This month</th><th className="text-right">Monthly cap</th><th className="text-right">Last 30 days</th><th className="text-right">All time</th></tr></thead>
+          <tbody>{clients.map((c) => {
+            const s = spend.get(c.id);
+            const mo = month.get(c.id);
+            return (
+              <tr key={c.id}>
+                <td className="strong">{c.name}{mo?.state === "over" ? <span className="tm-cap over">Cap reached: research paused</span> : mo?.state === "warn" ? <span className="tm-cap warn">{Math.round((mo.share ?? 0) * 100)}% of cap</span> : null}</td>
+                <td className="text-right tnum">{usd(mo?.spent ?? 0)}</td>
+                <td className="text-right tnum">{mo?.cap != null ? usd(mo.cap) : <span className="muted">none</span>}</td>
+                <td className="text-right tnum">{usd(s?.month ?? 0)}</td>
+                <td className="text-right tnum">{usd(s?.total ?? 0)}</td>
+              </tr>
+            );
+          })}</tbody>
         </table>
       </Card>
     </>
@@ -184,6 +214,9 @@ function DataTab({ clients }: { clients: Clients }) {
     <>
       <Card title={<span className="inline-flex items-center gap-2"><RotateCcw size={18} /> Re-research all companies</span>} sub="Research every company again from scratch under the current rules, in the background. Bad news found earlier is set aside and checked again. People, imports and approved work are kept.">
         <ActionButton action={reResearchAllAction} className="btn btn-secondary" confirm="Re-research every company from scratch? This uses research credits.">Re-research all</ActionButton>
+      </Card>
+      <Card title="Accept every email address" sub="People used to be held back when their email wasn't on the company's own domain (gmail.com, another domain). Any address is fine now. This closes the 'Is this the right person?' items that were only about the email; ones where the job title or employer also disagree stay open.">
+        <ActionButton action={clearEmailConflictsAction} className="btn btn-secondary">Close email-only identity items</ActionButton>
       </Card>
       <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Clear one account</span>} sub="Removes that account's companies and everything attached (research, people, drafts, emails, tasks, opportunities), its imports and suggestions. Its team, brain and the other accounts are untouched. Can't be undone.">
         <ul className="tm-danger">
@@ -218,7 +251,7 @@ async function AuditTab({ clients, who, what, account }: { clients: Clients; who
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   const qs = new URLSearchParams({ ...(who ? { who } : {}), ...(what ? { what } : {}), ...(account ? { account } : {}) }).toString();
   return (
-    <Card title="Audit log" sub="Every Super Admin action and mode switch. Entries can't be edited." pad={false}>
+    <Card title="Audit log" sub="Who did what: approvals, sends, hand-offs, deals, research runs and every Super Admin change. Entries can't be edited." pad={false}>
       <form className="tm-filter" action="/team">
         <input type="hidden" name="tab" value="audit" />
         <select name="who" defaultValue={who ?? ""} className="glass-input" aria-label="Who"><option value="">Anyone</option>{people.map((p) => <option key={p.actorEmail} value={p.actorEmail}>{p.actorEmail}</option>)}</select>

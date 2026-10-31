@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { MODE_COOKIE, audit, getMe } from "@/lib/me";
@@ -16,10 +16,15 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
   if (!secret) return { error: "Sign-in isn't set up yet: add AUTH_SECRET in Vercel." };
   const email = normalizeEmail(String(fd.get("email") ?? ""));
   if (!email) return { error: "Enter your work email address." };
+  // Too many attempts from one address, or for one email: wait before trying again.
+  const { hit, clientIp, LIMITS } = await import("@/lib/rate-limit");
+  const ip = clientIp(await headers());
+  const [byIp, byEmail] = await Promise.all([hit(`login:ip:${ip}`, LIMITS.login.max, LIMITS.login.windowMs), hit(`login:email:${email}`, LIMITS.login.max, LIMITS.login.windowMs)]);
+  if (!byIp.ok || !byEmail.ok) return { email, error: `Too many sign-in attempts. Try again in ${Math.ceil(Math.max(byIp.retryAfter, byEmail.retryAfter) / 60)} minutes.` };
   if (!domainAllowed(email)) return { email, error: `Only @${allowedDomains().join(" or @")} addresses can sign in.` };
   // Only people on the team list get in; Super Admin adds them on Team & Access.
   const member = await db.user.findUnique({ where: { email }, select: { status: true } });
-  if (!member || member.status !== "active") return { email, error: "You're not on the team yet. Ask ShreeKrishna to add you." };
+  if (!member || member.status !== "active") return { email, error: "You're not on the team yet. Ask a Super Admin to add you in Team & Access." };
   (await cookies()).set(SESSION_COOKIE, await sessionToken(email, secret), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
   redirect(safeNext(fd.get("next")));
 }

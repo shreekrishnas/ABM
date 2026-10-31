@@ -588,6 +588,7 @@ model Signal {
   occurredAt DateTime   @default(now())
 
   @@index([accountId, occurredAt])
+  @@index([occurredAt])
 }
 
 model Sequence {
@@ -759,8 +760,11 @@ model WatchlistEntry {
 
 model LedgerEntry {
   id           String     @id @default(cuid())
-  accountId    String
-  account      Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// The company the cost is for; empty for account-level work (e.g. lookalike research).
+  accountId    String?
+  account      Account?   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// The client account the cost belongs to (always set on new entries).
+  sellerId     String?
   kind         LedgerKind
   amountMicros Int // millionths of a dollar, avoids float drift
   description  String
@@ -768,6 +772,7 @@ model LedgerEntry {
   createdAt    DateTime   @default(now())
 
   @@index([accountId])
+  @@index([sellerId, createdAt])
 }
 
 model Handoff {
@@ -1177,6 +1182,8 @@ model Client {
   name      String
   /// Logo image URL (or a favicon worked out from the website). Shown instead of the initials.
   logoUrl   String?
+  /// Monthly spending cap in dollars (search, AI and lookups). Empty = no cap.
+  monthlyBudgetUsd Int?
   createdAt DateTime     @default(now())
   users     UserClient[]
 }
@@ -1204,6 +1211,8 @@ model AuditEntry {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+  @@index([actorEmail])
+  @@index([action])
 }
 
 /// One investigation of a company: rounds of questions and searches, why each was chosen,
@@ -1278,4 +1287,35 @@ model EvidenceLink {
   createdAt    DateTime    @default(now())
 
   @@index([accountId])
+}
+
+/// Server errors, grouped by where and what, so a Super Admin sees them after Vercel's short log retention.
+model ErrorLog {
+  id          String   @id @default(cuid())
+  /// Same place + same message → one row with a count.
+  fingerprint String   @unique
+  source      String
+  message     String
+  detail      String?
+  count       Int      @default(1)
+  firstSeen   DateTime @default(now())
+  lastSeen    DateTime @default(now())
+
+  @@index([lastSeen])
+}
+
+/// Fixed-window request counters (sign-in attempts, API calls).
+model RateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
+}
+
+/// Recent web search results, reused for 48 hours so the same search isn't paid for twice.
+model SearchCache {
+  key       String   @id
+  pages     Json
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

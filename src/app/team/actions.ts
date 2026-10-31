@@ -186,3 +186,50 @@ export async function restartQueueAction(): Promise<ActionState> {
     return fail(e);
   }
 }
+
+/** Super Admin: set or clear an account's monthly spending cap (dollars). */
+export async function setMonthlyBudgetAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const client = await baseDb.client.findUnique({ where: { id: clientId } });
+    if (!client) return { ok: false, message: "That account no longer exists" };
+    const raw = text(fd, "budget").replace(/[$,\s]/g, "");
+    const value = raw === "" ? null : Number(raw);
+    if (value != null && (!Number.isFinite(value) || value < 0 || value > 1_000_000)) return { ok: false, message: "Enter a dollar amount, or leave it empty for no cap" };
+    const cap = value == null ? null : Math.round(value);
+    await baseDb.client.update({ where: { id: clientId }, data: { monthlyBudgetUsd: cap } });
+    await audit(me.email, "client.budget", { target: client.name, clientId, before: { monthlyBudgetUsd: client.monthlyBudgetUsd }, after: { monthlyBudgetUsd: cap } });
+    revalidatePath("/team");
+    return { ok: true, message: cap == null ? `${client.name}: no monthly cap` : `${client.name}: monthly cap $${cap.toLocaleString()}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Super Admin: clear the error log after reviewing it. */
+export async function clearErrorsAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { clearErrors } = await import("@/lib/admin/errors");
+    await clearErrors();
+    await audit(me.email, "errors.clear");
+    revalidatePath("/team");
+    return { ok: true, message: "Error log cleared" };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Super Admin: close identity items that were only about the email domain (older rule). */
+export async function clearEmailConflictsAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { clearEmailOnlyConflicts } = await import("@/lib/admin/cleanup");
+    const r = await clearEmailOnlyConflicts();
+    await audit(me.email, "data.email_conflicts", { after: r });
+    revalidatePath("/", "layout");
+    return { ok: true, message: `${r.reviews} "Is this the right person?" item${r.reviews === 1 ? "" : "s"} closed · ${r.emails} email${r.emails === 1 ? "" : "s"} accepted` };
+  } catch (e) {
+    return fail(e);
+  }
+}

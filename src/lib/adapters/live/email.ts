@@ -2,6 +2,7 @@
 // sits behind the EmailSender / MailboxVerifier / DataProvider interfaces so LinkedIn
 // can plug in later without touching the core.
 
+import { fetchJson } from "./http";
 import { promises as dns } from "node:dns";
 import type { DataProvider, EmailSender, IntentProvider, MailboxVerifier, ProviderPerson, ResearchSource } from "../types";
 
@@ -87,5 +88,37 @@ export class DisconnectedSender implements EmailSender {
   readonly connected = false;
   async send(): Promise<{ providerId: string }> {
     throw new Error("No mailbox connected — set SMTP_URL to send email");
+  }
+}
+
+/**
+ * Mailbox-level verification with ZeroBounce, on top of the free MX check: confirms the
+ * mailbox itself exists and spots catch-all domains. Used when ZEROBOUNCE_API_KEY is set.
+ */
+export class ZeroBounceVerifier implements MailboxVerifier {
+  constructor(private key: string, private mx: MailboxVerifier = new MxVerifier()) {}
+  async verify(email: string): Promise<{ deliverable: boolean; reason: string; status: "verified" | "probable" | "invalid" }> {
+    // Free check first: no mail server means no paid call.
+    const base = await this.mx.verify(email);
+    if (!base.deliverable) return { deliverable: false, reason: base.reason, status: "invalid" };
+    let r: { status?: string; sub_status?: string };
+    try {
+      r = await fetchJson<{ status?: string; sub_status?: string }>("ZeroBounce", `https://api.zerobounce.net/v2/validate?${new URLSearchParams({ api_key: this.key, email, ip_address: "" })}`, { timeoutMs: 20_000 });
+    } catch (e) {
+      // Service down: fall back to the free check's answer rather than blocking outreach.
+      return { deliverable: true, reason: `${base.reason} (mailbox check unavailable: ${e instanceof Error ? e.message.slice(0, 80) : "error"})`, status: "probable" };
+    }
+    const sub = r.sub_status ? ` (${r.sub_status.replace(/_/g, " ")})` : "";
+    switch (r.status) {
+      case "valid":
+        return { deliverable: true, reason: "Mailbox exists (ZeroBounce)", status: "verified" };
+      case "catch-all":
+        return { deliverable: true, reason: "Domain accepts every address, so this mailbox can't be confirmed (catch-all)", status: "probable" };
+      case "unknown":
+        return { deliverable: true, reason: `Mailbox couldn't be checked right now${sub}`, status: "probable" };
+      default:
+        // invalid, spamtrap, abuse, do_not_mail
+        return { deliverable: false, reason: `Mailbox rejected: ${r.status ?? "invalid"}${sub}`, status: "invalid" };
+    }
   }
 }

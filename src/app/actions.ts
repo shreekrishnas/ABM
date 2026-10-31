@@ -15,7 +15,7 @@ import { prepareReResearch, runAccount, tick, processIntent, processQueue } from
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
-import { refresh, requestOrigin, startBackgroundQueue, str } from "@/lib/action-utils";
+import { refresh, requestOrigin, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
 import { kickDrain } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
@@ -24,6 +24,7 @@ export type ActionState = { ok: boolean; message: string } | null;
 // ── Pipeline ──
 
 export async function runAccountAction(accountId: string, fromStage?: number): Promise<ActionState> {
+  await logAction("company.run", { accountId });
   const r = await runAccount(accountId, { fromStage });
   refresh("/accounts", `/accounts/${accountId}`, "/pipeline", "/review");
   return { ok: r.status === "done", message: `${r.status === "done" ? "Done" : r.status === "blocked" ? "Stopped" : r.status === "skipped" ? "Skipped" : "Error"}: ${r.reason}` };
@@ -31,6 +32,7 @@ export async function runAccountAction(accountId: string, fromStage?: number): P
 
 /** Re-research one company, or every company, from scratch in the background. */
 export async function reResearchAction(accountId?: string): Promise<ActionState> {
+  await logAction("company.re_research", { accountId: accountId ?? null, detail: accountId ? null : "every company" });
   const ids = accountId ? [accountId] : (await db.account.findMany({ where: { mergedIntoId: null, stage: { notIn: ["CUSTOMER", "OPPORTUNITY"] } }, select: { id: true } })).map((a) => a.id);
   let n = 0;
   for (const id of ids) if (await prepareReResearch(id)) n++;
@@ -51,10 +53,12 @@ export async function reResearchSelectedAction(_: ActionState, fd: FormData): Pr
 }
 
 export async function reResearchAllAction(): Promise<ActionState> {
+  await logAction("company.re_research_all", {});
   return reResearchAction();
 }
 
 export async function runAllAction(): Promise<ActionState> {
+  await logAction("pipeline.run_all", {});
   // Queue them for the background worker: a long list would time out in one request.
   const accounts = await db.account.findMany({ where: { mergedIntoId: null, pipelineStage: { lt: 11 }, pipelineStatus: { in: ["idle", "error"] } }, select: { id: true, pipelineStage: true } });
   for (const a of accounts) {
@@ -74,6 +78,7 @@ export async function tickAction(): Promise<ActionState> {
 }
 
 export async function sendApprovedAction(): Promise<ActionState> {
+  await logAction("email.send_approved", {});
   const r = await sendApproved();
   refresh("/outreach", "/review");
   return { ok: true, message: `Sent ${r.sent}, held ${r.held}${r.reasons.length ? ` — ${r.reasons.slice(0, 2).join("; ")}` : ""}` };
@@ -82,6 +87,7 @@ export async function sendApprovedAction(): Promise<ActionState> {
 // ── Review ──
 
 export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("email.review", { draftId: str(fd, "draftId"), detail: str(fd, "decision") });
   const p = z.object({ draftId: z.string(), decision: z.enum(["approve", "reject"]), subject: z.string().min(1).max(200), body: z.string().min(1).max(5000), note: z.string().max(500).optional() }).safeParse({
     draftId: str(fd, "draftId"), decision: str(fd, "decision"), subject: str(fd, "subject"), body: str(fd, "body"), note: str(fd, "note"),
   });
@@ -123,6 +129,7 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
 }
 
 export async function resolveReviewAction(id: string, resolution: "resolved" | "dismissed", note?: string): Promise<ActionState> {
+  await logAction("decision.resolve", { reviewId: id, detail: resolution });
   await db.reviewItem.update({ where: { id }, data: { status: resolution, resolution: note ?? resolution, resolvedAt: new Date() } });
   refresh("/review");
   return { ok: true, message: resolution === "resolved" ? "Marked resolved" : "Dismissed" };
@@ -130,6 +137,7 @@ export async function resolveReviewAction(id: string, resolution: "resolved" | "
 
 /** Human decision on an identity conflict: confirm the person (fields become verified) or drop them. */
 export async function resolveIdentityAction(reviewId: string, decision: "confirm" | "drop"): Promise<ActionState> {
+  await logAction("person.identity", { reviewId, detail: decision });
   const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
   if (!r?.contactId) return { ok: false, message: "Review item has no contact" };
   if (decision === "confirm") {
@@ -172,6 +180,7 @@ export async function recordReplyAction(_: ActionState, fd: FormData): Promise<A
 
 /** Sales accepts a hand-off, or sends it back to nurture with a reason (form: handoffId, decision, reason, recheckDays). */
 export async function decideHandoffAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("handoff.decide", { handoffId: str(fd, "handoffId"), detail: str(fd, "decision") });
   const id = str(fd, "handoffId");
   const decision = str(fd, "decision") === "sent_back" ? "sent_back" : "accepted";
   const reason = str(fd, "reason")?.slice(0, 300) || null;
@@ -195,6 +204,7 @@ export async function ackHandoffAction(id: string): Promise<ActionState> {
 }
 
 export async function manualHandoffAction(accountId: string): Promise<ActionState> {
+  await logAction("handoff.manual", { accountId });
   const a = await db.account.findUniqueOrThrow({ where: { id: accountId } });
   await s13Handoff(a, "manual");
   refresh("/handoffs", `/accounts/${accountId}`);
@@ -215,6 +225,7 @@ export async function createAccountAction(_: ActionState, fd: FormData): Promise
 }
 
 export async function updateAccountAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("company.update", { accountId: str(fd, "id") });
   const p = z.object({
     id: z.string(), relationship: z.enum(["prospect", "customer", "competitor", "partner"]), ownerId: z.string().optional(),
     tier: z.enum(["T1", "T2", "T3", "auto"]).optional(), doNotContact: z.boolean(),
@@ -247,6 +258,7 @@ export async function createContactAction(_: ActionState, fd: FormData): Promise
 }
 
 export async function createOpportunityAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("deal.create", { accountId: str(fd, "accountId"), detail: str(fd, "name") });
   const p = z.object({ accountId: z.string().min(1), name: z.string().min(1).max(200), amountUsd: z.coerce.number().int().min(0).max(100_000_000), stage: z.enum(["discovery", "qualification", "proposal", "negotiation"]), closeDate: z.string().optional() }).safeParse({
     accountId: str(fd, "accountId"), name: str(fd, "name"), amountUsd: str(fd, "amountUsd") ?? "0", stage: str(fd, "stage") ?? "discovery", closeDate: str(fd, "closeDate"),
   });
@@ -261,6 +273,7 @@ export async function createOpportunityAction(_: ActionState, fd: FormData): Pro
 }
 
 export async function moveOpportunityAction(id: string, stage: "discovery" | "qualification" | "proposal" | "negotiation" | "won" | "lost", lostReason?: string): Promise<ActionState> {
+  await logAction("deal.move", { opportunityId: id, detail: stage });
   if (stage === "won" || stage === "lost") await recordOutcome(id, stage, lostReason);
   else await db.opportunity.update({ where: { id }, data: { stage } });
   refresh("/crm/opportunities", "/analytics");
@@ -309,6 +322,7 @@ export async function addNoteAction(_: ActionState, fd: FormData): Promise<Actio
 }
 
 export async function eraseContactAction(contactId: string): Promise<ActionState> {
+  await logAction("person.erase", { contactId });
   const r = await eraseContact(contactId, "admin");
   refresh("/crm/contacts");
   return { ok: r.erased, message: r.reason };
@@ -476,6 +490,7 @@ export async function seedDemoAction(): Promise<ActionState> {
 // ── Fact feedback ──
 
 export async function flagFactAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("fact.flag", { evidenceId: str(fd, "evidenceId") });
   const p = z.object({ evidenceId: z.string().min(1), reason: z.string().trim().min(3, "Say briefly what is wrong").max(300) }).safeParse({ evidenceId: str(fd, "evidenceId"), reason: str(fd, "reason") });
   if (!p.success) return { ok: false, message: p.error.issues[0].message };
   const { flagFact } = await import("@/lib/brain/feedback");
@@ -485,6 +500,7 @@ export async function flagFactAction(_: ActionState, fd: FormData): Promise<Acti
 }
 
 export async function correctFactAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("fact.correct", { evidenceId: str(fd, "evidenceId") });
   const p = z.object({ evidenceId: z.string().min(1), claim: z.string().trim().min(5, "Write the corrected fact").max(500), sourceUrl: z.string().trim().url("Source must be a full link (https://…)").max(500).optional().or(z.literal("")) })
     .safeParse({ evidenceId: str(fd, "evidenceId"), claim: str(fd, "claim"), sourceUrl: str(fd, "sourceUrl") ?? "" });
   if (!p.success) return { ok: false, message: p.error.issues[0].message };
@@ -555,6 +571,7 @@ export async function setStageAction(_: ActionState, fd: FormData): Promise<Acti
 
 /** Bulk update for the selected people within one campaign + sender. */
 export async function bulkUpdateAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("people.bulk_update", { detail: `${fd.getAll("contactIds").length} people` });
   const ids = fd.getAll("contactIds").filter((v): v is string => typeof v === "string" && v.length > 0).slice(0, 1000);
   const campaignId = str(fd, "campaignId");
   const senderId = str(fd, "senderId");
@@ -667,6 +684,7 @@ export async function updatePersonAction(_: ActionState, fd: FormData): Promise<
 }
 
 export async function deletePersonAction(id: string): Promise<ActionState> {
+  await logAction("person.delete", { contactId: id });
   const c = await db.contact.findUnique({ where: { id } });
   if (!c) return { ok: false, message: "Person not found" };
   await db.reviewItem.deleteMany({ where: { contactId: id } });
@@ -717,6 +735,7 @@ export async function resumeOutreachAction(accountId: string): Promise<ActionSta
 
 /** Keep the company: the bad news is set aside (kept for the record) and research carries on from readiness. */
 export async function keepCompanyAction(reviewId: string): Promise<ActionState> {
+  await logAction("company.keep", { reviewId });
   const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
   if (!r?.accountId) return { ok: false, message: "This decision has no company" };
   const me = await (await import("@/lib/me")).getMe();
@@ -734,6 +753,7 @@ export async function keepCompanyAction(reviewId: string): Promise<ActionState> 
 
 /** Approve the rejection: the company is ruled out; the record and its evidence stay. */
 export async function approveRejectionAction(reviewId: string): Promise<ActionState> {
+  await logAction("company.reject", { reviewId });
   const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
   if (!r?.accountId) return { ok: false, message: "This decision has no company" };
   const me = await (await import("@/lib/me")).getMe();
@@ -745,6 +765,7 @@ export async function approveRejectionAction(reviewId: string): Promise<ActionSt
 
 /** Research the company again from scratch before deciding. */
 export async function moreResearchAction(reviewId: string): Promise<ActionState> {
+  await logAction("company.research_again", { reviewId });
   const r = await db.reviewItem.findUnique({ where: { id: reviewId } });
   if (!r?.accountId) return { ok: false, message: "This decision has no company" };
   await prepareReResearch(r.accountId);
