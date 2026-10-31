@@ -7,6 +7,18 @@ import { ago, date } from "@/components/ui";
 import { Badge as Kb, ConfidenceTag, EmptyState, FormField, PageHeader } from "@/components/kit";
 import { approveRejectionAction, keepCompanyAction, moreResearchAction, resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
 import { DecideButton, KeyNav } from "./decide";
+import { BodyEditor } from "./body-editor";
+import { sellerFor } from "@/lib/seller";
+
+/** The word limit from the account's tone rules ("under 120 words"), if it sets one. */
+function wordLimit(sellerId: string | null | undefined): number | null {
+  try {
+    const rule = sellerFor(sellerId).tone.join(" ").match(/(?:under|max(?:imum)?|at most|no more than|fewer than)\s+(\d{2,3})\s+words/i);
+    return rule ? Number(rule[1]) : null;
+  } catch {
+    return null;
+  }
+}
 import { reviewLabel } from "@/lib/review-labels";
 
 export const metadata = { title: "Approvals" };
@@ -63,7 +75,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                 <Kb tone={it.type === "possible_blocker" || it.type === "proposed_rejection" || type === "proposed_rejection" || it.type === "bounce_breaker" || it.type === "budget_exceeded" ? "danger" : it.type === "draft_approval" ? "accent" : "warning"}>{reviewLabel(it.type)}</Kb>
                 <b>{[it.contact?.fullName, it.account?.name].filter(Boolean).join(" · ") || reviewLabel(it.type)}</b>
                 <span>{it.reason}</span>
-                {it.dueAt && it.dueAt < new Date() && <span className="dz-over">Overdue</span>}
+                {it.dueAt && it.dueAt < new Date() && <span className="dz-over">Overdue · due {date(it.dueAt)}</span>}
               </Link>
             ))}
           </nav>
@@ -125,8 +137,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     <input type="hidden" name="draftId" value={draft.id} />
                     <p className="dz-meta">To {r.contact ? <Link href={`/people/${r.contact.id}`}>{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></p>
                     <FormField label="Subject"><input name="subject" defaultValue={draft.subject} className="glass-input" /></FormField>
-                    <FormField label="Body" hint="Edits must keep the unsubscribe line and sender address."><textarea name="body" defaultValue={draft.body} className="glass-textarea" rows={11} /></FormField>
-                    <FormField label="Note for the log (optional)"><input name="note" className="glass-input" /></FormField>
+                    <FormField label="Body" hint="Edits must keep the unsubscribe line and sender address."><BodyEditor name="body" initial={draft.body} limit={wordLimit(r.account?.sellerId)} /></FormField>
+                    <FormField label="Note (optional): why you edited or rejected it"><input name="note" className="glass-input" placeholder="e.g. too long, wrong person, claim not strong enough" /></FormField>
                     <div className="dz-actions">
                       <SubmitButton name="decision" value="approve" className="btn btn-primary"><Check size={15} /> Approve</SubmitButton>
                       <SubmitButton name="decision" value="reject" className="btn btn-secondary"><X size={15} /> Reject</SubmitButton>

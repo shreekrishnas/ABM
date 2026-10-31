@@ -8,7 +8,7 @@ export const metadata = { title: "Import data" };
 
 const TEXT: Record<string, string> = {
   "/import/upload": "Your own list of companies and people. See what each column needs, map your columns, preview what will be used, then import.",
-  "/import/lookalikes": "Enter one company's website. Similar companies are found and sorted by your targeting rule; you approve which ones to research.",
+  "/import/lookalikes": "Enter a customer's website. The AI finds companies with the same business model and operations, researches each one and scores fit and readiness; you approve which ones to keep.",
   "/import/apollo": "Companies visiting your website, identified by Apollo. Sorted by your rule; you approve which ones to research.",
 };
 

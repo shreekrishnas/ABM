@@ -1139,3 +1139,7 @@ html, body { background: var(--canvas) !important; }
   .br-side { position: static; display: flex; overflow-x: auto; scrollbar-width: none; }
   .br-side a { flex-shrink: 0; }
 }
+/* Approvals: full-height email body and word count */
+.dz-body-text { resize: vertical; line-height: 1.55; }
+.dz-words { display: block; margin-top: var(--sp-1); font-size: var(--fs-12); color: var(--muted); }
+.dz-words.over { color: var(--warning); font-weight: var(--fw-medium); }
