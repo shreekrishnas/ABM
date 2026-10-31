@@ -12,7 +12,8 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { newContext } from "@/lib/pipeline/context";
-import { processQueue } from "@/lib/pipeline/orchestrator";
+import { processQueue, recoverStuckRuns } from "@/lib/pipeline/orchestrator";
+import { unscoped } from "@/lib/scope";
 import { processLookalikeQueue } from "@/lib/discover/lookalike";
 
 export const QUEUE_LEASE = "queue";
@@ -104,6 +105,15 @@ export async function kickDrain(origin: string | null | undefined): Promise<bool
   } catch {
     return false;
   }
+}
+
+/**
+ * Companies whose run was cut off (a timed-out request) stay "running" with nobody on them.
+ * Put them back in the queue so they resume; otherwise, with nothing else queued, no worker
+ * would ever start and they would stay stuck.
+ */
+export function requeueCutOffRuns(): Promise<number> {
+  return unscoped(() => recoverStuckRuns(newContext()));
 }
 
 /** For the status panel: how much is waiting and whether a worker is on it. */

@@ -2,7 +2,7 @@
 // allows a once-a-day schedule, so while people use the app it checks at most every 5 minutes
 // (one check across all servers, via a lease) and restarts a queue that has stopped.
 
-import { acquireLease, kickDrain } from "./drain";
+import { acquireLease, kickDrain, requeueCutOffRuns } from "./drain";
 import { queueHealth } from "@/lib/admin/health";
 import { recordError } from "@/lib/admin/errors";
 
@@ -14,6 +14,7 @@ export async function watchQueue(origin: string | null, now = new Date()): Promi
   try {
     // Holding the lease for 5 minutes means only one check per 5 minutes, whoever triggers it.
     if (!(await acquireLease(WATCHDOG_LEASE, `wd_${now.getTime()}`, EVERY_MS, now))) return false;
+    await requeueCutOffRuns();
     const q = await queueHealth(now);
     if (!q.stuck) return false;
     const started = await kickDrain(origin);

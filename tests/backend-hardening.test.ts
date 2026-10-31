@@ -112,4 +112,15 @@ describe("queue watchdog", () => {
     expect(await watchQueue(null, new Date(t0.getTime() + 60_000))).toBe(false);
     expect(await recentErrors()).toHaveLength(0);
   });
+
+  it("puts a run that was cut off back in the queue, even when nothing else is queued", async () => {
+    const { requeueCutOffRuns } = await import("@/lib/queue/drain");
+    const old = await baseDb.account.create({ data: { name: "Cut off", domain: "cut.in", sellerId: "manch", pipelineStatus: "running", pipelineStage: 6, lastRunAt: new Date(Date.now() - 20 * 60_000) } });
+    const live = await baseDb.account.create({ data: { name: "Still running", domain: "live.in", sellerId: "manch", pipelineStatus: "running", pipelineStage: 4, lastRunAt: new Date() } });
+    expect(await requeueCutOffRuns()).toBe(1);
+    const a = await baseDb.account.findUniqueOrThrow({ where: { id: old.id } });
+    expect(a.pipelineStatus).toBe("queued");
+    expect(a.queuedFromStage).toBe(7); // resumes after the last finished step
+    expect((await baseDb.account.findUniqueOrThrow({ where: { id: live.id } })).pipelineStatus).toBe("running");
+  });
 });

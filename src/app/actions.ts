@@ -16,7 +16,7 @@ import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
 import { refresh, requestOrigin, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
-import { kickDrain, queueStatus } from "@/lib/queue/drain";
+import { kickDrain, queueStatus, requeueCutOffRuns } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -463,6 +463,7 @@ export async function finishImportAction(batchId: string) {
 /** Progress of an import's research, for the page to poll. Restarts the queue if it has stopped. */
 export async function importProgressAction(batchId: string) {
   const left = { lastImportBatchId: batchId, mergedIntoId: null };
+  await requeueCutOffRuns();
   const [remaining, running, q] = await Promise.all([
     db.account.count({ where: { ...left, pipelineStatus: "queued" } }),
     db.account.count({ where: { ...left, pipelineStatus: "running" } }),

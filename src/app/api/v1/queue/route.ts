@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { authorize, json } from "@/lib/api";
-import { drainOnce, kickDrain, queueStatus, shouldContinue } from "@/lib/queue/drain";
+import { drainOnce, kickDrain, queueStatus, requeueCutOffRuns, shouldContinue } from "@/lib/queue/drain";
 
 // Background queue. POST starts (or continues) the drain chain: it answers 202 right
 // away, works through queued companies for one slice after responding, and calls itself
@@ -17,6 +17,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const denied = allowed(req);
   if (denied) return denied;
+  await requeueCutOffRuns();
   const status = await queueStatus();
   if (status.queued === 0) return json({ status: "idle", queued: 0 });
   if (status.working) return json({ status: "busy", queued: status.queued });
