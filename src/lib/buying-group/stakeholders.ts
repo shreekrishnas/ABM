@@ -40,6 +40,11 @@ export function groupOf(title: string | null | undefined): string | null {
 /** Function words the seller's personas use → stakeholder groups. */
 const FUNCTION_GROUP: Record<string, string> = { it: "it_digital", engineering: "it_digital", security: "risk_compliance", data: "data", finance: "finance", procurement: "procurement", operations: "operations", sales: "sales_channel", marketing: "sales_channel", hr: "hr", executive: "executive", legal: "risk_compliance", compliance: "risk_compliance" };
 
+/** The groups the seller's personas name: only people in these can be decision makers or champions. */
+export function personaGroups(personaFunctions: string[]): string[] {
+  return [...new Set(personaFunctions.map((f) => FUNCTION_GROUP[f]).filter(Boolean))];
+}
+
 /**
  * Groups to cover for a seller, most important first: the groups its personas name, then leadership,
  * finance, procurement, operations and IT (present in almost every enterprise purchase), then the rest.

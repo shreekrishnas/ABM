@@ -146,3 +146,26 @@ describe("stakeholder search", () => {
     expect(await db.contact.count({ where: { accountId: a.id, discoveredBy: "stakeholder_search" } })).toBe(0);
   });
 });
+
+describe("who can be emailed", () => {
+  it("people found outside the client's persona groups are influencers, never decision makers or champions", async () => {
+    const { personaGroups } = await import("@/lib/buying-group/stakeholders");
+    const { MANCH } = await import("@/lib/seller/manch");
+    const buyers = new Set(personaGroups(MANCH.personas.flatMap((p) => p.functions)));
+    const a = await company("rolecheck.in", "T1");
+    // Cover the persona groups so the search reaches the groups outside them (leadership, HR).
+    for (const title of ["Head of Master Data", "Chief Financial Officer", "Head of Procurement", "Chief Operating Officer", "Head of Sales", "Head of Internal Audit"])
+      await db.contact.create({ data: { accountId: a.id, fullName: `Person ${title}`, title, titleNormalized: title } });
+    const out = await expandStakeholders(a, newContext());
+    expect(out.searched.sort()).toEqual(["executive", "hr"]);
+    const found = await db.contact.findMany({ where: { accountId: a.id, discoveredBy: "stakeholder_search" } });
+    for (const p of found) {
+      if (!buyers.has(groupOf(p.title)!)) {
+        expect(p.buyingRole).toBe("influencer");
+        expect(p.influenceReason).toMatch(/: /);
+      }
+    }
+    expect(found.some((p) => !buyers.has(groupOf(p.title)!))).toBe(true);
+    expect(found.every((p) => p.function)).toBe(true); // the searched group sets the function when the title doesn't
+  });
+});

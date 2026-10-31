@@ -18,7 +18,7 @@ const EXAMPLES = [
 
 function Field({ label, name, value, hint, wide, area }: { label: string; name: string; value: string; hint?: string; wide?: boolean; area?: boolean }) {
   return (
-    <label className={`grid gap-1 text-xs ${wide ? "sm:col-span-2" : ""}`}>
+    <label className={`grid content-start gap-1 text-xs ${wide ? "sm:col-span-2" : ""}`}>
       <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
       {area ? <textarea name={name} defaultValue={value} className="glass-textarea" rows={3} /> : <input name={name} defaultValue={value} className="glass-input" />}
       {hint && <span className="muted">{hint}</span>}

@@ -7,7 +7,7 @@ import { BuyingNetwork, type NetPerson } from "@/components/viz/buying-network";
 /** Gathers people, their status and how much we've interacted with each, for the network view. */
 export async function NetworkCard({ accountId, company }: { accountId: string; company: string }) {
   const [contacts, statuses, msgs, replies, signals, events] = await Promise.all([
-    db.contact.findMany({ where: { accountId, mergedIntoId: null }, select: { id: true, fullName: true, titleNormalized: true, title: true, function: true, buyingRole: true } }),
+    db.contact.findMany({ where: { accountId, mergedIntoId: null }, select: { id: true, fullName: true, titleNormalized: true, title: true, function: true, buyingRole: true, stakeholderType: true } }),
     contactStatuses([accountId]),
     db.message.groupBy({ by: ["contactId"], where: { contact: { accountId } }, _count: true }),
     db.reply.groupBy({ by: ["contactId"], where: { contact: { accountId } }, _count: true }),
@@ -17,7 +17,8 @@ export async function NetworkCard({ accountId, company }: { accountId: string; c
   const n = (rows: { contactId: string | null; _count: number }[], id: string) => rows.find((r) => r.contactId === id)?._count ?? 0;
   const status = new Map((statuses.get(accountId) ?? []).map((s) => [s.id, s.status]));
   const people: NetPerson[] = contacts.map((c) => ({
-    id: c.id, name: c.fullName, title: c.titleNormalized ?? c.title, fn: c.function ? (c.function.length <= 3 ? c.function.toUpperCase() : c.function[0].toUpperCase() + c.function.slice(1)) : "Function unknown", role: c.buyingRole,
+    id: c.id, name: c.fullName, title: c.titleNormalized ?? c.title, // Directors, investors and advisers sit outside the org chart: their own row, not "Executive".
+    fn: c.stakeholderType !== "executive" ? "Board and advisers" : c.function ? (c.function.length <= 3 ? c.function.toUpperCase() : c.function[0].toUpperCase() + c.function.slice(1)) : "Function unknown", role: c.buyingRole,
     status: status.get(c.id) ?? "found",
     interactions: n(msgs, c.id) + n(replies, c.id) + n(signals, c.id) + events.filter((e) => e.journey.contactId === c.id).length,
   }));

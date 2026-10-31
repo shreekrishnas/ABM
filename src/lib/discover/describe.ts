@@ -20,6 +20,7 @@ import { quoteGate } from "@/lib/pipeline/gates";
 import { companyNameKey, normalizeCountry, normalizeDomain } from "@/lib/pipeline/normalize";
 import type { LookalikeProfile, ResearchPage } from "@/lib/adapters/types";
 import { costMeter, lookalikeCriteria, offeringOf } from "./lookalike";
+import { matchTech } from "@/lib/profile/catalog";
 import { firmographicsFor, heldKeys, saveSuggestion } from "./qualify";
 
 export interface DiscoveryCriteria {
@@ -77,7 +78,8 @@ export function cleanCriteria(raw: Partial<Record<keyof DiscoveryCriteria, unkno
     summary: (typeof raw.summary === "string" && raw.summary.trim() ? raw.summary.trim() : brief.trim()).slice(0, 300),
     industries: list(raw.industries, 8, 60), countries: [...new Set(countries)], minEmployees: min, maxEmployees: max,
     businessModels: list(raw.businessModels, 6), mustHave: list(raw.mustHave, 6, 160), niceToHave: list(raw.niceToHave, 6, 160), exclude: list(raw.exclude, 6, 160),
-    technologies: list(raw.technologies, 8, 60), funding, signals: list(raw.signals, 6, 100),
+    // Catalog names where known ("oracle netsuite" → "Oracle NetSuite"), so research and fit read them the same way.
+    technologies: [...new Set(list(raw.technologies, 8, 60).map((t) => matchTech(t)?.name ?? t))], funding, signals: list(raw.signals, 6, 100),
   };
   const queries = list(raw.queries, 6, 200);
   return { ...base, queries: queries.length >= 3 ? queries : [...new Set([...queries, ...buildQueries(base)])].slice(0, 6) };

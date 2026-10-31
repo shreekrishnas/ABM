@@ -20,7 +20,7 @@ import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipelin
 import { inferFunction, inferSeniority, splitName, standardizeTitle } from "@/lib/pipeline/normalize";
 import { setContactField } from "@/lib/pipeline/fields";
 import type { InfluencerRole, ProviderPerson } from "@/lib/adapters/types";
-import { GROUP_BY_KEY, OBVIOUS_TITLE, groupOf, targetGroups, titleOverlap } from "./stakeholders";
+import { GROUP_BY_KEY, OBVIOUS_TITLE, groupOf, personaGroups, targetGroups, titleOverlap } from "./stakeholders";
 
 const S = 8;
 const DAY = 86_400_000;
@@ -33,11 +33,14 @@ function isApprovalError(e: unknown) {
   return e instanceof Error && e.name === "ApprovalRequired";
 }
 
-async function addPerson(account: Account, p: ProviderPerson, ctx: RunContext, extra: { role?: BuyingRole; discoveredBy: string; influenceReason?: string }) {
+/** The function a stakeholder group stands for, when the title alone doesn't tell (a CHRO, a COO). */
+const GROUP_FUNCTION: Record<string, string> = { executive: "executive", it_digital: "it", finance: "finance", procurement: "procurement", operations: "operations", data: "data", risk_compliance: "compliance", sales_channel: "sales", hr: "hr" };
+
+async function addPerson(account: Account, p: ProviderPerson, ctx: RunContext, extra: { role?: BuyingRole; discoveredBy: string; influenceReason?: string; group?: string }) {
   const existing = await db.contact.findFirst({ where: { accountId: account.id, mergedIntoId: null, OR: [{ fullName: { equals: p.fullName, mode: "insensitive" } }, ...(p.linkedinUrl ? [{ linkedinUrl: p.linkedinUrl }] : [])] } });
   if (existing) return null;
   const title = standardizeTitle(p.title);
-  const fn = inferFunction(title);
+  const fn = inferFunction(title) ?? (extra.group ? GROUP_FUNCTION[extra.group] : null) ?? (groupOf(title) ? GROUP_FUNCTION[groupOf(title)!] : null);
   const role = extra.role ?? ((await ctx.adapters.llm.mapRole(title, null, fn)) as BuyingRole);
   const { first, last } = splitName(p.fullName);
   const c = await db.contact.create({
@@ -61,7 +64,9 @@ export async function expandStakeholders(account: Account, ctx: RunContext, opts
   if (!opts.force && (await recentlyRan(account.id, "buying_group.stakeholder_search", ctx.now))) return { searched: [], added: 0, reason: "Searched in the last 90 days" };
   const people = await db.contact.findMany({ where: { accountId: account.id, mergedIntoId: null, stakeholderType: "executive" }, select: { title: true, titleNormalized: true } });
   const covered = new Set(people.map((p) => groupOf(p.titleNormalized ?? p.title)).filter(Boolean));
-  const groups = targetGroups(seller().personas.flatMap((p) => p.functions)).filter((g) => !covered.has(g)).slice(0, plan.groups);
+  const fns = seller().personas.flatMap((p) => p.functions);
+  const buyers = new Set(personaGroups(fns));
+  const groups = targetGroups(fns).filter((g) => !covered.has(g)).slice(0, plan.groups);
   const searched: string[] = [];
   let added = 0;
   let stopped: string | undefined;
@@ -71,7 +76,9 @@ export async function expandStakeholders(account: Account, ctx: RunContext, opts
       const found = await ctx.adapters.provider.findByTitles(account.domain, GROUP_BY_KEY[g].titles, plan.perGroup);
       searched.push(g);
       // Keep only people whose title really files into the group asked for.
-      for (const p of found) if (groupOf(p.title) === g && (await addPerson(account, p, ctx, { discoveredBy: "stakeholder_search" }))) added++;
+      // Only the groups the client's personas cover can produce decision makers or champions (who get
+      // emailed and enriched); people found elsewhere are influencers for planning.
+      for (const p of found) if (groupOf(p.title) === g && (await addPerson(account, p, ctx, { discoveredBy: "stakeholder_search", group: g, ...(buyers.has(g) ? {} : { role: "influencer" as BuyingRole, influenceReason: `${GROUP_BY_KEY[g].label}: ${GROUP_BY_KEY[g].role.toLowerCase()}` }) }))) added++;
     } catch (e) {
       if (e instanceof BudgetExceeded) { stopped = "budget reached"; break; }
       if (isApprovalError(e)) { stopped = "company not approved for contact lookups"; break; }
@@ -157,7 +164,7 @@ export async function findHiddenInfluencers(account: Account, ctx: RunContext, o
       const found = await ctx.adapters.provider.findByTitles(account.domain, r.searchTitles, 1);
       for (const p of found) {
         const reason = `${r.why}. Based on: “${facts[0].claim.slice(0, 160)}”`;
-        const c = await addPerson(account, p, ctx, { role: "influencer", discoveredBy: "influencer_search", influenceReason: reason });
+        const c = await addPerson(account, p, ctx, { role: "influencer", discoveredBy: "influencer_search", influenceReason: reason, group: r.group });
         if (c) out.found.push(c.id);
       }
     } catch (e) {

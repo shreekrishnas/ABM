@@ -53,7 +53,7 @@ describe("search and investigation", () => {
     expect(c.industries).toEqual(["pharma"]);
     expect(c.countries).toEqual(["IN"]);
     expect(c.minEmployees).toBe(5000);
-    expect(c.technologies).toEqual(["sap s/4hana"]);
+    expect(c.technologies).toEqual(["SAP S/4HANA"]);
     expect(c.queries.length).toBeGreaterThanOrEqual(2);
 
     const r = await runDiscovery(s.id, newContext());

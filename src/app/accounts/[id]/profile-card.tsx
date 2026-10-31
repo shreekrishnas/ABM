@@ -105,8 +105,8 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                       return (
                         <tr key={r.id}>
                           <td className="font-semibold">{r.fiscalYear}</td>
-                          <td className="tnum" title={r.revenueUsd ? `≈ ${formatUsd(r.revenueUsd)}` : undefined}>{formatAmount(r.revenue, r.currency)}</td>
-                          <td className="tnum" style={{ color: r.netProfit != null && r.netProfit < 0 ? "var(--danger-strong)" : undefined }}>{formatAmount(r.netProfit, r.currency)}</td>
+                          <td className="tnum whitespace-nowrap" title={r.revenueUsd ? `≈ ${formatUsd(r.revenueUsd)}` : undefined}>{formatAmount(r.revenue, r.currency)}</td>
+                          <td className="tnum whitespace-nowrap" style={{ color: r.netProfit != null && r.netProfit < 0 ? "var(--danger-strong)" : undefined }}>{formatAmount(r.netProfit, r.currency)}</td>
                           <td className="tnum">{margin == null ? "—" : `${(margin * 100).toFixed(1)}%`}</td>
                           <td>
                             <span className="flex flex-wrap items-center gap-1.5">
