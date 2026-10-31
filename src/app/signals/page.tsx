@@ -1,21 +1,48 @@
 import Link from "next/link";
+import { SignalType } from "@prisma/client";
 import { ListTodo, Radar } from "lucide-react";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { Badge, Card, Empty, Kpi, PageHeader, StageBadge, ago } from "@/components/ui";
+import { Card, Empty, Kpi, PageHeader, StageBadge, ago } from "@/components/ui";
 import { recordSignalAction } from "../actions";
 import { ListKeys } from "@/components/peek/list-keys";
 import { PeekPanel, peekHref } from "@/components/peek/panel";
 
 export const metadata = { title: "Signals" };
 
-export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ peek?: string }> }) {
-  const { peek } = await searchParams;
+/** "pricing_visit" → "Pricing page"; anything else in plain words. */
+const WORD: Record<string, string> = { site_visit: "Site visit", pricing_visit: "Pricing page", demo_visit: "Demo page", email_open: "Email open", email_click: "Email click", email_reply: "Email reply", intent_surge: "Intent surge", job_change: "Job change" };
+function signalWord(type: string) {
+  return WORD[type] ?? type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+type Sig = { id: string; accountId: string; account: { name: string }; contact: { id: string; fullName: string } | null; type: string; detail: string | null; points: number; occurredAt: Date; anonymous: boolean };
+
+/** One entry per company: total points, kinds of activity, who, and the signals themselves. */
+function groupByCompany(signals: Sig[]) {
+  const by = new Map<string, { accountId: string; name: string; points: number; last: Date; anonymous: number; people: string[]; kinds: Map<string, number>; items: Sig[] }>();
+  for (const s of signals) {
+    const g = by.get(s.accountId) ?? { accountId: s.accountId, name: s.account.name, points: 0, last: s.occurredAt, anonymous: 0, people: [] as string[], kinds: new Map<string, number>(), items: [] as Sig[] };
+    g.points += s.points;
+    if (s.occurredAt > g.last) g.last = s.occurredAt;
+    if (s.anonymous || !s.contact) g.anonymous++;
+    else if (!g.people.includes(s.contact.fullName)) g.people.push(s.contact.fullName);
+    g.kinds.set(s.type, (g.kinds.get(s.type) ?? 0) + 1);
+    g.items.push(s);
+    by.set(s.accountId, g);
+  }
+  return [...by.values()].map((g) => ({ ...g, kinds: [...g.kinds].sort((a, b) => b[1] - a[1]) })).sort((a, b) => b.points - a.points);
+}
+
+export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ peek?: string; view?: string; type?: string }> }) {
+  const { peek, view: v, type } = await searchParams;
+  const view = v === "all" ? "all" : "company";
+  const sigType = (Object.values(SignalType) as string[]).includes(type ?? "") ? (type as SignalType) : undefined;
   const since = new Date(Date.now() - 30 * 86_400_000);
   const [signals, byType, anon, accounts, surging] = await Promise.all([
-    db.signal.findMany({ orderBy: { occurredAt: "desc" }, take: 80, include: { account: true, contact: true } }),
+    db.signal.findMany({ where: view === "all" ? (sigType ? { type: sigType } : {}) : { occurredAt: { gte: since } }, orderBy: { occurredAt: "desc" }, take: view === "all" ? 100 : 2000, include: { account: true, contact: true } }),
     db.signal.groupBy({ by: ["type"], where: { occurredAt: { gte: since } }, _count: true, _sum: { points: true } }),
     db.signal.count({ where: { anonymous: true, occurredAt: { gte: since } } }),
     db.account.findMany({ where: { mergedIntoId: null, stage: { notIn: ["DISQUALIFIED"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -35,21 +62,54 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
-        <Card title="Signal feed" pad={false} className="xl:col-span-2">
-          {signals.length === 0 ? <Empty icon={<Radar size={20} />} title="No signals yet" /> : (
+        <Card title="Signal feed" sub={view === "company" ? "Last 30 days, one row per company, most points first. Open a row to see each signal." : "Every signal, newest first."} pad={false} className="xl:col-span-2"
+          action={<nav className="k-seg sg-seg" aria-label="View"><Link href="/signals" className={view === "company" ? "on" : undefined}>By company</Link><Link href="/signals?view=all" className={view === "all" ? "on" : undefined}>All signals</Link></nav>}>
+          {view === "all" && (
+            <div className="sg-types">
+              <Link href="/signals?view=all" className={`chip-filter${!sigType ? " on" : ""}`}>All types</Link>
+              {byType.sort((x, y) => y._count - x._count).map((t) => <Link key={t.type} href={`/signals?view=all&type=${t.type}`} className={`chip-filter${sigType === t.type ? " on" : ""}`}>{signalWord(t.type)} <b className="tnum">{t._count}</b></Link>)}
+            </div>
+          )}
+          {signals.length === 0 ? <Empty icon={<Radar size={20} />} title="No signals yet" /> : view === "company" ? (
+            <ul className="sg-list">
+              {groupByCompany(signals).map((g) => (
+                <li key={g.accountId}>
+                  <details>
+                    <summary>
+                      <span className="sg-co"><Link href={peekHref("/signals", {}, "a", g.accountId)} scroll={false}>{g.name}</Link><small>{g.people.length ? g.people.slice(0, 3).join(", ") + (g.people.length > 3 ? ` +${g.people.length - 3}` : "") : "No named person"}{g.anonymous ? ` · ${g.anonymous} anonymous` : ""}</small></span>
+                      <span className="sg-kinds">{g.kinds.slice(0, 4).map(([k, n]) => <span key={k}>{signalWord(k)}{n > 1 ? ` ×${n}` : ""}</span>)}</span>
+                      <span className="sg-pts tnum">+{g.points}</span>
+                      <span className="sg-when">{ago(g.last)}</span>
+                    </summary>
+                    <ul className="sg-items">
+                      {g.items.slice(0, 12).map((x) => (
+                        <li key={x.id}>
+                          <span>{signalWord(x.type)}{x.detail ? <span className="muted"> · {x.detail}</span> : null}</span>
+                          <span className="muted">{x.contact ? x.contact.fullName : "anonymous · counts half"}</span>
+                          <span className="tnum">+{x.points}</span>
+                          <span className="muted">{ago(x.occurredAt)}</span>
+                        </li>
+                      ))}
+                      {g.items.length > 12 && <li className="muted">and {g.items.length - 12} more</li>}
+                    </ul>
+                    <div className="sg-act"><Link href={`/accounts/${g.accountId}?tab=activity`} className="td2-link">Open company activity</Link><AddTaskButton target={{ accountId: g.accountId, label: g.name, title: `Follow up: ${g.name} is active`, origin: "signal" }} /></div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          ) : (
             <div className="table-wrap">
-              <table className="data">
-                <thead><tr><th>Account</th><th>Signal</th><th>Who</th><th>Points</th><th>Counts toward</th><th>When</th><th></th></tr></thead>
+              <table className="data compact">
+                <thead><tr><th>Company</th><th>Signal</th><th>Who</th><th className="text-right">Points</th><th>When</th><th></th></tr></thead>
                 <tbody>
                   {signals.map((s) => (
-                    <tr key={s.id} data-row-select={peekHref("/signals", {}, "a", s.accountId)} data-selected={peek === `a_${s.accountId}` ? "" : undefined}>
-                      <td className="strong"><Link href={peekHref("/signals", {}, "a", s.accountId)} scroll={false} className="hover:underline">{s.account.name}</Link></td>
-                      <td>{s.type.replaceAll("_", " ")}{s.detail && <div className="muted max-w-[200px] truncate text-xs">{s.detail}</div>}</td>
-                      <td>{s.contact ? <Link href={peekHref("/signals", {}, "p", s.contact.id)} scroll={false} className="hover:underline">{s.contact.fullName}</Link> : <span className="muted">anonymous</span>}</td>
-                      <td className="tnum">+{s.points}</td>
-                      <td>{s.attributed && !s.anonymous ? <Badge color="#7C3AED">person + account</Badge> : <Badge color="#0EA5E9">account (½ weight)</Badge>}</td>
+                    <tr key={s.id} data-row-select={peekHref("/signals", { view: "all", type }, "a", s.accountId)} data-selected={peek === `a_${s.accountId}` ? "" : undefined}>
+                      <td className="strong whitespace-nowrap"><Link href={peekHref("/signals", { view: "all", type }, "a", s.accountId)} scroll={false} className="hover:underline">{s.account.name}</Link></td>
+                      <td>{signalWord(s.type)}{s.detail && <div className="muted max-w-[220px] truncate text-xs">{s.detail}</div>}</td>
+                      <td className="whitespace-nowrap">{s.contact ? <Link href={peekHref("/signals", { view: "all", type }, "p", s.contact.id)} scroll={false} className="hover:underline">{s.contact.fullName}</Link> : <span className="muted">anonymous · counts half</span>}</td>
+                      <td className="tnum text-right">+{s.points}</td>
                       <td className="muted whitespace-nowrap text-xs">{ago(s.occurredAt)}</td>
-                      <td><AddTaskButton target={{ accountId: s.accountId, contactId: s.contact?.id, label: s.contact?.fullName ?? s.account.name, title: `Follow up: ${s.type.replaceAll("_", " ")}${s.contact ? ` by ${s.contact.fullName}` : ""}`, origin: "signal" }} className="br-icon"><ListTodo size={15} /></AddTaskButton></td>
+                      <td><AddTaskButton target={{ accountId: s.accountId, contactId: s.contact?.id, label: s.contact?.fullName ?? s.account.name, title: `Follow up: ${signalWord(s.type).toLowerCase()}${s.contact ? ` by ${s.contact.fullName}` : ""}`, origin: "signal" }} className="br-icon"><ListTodo size={15} /></AddTaskButton></td>
                     </tr>
                   ))}
                 </tbody>
@@ -64,7 +124,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
                 <select id="sa" name="accountId" className="glass-select" required defaultValue=""><option value="" disabled>Choose an account</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
               </div>
               <div><label className="field-label" htmlFor="st">Type</label>
-                <select id="st" name="type" className="glass-select" defaultValue="site_visit">{Object.entries(CONFIG.engagement.points).map(([k, p]) => <option key={k} value={k}>{k.replaceAll("_", " ")} (+{p})</option>)}</select>
+                <select id="st" name="type" className="glass-select" defaultValue="site_visit">{Object.entries(CONFIG.engagement.points).map(([k, p]) => <option key={k} value={k}>{signalWord(k)} (+{p})</option>)}</select>
               </div>
               <div><label className="field-label" htmlFor="sd">Detail</label><input id="sd" name="detail" className="glass-input" placeholder="/pricing, webinar name…" /></div>
               <div className="flex justify-end"><SubmitButton>Record</SubmitButton></div>
