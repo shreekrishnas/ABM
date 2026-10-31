@@ -44,7 +44,12 @@ export const packSchema = z
         employees: z.object({ sweetSpot: z.number().int().min(0), mid: z.number().int().min(0), min: z.number().int().min(0) }).strict(),
         geos: z.object({ primary: z.array(country).min(1), secondary: z.array(country) }).strict(),
         tech: z.object({ erp: strList, incumbents: strList, workflow: strList }).strict(),
-        weights: z.object({ industry: z.number().min(0), size: z.number().min(0), geography: z.number().min(0), partnerNetwork: z.number().min(0).optional(), techStack: z.number().min(0) }).strict(),
+        weights: z.object({
+          industry: z.number().min(0), size: z.number().min(0), geography: z.number().min(0), partnerNetwork: z.number().min(0).optional(), techStack: z.number().min(0),
+          businessModel: z.number().min(0).optional(), solutionRelevance: z.number().min(0).optional(), financialCapacity: z.number().min(0).optional(), customerLikeness: z.number().min(0).optional(),
+        }).strict(),
+        partnerNetwork: z.object({ strong: z.number().int().min(1), good: z.number().int().min(1), min: z.number().int().min(1) }).strict().optional(),
+        businessModels: z.array(z.object({ key, label: str, tier: z.enum(["primary", "secondary"]), match: strList.min(1) }).strict()).optional(),
         priorityWeights: z.object({ intent: z.number().min(0), fit: z.number().min(0), value: z.number().min(0), timing: z.number().min(0) }).strict().optional(),
         tierBySize: z.object({ T1: z.number().int().min(1), T2: z.number().int().min(1) }).strict().optional(),
         industryMode: z.enum(["targeted", "any"]).optional(),

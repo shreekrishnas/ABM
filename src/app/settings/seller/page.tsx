@@ -3,6 +3,7 @@ import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { DEFAULT_RESEARCH_WEIGHTS } from "@/lib/seller/fit";
 
 export const metadata = { title: "Seller profile" };
 
@@ -44,7 +45,7 @@ export default async function SellerPage() {
         </Card>
       </div>
 
-      <Card title="How fit is scored" sub={`Weights: industry ${w.industry} · size ${w.size} · geography ${w.geography} · tech stack ${w.techStack} — scored on known fields only`} className="mt-5" pad={false}>
+      <Card title="How fit is scored" sub={`Firmographics: industry ${w.industry} · size ${w.size} · geography ${w.geography} · tech stack ${w.techStack}. After research: partner network ${w.partnerNetwork ?? 0}${sp.icp.businessModels?.length ? ` · business model ${w.businessModel ?? 0}` : ""} · solution relevance ${w.solutionRelevance ?? DEFAULT_RESEARCH_WEIGHTS.solutionRelevance} · financial capacity ${w.financialCapacity ?? DEFAULT_RESEARCH_WEIGHTS.financialCapacity} · like won customers ${w.customerLikeness ?? DEFAULT_RESEARCH_WEIGHTS.customerLikeness}. Scored on known components only; unknown never counts against a company.`} className="mt-5" pad={false}>
         <div className="table-wrap">
           <table className="data">
             <thead><tr><th>Vertical</th><th>Tier</th><th>Lead use cases</th><th>Matches industry text like</th></tr></thead>
@@ -63,6 +64,11 @@ export default async function SellerPage() {
         <div className="grid gap-4 px-5 py-4 text-xs secondary md:grid-cols-3">
           <div><b style={{ color: "var(--text-primary)" }}>Size:</b> {sp.icp.employees.sweetSpot.toLocaleString()}+ employees full marks; {sp.icp.employees.mid}+ strong; {sp.icp.employees.min}+ partial; below that 0.</div>
           <div><b style={{ color: "var(--text-primary)" }}>Geography:</b> {sp.icp.geos.primary.join(", ")} full; {sp.icp.geos.secondary.join(", ")} partial.</div>
+          {sp.icp.partnerNetwork && <div><b style={{ color: "var(--text-primary)" }}>Partner network:</b> {sp.icp.partnerNetwork.strong.toLocaleString()}+ partners full marks; {sp.icp.partnerNetwork.good.toLocaleString()}+ strong; {sp.icp.partnerNetwork.min.toLocaleString()}+ partial.</div>}
+          {sp.icp.businessModels?.length ? <div><b style={{ color: "var(--text-primary)" }}>Business model:</b> {sp.icp.businessModels.map((m) => `${m.label} (${m.tier})`).join(" · ")}.</div> : null}
+          <div><b style={{ color: "var(--text-primary)" }}>Solution relevance:</b> from the investigation: evaluating this kind of solution (full) · a supported opportunity (85%) · a relevant development (55%) · an event not yet linked (25%) · no link (0).</div>
+          <div><b style={{ color: "var(--text-primary)" }}>Financial capacity:</b> profitable and growing (full) · profitable (85%) · breakeven (55%) · declining (30%) · loss-making (20%, or 70% with funding in the last 24 months).</div>
+          <div><b style={{ color: "var(--text-primary)" }}>Like won customers:</b> industry, size band, market, systems and business model compared with the 3 closest won customers; scored once there are 5 won deals.</div>
           <div><b style={{ color: "var(--text-primary)" }}>Tech stack:</b> ERP present ({sp.icp.tech.erp.slice(0, 4).join(", ")}…) +6 · legacy MDM to replace ({sp.icp.tech.incumbents.slice(0, 3).join(", ")}…) +3 · DIY workflow tools +1.</div>
         </div>
       </Card>

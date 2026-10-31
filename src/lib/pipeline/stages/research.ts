@@ -395,6 +395,11 @@ export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { 
   const fieldStatuses = (await db.fieldState.findMany({ where: { accountId: account.id } })).map((f) => f.status);
   const conf = dataConfidence([...fieldStatuses, ...evidence.map((e) => e.status)], 1);
   account = await db.account.update({ where: { id: account.id }, data: { dataConfidence: conf } });
+  // Fit again with research in (partner network, business model, solution relevance, finances, likeness to wins).
+  {
+    const { rescoreFit } = await import("../fit-research");
+    account = await rescoreFit(account, ctx);
+  }
   await logEvent(ctx, { accountId: account.id, stage: S, step: "account_twin.save_twin", outcome: "pass", reason: `v${(prev?.version ?? 0) + 1}: ${facts.length} facts, ${inferences.length} inferences, ${unknowns.length} unknowns, ${changed.length} changes` });
   // The brain connects the facts to the seller's use cases and plans an angle per role.
   await buildBrief(account, snapshot, ctx);

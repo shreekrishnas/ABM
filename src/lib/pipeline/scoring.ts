@@ -4,13 +4,14 @@
 import { CONFIG } from "@/lib/config";
 import type { BuyingStage, FieldStatus, Priority, Tier } from "@prisma/client";
 import { seller, type SellerProfile } from "@/lib/seller";
-import { sellerFit, type SellerFit } from "@/lib/seller/fit";
+import { sellerFit, type FitResearch, type SellerFit } from "@/lib/seller/fit";
 
 export interface Firmographics {
   industry?: string | null;
   employees?: number | null;
   country?: string | null;
   technologies?: string[] | null;
+  research?: FitResearch;
 }
 
 export type FitResult = SellerFit;

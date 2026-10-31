@@ -66,7 +66,25 @@ export interface SellerProfile {
     employees: { sweetSpot: number; mid: number; min: number };
     geos: { primary: string[]; secondary: string[] };
     tech: { erp: string[]; incumbents: string[]; workflow: string[] };
-    weights: { industry: number; size: number; geography: number; partnerNetwork?: number; techStack: number };
+    /**
+     * Points per fit component. The four research components are scored once research has run
+     * (unknown until then, so they never count against a company).
+     */
+    weights: {
+      industry: number; size: number; geography: number; partnerNetwork?: number; techStack: number;
+      /** How the company goes to market matches the seller's target business models. */
+      businessModel?: number;
+      /** Research shows the problem the offering solves (validated investigation conclusions). */
+      solutionRelevance?: number;
+      /** Can it pay: financial health and recent funding. */
+      financialCapacity?: number;
+      /** Resembles the seller's won customers (needs enough won deals). */
+      customerLikeness?: number;
+    };
+    /** Partner network size bands (distributors, dealers, vendors, sellers): full points at strong, partial at good and min. */
+    partnerNetwork?: { strong: number; good: number; min: number };
+    /** Go-to-market models the seller sells best into. `match` words are matched against the researched business model. */
+    businessModels?: { key: string; label: string; tier: "primary" | "secondary"; match: string[] }[];
     /** How the combined priority score weighs intent, fit, company value and timing (default 40/30/20/10). */
     priorityWeights?: { intent: number; fit: number; value: number; timing: number };
     /** Starting tier from employee count (T1 at or above T1, T2 at or above T2, else T3). Hot buying signals upgrade to T1. */

@@ -158,7 +158,8 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
     account = await db.account.update({ where: { id: account.id }, data: { disqualifyReason: null, ...(account.stage === "DISQUALIFIED" ? { stage: "UNAWARE" } : {}) } });
   }
 
-  const fit = scoreFit(account);
+  const { fitResearchFor } = await import("../fit-research");
+  const fit = scoreFit({ ...account, research: await fitResearchFor(account, ctx.now) });
   const floor = fitFloorGate(fit.fit);
   const useCase = pickUseCase(account.industry, null, seller());
   await logEvent(ctx, {

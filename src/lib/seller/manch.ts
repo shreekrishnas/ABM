@@ -80,7 +80,16 @@ export const MANCH: SellerProfile = {
       incumbents: ["informatica", "reltio", "sap mdg", "stibo", "profisee", "tibco ebx", "semarchy", "talend"],
       workflow: ["appian", "pega", "power apps", "mendix", "outsystems", "servicenow"],
     },
-    weights: { industry: 35, size: 25, geography: 15, partnerNetwork: 15, techStack: 10 },
+    weights: { industry: 35, size: 25, geography: 15, partnerNetwork: 15, techStack: 10, businessModel: 15, solutionRelevance: 20, financialCapacity: 10, customerLikeness: 15 },
+    // Distributors, dealers, retailers, vendors or delivery partners: more partners = more onboarding.
+    partnerNetwork: { strong: 5000, good: 1000, min: 200 },
+    businessModels: [
+      { key: "distributor_network", label: "Sells through distributors, dealers or retailers", tier: "primary", match: ["distributor_network", "distributor", "dealer", "retailer", "stockist", "channel partner", "franchise"] },
+      { key: "marketplace", label: "Marketplace or platform with sellers or gig workers", tier: "primary", match: ["marketplace", "gig_workforce", "gig", "delivery partner", "riders", "sellers on", "agents network", "aggregator"] },
+      { key: "vendor_heavy", label: "Large supplier base (manufacturing, procurement-heavy)", tier: "primary", match: ["vendor_heavy", "suppliers", "vendor base", "procurement", "manufacturing plants"] },
+      { key: "regulated_onboarding", label: "Regulated customer onboarding (lending, insurance, payments)", tier: "secondary", match: ["regulated_onboarding", "kyc", "lending", "nbfc", "insurance", "payments", "borrowers"] },
+      { key: "direct_enterprise", label: "Sells direct to enterprises", tier: "secondary", match: ["direct_enterprise", "direct sales", "b2b direct"] },
+    ],
     priorityWeights: { intent: 40, fit: 30, value: 20, timing: 10 },
     // Manch's targeting rule: companies located in India with more than 5,000 employees.
     mustHave: { countries: ["IN"], minEmployees: 5001 },
@@ -128,6 +137,9 @@ export const MANCH: SellerProfile = {
     { key: "tooling", label: "Systems in use", question: "Which ERP, MDM, workflow and KYC/eSign tools do they use today?", importance: "medium",
       search: { terms: '(SAP OR Oracle OR "Microsoft Dynamics" OR Informatica OR "master data management")', days: 730, news: false },
       extract: "ERP, MDM, workflow, KYC or eSign tools the company uses. value = comma-separated tool names." },
+    { key: "business_model", label: "How they go to market", question: "How does the company sell and operate: through distributors, dealers or retailers; a marketplace of sellers or gig workers; a large supplier base; regulated customer onboarding; or direct to customers or enterprises?", importance: "medium",
+      search: { terms: "(distributors OR dealers OR retailers OR marketplace OR sellers OR suppliers OR \"business model\" OR \"go-to-market\")", days: 1095, news: false },
+      extract: "How the company goes to market, as the page states it. value = one of: distributor_network, marketplace, gig_workforce, vendor_heavy, regulated_onboarding, d2c, direct_enterprise, other." },
     { key: "partner_network", label: "Partner network size", question: "How large is their external network (distributors, retailers, vendors, sellers, gig workers) and how fast is it growing?", importance: "medium",
       search: { terms: "(distributors OR dealers OR retail outlets OR suppliers OR vendors OR delivery partners)", days: 730, news: false },
       extract: "Size of the external network (distributors, dealers, retailers, vendors, delivery partners). value = the number only, digits." },

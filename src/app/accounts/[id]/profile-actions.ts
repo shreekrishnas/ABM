@@ -16,11 +16,19 @@ export async function refreshProfileAction(accountId: string): Promise<ActionSta
   await logAction("profile.refresh", { accountId });
   const { researchCompanyProfile } = await import("@/lib/profile/run");
   const s = await unscoped(() => researchCompanyProfile(account, newContext(), { force: true }));
+  await rescore(accountId);
   refresh(`/accounts/${accountId}`);
   const found = [s.financials && `${s.financials} financial figure${s.financials === 1 ? "" : "s"}`, s.funding && `${s.funding} funding round${s.funding === 1 ? "" : "s"}`, s.technologies && `${s.technologies} technolog${s.technologies === 1 ? "y" : "ies"}`, s.board && `${s.board} board member${s.board === 1 ? "" : "s"}`].filter(Boolean);
   const skipped = s.skipped.filter((x) => x.reason !== "Research not connected");
   if (s.skipped.some((x) => x.reason === "Research not connected")) return { ok: false, message: "Web research isn't connected (search and AI keys); website technology detection still ran" };
   return { ok: true, message: `${found.length ? `Found ${found.join(", ")}` : "Nothing new found"}${s.dropped ? `; ${s.dropped} value${s.dropped === 1 ? "" : "s"} dropped for not matching their source` : ""}${skipped.length ? `; ${skipped.map((x) => `${x.kind}: ${x.reason}`).join("; ")}` : ""}` };
+}
+
+/** Financial capacity is part of fit: re-score after the profile changes. */
+async function rescore(accountId: string) {
+  const { rescoreFit } = await import("@/lib/pipeline/fit-research");
+  const a = await db.account.findUnique({ where: { id: accountId } });
+  if (a) await unscoped(() => rescoreFit(a));
 }
 
 const num = z.union([z.literal(""), z.coerce.number().finite()]).transform((v) => (v === "" ? null : v));
@@ -79,6 +87,7 @@ export async function addFinancialRecordAction(_: ActionState, fd: FormData): Pr
   });
   const { refreshProfileSummary } = await import("@/lib/profile/run");
   await refreshProfileSummary(d.accountId);
+  await rescore(d.accountId);
   refresh(`/accounts/${d.accountId}`);
   return { ok: true, message: `${fy} saved as a verified ${d.kind === "filing" ? "filed" : "provider"} record; it now outranks web figures for that year` };
 }
@@ -92,6 +101,7 @@ export async function removeFinancialRecordAction(id: string): Promise<ActionSta
   await db.companyFinancial.delete({ where: { id } });
   const { refreshProfileSummary } = await import("@/lib/profile/run");
   await refreshProfileSummary(row.accountId);
+  await rescore(row.accountId);
   refresh(`/accounts/${row.accountId}`);
   return { ok: true, message: `${row.fiscalYear} record removed` };
 }

@@ -9,6 +9,8 @@ export const CONFIG = {
     floor: 40,
     tiers: { T1: 80, T2: 60 }, // fit >= 80 → T1, >= 60 → T2, else T3
     lostDealCooldownDays: 90,
+    /** Customer likeness is scored only once this many won deals exist for the client. */
+    winModelMin: 5,
   },
 
   priority: {
