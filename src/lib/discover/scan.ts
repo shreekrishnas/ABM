@@ -212,14 +212,29 @@ export async function maybeScanMarket(ctx: RunContext) {
 }
 
 /** Adds a suggestion as a company; the import queues it for the normal research run. */
+async function originOf(s: { origin: string; seed: string | null; name: string; whyNow: string }): Promise<string> {
+  if (s.origin === "lookalike") return `Like ${s.seed ?? "a reference company"}`;
+  if (s.origin === "discovery" && s.seed?.startsWith("search:")) {
+    const search = await db.discoverySearch.findUnique({ where: { id: s.seed.slice(7) }, select: { brief: true } });
+    return `Search: ${(search?.brief ?? "a company search").slice(0, 160)}`;
+  }
+  if (s.origin === "website_visitor") return "Visited the website";
+  return `Market scan: ${s.whyNow.slice(0, 160)}`;
+}
+
 export async function addSuggestion(id: string, decidedBy: string | null = null) {
   const s = await db.prospectSuggestion.findUniqueOrThrow({ where: { id } });
   if (s.status === "added" && s.accountId) return s.accountId;
   // A lookalike is approved on its evidence: not while the AI is still investigating it.
-  if (s.origin === "lookalike" && (s.researchStatus === "queued" || s.researchStatus === "running")) return null;
+  if ((s.origin === "lookalike" || s.origin === "discovery") && (s.researchStatus === "queued" || s.researchStatus === "running")) return null;
   const res = await ingestRows(
     [{ "Company Name": s.name, ...(s.domain ? { "Company Website": s.domain } : {}), ...(s.industry ? { Industry: s.industry } : {}), ...(s.employees != null ? { "Employee Size": String(s.employees) } : {}), ...(s.country ? { Country: s.country } : {}) }],
-    { source: s.origin === "lookalike" ? "lookalike" : s.origin === "website_visitor" ? "website-visitor" : "discover", filename: `${s.origin}-${s.name}` },
+    {
+      source: s.origin === "lookalike" ? "lookalike" : s.origin === "discovery" ? "discovery" : s.origin === "website_visitor" ? "website-visitor" : "discover",
+      // What it came from, as people read it: the reference company, the search, or the signal.
+      filename: await originOf(s),
+      createdBy: s.requestedBy ?? decidedBy, approvedBy: decidedBy,
+    },
   );
   const accountId = res.accountIds[0] ?? null;
   await db.prospectSuggestion.update({ where: { id }, data: { status: "added", accountId, decidedAt: new Date(), decidedBy } });

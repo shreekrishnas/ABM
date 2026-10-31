@@ -11,7 +11,10 @@ import { apolloOrgEnrich } from "@/lib/adapters/live/apollo";
 import type { RunContext } from "@/lib/pipeline/context";
 import { bucketOf } from "./scan";
 
-export type Origin = "market" | "lookalike" | "website_visitor";
+export type Origin = "market" | "lookalike" | "website_visitor" | "discovery";
+
+/** Suggestions the AI investigates in the background before a person decides. */
+export const INVESTIGATED_ORIGINS = ["lookalike", "discovery"];
 
 export interface Candidate {
   name: string;
@@ -71,7 +74,7 @@ export interface SuggestionInput {
   sources?: { url: string; quote: string; at: string; trigger: string }[];
   seed?: string | null;
   /** Lookalikes: the seed company's profile, for "why similar". */
-  seedProfile?: { industry: string | null; employees: number | null; country: string | null; keywords?: string[] } | null;
+  seedProfile?: { industry: string | null; employees: number | null; country: string | null; keywords?: string[]; profile?: import("@/lib/adapters/types").LookalikeProfile; focus?: string[]; avoid?: string[] } | null;
 }
 
 /** Save (or refresh) a suggestion. Approved and dismissed ones are left alone. */

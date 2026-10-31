@@ -15,6 +15,7 @@ import { newContext } from "@/lib/pipeline/context";
 import { processQueue, recoverStuckRuns } from "@/lib/pipeline/orchestrator";
 import { unscoped } from "@/lib/scope";
 import { processLookalikeQueue } from "@/lib/discover/lookalike";
+import { INVESTIGATED_ORIGINS } from "@/lib/discover/qualify";
 
 export const QUEUE_LEASE = "queue";
 /** Work per slice. Leaves headroom under the route's 60 s maxDuration for the chain call. */
@@ -54,7 +55,7 @@ export interface DrainResult {
 export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {}): Promise<DrainResult> {
   const [accounts, lookalikes] = await Promise.all([
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
-    db.prospectSuggestion.count({ where: { origin: "lookalike", researchStatus: "queued" } }),
+    db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" } }),
   ]);
   const queued = accounts + lookalikes;
   if (queued === 0) return { status: "idle", processed: 0, remaining: 0 };
@@ -120,7 +121,7 @@ export function requeueCutOffRuns(): Promise<number> {
 export async function queueStatus(now = new Date()) {
   const [accounts, lookalikes, running, lease] = await Promise.all([
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
-    db.prospectSuggestion.count({ where: { origin: "lookalike", researchStatus: "queued" } }),
+    db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" } }),
     db.account.count({ where: { pipelineStatus: "running", mergedIntoId: null } }),
     db.jobLease.findUnique({ where: { name: QUEUE_LEASE } }),
   ]);

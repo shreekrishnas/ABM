@@ -28,6 +28,17 @@ import { HeaderSignals, WhyNow } from "./header-signals";
 import { ProfileCard } from "./profile-card";
 import { StakeholdersCard } from "./stakeholders-card";
 
+const VIA_LABEL: Record<string, string> = { csv: "CSV upload", api: "the API", manual: "manual entry", lookalike: "Lookalikes", discovery: "a company search", website_visitor: "website visitors", market_scan: "the market scan" };
+
+/** "Added by asha@… via CSV upload (Pharma.csv) on 31 Oct · approved by ravi@…" — accountability for every company. */
+function originLine(a: { addedBy: string | null; addedVia: string | null; originDetail: string | null; approvedBy: string | null; source: string; createdAt: Date }) {
+  const via = a.addedVia ? VIA_LABEL[a.addedVia] ?? a.addedVia : a.source;
+  const who = a.addedBy ? `Added by ${a.addedBy}` : "Added";
+  const what = a.originDetail ? ` (${a.originDetail})` : "";
+  const approved = a.approvedBy && a.approvedBy !== a.addedBy ? ` · approved by ${a.approvedBy}` : a.approvedBy ? " · approved by them" : "";
+  return `${who} via ${via}${what} on ${a.createdAt.toISOString().slice(0, 10)}${approved}`;
+}
+
 // "Refresh" on the company profile researches in the request (a few searches and AI reads).
 export const maxDuration = 300;
 
@@ -102,6 +113,9 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               {[a.industry ?? "Industry unknown", [a.city, a.country].filter(Boolean).join(", "), a.employees ? `${a.employees.toLocaleString()} employees` : null, `Owner ${a.owner?.name ?? "unassigned"}`].filter(Boolean).map((x) => <span key={x}>{x}</span>)}
               {a.domain && <a href={`https://${a.domain}`} target="_blank" rel="noreferrer">{a.domain}<ExternalLink size={11} /></a>}
               {a.linkedinUrl && <a href={a.linkedinUrl} target="_blank" rel="noreferrer">LinkedIn<ExternalLink size={11} /></a>}
+            </div>
+            <div className="ch-meta" title="Who brought this company in, how, and who approved it">
+              <span>{originLine(a)}</span>
             </div>
           </div>
           <div className="ch-actions">

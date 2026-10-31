@@ -20,6 +20,12 @@ import { kickDrain, queueStatus, requeueCutOffRuns } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
 
+/** The signed-in person's email, for "added by" and "started by" records. */
+async function whoAmI(): Promise<string | null> {
+  const { getMe } = await import("@/lib/me");
+  return (await getMe())?.email ?? null;
+}
+
 
 // ── Pipeline ──
 
@@ -216,7 +222,7 @@ export async function manualHandoffAction(accountId: string): Promise<ActionStat
 export async function createAccountAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const name = str(fd, "name");
   if (!name) return { ok: false, message: "Company name is required" };
-  const res = await ingestRows([{ company: name, domain: str(fd, "domain"), industry: str(fd, "industry"), employees: str(fd, "employees"), country: str(fd, "country") }], { source: "manual" });
+  const res = await ingestRows([{ company: name, domain: str(fd, "domain"), industry: str(fd, "industry"), employees: str(fd, "employees"), country: str(fd, "country") }], { source: "manual", createdBy: await whoAmI() });
   if (res.rejected) return { ok: false, message: res.errors[0]?.error ?? "Could not create" };
   const owner = str(fd, "ownerId");
   if (owner) await db.account.update({ where: { id: res.accountIds[0] }, data: { ownerId: owner } });
@@ -348,7 +354,7 @@ export async function startImportAction(input: { filename: string; rows: number;
   if (analysis.missingRequired.length) return { ok: false, message: `Map the required field(s): ${analysis.missingRequired.map((f) => f.label).join(", ")}` };
   const [campaign, sender] = await Promise.all([db.campaign.findUnique({ where: { id: p.data.campaignId } }), db.senderProfile.findUnique({ where: { id: p.data.senderId } })]);
   if (!campaign || !sender) return { ok: false, message: "Campaign or sender profile not found" };
-  const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates], campaignId: campaign.id, senderId: sender.id, mapping: analysis.mapping });
+  const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates], campaignId: campaign.id, senderId: sender.id, mapping: analysis.mapping, createdBy: await whoAmI() });
   return { ok: true, batchId: batch.id };
 }
 

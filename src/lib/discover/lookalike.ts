@@ -25,7 +25,7 @@ import { MonthlyBudgetExceeded, ensureMonthlyBudget } from "@/lib/budget";
 import type { LookalikeDimension, LookalikeKnownFact, LookalikeProfile, LookalikeQuestion, ResearchPage } from "@/lib/adapters/types";
 import { targetCountries } from "./scan";
 import { recordError } from "@/lib/admin/errors";
-import { firmographicsFor, heldKeys, saveSuggestion, type Candidate } from "./qualify";
+import { INVESTIGATED_ORIGINS, firmographicsFor, heldKeys, saveSuggestion, type Candidate } from "./qualify";
 
 /** How much each dimension counts toward the fit score. */
 export const FIT_WEIGHTS = { business_model: 0.25, operations: 0.2, industry: 0.2, scale: 0.1, offering: 0.25 } as const;
@@ -97,6 +97,9 @@ export interface SeedRecord {
   country: string | null;
   keywords?: string[];
   profile?: LookalikeProfile;
+  /** Company search: must-haves and rule-outs from the confirmed criteria (added to the client's own). */
+  focus?: string[];
+  avoid?: string[];
 }
 
 export interface LookalikeResult {
@@ -108,7 +111,7 @@ export interface LookalikeResult {
 }
 
 /** Steps 1–2: profile the reference company, discover candidates, queue the best for investigation. */
-export async function findLookalikes(input: string, ctx: RunContext = newContext()): Promise<LookalikeResult> {
+export async function findLookalikes(input: string, ctx: RunContext = newContext(), requestedBy: string | null = null): Promise<LookalikeResult> {
   const p = seller();
   const crit = lookalikeCriteria(p);
   const offering = offeringOf(p);
@@ -182,7 +185,7 @@ export async function findLookalikes(input: string, ctx: RunContext = newContext
     });
     if (status === "excluded") excluded++;
     if (status === "new" && queue) {
-      await db.prospectSuggestion.update({ where: { sellerId_nameKey: { sellerId: p.id, nameKey: companyNameKey(c.name) } }, data: { researchStatus: "queued", researchNote: null } });
+      await db.prospectSuggestion.update({ where: { sellerId_nameKey: { sellerId: p.id, nameKey: companyNameKey(c.name) } }, data: { researchStatus: "queued", researchNote: null, requestedBy } });
       suggested++;
     } else if (status === "new") {
       // Beyond this client's per-search limit: not recommended, so not shown for approval.
@@ -273,7 +276,8 @@ export function scoreLookalike(j: { dims: Record<keyof typeof FIT_WEIGHTS, numbe
 /** Step 3–4 for one suggestion: the AI investigates, then judges. Runs inside the client's context. */
 export async function investigateSuggestion(id: string, ctx: RunContext = newContext()): Promise<ProspectSuggestion | null> {
   const s = await db.prospectSuggestion.findUnique({ where: { id } });
-  if (!s || s.origin !== "lookalike") return null;
+  if (!s || !INVESTIGATED_ORIGINS.includes(s.origin)) return null;
+  const isSearch = s.origin === "discovery";
   const p = seller();
   const crit = lookalikeCriteria(p);
   const offering = offeringOf(p);
@@ -289,7 +293,10 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
   await db.prospectSuggestion.update({ where: { id }, data: { researchStatus: "running" } });
 
   const seedRec = (s.seedProfile ?? {}) as unknown as SeedRecord;
-  const seed = { name: s.seed ?? "the reference company", ...(seedRec.profile ?? { summary: s.seed ?? "", businessModel: "unknown", operations: "unknown", industry: seedRec.industry, customers: "unknown", scale: "unknown", offeringFit: "unknown" }) };
+  // A company search is judged against the confirmed criteria, written as a reference profile.
+  const seed = { name: isSearch ? "the companies described in the search" : s.seed ?? "the reference company", ...(seedRec.profile ?? { summary: s.seed ?? "", businessModel: "unknown", operations: "unknown", industry: seedRec.industry, customers: "unknown", scale: "unknown", offeringFit: "unknown" }) };
+  const focus = [...crit.focus, ...(seedRec.focus ?? [])];
+  const avoid = [...crit.avoid, ...(seedRec.avoid ?? [])];
   const company = { name: s.name, domain: s.domain };
   const prev = (s.research ?? null) as LookalikeResearch | null;
   const raw: Omit<LookalikeEvidence, "sources" | "urls" | "verified">[] = ((s.evidence ?? []) as unknown as LookalikeEvidence[]).flatMap((e) => e.urls.map((url) => ({ claim: e.claim, quote: e.quote, url, publisher: hostOf(url), at: e.at, dimension: e.dimension })));
@@ -304,7 +311,7 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
   try {
     for (let round = start; round <= maxRounds; round++) {
       m.llm();
-      const plan = await ctx.adapters.llm.planLookalike({ seed, company, offering, focus: crit.focus, avoid: crit.avoid, facts: known(), asked, note: round === start ? s.researchNote : null, round, maxRounds });
+      const plan = await ctx.adapters.llm.planLookalike({ seed, company, offering, focus, avoid, facts: known(), asked, note: round === start ? s.researchNote : null, round, maxRounds });
       const done: LookalikeRound = { round, why: plan.why, questions: [] };
       for (const q of plan.questions.filter((x) => !asked.includes(x.question)).slice(0, 4)) {
         asked.push(q.question);
@@ -329,7 +336,7 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
 
     const evidence = mergeEvidence(raw, s.domain);
     m.llm(CONFIG.costsUsd.llmBrain);
-    const j = await ctx.adapters.llm.judgeLookalike({ seed, company, offering, focus: crit.focus, avoid: crit.avoid, facts: evidence.map((e) => ({ claim: e.claim, dimension: e.dimension, verified: e.verified })) });
+    const j = await ctx.adapters.llm.judgeLookalike({ seed, company, offering, focus, avoid, facts: evidence.map((e) => ({ claim: e.claim, dimension: e.dimension, verified: e.verified })) });
     const { fit, readiness, readinessScore } = scoreLookalike(j, evidence);
     const gate = mustHaveGate({ country: s.country, employees: s.employees });
     const ruled = !gate.pass && !gate.unknown ? gate.reason : j.avoidHit ? `Matches a rule-out for this account: ${j.avoidHit}` : fit < crit.minFit ? `Fit ${fit} is below this account's minimum of ${crit.minFit}` : null;
@@ -339,7 +346,7 @@ export async function investigateSuggestion(id: string, ctx: RunContext = newCon
       data: {
         fitScore: fit, readiness, readinessScore, score: fit, reasons: j.reasons.slice(0, 5),
         level: readiness === "ready" ? "hot" : readiness === "emerging" ? "warm" : "cold",
-        whyNow: (j.reasons[0] ? `Similar to ${seed.name}: ${j.reasons[0]}` : s.whyNow).slice(0, 400),
+        whyNow: (j.reasons[0] ? `${isSearch ? "Matches your search" : `Similar to ${seed.name}`}: ${j.reasons[0]}` : s.whyNow).slice(0, 400),
         evidence: evidence as unknown as Prisma.InputJsonValue, research: research as unknown as Prisma.InputJsonValue,
         researchStatus: "done", researchedAt: new Date(), researchNote: null,
         // A person's decision is never overwritten; otherwise the rule-outs set it aside.
@@ -378,7 +385,7 @@ export async function processLookalikeQueue(opts: { budgetMs: number; ctx?: RunC
   const until = Date.now() + opts.budgetMs;
   let processed = 0;
   while (Date.now() < until) {
-    const next = await db.prospectSuggestion.findFirst({ where: { origin: "lookalike", researchStatus: "queued" }, orderBy: { updatedAt: "asc" }, select: { id: true, sellerId: true } });
+    const next = await db.prospectSuggestion.findFirst({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" }, orderBy: { updatedAt: "asc" }, select: { id: true, sellerId: true } });
     if (!next) break;
     try {
       await withSeller(next.sellerId, () => investigateSuggestion(next.id, opts.ctx ?? newContext()));
@@ -389,7 +396,7 @@ export async function processLookalikeQueue(opts: { budgetMs: number; ctx?: RunC
     processed++;
   }
   // A run that died mid-way leaves "running" behind: retry those after 15 minutes.
-  await db.prospectSuggestion.updateMany({ where: { origin: "lookalike", researchStatus: "running", updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } }, data: { researchStatus: "queued" } });
-  const remaining = await db.prospectSuggestion.count({ where: { origin: "lookalike", researchStatus: "queued" } });
+  await db.prospectSuggestion.updateMany({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "running", updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } }, data: { researchStatus: "queued" } });
+  const remaining = await db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" } });
   return { processed, remaining };
 }

@@ -191,6 +191,10 @@ export interface LLM {
   critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
+  /** Company search: criteria from a plain-language description (cleaned and confirmed by code and a person). */
+  parseDiscoveryBrief(brief: string, context: { offering: string; defaultCountries: string[] }): Promise<Record<string, unknown>>;
+  /** Company search: companies the pages name that fit the criteria, each with an exact quote. */
+  extractCompaniesForBrief(pages: ResearchPage[], criteria: import("@/lib/discover/describe").DiscoveryCriteria): Promise<SimilarCompanyExtract[]>;
   /** 3–4 less-obvious people whose work the account's facts touch, each tied to fact ids. */
   proposeInfluencers(input: InfluencerInput): Promise<InfluencerRole[]>;
   /** Company profile facts (financials, funding, technologies, board) from pages, each with an exact quote. */

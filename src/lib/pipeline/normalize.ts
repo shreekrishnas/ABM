@@ -163,6 +163,9 @@ export function normalizeCountry(input?: string | null): string | null {
   const map: Record<string, string> = {
     "UNITED STATES": "US", USA: "US", "U.S.": "US", "UNITED KINGDOM": "GB", UK: "GB", ENGLAND: "GB", INDIA: "IN", GERMANY: "DE",
     FRANCE: "FR", NETHERLANDS: "NL", CANADA: "CA", AUSTRALIA: "AU", SINGAPORE: "SG", IRELAND: "IE", SPAIN: "ES", ITALY: "IT", SWEDEN: "SE",
+    "UNITED ARAB EMIRATES": "AE", UAE: "AE", "SAUDI ARABIA": "SA", KSA: "SA", QATAR: "QA", OMAN: "OM", KUWAIT: "KW", BAHRAIN: "BH",
+    INDONESIA: "ID", MALAYSIA: "MY", PHILIPPINES: "PH", THAILAND: "TH", VIETNAM: "VN", JAPAN: "JP", CHINA: "CN", "HONG KONG": "HK",
+    "SOUTH KOREA": "KR", "NEW ZEALAND": "NZ", "SOUTH AFRICA": "ZA", BRAZIL: "BR", MEXICO: "MX", SWITZERLAND: "CH", BELGIUM: "BE",
   };
   if (map[s]) return map[s];
   return /^[A-Z]{2}$/.test(s) ? s : null;

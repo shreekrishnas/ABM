@@ -52,6 +52,8 @@ export interface BatchOptions {
   campaignId?: string | null;
   senderId?: string | null;
   mapping?: Record<string, FieldKey>;
+  /** Who started the import (email, or "API"). */
+  createdBy?: string | null;
 }
 
 export async function startBatch(opts: BatchOptions) {
@@ -60,6 +62,7 @@ export async function startBatch(opts: BatchOptions) {
     data: {
       filename: opts.filename, source: opts.source, status: "uploading", rows: opts.rows, accepted: 0, rejected: 0, errors: [], stats: emptyStats() as unknown as Prisma.InputJsonValue,
       ignoredColumns: opts.ignoredColumns ?? [], campaignId: opts.campaignId ?? null, senderId: opts.senderId ?? null, mapping: (opts.mapping ?? undefined) as Prisma.InputJsonValue | undefined,
+      createdBy: opts.createdBy ?? null,
     },
   });
 }
@@ -104,6 +107,11 @@ export async function findPerson(p: { linkedinUrl: string | null; email: string 
 }
 
 interface RowContext {
+  /** Who brought new companies in, how and from what; who approved them (suggestions). */
+  addedBy: string | null;
+  addedVia: string;
+  originDetail: string | null;
+  approvedBy: string | null;
   source: string;
   batchId: string;
   /** The client the import is for; new companies belong to it. */
@@ -128,6 +136,7 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
       data: {
         name: r.company, nameKey: r.nameKey, domain: r.domain, linkedinUrl: r.companyLinkedin, industry: r.industry, employees: r.employees, city: r.city, country: r.country,
         technologies: r.technologies ?? [], keywords: r.keywords ?? [], companyNotes: r.companyNotes, source, sellerId: ctx.sellerId,
+        addedBy: ctx.addedBy, addedVia: ctx.addedVia, originDetail: ctx.originDetail, approvedBy: ctx.approvedBy,
       },
     });
     accountOutcome = "created";
@@ -299,10 +308,15 @@ export interface ChunkResult {
  * Validate and upsert a chunk of rows. `rowOffset` is the index of the first row
  * in the file (data rows start at spreadsheet row 2, after the header).
  */
-export async function importChunk(batchId: string, rows: Record<string, unknown>[], rowOffset = 0, mapping?: Record<string, FieldKey>): Promise<ChunkResult> {
+/** How a company came in, from the import's source. */
+const ADDED_VIA: Record<string, string> = { csv: "csv", api: "api", manual: "manual", lookalike: "lookalike", discovery: "discovery", "website-visitor": "website_visitor", discover: "market_scan" };
+
+export async function importChunk(batchId: string, rows: Record<string, unknown>[], rowOffset = 0, mapping?: Record<string, FieldKey>, extra: { approvedBy?: string | null } = {}): Promise<ChunkResult> {
   const batch = await db.importBatch.findUniqueOrThrow({ where: { id: batchId } });
   const headerMap = mapping ?? (batch.mapping as Record<string, FieldKey> | null) ?? analyzeHeaders([...new Set(rows.flatMap((r) => Object.keys(r)))]).mapping;
-  const ctx: RowContext = { source: batch.source === "csv" ? "CSV Import" : batch.source, batchId, sellerId: batch.sellerId, filename: batch.filename, campaignId: batch.campaignId, senderId: batch.senderId, now: new Date() };
+  const ctx: RowContext = {
+    addedBy: batch.createdBy, addedVia: ADDED_VIA[batch.source] ?? batch.source, originDetail: batch.source === "manual" || batch.source === "api" ? null : batch.filename, approvedBy: extra.approvedBy ?? null,
+    source: batch.source === "csv" ? "CSV Import" : batch.source, batchId, sellerId: batch.sellerId, filename: batch.filename, campaignId: batch.campaignId, senderId: batch.senderId, now: new Date() };
   const stats = { ...emptyStats(), ...(batch.stats as unknown as Partial<BatchStats>) };
   const errors: { row: number; error: string }[] = [];
   const accountIds = new Set<string>();
@@ -373,15 +387,15 @@ export interface IngestResult {
 }
 
 /** One-shot import (API, forms, seed, tests): start → one chunk → finish. */
-export async function ingestRows(rows: unknown[], opts: { source: string; filename?: string; campaignId?: string | null; senderId?: string | null }): Promise<IngestResult> {
+export async function ingestRows(rows: unknown[], opts: { source: string; filename?: string; campaignId?: string | null; senderId?: string | null; createdBy?: string | null; approvedBy?: string | null }): Promise<IngestResult> {
   const objects = rows.map((r) => (r && typeof r === "object" ? (r as Record<string, unknown>) : {}));
   const headers = [...new Set(objects.flatMap((r) => Object.keys(r)))];
   const analysis = analyzeHeaders(headers);
   const batch = await startBatch({
     filename: opts.filename ?? `${opts.source}-${new Date().toISOString().slice(0, 16)}`, source: opts.source, rows: rows.length, ignoredColumns: analysis.ignored,
-    campaignId: opts.campaignId, senderId: opts.senderId, mapping: analysis.mapping,
+    campaignId: opts.campaignId, senderId: opts.senderId, mapping: analysis.mapping, createdBy: opts.createdBy ?? null,
   });
-  const res = await importChunk(batch.id, objects, 0, analysis.mapping);
+  const res = await importChunk(batch.id, objects, 0, analysis.mapping, { approvedBy: opts.approvedBy ?? null });
   await finishBatch(batch.id);
   return { batchId: batch.id, accepted: res.accepted, rejected: res.rejected, accountIds: res.accountIds, errors: res.errors };
 }

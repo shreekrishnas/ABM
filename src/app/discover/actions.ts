@@ -50,7 +50,8 @@ export async function findLookalikesAction(_: ActionState, fd: FormData): Promis
   const { MonthlyBudgetExceeded } = await import("@/lib/budget");
   let r;
   try {
-    r = await findLookalikes(site, newContext());
+    const { getMe } = await import("@/lib/me");
+    r = await findLookalikes(site, newContext(), (await getMe())?.email ?? null);
   } catch (e) {
     if (e instanceof MonthlyBudgetExceeded) return { ok: false, message: e.message };
     throw e;
@@ -74,7 +75,7 @@ export async function rejectLookalikeAction(id: string, _: ActionState, fd: Form
 export async function researchMoreAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
   await logAction("lookalike.research_more", { suggestionId: id, detail: str(fd, "note") });
   const s = await db.prospectSuggestion.findUnique({ where: { id } });
-  if (!s || s.origin !== "lookalike") return { ok: false, message: "Company not found" };
+  if (!s || (s.origin !== "lookalike" && s.origin !== "discovery")) return { ok: false, message: "Company not found" };
   if (s.status === "added") return { ok: false, message: "Already approved: research continues on its company page" };
   const { requestMoreResearch } = await import("@/lib/discover/lookalike");
   await requestMoreResearch(id, str(fd, "note") ?? null);

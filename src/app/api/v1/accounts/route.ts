@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
   const b = await parseBody(req, Body);
   if ("error" in b) return b.error;
-  const res = await ingestRows(b.data.rows, { source: "api" });
+  const res = await ingestRows(b.data.rows, { source: "api", createdBy: "API" });
   if (b.data.run) {
     const { runBatch } = await import("@/lib/pipeline/orchestrator");
     return json({ ...res, runs: await runBatch(res.accountIds) }, 201);

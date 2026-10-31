@@ -274,6 +274,10 @@ class MockResearch implements ResearchSource {
         { url: `https://businessdaily.example.in/${slug}`, sourceType: "press", publishedAt: daysAgo(m.days + 2), title: `${companyName} ${m.claim}`, text: `${companyName} ${m.claim}.` },
       ];
     }
+    if (key === "discover_brief") {
+      // A list page naming companies from the sample market, with industry, country and size.
+      return [{ url: `https://companylist.example.com/${Math.abs(hash(companyName + domain)) % 1000}`, sourceType: "news" as const, publishedAt: daysAgo(30), title: "Leading companies", text: MOCK_MARKET.map((m) => `${m.name} is a ${m.industry} company based in ${m.country} with about ${m.employees.toLocaleString("en-IN")} employees.`).join(" ") }];
+    }
     if (key === "lookalike" || key === "lookalike_discover") {
       // A "companies like X" page naming peers from the sample market.
       return [{ url: `https://peerlist.example.com/${(domain || companyName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, sourceType: "news" as const, publishedAt: daysAgo(40), title: `Companies similar to ${companyName}`, text: MOCK_MARKET.map((m) => `${m.name} is a ${m.industry} company and a peer of ${companyName}.`).join(" ") }];
@@ -387,6 +391,36 @@ class MockLLM implements LLM {
 
   insights(stats: BrainStats) {
     return Promise.resolve(ruleInsights(stats));
+  }
+
+  /** Reads a description the way the AI would, for the sample market (industries, countries, size, technologies, funding). */
+  async parseDiscoveryBrief(brief: string): Promise<Record<string, unknown>> {
+    const t = brief.toLowerCase();
+    const industries = ["fmcg", "pharma", "manufacturing", "quick commerce", "nbfc", "beverages", "automotive"].filter((w) => t.includes(w));
+    const countries = [["india", "IN"], ["uae", "AE"], ["singapore", "SG"]].filter(([w]) => t.includes(w)).map(([, c]) => c);
+    const size = t.match(/(\d[\d,]*)\s*\+?\s*(?:employees|staff|people)/);
+    const tech = ["sap s/4hana", "salesforce", "oracle"].filter((w) => t.includes(w));
+    const series = t.match(/series ([a-e])/);
+    return {
+      summary: brief.trim(), industries, countries, minEmployees: size ? Number(size[1].replace(/,/g, "")) : null, maxEmployees: null,
+      businessModels: t.includes("distributor") ? ["sells through distributors"] : [], mustHave: t.includes("distributor") ? ["runs a distributor network"] : [],
+      niceToHave: [], exclude: t.includes("not software") ? ["software vendors"] : [], technologies: tech,
+      funding: series ? { stages: [`Series ${series[1].toUpperCase()}`], minAmountUsd: null, withinMonths: 24 } : null,
+      signals: t.includes("expan") ? ["expansion"] : [], queries: [],
+    };
+  }
+
+  /** Companies on a sample list page whose industry matches the criteria (or all, when no industry was given). */
+  async extractCompaniesForBrief(pages: ResearchPage[], criteria: { industries: string[] }): Promise<SimilarCompanyExtract[]> {
+    const out: SimilarCompanyExtract[] = [];
+    for (const [i, p] of pages.entries())
+      for (const m of MOCK_MARKET) {
+        const quote = `${m.name} is a ${m.industry} company`;
+        if (!p.text.includes(quote)) continue;
+        if (criteria.industries.length && !criteria.industries.some((w) => m.industry.toLowerCase().includes(w.toLowerCase()) || w.toLowerCase().includes(m.industry.toLowerCase()))) continue;
+        out.push({ page: i, name: m.name, domain: null, reason: `${m.industry} company`, quote });
+      }
+    return out;
   }
 
   /**

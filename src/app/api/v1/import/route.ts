@@ -11,5 +11,5 @@ export async function POST(req: Request) {
   const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
   if (!parsed.data.length) return json({ error: "no_rows" }, 400);
   if (parsed.data.length > 5000) return json({ error: "too_many_rows" }, 413);
-  return json(await ingestRows(parsed.data, { source: "api", filename: req.headers.get("x-filename") ?? undefined }), 201);
+  return json(await ingestRows(parsed.data, { source: "api", filename: req.headers.get("x-filename") ?? undefined, createdBy: "API" }), 201);
 }

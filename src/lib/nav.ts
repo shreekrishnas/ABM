@@ -12,6 +12,7 @@ export type NavSection = { key: string; label: string; blurb: string; icon: Icon
 
 export const IMPORT_PAGES: NavPage[] = [
   { href: "/import/upload", label: "Upload CSV", blurb: "Map columns, preview, import", icon: FileSpreadsheet },
+  { href: "/import/describe", label: "Describe companies", blurb: "Find companies from a description", icon: Radar },
   { href: "/import/lookalikes", label: "Lookalikes", blurb: "Companies like one website", icon: Sparkles },
   { href: "/import/apollo", label: "Via Apollo", blurb: "Companies visiting your website", icon: Globe2 },
 ];

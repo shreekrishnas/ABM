@@ -16,6 +16,8 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
   if (key === "firmographics") return { q: `${c} company profile employees industry headquarters`, days: null, news: false };
   if (key === "lookalike_intent") return { q: `${c} expansion OR investment OR hiring OR new plant OR digital transformation`, days: 365, news: true };
   if (key.startsWith("lookalike")) return { q: "", days: null, news: false };
+  // Company search from a description: profile pages and lists, recent but not news-only.
+  if (key === "discover_brief") return { q: "", days: 730, news: false };
   // Company profile: results are yearly, funding history goes back years, boards and stacks change slowly.
   if (key === "profile:financials") return { q: `${c} annual results revenue net profit`, days: 760, news: false };
   if (key === "profile:funding") return { q: `${c} raises funding round investors`, days: 1825, news: false };
@@ -30,7 +32,7 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
 }
 
 /** Profile-style lookups (a company's own site, what it does) need no date; news and intent do. */
-const undatedAllowed = (key: string) => key === "website" || key === "firmographics" || key === "profile:board" || key === "profile:tech_stack" || key === "profile:financials" || (key.startsWith("lookalike") && key !== "lookalike_intent");
+const undatedAllowed = (key: string) => key === "website" || key === "firmographics" || key === "profile:board" || key === "profile:tech_stack" || key === "profile:financials" || key === "discover_brief" || (key.startsWith("lookalike") && key !== "lookalike_intent");
 
 export function classifySource(url: string, domain: string): ResearchPage["sourceType"] {
   let host = "";

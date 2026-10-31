@@ -6,6 +6,7 @@
 import { z } from "zod";
 import type { LookalikeFact, LookalikeJudgeInput, LookalikeJudgement, LookalikePlanInput, LookalikeProfile, LookalikeQuestion } from "../types";
 import type { InfluencerInput, InfluencerRole } from "../types";
+import type { DiscoveryCriteria } from "@/lib/discover/describe";
 import type { BrainSuggestInput, MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
@@ -386,6 +387,49 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
       `Prospect: ${context.title ?? "unknown title"} at ${context.company}. Current stage: ${context.stage}.\nReply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"stage":"<stage key>","reason":"<one short sentence>","nextAction":"<the next step for the sender>"}`,
       150,
     );
+  }
+
+  async parseDiscoveryBrief(brief: string, context: { offering: string; defaultCountries: string[] }): Promise<Record<string, unknown>> {
+    const schema = z.object({
+      summary: z.string().max(300), industries: z.array(z.string()).max(8), countries: z.array(z.string()).max(12),
+      minEmployees: z.number().nullable(), maxEmployees: z.number().nullable(), businessModels: z.array(z.string()).max(6),
+      mustHave: z.array(z.string()).max(6), niceToHave: z.array(z.string()).max(6), exclude: z.array(z.string()).max(6), technologies: z.array(z.string()).max(8),
+      funding: z.object({ stages: z.array(z.string()).max(6), minAmountUsd: z.number().nullable(), withinMonths: z.number().nullable() }).nullable(),
+      signals: z.array(z.string()).max(6), queries: z.array(z.string().max(200)).max(6),
+    });
+    return this.json(
+      schema,
+      "You turn a sales team's plain-language description of the companies they want into precise search criteria. Use only what the description says or clearly implies; leave a field empty (or null) rather than guessing. " +
+        "countries = ISO 3166 alpha-2 codes (India → IN); when no country is mentioned, leave it empty. minEmployees/maxEmployees = numbers (\"5,000+ staff\" → minEmployees 5000). " +
+        "mustHave = traits a company must show to qualify; niceToHave = preferences; exclude = what rules a company out. technologies = named products (\"moving to Oracle NetSuite\" → technologies [\"Oracle NetSuite\"], signals [\"ERP migration\"]). " +
+        "funding = only when the description is about funding (stages like \"Series B\", minimum amount in USD, within how many months). " +
+        "queries = 3 to 6 web searches that would surface LISTS or NEWS naming such companies (e.g. \"top pharmaceutical manufacturers India 2025\", \"Indian pharma ERP go-live\"); never a query for one named company.",
+      `What the team sells: ${context.offering}\nTheir usual markets: ${context.defaultCountries.join(", ") || "any"}\n\nDescription: ${brief}\n\nReturn {"summary":"...","industries":[],"countries":[],"minEmployees":null,"maxEmployees":null,"businessModels":[],"mustHave":[],"niceToHave":[],"exclude":[],"technologies":[],"funding":null,"signals":[],"queries":[]}`,
+      900,
+    );
+  }
+
+  async extractCompaniesForBrief(pages: ResearchPage[], criteria: DiscoveryCriteria): Promise<SimilarCompanyExtract[]> {
+    if (!pages.length) return [];
+    const schema = z.object({ items: z.array(z.object({ page: z.number().int(), name: z.string().min(2).max(120), domain: z.string().max(120).nullable(), reason: z.string().max(200), quote: z.string().max(400) })).max(30) });
+    const want = [
+      criteria.summary,
+      criteria.industries.length ? `industries: ${criteria.industries.join(", ")}` : "",
+      criteria.countries.length ? `countries: ${criteria.countries.join(", ")}` : "",
+      criteria.minEmployees || criteria.maxEmployees ? `employees: ${criteria.minEmployees ?? 0}–${criteria.maxEmployees ?? "any"}` : "",
+      criteria.mustHave.length ? `must have: ${criteria.mustHave.join("; ")}` : "",
+      criteria.technologies.length ? `technologies: ${criteria.technologies.join(", ")}` : "",
+      criteria.signals.length ? `signals: ${criteria.signals.join(", ")}` : "",
+      criteria.exclude.length ? `exclude: ${criteria.exclude.join("; ")}` : "",
+    ].filter(Boolean).join("\n");
+    const out = await this.json(
+      schema,
+      "You read web pages and list the companies they name that plausibly fit the criteria. Only companies a page names explicitly; never the publisher, a consultant, an investor, a vendor or a government body. " +
+        "reason = which criteria the page shows they meet, in a few words. quote = the exact words copied from the page that name the company and show why. domain = the company's own website only if the page gives it, else null. Skip companies the exclusions rule out.",
+      `Criteria:\n${want}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${plainText(p.text).slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items":[{"page":0,"name":"...","domain":null,"reason":"...","quote":"..."}]}`,
+      1500,
+    );
+    return out.items;
   }
 
   async proposeInfluencers(input: InfluencerInput): Promise<InfluencerRole[]> {

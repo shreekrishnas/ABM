@@ -29,13 +29,13 @@ const viewOf = (r: ProspectSuggestion): View =>
   : r.researchStatus === "queued" || r.researchStatus === "running" ? "researching"
   : "review";
 
-const href = (seed: string | undefined, view: View) => `/import/lookalikes?${new URLSearchParams({ ...(seed ? { seed } : {}), view })}`;
+const href = (base: string, seed: string | undefined, view: View, param = "seed") => `${base}?${new URLSearchParams({ ...(seed ? { [param]: seed.replace(/^search:/, "") } : {}), view })}`;
 
 /** Lookalikes from one reference company (or all), each with its fit, readiness, reasons and evidence. A person decides. */
-export async function LookalikeReview({ seed, view = "review" }: { seed?: string; view?: string }) {
+export async function LookalikeReview({ seed, view = "review", origin = "lookalike", base = "/import/lookalikes", param = "seed" }: { seed?: string; view?: string; origin?: "lookalike" | "discovery"; base?: string; param?: string }) {
   const sellerId = (await activeSeller()).id;
   const rows = await db.prospectSuggestion.findMany({
-    where: { sellerId, origin: "lookalike", ...(seed ? { seed } : {}) },
+    where: { sellerId, origin, ...(seed ? { seed } : {}) },
     orderBy: [{ fitScore: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }],
     take: 150,
   });
@@ -45,14 +45,14 @@ export async function LookalikeReview({ seed, view = "review" }: { seed?: string
   const list = by[current];
   const working = by.researching.length > 0;
 
-  if (!rows.length) return <p className="lk-empty">{seed ? `No similar companies saved for ${seed} yet.` : "Enter a website above. The AI finds similar companies, researches each one, and lists them here for you to approve."}</p>;
+  if (!rows.length) return <p className="lk-empty">{origin === "discovery" ? (seed ? "No companies saved for this search yet." : "Describe the companies you want above. The AI drafts criteria for you to confirm, then finds, researches and lists companies here for you to approve.") : seed ? `No similar companies saved for ${seed} yet.` : "Enter a website above. The AI finds similar companies, researches each one, and lists them here for you to approve."}</p>;
 
   return (
     <section className="lk">
       <RefreshWhileResearching active={working} />
       <nav className="k-seg lk-tabs" aria-label="Lookalike status">
         {VIEWS.map((v) => (
-          <Link key={v.key} href={href(seed, v.key)} aria-current={current === v.key ? "page" : undefined} className={current === v.key ? "on" : undefined}>
+          <Link key={v.key} href={href(base, seed, v.key, param)} aria-current={current === v.key ? "page" : undefined} className={current === v.key ? "on" : undefined}>
             {v.label} <span className="tnum">{by[v.key].length}</span>
           </Link>
         ))}
@@ -87,7 +87,8 @@ function LookalikeCard({ r }: { r: ProspectSuggestion }) {
         <div className="min-w-0">
           <h3>{r.name}</h3>
           <p className="lk-meta">{[r.domain, r.industry, r.country ?? "country unknown", r.employees != null ? `${r.employees.toLocaleString()} employees` : null].filter(Boolean).join(" · ")}</p>
-          {r.seed && <p className="lk-meta">Like {r.seed}</p>}
+          {r.seed && r.origin === "lookalike" && <p className="lk-meta">Like {r.seed}</p>}
+          {r.requestedBy && <p className="lk-meta">Search started by {r.requestedBy}</p>}
         </div>
         <div className="lk-scores">
           {busy ? (
