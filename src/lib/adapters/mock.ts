@@ -41,6 +41,7 @@ import type {
 } from "./types";
 import { inferFunction } from "@/lib/pipeline/normalize";
 import type { ProfileItems, ProfileKind } from "@/lib/profile/types";
+import type { InfluencerInput, InfluencerRole } from "./types";
 import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
 
@@ -149,6 +150,18 @@ class MockProvider implements DataProvider {
       observedAt: daysAgo(7),
       source: this.name,
     }));
+  }
+
+  /** One sample person per title, named from the title (deterministic), for the first `limit` titles. */
+  async findByTitles(domain: string, titles: string[], limit: number): Promise<ProviderPerson[]> {
+    const FIRST = ["Kavya", "Arjun", "Nisha", "Rohan", "Ishita", "Vikram", "Tara", "Sameer"];
+    const LAST = ["Bose", "Nair", "Kulkarni", "Desai", "Reddy", "Joshi", "Malhotra", "Pillai"];
+    return titles.slice(0, limit).map((title) => {
+      const h = hash(`${domain}|${title}`);
+      const first = FIRST[h % FIRST.length];
+      const last = LAST[(h >> 3) % LAST.length];
+      return { fullName: `${first} ${last}`, title, companyDomain: domain, email: null, linkedinUrl: `https://www.linkedin.com/in/${first}-${last}-${h % 1000}`.toLowerCase(), observedAt: daysAgo(7), source: this.name };
+    });
   }
 
   async findEmail(fullName: string, domain: string): Promise<string | null> {
@@ -374,6 +387,23 @@ class MockLLM implements LLM {
 
   insights(stats: BrainStats) {
     return Promise.resolve(ruleInsights(stats));
+  }
+
+  /**
+   * Sample proposals: four grounded roles, plus two the code must reject (an obvious CFO and a role
+   * citing a fact that doesn't exist), so the validation is exercised.
+   */
+  async proposeInfluencers(input: InfluencerInput): Promise<InfluencerRole[]> {
+    if (!input.facts.length) return [];
+    const f = (i: number) => input.facts[Math.min(i, input.facts.length - 1)].id;
+    return [
+      { title: "Head of SAP Centre of Excellence", searchTitles: ["Head of SAP Centre of Excellence", "SAP CoE Lead"], group: "data", why: "Runs the programme the facts describe, so owns how master data moves into the new system", factIds: [f(0)] },
+      { title: "Head of Internal Audit", searchTitles: ["Head of Internal Audit", "Internal Audit Head"], group: "risk_compliance", why: "Signs off controls on vendor and customer data during the change the facts describe", factIds: [f(0)] },
+      { title: "Plant Head", searchTitles: ["Plant Head", "Plant Manager"], group: "operations", why: "New sites and suppliers in the facts land on plant teams first, who feel onboarding delays", factIds: [f(1)] },
+      { title: "Accounts Payable Lead", searchTitles: ["Accounts Payable Lead", "Head of Accounts Payable"], group: "finance", why: "Pays the new vendors the facts imply, and carries the cost of wrong bank details", factIds: [f(1)] },
+      { title: "Chief Financial Officer", searchTitles: ["CFO"], group: "finance", why: "Approves the budget for the programme described in the facts", factIds: [f(0)] },
+      { title: "Head of Treasury", searchTitles: ["Head of Treasury"], group: "finance", why: "Manages cash flows affected by an event that was never found", factIds: ["no_such_fact"] },
+    ];
   }
 
   async extractProfile<K extends ProfileKind>(kind: K, pages: ResearchPage[]): Promise<ProfileItems[K]> {

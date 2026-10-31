@@ -116,6 +116,15 @@ export const CONFIG = {
     financialsLookup: 0.25,
   },
 
+  buyingGroup: {
+    /** Stakeholder search: how many missing groups are searched per tier and how many people per group. T3 relies on the owning-function search only. */
+    stakeholderSearch: { T1: { groups: 6, perGroup: 2 }, T2: { groups: 4, perGroup: 1 } } as Record<string, { groups: number; perGroup: number }>,
+    /** Additional (less obvious) influencers proposed per company, for these tiers. */
+    influencers: { tiers: ["T1", "T2"] as readonly string[], max: 4 },
+    /** Both searches run at most once per this many days per company (unless asked from the company page). */
+    refreshDays: 90,
+  },
+
   profile: {
     /** Which parts of the company profile each tier gets researched (website technology detection is free and runs for all). */
     byTier: {

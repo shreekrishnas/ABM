@@ -32,6 +32,8 @@ export interface DataProvider {
   recheckPerson(q: PersonQuery): Promise<ProviderPerson | null>;
   /** People at a domain within a function (for missing buying roles). */
   findByFunction(domain: string, fn: string, limit: number): Promise<ProviderPerson[]>;
+  /** People at a domain holding one of these job titles (stakeholder map, hidden influencers). */
+  findByTitles(domain: string, titles: string[], limit: number): Promise<ProviderPerson[]>;
   /** Paid email lookup. */
   findEmail(fullName: string, domain: string): Promise<string | null>;
 }
@@ -189,6 +191,8 @@ export interface LLM {
   critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
+  /** 3–4 less-obvious people whose work the account's facts touch, each tied to fact ids. */
+  proposeInfluencers(input: InfluencerInput): Promise<InfluencerRole[]>;
   /** Company profile facts (financials, funding, technologies, board) from pages, each with an exact quote. */
   extractProfile<K extends import("@/lib/profile/types").ProfileKind>(kind: K, pages: ResearchPage[], company: { name: string; domain: string | null }): Promise<import("@/lib/profile/types").ProfileItems[K]>;
   /** Industry, employee count and country from company pages; `page` = index of the page it came from. */
@@ -362,4 +366,32 @@ export interface LookalikeJudgement {
   concerns: string[];
   /** The "rule out" item this company matches, if any. */
   avoidHit: string | null;
+}
+
+// ── Hidden influencers ──
+
+export interface InfluencerInput {
+  company: string;
+  industry: string | null;
+  /** What the seller offers and the use case being led with. */
+  offering: string;
+  useCase: string | null;
+  facts: { id: string; claim: string }[];
+  /** Validated investigation conclusions, in plain words. */
+  conclusions: string[];
+  /** People already mapped (title and role), so proposals add rather than repeat. */
+  existing: { title: string; role: string }[];
+  /** Stakeholder group keys the proposal may use. */
+  groups: string[];
+}
+
+export interface InfluencerRole {
+  /** The role to look for ("Head of SAP Centre of Excellence"). */
+  title: string;
+  /** 2–5 job titles to search a provider with. */
+  searchTitles: string[];
+  group: string;
+  /** Why this person shapes the decision, tied to the facts. */
+  why: string;
+  factIds: string[];
 }

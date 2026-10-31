@@ -14,6 +14,10 @@ export class NoProvider implements DataProvider {
   async recheckPerson(): Promise<ProviderPerson | null> {
     return null;
   }
+  async findByTitles(): Promise<ProviderPerson[]> {
+    return [];
+  }
+
   async findByFunction(): Promise<ProviderPerson[]> {
     return [];
   }

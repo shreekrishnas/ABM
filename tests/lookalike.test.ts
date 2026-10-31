@@ -34,6 +34,7 @@ const spyProvider = () => {
     lookupPerson: async (q) => (calls.push(`lookup:${q.domain}`), null),
     recheckPerson: async (q) => (calls.push(`recheck:${q.domain}`), null),
     findByFunction: async (d) => (calls.push(`people:${d}`), []),
+    findByTitles: async (d) => (calls.push(`titles:${d}`), []),
     findEmail: async (_n, d) => (calls.push(`email:${d}`), null),
   };
   return { p, calls };

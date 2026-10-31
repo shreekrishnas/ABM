@@ -26,6 +26,7 @@ import { TimelineCard } from "./timeline-card";
 import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
 import { ProfileCard } from "./profile-card";
+import { StakeholdersCard } from "./stakeholders-card";
 
 // "Refresh" on the company profile researches in the request (a few searches and AI reads).
 export const maxDuration = 300;
@@ -311,6 +312,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       {tab === "intake" && <IntakeTab account={a} />}
 
       {tab === "people" && <NetworkCard accountId={a.id} company={a.name} />}
+      {tab === "people" && <div className="mb-5"><StakeholdersCard accountId={a.id} /></div>}
       {tab === "people" && <BuyingGroupPlan accountId={a.id} />}
       {tab === "people" && (
         <Card pad={false} title="Buying group" sub="Found by the function that owns the problem, not by seniority. Field statuses come from stage 4 and enrichment." action={<Link href={`/people?q=${encodeURIComponent(a.name)}`} className="btn btn-secondary btn-sm">Journeys in People</Link>}>

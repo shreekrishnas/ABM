@@ -97,6 +97,14 @@ export class ApolloProvider implements DataProvider {
     return (r.people ?? []).map((p) => toPerson(p, domain)).filter((p): p is ProviderPerson => Boolean(p)).slice(0, limit);
   }
 
+  async findByTitles(domain: string, titles: string[], limit: number): Promise<ProviderPerson[]> {
+    if (!titles.length) return [];
+    const r = await this.api.post<{ people?: ApolloPerson[] }>("/mixed_people/api_search", {
+      q_organization_domains_list: [domain], person_titles: titles.slice(0, 10), page: 1, per_page: Math.min(Math.max(limit, 1), 10),
+    });
+    return (r.people ?? []).map((p) => toPerson(p, domain)).filter((p): p is ProviderPerson => Boolean(p)).slice(0, limit);
+  }
+
   async findEmail(fullName: string, domain: string): Promise<string | null> {
     return (await this.match({ fullName, domain }))?.email ?? null;
   }

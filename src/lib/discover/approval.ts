@@ -45,6 +45,10 @@ export function approvalGated(inner: DataProvider): DataProvider {
       await check(domain);
       return inner.findByFunction(domain, fn, limit);
     },
+    async findByTitles(domain: string, titles: string[], limit: number) {
+      await check(domain);
+      return inner.findByTitles(domain, titles, limit);
+    },
     async findEmail(fullName: string, domain: string) {
       await check(domain);
       return inner.findEmail(fullName, domain);

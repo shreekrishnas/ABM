@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import type { LookalikeFact, LookalikeJudgeInput, LookalikeJudgement, LookalikePlanInput, LookalikeProfile, LookalikeQuestion } from "../types";
+import type { InfluencerInput, InfluencerRole } from "../types";
 import type { BrainSuggestInput, MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
@@ -385,6 +386,19 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
       `Prospect: ${context.title ?? "unknown title"} at ${context.company}. Current stage: ${context.stage}.\nReply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"stage":"<stage key>","reason":"<one short sentence>","nextAction":"<the next step for the sender>"}`,
       150,
     );
+  }
+
+  async proposeInfluencers(input: InfluencerInput): Promise<InfluencerRole[]> {
+    if (!input.facts.length) return [];
+    const schema = z.object({ roles: z.array(z.object({ title: z.string().min(4).max(80), searchTitles: z.array(z.string().min(3).max(80)).min(1).max(5), group: z.string(), why: z.string().min(20).max(300), factIds: z.array(z.string()).min(1).max(4) })).max(6) });
+    const out = await this.json(
+      schema,
+      "You plan multi-threaded account-based selling. Given what is known about a company, name 3 or 4 people who are NOT the obvious executive buyers (never CEO, CFO, CIO, CTO, COO, MD, founder or chairman) but whose daily work the known facts directly affect, so they will shape or slow the decision: e.g. the lead of a programme the facts mention, the owner of a process the facts show under strain, internal audit when the facts show a control issue, a plant or regional head when the facts show expansion. " +
+        "Every role MUST be justified by one or more of the given fact ids, and \"why\" must say concretely how that fact touches this person's work. Never invent facts. Skip roles the company already has mapped. group must be one of the given group keys. searchTitles = 2-5 job titles as people write them on LinkedIn.",
+      `Company: ${input.company}${input.industry ? ` (${input.industry})` : ""}\nWhat we sell: ${input.offering}${input.useCase ? `\nLeading with: ${input.useCase}` : ""}\n\nFacts:\n${input.facts.map((f) => `${f.id}: ${f.claim}`).join("\n")}\n${input.conclusions.length ? `\nConclusions:\n${input.conclusions.map((c) => `- ${c}`).join("\n")}\n` : ""}\nAlready mapped:\n${input.existing.map((e) => `- ${e.title} (${e.role})`).join("\n") || "- nobody"}\n\nGroup keys: ${input.groups.join(", ")}\n\nReturn {"roles":[{"title":"...","searchTitles":["..."],"group":"...","why":"...","factIds":["..."]}]}`,
+      900,
+    );
+    return out.roles;
   }
 
   async extractProfile<K extends ProfileKind>(kind: K, pages: ResearchPage[], company: { name: string; domain: string | null }): Promise<ProfileItems[K]> {

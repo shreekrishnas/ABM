@@ -68,6 +68,17 @@ export async function s08BuyingGroup(account: Account, ctx: RunContext): Promise
     contacts = await live();
   }
 
+  // Beyond the obvious buyer: people in the stakeholder groups nobody covers yet, and the 3–4
+  // less-obvious influencers the account's facts point to (T1/T2; never blocks the run).
+  try {
+    const { expandStakeholders, findHiddenInfluencers } = await import("@/lib/buying-group/expand");
+    await expandStakeholders(account, ctx);
+    await findHiddenInfluencers(account, ctx);
+  } catch (e) {
+    await logEvent(ctx, { accountId: account.id, stage: S, step: "buying_group.expand_error", outcome: "info", reason: `Buying group expansion not completed: ${e instanceof Error ? e.message.slice(0, 160) : String(e)}` });
+  }
+  contacts = await live();
+
   // Select: decision makers and champions, no identity conflict, no invalid email.
   let selected = 0;
   for (const c of contacts) {
