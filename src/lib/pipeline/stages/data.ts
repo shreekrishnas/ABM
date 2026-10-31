@@ -283,7 +283,7 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     else {
       const ed = emailDomainStatus(c.email, account.domain);
       statuses.email = ed.status;
-      await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "identity.email_domain_match", outcome: ed.status === "conflicting" ? "block" : "pass", reason: ed.reason });
+      await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "identity.email_domain_match", outcome: "pass", reason: ed.reason });
     }
 
     // Phone ↔ company country (phone is optional; a conflict is only logged).
@@ -313,7 +313,7 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     if (conflict) {
       await openReview({
         type: "identity_conflict", stage: S, accountId: account.id, contactId: c.id,
-        reason: `${c.fullName}: ${conflictPhrase(Object.entries(statuses).filter(([, s]) => s === "conflicting").map(([f]) => f))}${emailDomain(c.email) && (CONFIG.personalDomains as readonly string[]).includes(emailDomain(c.email)!) ? " (personal email)" : ""}`,
+        reason: `${c.fullName}: ${conflictPhrase(Object.entries(statuses).filter(([, s]) => s === "conflicting").map(([f]) => f))}`,
         payload: { statuses, providerEmployer: p?.companyDomain ?? null, providerTitle: p?.title ?? null },
       });
     }

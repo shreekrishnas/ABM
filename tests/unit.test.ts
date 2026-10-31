@@ -104,7 +104,10 @@ describe("gates", () => {
     expect(isStale(ago(121), "title", NOW)).toBe(true);
     expect(isStale(ago(100), "title", NOW)).toBe(false);
     expect(emailDomainStatus("asha@acme.com", "acme.com").status).toBe("probable");
-    expect(emailDomainStatus("asha@gmail.com", "acme.com").status).toBe("conflicting");
+    // Any address is fine: personal and other-domain addresses don't count against the person.
+    expect(emailDomainStatus("asha@gmail.com", "acme.com").status).toBe("probable");
+    expect(emailDomainStatus("asha@othercorp.com", "acme.com").status).toBe("probable");
+    expect(emailDomainStatus("not-an-email", "acme.com").status).toBe("invalid");
     expect(emailDomainStatus("asha@eu.acme.com", "acme.com").status).toBe("probable");
   });
   it("evidence gate requires source, type, date and refuses mock in live mode", () => {
@@ -160,7 +163,8 @@ describe("gates", () => {
   it("a person's email on the company's other domain is fine", () => {
     expect(emailDomainStatus("sumeet@akums.net", "akums.in").status).toBe("probable");
     expect(emailDomainStatus("ramesh@aurobindousa.com", "aurobindo.com").status).toBe("probable");
-    expect(emailDomainStatus("x@othercorp.com", "akums.in").status).toBe("conflicting");
+    // Any other domain is fine too: people may use whatever address they like.
+    expect(emailDomainStatus("x@othercorp.com", "akums.in").status).toBe("probable");
   });
   it("readiness rules in order", () => {
     const person = { identity: { email: "verified" as const, title: "verified" as const, company: "verified" as const }, buyingRole: "decision_maker" as const, lawfulBasis: "x", emailDeliverable: true, suppressed: false };

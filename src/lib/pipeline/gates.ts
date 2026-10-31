@@ -72,17 +72,23 @@ export function isStale(observedAt: Date | null | undefined, kind: FreshnessKind
 
 // ── Stage 4: identity ──
 
+/**
+ * The email address for identity. People may use any address: a work address, a personal one
+ * (gmail.com…) or one on another domain are all fine. Who the person is rests on their title and
+ * employer; whether the address receives mail is the mailbox check's job. Only a malformed
+ * address is rejected here.
+ */
 export function emailDomainStatus(email: string | null, companyDomain: string | null): { status: FieldStatus; reason: string } {
   if (!email) return { status: "unknown", reason: "No email" };
   const d = emailDomain(email);
   if (!d) return { status: "invalid", reason: "Malformed email" };
-  if ((CONFIG.personalDomains as readonly string[]).includes(d)) return { status: "conflicting", reason: `Personal address (${d})` };
-  if (!companyDomain) return { status: "unknown", reason: "Company domain unknown" };
+  if ((CONFIG.personalDomains as readonly string[]).includes(d)) return { status: "probable", reason: `Personal address (${d}): fine to use` };
+  if (!companyDomain) return { status: "probable", reason: `Email on ${d}` };
   if (d === companyDomain || d.endsWith(`.${companyDomain}`)) return { status: "probable", reason: "Email domain matches company" };
   // The company's other domains: same name, another ending (acme.net for acme.in) or a regional one (acmeusa.com).
   const root = (x: string) => x.split(".")[0];
   if (root(companyDomain).length >= 4 && (root(d) === root(companyDomain) || root(d).startsWith(root(companyDomain)))) return { status: "probable", reason: `Email on the company's other domain (${d})` };
-  return { status: "conflicting", reason: `Email domain ${d} ≠ company ${companyDomain}` };
+  return { status: "probable", reason: `Email on another domain (${d}): fine to use` };
 }
 
 export function phoneCountryStatus(phoneCountry: string | null, companyCountry: string | null): FieldStatus {
