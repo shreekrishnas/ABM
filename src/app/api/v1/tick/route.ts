@@ -18,7 +18,8 @@ async function run(req: Request) {
   return json({ ...result, intentReruns: intent.length });
 }
 
-export const maxDuration = 60;
+// One company can take a few minutes of live research; a 60s limit cut runs off mid-company.
+export const maxDuration = 300;
 
 function allowed(req: Request) {
   return authorize(req, { alsoAccept: [process.env.CRON_SECRET?.trim() || undefined] });

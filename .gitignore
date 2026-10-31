@@ -5,4 +5,5 @@ out
 .env.local
 *.tsbuildinfo
 next-env.d.ts
-coverage
+# Test coverage output at the root only (a bare "coverage" also ignored src/app/accounts/coverage)
+/coverage

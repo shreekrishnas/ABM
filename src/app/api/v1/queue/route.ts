@@ -5,7 +5,8 @@ import { drainOnce, kickDrain, queueStatus, shouldContinue } from "@/lib/queue/d
 // Background queue. POST starts (or continues) the drain chain: it answers 202 right
 // away, works through queued companies for one slice after responding, and calls itself
 // again while work is left. GET reports the queue. Same auth as the scheduler.
-export const maxDuration = 60;
+// One company can take a few minutes of live research; a 60s limit cut runs off mid-company.
+export const maxDuration = 300;
 
 const allowed = (req: Request) => authorize(req, { alsoAccept: [process.env.CRON_SECRET?.trim() || undefined] });
 

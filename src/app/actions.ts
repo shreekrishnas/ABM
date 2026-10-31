@@ -16,7 +16,7 @@ import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
 import { refresh, requestOrigin, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
-import { kickDrain } from "@/lib/queue/drain";
+import { kickDrain, queueStatus } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -453,10 +453,24 @@ export async function createSenderFormAction(_: ActionState, fd: FormData): Prom
 
 export async function finishImportAction(batchId: string) {
   const b = await finishBatch(batchId);
-  // The page processes while it stays open; the background queue finishes the rest if it is closed.
-  if (b.toProcess > 0) await startBackgroundQueue();
+  // The background queue does the research; the page only watches progress with short requests.
+  // Holding one browser request open for a whole research run fails on slow networks ("Failed to fetch").
+  const background = b.toProcess > 0 ? await kickDrain(await requestOrigin()) : false;
   refresh("/import", "/accounts");
-  return { toProcess: b.toProcess, stats: b.stats as unknown as BatchStats };
+  return { toProcess: b.toProcess, background, stats: b.stats as unknown as BatchStats };
+}
+
+/** Progress of an import's research, for the page to poll. Restarts the queue if it has stopped. */
+export async function importProgressAction(batchId: string) {
+  const left = { lastImportBatchId: batchId, mergedIntoId: null };
+  const [remaining, running, q] = await Promise.all([
+    db.account.count({ where: { ...left, pipelineStatus: "queued" } }),
+    db.account.count({ where: { ...left, pipelineStatus: "running" } }),
+    queueStatus(),
+  ]);
+  // A slice that was cut off leaves work queued with no worker: start another one.
+  if (remaining > 0 && !q.working) await kickDrain(await requestOrigin());
+  return { remaining, running };
 }
 
 /** "Process now": start the background queue; without a reachable origin, do one slice here. */

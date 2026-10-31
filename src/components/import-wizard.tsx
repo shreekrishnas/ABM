@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileSpreadsheet, Loader2, Plus, Upload, XCircle } from "lucide-react";
 import { analyzeHeaders, analyzeMapping, IMPORT_FIELDS, rowKeys, validateRow, type FieldGroup, type FieldKey } from "@/lib/import/fields";
-import { createCampaignAction, createSenderAction, finishImportAction, importChunkAction, importResearchSummaryAction, previewMatchesAction, processImportAction, startImportAction } from "@/app/actions";
+import { createCampaignAction, createSenderAction, finishImportAction, importChunkAction, importProgressAction, importResearchSummaryAction, previewMatchesAction, processImportAction, startImportAction } from "@/app/actions";
 
 const CHUNK = 250;
 const PREVIEW_CHUNK = 400; // companies per preview call (their people travel with them)
@@ -236,6 +236,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
   const run = async () => {
     if (!parsed || !analysis) return;
     const { file, headers, rows } = parsed;
+    let saved = 0;
     try {
       const start = await startImportAction({ filename: file.name, rows: rows.length, headers, mapping, campaignId, senderId });
       if (!start.ok) return setError(start.message);
@@ -248,22 +249,42 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         if (!res.ok) throw new Error(res.message);
         accepted += res.accepted;
         rejected += res.rejected;
+        saved = i + CHUNK;
         if (errors.length < 100) errors.push(...res.errors);
       }
       const fin = await finishImportAction(start.batchId);
+      // Step 2 runs in the background queue. The page only watches, with short requests, so a slow
+      // network or a long research run can't fail the import. Leaving the page is safe.
       let remaining = fin.toProcess;
-      let processed = 0;
-      while (remaining > 0) {
-        setPhase({ k: "importing", label: "Running the pipeline on new and changed companies (step 2 of 2)", done: fin.toProcess - remaining, total: fin.toProcess });
-        const p = await processImportAction(start.batchId);
-        processed += p.processed;
-        if (p.processed === 0 && p.remaining >= remaining) break; // stuck: the background queue finishes the rest
-        remaining = p.remaining;
+      const label = "Researching new and changed companies in the background (step 2 of 2)";
+      if (fin.background) {
+        const until = Date.now() + 8 * 60_000;
+        while (remaining > 0 && Date.now() < until) {
+          setPhase({ k: "importing", label, done: fin.toProcess - remaining, total: fin.toProcess });
+          await new Promise((r) => setTimeout(r, 5_000));
+          const p = await importProgressAction(start.batchId).catch(() => null);
+          if (p) remaining = p.remaining + p.running;
+        }
+      } else {
+        // No background worker reachable (e.g. local without APP_URL): process here, one short slice at a time.
+        while (remaining > 0) {
+          setPhase({ k: "importing", label, done: fin.toProcess - remaining, total: fin.toProcess });
+          const p = await processImportAction(start.batchId).catch(() => null);
+          if (!p || (p.processed === 0 && p.remaining >= remaining)) break; // the background queue finishes the rest
+          remaining = p.remaining;
+        }
       }
+      const processed = fin.toProcess - remaining;
       const research = await importResearchSummaryAction(start.batchId).catch(() => null);
       setPhase({ k: "finished", summary: { research, filename: file.name, accepted, rejected, errors, stats: fin.stats as unknown as Record<string, number>, processed, remaining } });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      const network = /failed to fetch|network|load failed/i.test(msg);
+      setError(network
+        ? saved > 0
+          ? `The connection dropped after ${Math.min(saved, rows.length)} of ${rows.length} rows were saved. Upload the same file again to finish: saved records are updated, never duplicated.`
+          : "Couldn't reach the server (connection dropped). Check your internet connection and try again."
+        : msg);
       setPhase({ k: "map" });
     }
   };
