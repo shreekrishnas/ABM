@@ -118,10 +118,15 @@ export async function researchCompanyProfile(account: Account, ctx: RunContext, 
         data: { dropped: r.dropped.slice(0, 8) } as Prisma.InputJsonValue,
       });
     } catch (e) {
-      if (!(e instanceof BudgetExceeded)) throw e;
-      sum.skipped.push({ kind, reason: "Budget reached" });
-      await logEvent(ctx, { accountId: account.id, stage: S, step: `company_profile.${kind}`, outcome: "info", reason: `${PROFILE_LABEL[kind]}: skipped, budget reached` });
-      break;
+      if (e instanceof BudgetExceeded) {
+        sum.skipped.push({ kind, reason: "Budget reached" });
+        await logEvent(ctx, { accountId: account.id, stage: S, step: `company_profile.${kind}`, outcome: "info", reason: `${PROFILE_LABEL[kind]}: skipped, budget reached` });
+        break;
+      }
+      // One part failing (an unreadable AI answer, a search outage) never stops the other parts.
+      const msg = e instanceof Error ? e.message.slice(0, 200) : String(e);
+      sum.skipped.push({ kind, reason: `Failed: ${msg}` });
+      await logEvent(ctx, { accountId: account.id, stage: S, step: `company_profile.${kind}`, outcome: "error", reason: `${PROFILE_LABEL[kind]}: not completed (${msg}); the other parts continue` });
     }
   }
   await refreshProfileSummary(account.id, ctx.now);

@@ -15,7 +15,7 @@ import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
 import { JOURNEY_STAGES, STAGE_INFO } from "@/lib/journey/stages";
 import { companyMarks, plainText } from "@/lib/pipeline/gates";
-import { PROFILE_SCHEMA, PROFILE_SYSTEM, profileUserPrompt } from "@/lib/profile/prompts";
+import { PROFILE_ENVELOPE, PROFILE_SYSTEM, parseProfileItems, profileUserPrompt } from "@/lib/profile/prompts";
 import type { ProfileItems, ProfileKind } from "@/lib/profile/types";
 import { relevantText } from "./reader";
 import { relevanceText } from "@/lib/brain/relevance";
@@ -450,8 +450,8 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const marks = companyMarks(company.name, company.domain);
     // Long reports: read the paragraphs that name the company (and the numbers around them).
     const read = pages.map((p) => ({ ...p, text: plainText(relevantText(p.text, marks, p.full ? 6_000 : 3_000)) }));
-    const out = await this.json(PROFILE_SCHEMA[kind] as unknown as z.ZodType<{ items: unknown[] }>, PROFILE_SYSTEM[kind], profileUserPrompt(kind, company.name, company.domain, read, 6_000), 1800);
-    return out.items as ProfileItems[K];
+    const out = await this.json(PROFILE_ENVELOPE, PROFILE_SYSTEM[kind], profileUserPrompt(kind, company.name, company.domain, read, 6_000), 1800);
+    return parseProfileItems(kind, out.items, read).items as ProfileItems[K];
   }
 
   async extractFirmographics(pages: ResearchPage[], company: string) {

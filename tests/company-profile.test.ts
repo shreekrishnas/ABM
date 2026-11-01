@@ -224,3 +224,31 @@ describe("authentic financial records", () => {
     expect(acc.financialNote).toBe("FY2025 revenue ₹1,000 Cr, net profit ₹90 Cr (9.0% margin)");
   });
 });
+
+describe("robust to real AI answers", () => {
+  it("recovers a missing page from the quote, accepts numbers written as text, drops only the malformed item", async () => {
+    const { parseProfileItems } = await import("@/lib/profile/prompts");
+    const pages = [{ title: "Other", text: "Unrelated text." }, { title: "Results", text: "Acme reported revenue from operations of ₹4,520 crore for FY2024-25." }];
+    const { items, dropped } = parseProfileItems("financials", [
+      { fiscalYear: "FY2024-25", currency: "INR", unit: "crore", revenue: "4,520", netProfit: null, quote: "Acme reported revenue from operations of ₹4,520 crore for FY2024-25." },
+      { fiscalYear: "FY2024-25", quote: "too short" },
+    ], pages);
+    expect(dropped).toBe(1);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ page: 1, revenue: 4520, netProfit: null, ebitda: null });
+  });
+
+  it("one part failing doesn't stop the others, and the summary is still saved", async () => {
+    const a = await company("partialfail.in", "T1");
+    const base = createMockAdapters();
+    const realExtract = base.llm.extractProfile.bind(base.llm);
+    const adapters: Adapters = { ...base, llm: Object.assign(Object.create(Object.getPrototypeOf(base.llm)), base.llm, { extractProfile: async (kind: string, pages: ResearchPage[], c: { name: string; domain: string | null }) => { if (kind === "financials") throw new Error("OpenRouter output invalid after retry"); return realExtract(kind as never, pages, c); } }) };
+    setAdapters(adapters);
+    const sum = await researchCompanyProfile(a, newContext());
+    expect(sum.skipped.find((s) => s.kind === "financials")?.reason).toMatch(/^Failed: OpenRouter output invalid/);
+    expect(sum.ran).toEqual(expect.arrayContaining(["funding", "tech_stack", "board"]));
+    expect(sum.technologies).toBeGreaterThan(0);
+    expect(sum.board).toBeGreaterThan(0);
+    expect((await db.account.findUniqueOrThrow({ where: { id: a.id } })).profileUpdatedAt).not.toBeNull();
+  });
+});

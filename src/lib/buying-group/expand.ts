@@ -69,12 +69,16 @@ export async function expandStakeholders(account: Account, ctx: RunContext, opts
   const groups = targetGroups(fns).filter((g) => !covered.has(g)).slice(0, plan.groups);
   const searched: string[] = [];
   let added = 0;
+  let returned = 0;
+  let offGroup = 0;
   let stopped: string | undefined;
   for (const g of groups) {
     try {
       await charge(account.id, account.tier, "lookup", CONFIG.costsUsd.providerCheck, `Find ${GROUP_BY_KEY[g].label}`, S);
       const found = await ctx.adapters.provider.findByTitles(account.domain, GROUP_BY_KEY[g].titles, plan.perGroup);
       searched.push(g);
+      returned += found.length;
+      offGroup += found.filter((p) => groupOf(p.title) !== g).length;
       // Keep only people whose title really files into the group asked for.
       // Only the groups the client's personas cover can produce decision makers or champions (who get
       // emailed and enriched); people found elsewhere are influencers for planning.
@@ -87,8 +91,9 @@ export async function expandStakeholders(account: Account, ctx: RunContext, opts
   }
   await logEvent(ctx, {
     accountId: account.id, stage: S, step: "buying_group.stakeholder_search", outcome: added ? "pass" : "info",
-    reason: groups.length ? `Searched ${searched.map((g) => GROUP_BY_KEY[g].label).join(", ") || "nothing"}: ${added} people added${stopped ? `; stopped: ${stopped}` : ""}` : "Every target group already has someone",
-    data: { covered: [...covered], searched, added } as Prisma.InputJsonValue,
+    // Say why nobody was added: the provider found nobody, the titles didn't fit the group, or they were already known.
+    reason: groups.length ? `Searched ${searched.map((g) => GROUP_BY_KEY[g].label).join(", ") || "nothing"}: the contact provider returned ${returned} ${returned === 1 ? "person" : "people"}${offGroup ? ` (${offGroup} with titles outside the group asked for)` : ""}, ${added} added${returned - offGroup - added > 0 ? `, ${returned - offGroup - added} already known` : ""}${stopped ? `; stopped: ${stopped}` : ""}` : "Every target group already has someone",
+    data: { covered: [...covered], searched, returned, offGroup, added } as Prisma.InputJsonValue,
   });
   return { searched, added, reason: stopped };
 }
