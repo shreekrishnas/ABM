@@ -148,12 +148,15 @@ export const TECH: TechEntry[] = [
   { name: "Cloudflare", vendor: "Cloudflare", category: "cloud", aliases: ["cloudflare"], web: [/\/cdn-cgi\//i] },
   { name: "Akamai", vendor: "Akamai", category: "cloud", aliases: ["akamai"], web: [/\.akamaihd\.net/i, /\.akamaized\.net/i] },
   // ── Collaboration ──
-  { name: "Microsoft 365", vendor: "Microsoft", category: "collaboration", aliases: ["microsoft 365", "office 365", "sharepoint", "microsoft teams"] },
+  { name: "Microsoft 365", vendor: "Microsoft", category: "collaboration", aliases: ["microsoft 365", "office 365", "sharepoint", "microsoft teams", "microsoft 365 apps", "exchange online", "microsoft exchange", "outlook", "microsoft email"] },
   { name: "Google Workspace", vendor: "Google", category: "collaboration", aliases: ["google workspace", "g suite"] },
   // ── Security and consent ──
   { name: "OneTrust", vendor: "OneTrust", category: "security", aliases: ["onetrust"], web: [/cdn\.cookielaw\.org/i, /optanon/i] },
   { name: "Cookiebot", vendor: "Usercentrics", category: "security", aliases: ["cookiebot"], web: [/consent\.cookiebot\.com/i] },
   { name: "Okta", vendor: "Okta", category: "security", aliases: ["okta"] },
+  { name: "Barracuda", vendor: "Barracuda Networks", category: "security", aliases: ["barracuda"] },
+  { name: "Google Search Console", vendor: "Google", category: "analytics", aliases: ["google search console"] },
+  { name: "OpenAI", vendor: "OpenAI", category: "data_platform", aliases: ["openai", "chatgpt enterprise"] },
   { name: "Imperva", vendor: "Imperva", category: "security", aliases: ["imperva", "incapsula"], web: [/_Incapsula_Resource/i] },
 ];
 
@@ -176,6 +179,9 @@ export function matchTech(raw: string | null | undefined): TechEntry | null {
   }
   return best?.t ?? null;
 }
+
+/** Website building blocks an import may list (libraries, tags, certificates): not business systems. */
+export const WEB_PLUMBING = /\b(viewport|open graph|rss|atom|swiper|gsap|cdnjs|jsdelivr|unpkg|captcha|recaptcha|hcaptcha|yoast|google maps|wordpress\.org|globalsign|digicert|let'?s encrypt|network solutions|godaddy|font awesome|google fonts|jquery|bootstrap|lodash|polyfill|modernizr|hsts|ssl|spf|dmarc|dkim|mobile non scaleable|html5|ipv6|lazy ?load|slick|owl carousel)\b/i;
 
 /** Tool words that name a category, not a product: never stored as a technology on their own. */
 export const GENERIC_TECH_WORDS = new Set(["erp", "crm", "mdm", "cloud", "saas", "software", "platform", "bpm", "rpa", "bi", "analytics", "automation", "digital", "ai", "it", "system", "systems", "tools", "workflow"]);

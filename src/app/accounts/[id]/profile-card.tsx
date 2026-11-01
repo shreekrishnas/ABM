@@ -3,7 +3,7 @@ import type { FieldStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Card, FieldBadge, date } from "@/components/ui";
-import { CATEGORY_LABEL, CATEGORY_ORDER, type TechCategory } from "@/lib/profile/catalog";
+import { CATEGORY_LABEL, CATEGORY_ORDER, WEB_PLUMBING, matchTech, type TechCategory } from "@/lib/profile/catalog";
 import { HEALTH_LABEL, HEALTH_TONE, bestPerYear, type HealthLabel } from "@/lib/profile/health";
 import { FX_TO_USD, formatAmount, formatUsd } from "@/lib/profile/money";
 import { addFinancialRecordAction, refreshProfileAction, removeFinancialRecordAction } from "./profile-actions";
@@ -41,11 +41,24 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
   const rowFor = (fy: string, source: string) => fins.find((f) => f.fiscalYear === fy && f.source === source)!;
   const others = (fy: string, source: string) => fins.filter((f) => f.fiscalYear === fy && f.source !== source);
   const health = (account.financialHealth ?? "unknown") as HealthLabel;
-  // Imported technologies that research hasn't catalogued yet still show (as "Import").
-  const imported = account.technologies.filter((t) => !techs.some((x) => x.name.toLowerCase() === t.toLowerCase()));
+  // Imported names are filed through the catalog (Microsoft 365, Azure, GTM…); a name research also
+  // found shows once with both sources; website building blocks (libraries, tags, certificates) fold away.
   const byCat = new Map<string, { name: string; sources: string[]; detail: string | null; urls: string[] }[]>();
   for (const t of techs) byCat.set(t.category, [...(byCat.get(t.category) ?? []), { name: t.name, sources: t.sources, detail: t.detail, urls: t.evidenceUrls }]);
-  if (imported.length) byCat.set("other", [...(byCat.get("other") ?? []), ...imported.map((n) => ({ name: n, sources: ["import"], detail: "From the uploaded file", urls: [] }))]);
+  const plumbing: string[] = [];
+  let importedShown = 0;
+  for (const n of account.technologies.filter((t) => !techs.some((x) => x.name.toLowerCase() === t.toLowerCase()))) {
+    const entry = matchTech(n);
+    const known = entry && [...byCat.values()].flat().find((x) => x.name === entry.name);
+    if (known) { if (!known.sources.includes("import")) known.sources.push("import"); continue; }
+    if (!entry && WEB_PLUMBING.test(n)) { plumbing.push(n); continue; }
+    const cat = entry?.category ?? "other";
+    const name = entry?.name ?? n;
+    if ((byCat.get(cat) ?? []).some((x) => x.name === name)) continue;
+    byCat.set(cat, [...(byCat.get(cat) ?? []), { name, sources: ["import"], detail: entry && entry.name !== n ? `From the uploaded file as “${n}”` : "From the uploaded file", urls: [] }]);
+    importedShown++;
+  }
+  const imported = { length: importedShown };
   const cats = CATEGORY_ORDER.filter((c) => byCat.has(c));
   const latestRound = rounds[0];
   const totalUsd = rounds.reduce((t, r) => t + (r.amountUsd ?? 0), 0);
@@ -166,6 +179,12 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                   </div>
                 ))}
               </dl>
+            )}
+            {plumbing.length > 0 && (
+              <details className="mt-2 text-xs">
+                <summary className="muted cursor-pointer">Website building blocks from the import ({plumbing.length}): libraries, tags and certificates, not business systems</summary>
+                <p className="secondary mt-1">{plumbing.join(" · ")}</p>
+              </details>
             )}
           </section>
 
