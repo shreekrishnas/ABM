@@ -106,10 +106,10 @@ export const CONFIG = {
     paidLookup: 0.1,
     providerCheck: 0.02,
     mailboxVerify: 0.005,
-    llmCheap: 0.002,
-    llmStrong: 0.03,
-    /** Brain synthesis (account brief, research plan) — a few thousand tokens on gpt-4o-mini. */
-    llmBrain: 0.004,
+    llmCheap: 0.02,
+    llmStrong: 0.06,
+    /** Brain synthesis (account brief, research plan) — a few thousand tokens on Claude Sonnet 4.5. */
+    llmBrain: 0.05,
     /** Approximate cost of one web search per engine (paid tiers). */
     search: { exa: 0.01, tavily: 0.008, serp: 0.015, mock: 0 } as Record<string, number>,
     /** One tech-lookup provider call (BuiltWith domain lookup), estimated per call. */

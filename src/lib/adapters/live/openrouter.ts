@@ -1,4 +1,4 @@
-// Live LLM via OpenRouter (default model: openai/gpt-4o-mini).
+// Live LLM via OpenRouter (default model: anthropic/claude-sonnet-4.5).
 // Every call asks for strict JSON and is validated. Source URLs and dates are
 // never taken from the model — they come from the fetched pages — so the model
 // cannot invent a source. Compliance lines are appended by code, not the model.
@@ -52,7 +52,7 @@ const BRAIN = (sellerName: string) =>
 
 export class OpenRouterLLM implements LLM {
   readonly model: string;
-  constructor(private apiKey: string, model = process.env.LLM_MODEL || "openai/gpt-4o-mini") {
+  constructor(private apiKey: string, model = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.5") {
     this.model = model;
   }
 
@@ -84,7 +84,10 @@ export class OpenRouterLLM implements LLM {
     for (let attempt = 0; attempt < 2; attempt++) {
       const text = await this.call(system, messages, maxTokens);
       try {
-        return schema.parse(JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
+        const t = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+        // Some models add a sentence around the JSON: read from the first { to the last }.
+        const body = t.startsWith("{") ? t : t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1);
+        return schema.parse(JSON.parse(body));
       } catch (e) {
         lastError = e instanceof z.ZodError ? e.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") : "not valid JSON";
         messages.push({ role: "assistant", content: text.slice(0, 4000) }, { role: "user", content: `That output was invalid (${lastError}). Return the corrected JSON object only.` });
