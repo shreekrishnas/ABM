@@ -100,7 +100,7 @@ export const CONFIG = {
     lostDealDays: 90,
   },
 
-  budgetsUsd: { T1: 5, T2: 2, T3: 0.75 } as Record<"T1" | "T2" | "T3", number>,
+  budgetsUsd: { T1: 25, T2: 10, T3: 4 } as Record<"T1" | "T2" | "T3", number>,
 
   costsUsd: {
     paidLookup: 0.1,
