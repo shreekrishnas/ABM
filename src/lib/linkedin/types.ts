@@ -39,6 +39,8 @@ export interface LinkedInDraftInput {
   history: { direction: "out" | "in"; kind: string; text: string; at: string }[];
   /** Angles already used in earlier messages (do not repeat them). */
   usedAngles: string[];
+  /** What has started conversations before (style advice only; facts are still required). */
+  learnings?: string[];
   summary: string | null;
   /** What a person asked for ("mention the plant opening", "shorter"). */
   note: string | null;

@@ -14,6 +14,8 @@ import { STAGE_INFO, type Stage } from "@/lib/journey/stages";
 import { isStale } from "@/lib/pipeline/gates";
 import { isTriggerKey } from "@/lib/research/keys";
 import { ANSWER_KINDS, checkDraft, followUpEligibility, guardAnalysis, outreachBlock, type Eligibility } from "./rules";
+import { contactConversation, recommendChannel } from "./conversation";
+import { whatHasWorked } from "./metrics";
 import { CHAR_LIMIT, KIND_LABEL, type ConversationSummary, type MessageKind, type ReplyAnalysis } from "./types";
 
 const DAY = 86_400_000;
@@ -27,11 +29,15 @@ export async function loadWorkspace(journeyId: string, now = new Date()) {
   const c = j.contact;
   const a = c.account;
   const sp = (() => { try { return sellerFor(a.sellerId); } catch { return seller(); } })();
-  const [evidence, brief, emailReplies] = await Promise.all([
+  const [evidence, brief, emailReplies, conversation, activeSeq] = await Promise.all([
     db.evidence.findMany({ where: { accountId: a.id, supersededById: null, flagged: false, isNegative: false, status: { in: ["verified", "probable"] } }, orderBy: [{ status: "asc" }, { publishedAt: "desc" }], take: 20 }),
     latestBrief(a.id),
     db.reply.findMany({ where: { contactId: c.id }, orderBy: { receivedAt: "desc" }, take: 3 }),
+    contactConversation(c.id),
+    db.enrollment.count({ where: { contactId: c.id, status: "active" } }),
   ]);
+  const channel = recommendChannel(conversation, { emailUsable: Boolean(c.email) && !["suppressed", "do_not_contact"].includes(c.state), sequenceActive: activeSeq > 0 });
+  const intent = (a.intentReading as { level?: string; score?: number } | null) ?? null;
   const facts = evidence.filter((e) => !isStale(e.publishedAt, isTriggerKey(e.key) ? "trigger" : "company", now)).slice(0, 10);
   const persona = matchPersona(c.titleNormalized ?? c.title, sp);
   const angle = brief?.personaAngles.find((p) => p.role === c.buyingRole) ?? brief?.personaAngles[0] ?? null;
@@ -57,7 +63,7 @@ export async function loadWorkspace(journeyId: string, now = new Date()) {
     followUpDays: cfg.followUpDays ?? JOURNEY_RULES.followUpGapDays, maxUnanswered: cfg.maxUnansweredFollowUps ?? 2,
   });
   const approved = [...sp.proofPoints.map((p) => p.text), ...sp.products.map((p) => `${p.name}: ${p.what}`), ...(sp.writing?.objections ?? []).map((o) => `If asked "${o.objection}": ${o.answer}`)].slice(0, 12);
-  return { j, c, a, sp, facts, usedFacts, persona, angle, pain, brief, sent, received, emailReplies, block, eligibility, approved, lastOut, lastIn };
+  return { j, c, a, sp, facts, usedFacts, persona, angle, pain, brief, sent, received, emailReplies, block, eligibility, approved, lastOut, lastIn, conversation, channel, intent, activeSeq };
 }
 
 export type Workspace = Awaited<ReturnType<typeof loadWorkspace>>;
@@ -74,6 +80,9 @@ export function nextStep(w: Workspace, now = new Date()): { text: string; why: s
     if (an?.followUpOn) return { text: `Reconnect on ${an.followUpOn}`, why: an.recommendedAction, kind: "nurture", on: new Date(`${an.followUpOn}T09:00:00Z`) };
     return { text: an?.nextKind ? `Send: ${KIND_LABEL[an.nextKind].toLowerCase()}` : "Reply to their message", why: an?.recommendedAction || "They replied and are waiting for an answer", kind: an?.nextKind ?? "custom", on: now };
   }
+  // Cross-channel: a reply by email (newer than anything on LinkedIn) is answered by email; a fresh email waits 48 hours.
+  if (w.channel.channel === "email") return { text: "Continue by email", why: w.channel.why, kind: null, on: null };
+  if (w.channel.channel === "wait" && !["not_contacted", "connection_sent"].includes(stage)) return { text: "Wait before a LinkedIn touch", why: w.channel.why, kind: null, on: new Date(now.getTime() + 2 * DAY) };
   if (stage === "not_contacted") return { text: "Send a connection request", why: w.facts.length ? "There's research to make the note relevant" : "No research facts yet: keep the note general, or research the company first", kind: "connection_request", on: now };
   if (stage === "connection_sent") {
     const at = w.sent.find((m) => m.kind === "connection_request")?.occurredAt ?? w.j.lastEngagementAt;
@@ -94,7 +103,9 @@ export async function generateDraft(journeyId: string, kind: MessageKind, note: 
   if (w.block && !ANSWER_KINDS.includes(kind)) throw new Error(w.block);
   if (w.block && /asked not to be contacted|ruled out/.test(w.block)) throw new Error(w.block);
   if (kind === "follow_up" && !w.eligibility.eligible) throw new Error(`Follow-up not offered: ${w.eligibility.reason}`);
-  const history = w.j.messages.filter((m) => m.status === "sent" || m.status === "received").map((m) => ({ direction: m.direction as "out" | "in", kind: m.kind, text: m.sentText ?? m.body, at: day(m.occurredAt ?? m.createdAt) }));
+  // The whole conversation, both channels, so the writer neither repeats an email nor ignores a reply there.
+  const history = w.conversation.map((m) => ({ direction: m.direction, kind: `${m.channel}: ${m.kind}`, text: m.text, at: day(m.at) }));
+  const learnings = await whatHasWorked(kind).catch(() => []);
   const facts = (kind === "follow_up" ? w.facts.filter((f) => !w.usedFacts.has(f.id)) : w.facts).map((f) => ({ id: f.id, claim: f.claim }));
   const summary = w.j.summary as unknown as ConversationSummary | null;
   const maxChars = CHAR_LIMIT[kind];
@@ -104,15 +115,16 @@ export async function generateDraft(journeyId: string, kind: MessageKind, note: 
     facts, angle: w.pain ? { pain: w.pain.pain, capability: w.pain.capability, proofPoint: w.sp.proofPoints[0]?.text ?? null } : null,
     whyNow: w.brief?.whyNow?.text ?? null, seller: { name: w.sp.name, summary: w.sp.summary, pitch: w.sp.messaging.default, cta: w.sp.messaging.cta },
     approved: w.approved, tone: w.sp.tone, bannedClaims: w.sp.bannedClaims, history, usedAngles: w.sent.map((m) => m.angle).filter((x): x is string => Boolean(x)),
+    learnings,
     summary: summary ? `${summary.lastInteraction}. Concerns: ${summary.concerns.join("; ") || "none"}. Commitments: ${summary.commitments.join("; ") || "none"}.` : null, note, maxChars,
   });
   const usable = new Set(facts.map((f) => f.id));
-  const checks = checkDraft(out, { kind, usableIds: usable, maxChars, banned: w.sp.bannedClaims, previous: w.sent.map((m) => m.sentText ?? m.body), conversationHasReply: w.received.length > 0, commitments: summary?.commitments ?? [] });
+  const checks = checkDraft(out, { kind, usableIds: usable, maxChars, banned: w.sp.bannedClaims, previous: w.conversation.filter((m) => m.direction === "out").map((m) => m.text), conversationHasReply: w.conversation.some((m) => m.direction === "in"), commitments: summary?.commitments ?? [] });
   const ok = checks.every((x) => x.pass);
   const version = (await db.linkedInMessage.count({ where: { journeyId, direction: "out", kind } })) + 1;
   return db.linkedInMessage.create({
     data: {
-      journeyId, contactId: w.c.id, direction: "out", kind, status: ok ? "draft" : "blocked", body: out.body.trim(), why: out.why || null, angle: out.angle || null,
+      journeyId, contactId: w.c.id, direction: "out", kind, status: ok ? "draft" : "blocked", body: out.body.trim(), generatedBody: out.body.trim(), why: out.why || null, angle: out.angle || null,
       factIds: [...new Set(out.claims.flatMap((c) => c.factIds).filter((id) => usable.has(id)))], checks: checks as unknown as Prisma.InputJsonValue, version, createdBy: by,
     },
   });
@@ -165,6 +177,7 @@ export async function recordSent(messageId: string, text: string, at: Date, by: 
   const sentText = text.trim() || m.body;
   const updated = await db.linkedInMessage.update({ where: { id: messageId }, data: { status: "sent", sentText, sentBy: by, approvedBy: m.approvedBy ?? by, occurredAt: at } });
   await recordActivities(m.journeyId, [ACTIVITY[m.kind as MessageKind](at, sentText.slice(0, 500))], "manual", by ? `by ${by}` : undefined);
+  await scheduleCheck(m.journeyId, m.kind as MessageKind, at);
   await refreshSummary(m.journeyId).catch(() => null);
   return updated;
 }
@@ -182,6 +195,7 @@ export async function recordReply(journeyId: string, text: string, at: Date, by:
     analysis = { type: "neutral", intent: "none", futureOpportunity: false, questions: [], mentions: [], commitments: [], stopRequested: false, continueOutreach: true, recommendedAction: "The AI couldn't read this reply: decide the next step yourself.", nextKind: null, suggestedStage: "replied_neutral", followUpOn: null, summary: text.slice(0, 120) };
   }
   analysis = guardAnalysis(analysis, text);
+  await closeLinkedInTasks(w.c.id, "They replied");
   return db.linkedInMessage.create({ data: { journeyId, contactId: w.c.id, direction: "in", kind: "reply", status: "received", body: text.trim(), sentText: text.trim(), analysis: analysis as unknown as Prisma.InputJsonValue, createdBy: by, occurredAt: at } });
 }
 
@@ -207,6 +221,27 @@ export async function confirmReply(messageId: string, stage: Stage, by: string |
   await db.linkedInMessage.update({ where: { id: messageId }, data: { analysis: { ...(an ?? {}), confirmed: STAGE_INFO[stage].label, confirmedBy: by } as unknown as Prisma.InputJsonValue } });
   await db.journey.update({ where: { id: m.journeyId }, data: { upToDateAt: new Date(), summaryEditedBy: null } });
   await refreshSummary(m.journeyId).catch(() => null);
+}
+
+/** One open LinkedIn reminder per person: replaced when a new message goes out, closed when they reply. */
+async function closeLinkedInTasks(contactId: string, why: string) {
+  await db.task.updateMany({ where: { contactId, origin: "linkedin", status: { not: "done" } }, data: { status: "done", completedAt: new Date(), body: why } });
+}
+
+async function scheduleCheck(journeyId: string, kind: MessageKind, sentAt: Date) {
+  const j = await db.journey.findUniqueOrThrow({ where: { id: journeyId }, include: { contact: { include: { account: { select: { ownerId: true, sellerId: true } } } } } });
+  const c = j.contact;
+  await closeLinkedInTasks(c.id, "A newer LinkedIn message was sent");
+  const sp = (() => { try { return sellerFor(c.account.sellerId); } catch { return seller(); } })();
+  const days = kind === "connection_request" ? JOURNEY_RULES.connectionStaleDays : sp.linkedin?.followUpDays ?? JOURNEY_RULES.followUpGapDays;
+  if (ANSWER_KINDS.includes(kind) && kind !== "custom") return; // answering them: the next move is theirs
+  await db.task.create({
+    data: {
+      title: kind === "connection_request" ? `Check whether ${c.fullName} accepted on LinkedIn` : `LinkedIn: check for a reply from ${c.fullName}, then follow up if eligible`,
+      body: "Record any reply in the LinkedIn workspace, or confirm there's none; a follow-up is offered only when eligible.",
+      accountId: c.accountId, contactId: c.id, assigneeId: c.account.ownerId, origin: "linkedin", dueAt: new Date(sentAt.getTime() + days * DAY),
+    },
+  });
 }
 
 /** The person confirms there's no reply they haven't recorded (needed before a follow-up). */

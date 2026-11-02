@@ -1469,36 +1469,38 @@ model DiscoverySearch {
 /// person actually sent (recorded by hand — nothing is sent automatically), and replies they pasted
 /// in with the AI's reading of them.
 model LinkedInMessage {
-  id         String    @id @default(cuid())
-  journeyId  String
-  journey    Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  contactId  String
+  id            String    @id @default(cuid())
+  journeyId     String
+  journey       Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contactId     String
   /// out = to the prospect; in = from the prospect
-  direction  String
+  direction     String
   /// connection_request | initial | follow_up | reply_positive | reply_objection | reply_info | referral | nurture | custom | reply (inbound)
-  kind       String
+  kind          String
   /// draft | blocked | approved | sent | discarded | received
-  status     String
-  body       String
+  status        String
+  body          String
+  /// The AI's original text, kept to measure how much people edit drafts.
+  generatedBody String?
   /// The text actually sent (after a person's edits), or the reply as pasted.
-  sentText   String?
+  sentText      String?
   /// Why this message, in a sentence; the angle it uses.
-  why        String?
-  angle      String?
+  why           String?
+  angle         String?
   /// Research facts the message cites (evidence ids).
-  factIds    String[]  @default([])
+  factIds       String[]  @default([])
   /// Checks run on a draft: [{ check, pass, detail }].
-  checks     Json?
+  checks        Json?
   /// Inbound: the AI's analysis (type, interest, questions, mentions, commitments, recommended action, suggested stage).
-  analysis   Json?
-  version    Int       @default(1)
-  createdBy  String?
-  approvedBy String?
-  sentBy     String?
+  analysis      Json?
+  version       Int       @default(1)
+  createdBy     String?
+  approvedBy    String?
+  sentBy        String?
   /// When it was sent or received (confirmed by the person who recorded it).
-  occurredAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  occurredAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([journeyId, createdAt])
   @@index([contactId])

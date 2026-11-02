@@ -25,7 +25,7 @@ export async function LinkedInWorkspace({ journeyId }: { journeyId: string }) {
   const next = nextStep(w);
   const summary = w.j.summary as unknown as ConversationSummary | null;
   const drafts = w.j.messages.filter((m) => m.direction === "out" && ["draft", "blocked", "approved"].includes(m.status)).reverse();
-  const timeline = w.j.messages.filter((m) => m.status === "sent" || m.status === "received");
+  const timeline = w.conversation;
   const pending = w.received.filter((m) => !(m.analysis as { confirmed?: string } | null)?.confirmed);
   const stage = w.j.stage as Stage;
   const kinds = MESSAGE_KINDS.filter((k) => !w.block || ANSWER_KINDS.includes(k));
@@ -56,6 +56,8 @@ export async function LinkedInWorkspace({ journeyId }: { journeyId: string }) {
             <div><dt className="muted inline">Role: </dt><dd className="inline">{w.c.titleNormalized ?? w.c.title ?? "title unknown"} · {w.c.buyingRole.replace("_", " ")}{w.persona ? ` · ${w.persona.why}` : ""}</dd></div>
             {w.brief?.whyNow && <div><dt className="muted inline">Why now: </dt><dd className="inline">{w.brief.whyNow.text}</dd></div>}
             {w.pain && <div><dt className="muted inline">Suggested angle: </dt><dd className="inline">{w.pain.pain} → {w.pain.capability}</dd></div>}
+            {w.intent?.level && <div><dt className="muted inline">Buying intent: </dt><dd className="inline">{w.intent.level}{w.intent.score != null ? ` (${Math.round(w.intent.score)})` : ""}</dd></div>}
+            <div><dt className="muted inline">Channel: </dt><dd className="inline">{w.channel.channel === "wait" ? "wait" : w.channel.channel === "email" ? "email" : "LinkedIn"} · {w.channel.why}{w.activeSeq ? " · email sequence running" : ""}</dd></div>
             {w.emailReplies.length > 0 && <div style={{ color: "var(--warning-strong)" }}>They replied by email on {day(w.emailReplies[0].receivedAt)}: check that thread before a LinkedIn pitch.</div>}
           </dl>
           <div className="mt-3 grid gap-1.5">
@@ -162,12 +164,13 @@ export async function LinkedInWorkspace({ journeyId }: { journeyId: string }) {
         {/* Conversation timeline */}
         <section>
           <H>Conversation timeline</H>
+          <p className="muted mb-2 text-xs">Email and LinkedIn together, each with its channel, sender and date.</p>
           {timeline.length === 0 ? <p className="muted text-xs">Nothing recorded yet.</p> : (
             <ol className="grid gap-2 text-xs">
-              {timeline.map((m) => (
-                <li key={m.id} className="rounded-lg px-3 py-2" style={{ background: m.direction === "out" ? "var(--surface-card-header)" : "var(--indigo-bg)" }}>
-                  <div className="muted mb-0.5">{m.direction === "out" ? `You · ${KIND_LABEL[m.kind as MessageKind] ?? m.kind}` : `${w.c.firstName ?? w.c.fullName}`} · {day(m.occurredAt ?? m.createdAt)}{m.sentBy ? ` · recorded by ${m.sentBy}` : ""}</div>
-                  <div className="secondary whitespace-pre-wrap">{m.sentText ?? m.body}</div>
+              {timeline.map((m, i) => (
+                <li key={i} className="rounded-lg px-3 py-2" style={{ background: m.direction === "out" ? "var(--surface-card-header)" : "var(--indigo-bg)" }}>
+                  <div className="muted mb-0.5"><b style={{ color: m.channel === "email" ? "var(--info-strong)" : "var(--indigo-strong)" }}>{m.channel === "email" ? "Email" : "LinkedIn"}</b> · {m.direction === "out" ? `${m.sender} · ${KIND_LABEL[m.kind as MessageKind] ?? m.kind}` : `${w.c.firstName ?? w.c.fullName} · ${m.kind}`} · {day(m.at)}</div>
+                  <div className="secondary whitespace-pre-wrap">{m.text}</div>
                 </li>
               ))}
             </ol>

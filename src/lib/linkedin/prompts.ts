@@ -38,6 +38,7 @@ export function linkedInUser(i: LinkedInDraftInput): string {
     i.approved.length ? `APPROVED MATERIAL (may be stated):\n- ${i.approved.join("\n- ")}` : "",
     i.history.length ? `CONVERSATION (oldest first):\n${i.history.map((h) => `[${h.at}] ${h.direction === "out" ? "US" : "THEM"} (${h.kind}): ${h.text}`).join("\n")}` : "CONVERSATION: none yet",
     i.summary ? `SUMMARY: ${i.summary}` : "",
+    i.learnings?.length ? `WHAT HAS WORKED BEFORE (style advice only; every claim still needs a FACT):\n- ${i.learnings.join("\n- ")}` : "",
     i.note ? `PERSON'S NOTE: ${i.note}` : "",
   ].filter(Boolean).join("\n\n");
 }

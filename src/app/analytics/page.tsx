@@ -11,6 +11,8 @@ import { Card, PageHeader, money } from "@/components/ui";
 
 export const metadata = { title: "Analytics" };
 
+import { LinkedInPerformance } from "./linkedin-card";
+
 export default async function AnalyticsPage() {
   await ensureSellerPacks();
   const [messages, replies, evidence, ledgerByKind, ledgerByStage, oppsByTier, accountsByTier, closed] = await Promise.all([
@@ -94,6 +96,7 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
+        <LinkedInPerformance />
         <Card title="Results by tier" sub="Is 1:1 effort paying off versus 1:many?" pad={false} className="xl:col-span-2">
           <div className="table-wrap">
             <table className="data">
