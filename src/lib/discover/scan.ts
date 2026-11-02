@@ -88,22 +88,29 @@ export interface ScanResult {
   excluded: number;
 }
 
-export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanResult> {
+/** How long one scan may search before it wraps up (a request allows 300 s; drafting suggestions follows). */
+export const SCAN_BUDGET_MS = 180_000;
+
+export async function scanMarket(ctx: RunContext = newContext(), opts: { budgetMs?: number } = {}): Promise<ScanResult> {
   await ensureSellerPacks();
   const p = seller();
   const mode = ctx.adapters.research.live ? "live" : "mock";
   const country = targetCountries();
   let events = 0;
   const queries = marketQueries();
-  for (const q of queries) {
+  // A scan must finish inside one request: searches run three at a time, and no new search starts
+  // once the time budget is spent (what was read is still turned into suggestions).
+  const deadline = Date.now() + (opts.budgetMs ?? SCAN_BUDGET_MS);
+  let done = 0;
+  const one = async (q: (typeof queries)[number]) => {
     let pages: ResearchPage[] = [];
     try {
       pages = await ctx.adapters.research.search("", country, q.key, "main", { query: q.query });
     } catch (e) {
       await logEvent(ctx, { stage: 0, step: "discover.search", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 200) : "search failed", data: { query: q.query } });
-      continue;
+      return;
     }
-    if (!pages.length) continue;
+    if (!pages.length) return;
     const found = await ctx.adapters.llm.extractMarketEvents(pages).catch(() => []);
     for (const f of found) {
       const page = pages[f.page];
@@ -117,11 +124,17 @@ export async function scanMarket(ctx: RunContext = newContext()): Promise<ScanRe
       await db.marketEvent.upsert({ where: { sellerId_sourceUrl_nameKey: { sellerId: p.id, sourceUrl: page.url, nameKey } }, create: { sellerId: p.id, nameKey, sourceUrl: page.url, ...data }, update: data });
       events++;
     }
+  };
+  for (let i = 0; i < queries.length && Date.now() < deadline; i += 3) {
+    const batch = queries.slice(i, i + 3);
+    await Promise.all(batch.map(one));
+    done += batch.length;
   }
+  if (done < queries.length) await logEvent(ctx, { stage: 0, step: "discover.search", outcome: "info", reason: `Time budget reached after ${done} of ${queries.length} searches; the rest run in the next scan` });
   const out = await buildSuggestions(ctx);
-  await logEvent(ctx, { stage: 0, step: "discover.scan", outcome: "info", reason: out.suggestions ? `${events} market reports; ${out.suggestions} prospects with two or more independent signals, ${out.excluded} outside the targeting rule` : `${NO_PROSPECTS_MESSAGE} (${events} market reports read)`, data: { searches: queries.length, sellerId: p.id } });
-  await publish(ctx, { type: "market.scanned", module: "discover", payload: { searches: queries.length, events, ...out } });
-  return { searches: queries.length, events, ...out };
+  await logEvent(ctx, { stage: 0, step: "discover.scan", outcome: "info", reason: out.suggestions ? `${events} market reports; ${out.suggestions} prospects with two or more independent signals, ${out.excluded} outside the targeting rule` : `${NO_PROSPECTS_MESSAGE} (${events} market reports read)`, data: { searches: done, of: queries.length, sellerId: p.id } });
+  await publish(ctx, { type: "market.scanned", module: "discover", payload: { searches: done, events, ...out } });
+  return { searches: done, events, ...out };
 }
 
 /** Groups recent market events by company, skips companies already held, checks the rule, scores intent. */
@@ -207,7 +220,8 @@ export async function maybeScanMarket(ctx: RunContext) {
   const every = seller().discovery?.everyDays ?? DEFAULT_SCAN_DAYS;
   const last = await db.pipelineEvent.findFirst({ where: { step: "discover.scan", data: { path: ["sellerId"], equals: seller().id } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
   if (last && ctx.now.getTime() - last.createdAt.getTime() < every * DAY - 60 * 60_000) return false;
-  await scanMarket(ctx);
+  // The daily run shares its request with the queue and sequences: a shorter search budget.
+  await scanMarket(ctx, { budgetMs: 150_000 });
   return true;
 }
 

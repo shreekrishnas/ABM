@@ -179,7 +179,7 @@ export class OpenRouterLLM implements LLM {
         linkedin ? "This is a LinkedIn message: no subject line, no signature, no email footer, no links." : "",
         input.bannedClaims?.length ? `Never claim: ${input.bannedClaims.join("; ")}.` : "",
         "Rules:",
-        "1. Every sentence about the prospect must come from the FACTS list and be listed in claims with that fact's id.",
+        "1. Every sentence about the prospect must come from the FACTS list and be listed in claims with that fact's id. claims lists ONLY sentences about the prospect; never list sentences about the seller, its pitch or its proof points, and never use anything but a FACTS id in factIds.",
         "2. Do not mention anything about the prospect that is not in FACTS. Do not guess numbers.",
         input.interest ? `WEBSITE INTEREST: ${input.interest}. Use it only to choose which pain, use case or proof point to lead with. Never mention or hint that they visited the website, read a page or looked at pricing.` : "",
         "3. Use the SELLER PITCH for what the seller does; you may shorten it but must not add new claims.",

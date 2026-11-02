@@ -33,6 +33,9 @@ import { checkPlay, messageBody, playFor, type PlayKey } from "@/lib/knowledge/p
 import { knowledgeTrace, writingContext } from "@/lib/knowledge/select";
 import { retrieveForMessage } from "@/lib/knowledge/rag/for-message";
 
+/** What a model writes when it "cites" the seller's own material instead of a research fact. */
+const SELLER_REF = /pitch|seller|cta|proof ?point|case ?study|knowledge|approved|playbook|persona|reference|^kc_|^chunk/i;
+
 // ───────────────────────── Stage 10 ─────────────────────────
 
 export interface ReadinessResult {
@@ -227,7 +230,14 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     attempt++;
     await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmStrong, `Draft step ${stepOrder} for ${contact.fullName} (version ${attempt})`, S);
     const revise = current && issues.length ? { subject: current.subject, body: current.body, issues } : null;
-    const candidate = await ctx.adapters.llm.draft({ ...input, revise }, attempt);
+    const raw = await ctx.adapters.llm.draft({ ...input, revise }, attempt);
+    // Claims are sentences about the PROSPECT, each tied to a research fact. A model sometimes also lists
+    // the seller's own pitch and "cites" it ("approved pitch", "seller pitch", a knowledge-base entry):
+    // those are not prospect claims, so they're set aside here (the whole-email audit still checks every
+    // sentence about the prospect, and banned claims still apply to seller sentences).
+    const known = new Set(usable.map((f) => f.id));
+    const sellerClaim = (c: { factIds: string[] }) => c.factIds.length > 0 && c.factIds.every((id) => !known.has(id) && SELLER_REF.test(id));
+    const candidate = { ...raw, claims: raw.claims.filter((c) => !sellerClaim(c)) };
     if (revise) await publish(ctx, { type: "draft.rewritten", module: "rewriter", accountId: account.id, payload: { contactId: contact.id, version: attempt, fixing: issues } });
     current = candidate;
     panel = [];

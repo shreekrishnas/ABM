@@ -32,6 +32,9 @@ const ORIGIN_WORD: Record<string, string> = { market: "News & hiring", lookalike
 
 const READY_WORD: Record<string, string> = { ready: "Ready to buy", emerging: "Emerging", early: "Early", none: "No need seen" };
 
+// "Scan the market now" searches inside the request (time-budgeted to finish within this).
+export const maxDuration = 300;
+
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string; origin?: string; seed?: string }> }) {
   await ensureSellerPacks();
   const sp = await searchParams;
