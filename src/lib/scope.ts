@@ -129,6 +129,7 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "Journey":
       return viaContact;
     case "JourneyEvent":
+    case "LinkedInMessage":
       return { journey: viaContact };
     case "Task":
     case "Note":

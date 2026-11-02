@@ -28,7 +28,7 @@ export async function ensureJourney(contactId: string, campaignId: string, sende
 
 /** Apply activities in date order, write each to the timeline, save the journey. */
 export async function recordActivities(journeyId: string, activities: Activity[], source: ActivitySource, extraDetail?: string) {
-  const order: Record<Activity["type"], number> = { connection_sent: 0, connection_accepted: 1, follow_up_sent: 2, details_shared: 3, reply: 4, call_scheduled: 5, demo_scheduled: 6, call_logged: 7, note: 8, stage_set: 9 };
+  const order: Record<Activity["type"], number> = { connection_sent: 0, connection_accepted: 1, follow_up_sent: 2, message_sent: 2, details_shared: 3, reply: 4, call_scheduled: 5, demo_scheduled: 6, call_logged: 7, note: 8, stage_set: 9 };
   const sorted = [...activities].sort((a, b) => a.at.getTime() - b.at.getTime() || order[a.type] - order[b.type]);
   const result = await db.$transaction(async (tx) => {
     const j = await tx.journey.findUniqueOrThrow({ where: { id: journeyId } });

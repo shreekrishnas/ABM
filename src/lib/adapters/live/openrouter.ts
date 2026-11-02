@@ -7,6 +7,8 @@ import { z } from "zod";
 import type { LookalikeFact, LookalikeJudgeInput, LookalikeJudgement, LookalikePlanInput, LookalikeProfile, LookalikeQuestion } from "../types";
 import type { InfluencerInput, InfluencerRole } from "../types";
 import type { DiscoveryCriteria } from "@/lib/discover/describe";
+import type { ConversationSummary, LinkedInDraftInput, LinkedInDraftOutput, ReplyAnalysis } from "@/lib/linkedin/types";
+import { REPLY_SYSTEM, SUMMARY_SYSTEM, draftSchema, linkedInSystem, linkedInUser, replySchema, summarySchema } from "@/lib/linkedin/prompts";
 import type { BrainSuggestInput, MarketEventExtract, SimilarCompanyExtract, BriefingInput, BriefingOutput, CritiqueInput, CritiqueOutput, DraftInput, DraftOutput, ExtractedEvidence, Inference, LLM, ResearchPage } from "../types";
 import { briefSchema, claimCheckSchema, insightSchema, planResearchSchema, type BrainStats, type BriefInput, type ClaimToCheck, type PlanResearchInput } from "@/lib/brain/types";
 import { fetchJson } from "./http";
@@ -387,6 +389,18 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
       `Prospect: ${context.title ?? "unknown title"} at ${context.company}. Current stage: ${context.stage}.\nReply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"stage":"<stage key>","reason":"<one short sentence>","nextAction":"<the next step for the sender>"}`,
       150,
     );
+  }
+
+  async draftLinkedIn(input: LinkedInDraftInput): Promise<LinkedInDraftOutput> {
+    return this.json(draftSchema, linkedInSystem(input), linkedInUser(input), 900);
+  }
+
+  async analyzeLinkedInReply(text: string, context: { company: string; title: string | null; history: { direction: "out" | "in"; text: string }[] }): Promise<ReplyAnalysis> {
+    return this.json(replySchema, REPLY_SYSTEM, `Company: ${context.company}${context.title ? ` · prospect: ${context.title}` : ""}\n\nCONVERSATION (oldest first):\n${context.history.map((h) => `${h.direction === "out" ? "US" : "THEM"}: ${h.text}`).join("\n") || "none"}\n\nNEW REPLY:\n${text}\n\nReturn {"type":"...","intent":"...","futureOpportunity":false,"questions":[],"mentions":[],"commitments":[],"stopRequested":false,"continueOutreach":true,"recommendedAction":"...","nextKind":null,"suggestedStage":"...","followUpOn":null,"summary":"..."}`, 700) as Promise<ReplyAnalysis>;
+  }
+
+  async summarizeConversation(history: { direction: "out" | "in"; kind: string; text: string; at: string }[], context: { company: string; contact: string; stage: string }): Promise<ConversationSummary> {
+    return this.json(summarySchema, SUMMARY_SYSTEM, `${context.contact} at ${context.company} · journey stage: ${context.stage}\n\n${history.map((h) => `[${h.at}] ${h.direction === "out" ? "US" : "THEM"} (${h.kind}): ${h.text}`).join("\n")}\n\nReturn {"stage":"...","lastInteraction":"...","topics":[],"concerns":[],"interest":"...","commitments":[],"nextStep":"...","nextDate":null}`, 600);
   }
 
   async parseDiscoveryBrief(brief: string, context: { offering: string; defaultCountries: string[] }): Promise<Record<string, unknown>> {

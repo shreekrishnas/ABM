@@ -120,6 +120,8 @@ export interface SellerProfile {
   autonomy: "review_all" | "auto_t3" | "auto_all";
   /** AI prospect discovery: how often the market scan runs for this client (days). Default 3. */
   discovery?: { everyDays: number };
+  /** LinkedIn messaging: follow-up timing and limits (people send every message by hand). */
+  linkedin?: { followUpDays?: number; maxUnansweredFollowUps?: number };
   /** Lookalikes: what "similar" means for this client and how deep the AI digs (all optional). */
   lookalike?: LookalikeCriteria;
   /** Wording for the rule-based fallback brain; {tech} and {tools} are filled in. */

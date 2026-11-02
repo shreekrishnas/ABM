@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { InteractionRail } from "./interaction-rail";
+import { LinkedInWorkspace } from "./linkedin-workspace";
 import { notFound } from "next/navigation";
 import { ExternalLink, Mail, MessageSquareText, Pencil, Phone, Trash2, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
@@ -15,7 +16,7 @@ import { WebVisitsCard } from "@/components/web-visits";
 import { deletePersonAction, logActivityAction, setStageAction, updatePersonAction } from "../../actions";
 
 const EVENT_LABEL: Record<string, string> = {
-  connection_sent: "Connection request sent", connection_accepted: "Connection accepted", follow_up_sent: "Follow-up sent", reply: "Reply received",
+  connection_sent: "Connection request sent", connection_accepted: "Connection accepted", follow_up_sent: "Follow-up sent", message_sent: "Message sent", reply: "Reply received",
   details_shared: "Details shared", call_scheduled: "Call scheduled", demo_scheduled: "Demo scheduled", call_logged: "Call made", stage_set: "Stage set", note: "Note", imported: "Imported",
 };
 
@@ -27,6 +28,9 @@ function Field({ k, v }: { k: string; v: React.ReactNode }) {
     </div>
   );
 }
+
+// Drafting and reply analysis call the AI inside the request.
+export const maxDuration = 120;
 
 export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string; track?: string }> }) {
   const { id } = await params;
@@ -110,6 +114,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="grid min-w-0 content-start gap-5 xl:col-span-2">
           <InteractionRail contactId={c.id} />
+          {j && <LinkedInWorkspace journeyId={j.id} />}
           <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />
           <Card
             title="LinkedIn journey"

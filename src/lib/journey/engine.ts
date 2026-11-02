@@ -22,6 +22,8 @@ export type Activity =
   | { type: "connection_sent"; at: Date }
   | { type: "connection_accepted"; at: Date }
   | { type: "follow_up_sent"; at: Date }
+  /** A message (not a follow-up): the first message after acceptance, or an answer to the prospect. Never changes the stage. */
+  | { type: "message_sent"; at: Date; detail?: string }
   /** `meaning` = the stage this reply sets (suggested by rules or the AI, confirmed by a person). */
   | { type: "reply"; at: Date; text: string; meaning: Stage }
   | { type: "details_shared"; at: Date; detail?: string }
@@ -72,6 +74,10 @@ export function applyActivity(s: JourneyState, a: Activity): { next: JourneyStat
       if (OUTREACH.includes(stage)) stage = "follow_up_sent";
       engagement = `Follow-up ${followUpCount} sent`;
       detail = `Follow-up ${followUpCount}`;
+      break;
+    case "message_sent":
+      engagement = "Message sent";
+      detail = a.detail?.slice(0, 2000) ?? null;
       break;
     case "reply": {
       replyCount += 1;

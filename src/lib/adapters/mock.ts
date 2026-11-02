@@ -42,6 +42,7 @@ import type {
 import { inferFunction } from "@/lib/pipeline/normalize";
 import type { ProfileItems, ProfileKind } from "@/lib/profile/types";
 import type { InfluencerInput, InfluencerRole } from "./types";
+import type { ConversationSummary, LinkedInDraftInput, LinkedInDraftOutput, ReplyAnalysis } from "@/lib/linkedin/types";
 import { seller } from "@/lib/seller";
 import { matchPersona } from "@/lib/seller/fit";
 
@@ -391,6 +392,46 @@ class MockLLM implements LLM {
 
   insights(stats: BrainStats) {
     return Promise.resolve(ruleInsights(stats));
+  }
+
+  /** Sample LinkedIn drafts: short, citing the first fact (follow-ups use the next unused one). */
+  async draftLinkedIn(input: LinkedInDraftInput): Promise<LinkedInDraftOutput> {
+    const used = input.history.filter((h) => h.direction === "out").length;
+    const fact = input.facts[Math.min(used, input.facts.length - 1)];
+    const hi = `Hi ${input.contact.firstName ?? input.contact.name.split(" ")[0]}`;
+    const lead = fact ? fact.claim.replace(new RegExp(`^${input.company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "") : null;
+    const factLine = fact && lead ? `I saw ${input.company} ${lead.replace(/\.$/, "")}.` : "";
+    const bodies: Record<string, string> = {
+      connection_request: `${hi}, ${factLine} I work with ${input.contact.title ?? "leaders"} on partner and vendor data. Would be glad to connect.`,
+      follow_up: `${hi}, one more thought: ${factLine} Teams in your role often find onboarding slows as volumes grow. Is that on your radar this quarter?`,
+      reply_info: `${hi}, thanks for asking. ${input.approved[0] ?? input.seller.pitch} Happy to share more.`,
+      reply_objection: `${hi}, that's fair. ${input.approved[0] ?? input.seller.pitch} Would a short comparison be useful later?`,
+      reply_positive: `${hi}, great to hear. Would Tuesday or Thursday afternoon work for a 20-minute call?`,
+      nurture: `${hi}, understood on timing. I'll reconnect then; until then, one note: ${input.approved[0] ?? input.seller.pitch}`,
+    };
+    const body = (bodies[input.kind] ?? `${hi}, ${factLine} ${input.seller.pitch} Is this a priority for you?`).replace(/\s+/g, " ").trim().slice(0, input.maxChars);
+    return { body, claims: fact && factLine && body.includes(factLine) ? [{ text: factLine, factIds: [fact.id] }] : [], why: fact ? `Leads with: ${fact.claim.slice(0, 80)}` : "No research fact to lead with", angle: fact ? fact.claim.slice(0, 60) : "general" };
+  }
+
+  async analyzeLinkedInReply(text: string): Promise<ReplyAnalysis> {
+    const t = text.toLowerCase();
+    const vendor = /another vendor|already (work|use)|existing (vendor|provider)/.test(t);
+    const later = /next (year|quarter)|later|in a few months/.test(t);
+    const ask = /\?|send|share|details|pricing/.test(t);
+    const yes = /interested|let's talk|call|demo/.test(t) && !vendor;
+    const type = /stop|unsubscribe|don't contact/.test(t) ? "stop_request" : vendor ? "existing_vendor" : later ? "timing_later" : yes ? "positive_interest" : ask ? "information_request" : /not interested/.test(t) ? "not_interested" : "neutral";
+    const stage = type === "positive_interest" ? "interested" : type === "information_request" ? "details_requested" : type === "timing_later" || type === "existing_vendor" ? "nurture" : type === "not_interested" || type === "stop_request" ? "not_interested" : "replied_neutral";
+    return {
+      type, intent: yes ? "explicit" : later || vendor ? "possible" : "none", futureOpportunity: later || vendor, questions: ask ? [text.slice(0, 120)] : [], mentions: vendor ? ["existing vendor"] : [], commitments: [],
+      stopRequested: type === "stop_request", continueOutreach: type !== "stop_request" && type !== "not_interested",
+      recommendedAction: vendor ? "Acknowledge the existing arrangement, don't push, and schedule a review for later." : yes ? "Propose a short call and hand the account to sales." : ask ? "Answer the question with approved material." : "Reply briefly and keep the conversation open.",
+      nextKind: yes ? "reply_positive" : ask ? "reply_info" : later || vendor ? "nurture" : null, suggestedStage: stage as ReplyAnalysis["suggestedStage"], followUpOn: null, summary: text.slice(0, 120),
+    };
+  }
+
+  async summarizeConversation(history: { direction: "out" | "in"; kind: string; text: string; at: string }[], context: { stage: string }): Promise<ConversationSummary> {
+    const last = history[history.length - 1];
+    return { stage: context.stage, lastInteraction: last ? `${last.direction === "out" ? "We" : "They"} (${last.at}): ${last.text.slice(0, 100)}` : "Nothing yet", topics: [], concerns: history.filter((h) => h.direction === "in" && /vendor|budget|time/.test(h.text)).map((h) => h.text.slice(0, 80)), interest: "not stated", commitments: [], nextStep: "", nextDate: null };
   }
 
   /** Reads a description the way the AI would, for the sample market (industries, countries, size, technologies, funding). */

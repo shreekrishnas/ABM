@@ -934,10 +934,17 @@ model Journey {
   lastEngagementAt DateTime?
   lastEngagement   String?
   stageReason      String?
+  /// AI-maintained conversation summary (stage, last interaction, topics, concerns, interest, commitments, next step, next date). Never replaces the messages.
+  summary          Json?
+  /// Set when a person corrected the summary (their version is kept until the next reply).
+  summaryEditedBy  String?
+  /// When a person last confirmed the LinkedIn conversation is up to date (no unrecorded replies). Follow-ups need this.
+  upToDateAt       DateTime?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  events JourneyEvent[]
+  events   JourneyEvent[]
+  messages LinkedInMessage[]
 
   @@unique([contactId, campaignId, senderId])
   @@index([campaignId, senderId])
@@ -1456,4 +1463,43 @@ model DiscoverySearch {
   updatedAt  DateTime @updatedAt
 
   @@index([sellerId, createdAt])
+}
+
+/// A LinkedIn message in a person's conversation: drafts the AI wrote (and their checks), what a
+/// person actually sent (recorded by hand — nothing is sent automatically), and replies they pasted
+/// in with the AI's reading of them.
+model LinkedInMessage {
+  id         String    @id @default(cuid())
+  journeyId  String
+  journey    Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contactId  String
+  /// out = to the prospect; in = from the prospect
+  direction  String
+  /// connection_request | initial | follow_up | reply_positive | reply_objection | reply_info | referral | nurture | custom | reply (inbound)
+  kind       String
+  /// draft | blocked | approved | sent | discarded | received
+  status     String
+  body       String
+  /// The text actually sent (after a person's edits), or the reply as pasted.
+  sentText   String?
+  /// Why this message, in a sentence; the angle it uses.
+  why        String?
+  angle      String?
+  /// Research facts the message cites (evidence ids).
+  factIds    String[]  @default([])
+  /// Checks run on a draft: [{ check, pass, detail }].
+  checks     Json?
+  /// Inbound: the AI's analysis (type, interest, questions, mentions, commitments, recommended action, suggested stage).
+  analysis   Json?
+  version    Int       @default(1)
+  createdBy  String?
+  approvedBy String?
+  sentBy     String?
+  /// When it was sent or received (confirmed by the person who recorded it).
+  occurredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([journeyId, createdAt])
+  @@index([contactId])
 }

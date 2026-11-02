@@ -191,6 +191,12 @@ export interface LLM {
   critiqueDraft(input: CritiqueInput): Promise<CritiqueOutput>;
   checkClaims(claims: ClaimToCheck[]): Promise<{ index: number; supported: boolean; reason: string }[]>;
   insights(stats: BrainStats): Promise<InsightSummary>;
+  /** LinkedIn: a message draft with the facts each statement rests on (code checks it before anyone can approve). */
+  draftLinkedIn(input: import("@/lib/linkedin/types").LinkedInDraftInput): Promise<import("@/lib/linkedin/types").LinkedInDraftOutput>;
+  /** LinkedIn: what a pasted reply means for the next step (code has the last word on stop requests and intent). */
+  analyzeLinkedInReply(text: string, context: { company: string; title: string | null; history: { direction: "out" | "in"; text: string }[] }): Promise<import("@/lib/linkedin/types").ReplyAnalysis>;
+  /** LinkedIn: a short factual summary of the recorded conversation. */
+  summarizeConversation(history: { direction: "out" | "in"; kind: string; text: string; at: string }[], context: { company: string; contact: string; stage: string }): Promise<import("@/lib/linkedin/types").ConversationSummary>;
   /** Company search: criteria from a plain-language description (cleaned and confirmed by code and a person). */
   parseDiscoveryBrief(brief: string, context: { offering: string; defaultCountries: string[] }): Promise<Record<string, unknown>>;
   /** Company search: companies the pages name that fit the criteria, each with an exact quote. */
