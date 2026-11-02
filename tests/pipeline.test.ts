@@ -8,6 +8,7 @@ import { eraseContact } from "@/lib/pipeline/gdpr";
 import { setAdapters } from "@/lib/adapters";
 import { createMockAdapters } from "@/lib/adapters/mock";
 import { sha256 } from "@/lib/pipeline/crypto";
+import { CONFIG } from "@/lib/config";
 
 async function reset() {
   const tables = await db.$queryRaw<{ tablename: string }[]>`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`;
@@ -168,12 +169,12 @@ describe("pipeline scenarios", () => {
   it("budget cap stops the run and queues a review", async () => {
     const id = await account("strong-lambda.com");
     await db.account.update({ where: { id }, data: { tier: "T3", tierLocked: true } });
-    await db.ledgerEntry.create({ data: { accountId: id, kind: "llm", amountMicros: 740_000, description: "prior spend", stage: 1 } });
+    await db.ledgerEntry.create({ data: { accountId: id, kind: "llm", amountMicros: CONFIG.budgetsUsd.T3 * 1_000_000 - 10_000, description: "prior spend", stage: 1 } });
     const r = await runAccount(id);
     expect(r.status).toBe("blocked");
     expect(await db.reviewItem.count({ where: { accountId: id, type: "budget_exceeded" } })).toBe(1);
     const agg = await db.ledgerEntry.aggregate({ where: { accountId: id }, _sum: { amountMicros: true } });
-    expect(agg._sum.amountMicros!).toBeLessThanOrEqual(750_000);
+    expect(agg._sum.amountMicros!).toBeLessThanOrEqual(CONFIG.budgetsUsd.T3 * 1_000_000);
   });
 
   it("duplicate accounts by domain are merged, never deleted", async () => {
