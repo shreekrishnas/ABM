@@ -17,6 +17,8 @@ import { findCompany, ingestRows } from "@/lib/pipeline/ingest";
 import { ApolloProvider, apolloOrgEnrich, type ApolloOrg } from "@/lib/adapters/live/apollo";
 import { createMockAdapters } from "@/lib/adapters/mock";
 import type { ProviderPerson } from "@/lib/adapters/types";
+import { logEvent, newContext } from "@/lib/pipeline/context";
+import { recordError } from "@/lib/admin/errors";
 
 const DAY = 86_400_000;
 const env = (name: string) => process.env[name]?.trim() || undefined;
@@ -130,6 +132,29 @@ export function toImportRow(company: { name: string; domain: string | null }, or
   return validateRow(row, analyzeHeaders(Object.keys(row)).mapping).ok ? row : null;
 }
 
+/** The HTTP status in an Apollo error ("Apollo /path 429 …"), if any. */
+export function httpStatusOf(message: string): number | null {
+  const m = message.match(/^Apollo \S+ (\d{3})\b/);
+  return m ? Number(m[1]) : null;
+}
+
+/** Rate limits and server errors get one retry after a short pause; every attempt is recorded. */
+async function withRetry<T>(fn: () => Promise<T>, attempts: { at: string; ok: boolean; status: number | null; error?: string }[]): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      const r = await fn();
+      attempts.push({ at: new Date().toISOString(), ok: true, status: 200 });
+      return r;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const status = httpStatusOf(msg);
+      attempts.push({ at: new Date().toISOString(), ok: false, status, error: msg.slice(0, 300) });
+      if (i >= 1 || !(status === 429 || (status !== null && status >= 500))) throw e;
+      await new Promise((r) => setTimeout(r, status === 429 ? 3000 : 1000));
+    }
+  }
+}
+
 /** Find Apollo prospects for these companies and store them. Repeats only when asked (force) or after a week. */
 export async function enrichCompanies(companies: { key: string; name: string; domain: string | null }[], by: string | null, opts: { force?: boolean; now?: Date } = {}) {
   const now = opts.now ?? new Date();
@@ -138,12 +163,19 @@ export async function enrichCompanies(companies: { key: string; name: string; do
   const per = CONFIG.visitorProspects.perCompany;
   const titles = targetTitles();
   const counts: Record<EnrichStatus | "cached", number> = { found: 0, no_match: 0, no_prospects: 0, failed: 0, not_connected: 0, cached: 0 };
+  // One execution id for the whole click; one event per company with what happened.
+  const ctx = newContext(now);
+  await logEvent(ctx, { stage: 0, step: "visitors.enrich_start", outcome: "info", reason: `Apollo enrichment started for ${companies.length} compan${companies.length === 1 ? "y" : "ies"}`, data: { by, companies: companies.length, force: Boolean(opts.force), perCompany: per } });
   for (const c of companies.slice(0, CONFIG.visitorProspects.maxPerRun)) {
     const prev = await db.visitorEnrichment.findUnique({ where: { sellerId_companyKey: { sellerId, companyKey: c.key } } });
     if (prev && prev.status !== "failed" && prev.status !== "not_connected" && !opts.force && now.getTime() - prev.enrichedAt.getTime() < 7 * DAY) {
       counts.cached++;
+      await logEvent(ctx, { stage: 0, step: "visitors.enrich", outcome: "info", reason: `${c.name}: skipped, already enriched on ${prev.enrichedAt.toISOString().slice(0, 10)} (${prev.status})`, data: { company: c.name, domain: c.domain, companyKey: c.key, status: "cached", previousStatus: prev.status } });
       continue;
     }
+    const attempts: { at: string; ok: boolean; status: number | null; error?: string }[] = [];
+    let orgFound: boolean | null = null;
+    let peopleReturned = 0;
     let status: EnrichStatus;
     let message: string | null = null;
     let rows: ProspectRow[] = [];
@@ -155,12 +187,14 @@ export async function enrichCompanies(companies: { key: string; name: string; do
       message = "No website known for this company, so Apollo can't match it reliably";
     } else {
       try {
-        const org = await f.org(c.domain).catch(() => null);
+        const org = await withRetry(() => f.org(c.domain!), attempts);
+        orgFound = Boolean(org);
         if (f.live && !org) {
           status = "no_match";
           message = `Apollo has no company for ${c.domain}`;
         } else {
-          const people = await f.people(c.domain, titles, per);
+          const people = await withRetry(() => f.people(c.domain!, titles, per), attempts);
+          peopleReturned = people.length;
           // Only people Apollo places at this company's website.
           const here = people.filter((p) => !p.companyDomain || p.companyDomain === c.domain);
           rows = here.map((p) => toImportRow(c, org, p)).filter((r): r is ProspectRow => Boolean(r));
@@ -179,10 +213,18 @@ export async function enrichCompanies(companies: { key: string; name: string; do
       }
     }
     counts[status]++;
+    const lastError = [...attempts].reverse().find((a) => !a.ok);
+    await logEvent(ctx, {
+      stage: 0, step: "visitors.enrich", outcome: status === "failed" || status === "not_connected" ? "error" : status === "found" ? "pass" : "info",
+      reason: `${c.name}: ${status}${message ? ` — ${message}` : ""}`,
+      data: { company: c.name, domain: c.domain, companyKey: c.key, status, prospects: rows.filter((r) => r[LABEL.firstName]).length, peopleReturned, orgFound, titlesSearched: titles, attempts, httpStatus: lastError?.status ?? (attempts.length ? 200 : null), error: lastError?.error ?? null },
+    });
+    if (status === "failed") await recordError("visitors.enrich", new Error(message ?? "Apollo enrichment failed"), `${c.name} (${c.domain ?? "no domain"}) · run ${ctx.runId}`);
     const data = { companyName: c.name, domain: c.domain, status, message, rows, enrichedAt: now, enrichedBy: by };
     await db.visitorEnrichment.upsert({ where: { sellerId_companyKey: { sellerId, companyKey: c.key } }, create: { sellerId, companyKey: c.key, ...data }, update: data });
   }
-  return counts;
+  await logEvent(ctx, { stage: 0, step: "visitors.enrich_done", outcome: counts.failed ? "error" : "info", reason: `Apollo enrichment finished: ${Object.entries(counts).filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing to do"}`, data: { ...counts, runId: ctx.runId } });
+  return { ...counts, runId: ctx.runId };
 }
 
 /** Rows for the Excel file: one per prospect, company columns on every row, no duplicate people. */
@@ -251,10 +293,23 @@ export async function importCompanies(keys: string[], from: Date, to: Date, opts
   const preview = await previewImport(keys, from, to);
   const skipped = preview.filter((p) => opts.excludeCustomers && p.check === "customer");
   const take = preview.filter((p) => !skipped.includes(p));
+  const ctx = newContext();
+  for (const p of preview) {
+    const excluded = skipped.includes(p);
+    await logEvent(ctx, { stage: 1, step: "visitors.import", outcome: excluded ? "block" : "info", reason: `${p.name}: ${excluded ? "excluded as an existing customer" : `selected for import (${p.check})`} — ${p.reason}`, data: { company: p.name, domain: p.domain, companyKey: p.key, check: p.check, excluded, prospects: p.prospects, by: opts.by, excludeCustomers: opts.excludeCustomers } });
+  }
   if (!take.length) return { imported: 0, skipped: skipped.length, prospects: 0, batchId: null as string | null, rejected: 0, errors: [] as string[] };
   const companies = (await listVisitorCompanies(from, to)).filter((c) => take.some((t) => t.key === c.key));
   const rows = exportRows(companies);
-  const res = await ingestRows(rows, { source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
+  let res;
+  try {
+    res = await ingestRows(rows, { source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
+  } catch (e) {
+    await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: "error", reason: `Import failed: ${e instanceof Error ? e.message.slice(0, 300) : "unknown error"}`, data: { companies: take.length } });
+    await recordError("visitors.import", e, `run ${ctx.runId}`);
+    throw e;
+  }
+  await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: res.rejected ? "error" : "pass", reason: `Imported ${take.length} companies (${rows.length} rows: ${res.accepted} accepted, ${res.rejected} rejected) into batch ${res.batchId}; ${skipped.length} customers excluded`, data: { batchId: res.batchId, accepted: res.accepted, rejected: res.rejected, errors: res.errors.slice(0, 20), companies: take.map((t) => t.name), excluded: skipped.map((t) => t.name) } });
   const sellerId = await activeSellerId();
   await db.visitorEnrichment.updateMany({ where: { sellerId, companyKey: { in: take.map((t) => t.key) } }, data: { importedAt: new Date(), importBatchId: res.batchId, importedBy: opts.by } });
   // Earlier website visits by these companies now count for them.

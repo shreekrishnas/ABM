@@ -16,6 +16,7 @@ import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { QuickTask } from "@/components/shell/QuickTask";
 import { UndoProvider } from "@/components/kit/undo";
+import { AdminAssistant } from "@/components/assistant/AdminAssistant";
 
 export const metadata: Metadata = {
   title: { default: "ABM Intelligence", template: "%s · ABM Intelligence" },
@@ -63,6 +64,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="app-main" id="main"><UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
+        {/* Super Admin only (re-checked on the server for every request it makes). */}
+        {me?.superAdmin && <AdminAssistant />}
         <CommandPalette canAct={Boolean(access && access.state === "ok")} />
         <QuickTask users={team} />
       </body>
