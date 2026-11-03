@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Bot, ChevronDown, ChevronRight, Loader2, MessageSquarePlus, Send, X } from "lucide-react";
-import { askAssistant, listAssistantConversations, loadAssistantConversation, type ChatMessage } from "./actions";
+import { askAssistant, listAssistantConversations, loadAssistantConversation, reportAssistantClientError, type ChatMessage } from "./actions";
 
 const EXAMPLES = ["Which Apollo enrichments failed this week, and why?", "Which CSV imports had rejected rows yesterday?", "How many companies entered the pipeline today?", "Which integrations are showing errors?"];
 
@@ -21,7 +21,7 @@ export function AdminAssistant() {
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) listAssistantConversations().then((c) => setConvos(c ?? []));
+    if (open) listAssistantConversations().then((c) => setConvos(c ?? [])).catch(() => setConvos([]));
   }, [open]);
   useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages, busy]);
 
@@ -29,7 +29,7 @@ export function AdminAssistant() {
     start(async () => {
       setError(null);
       setShowList(false);
-      const m = await loadAssistantConversation(id);
+      const m = await loadAssistantConversation(id).catch(() => null);
       if (!m) return setError("Couldn't open that conversation.");
       setCurrent(id);
       setMessages(m);
@@ -49,11 +49,18 @@ export function AdminAssistant() {
     setError(null);
     setMessages((m) => [...m, { id: `tmp-${Date.now()}`, role: "user", content: question, answer: null, toolCalls: [], ms: null, at: new Date().toISOString() }]);
     start(async () => {
-      const r = await askAssistant(current, question);
+      let r: Awaited<ReturnType<typeof askAssistant>>;
+      try {
+        r = await askAssistant(current, question);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        reportAssistantClientError(`askAssistant call failed: ${msg}`, "").catch(() => {});
+        return setError(`The request didn't complete (${msg.slice(0, 160)}). If you asked a question, its answer may already be saved: reopen the conversation from the list.`);
+      }
       if (!r.ok) return setError(r.error);
       setCurrent(r.conversationId);
       setMessages((m) => [...m, r.message]);
-      listAssistantConversations().then((c) => setConvos(c ?? []));
+      listAssistantConversations().then((c) => setConvos(c ?? [])).catch(() => {});
     });
   };
 

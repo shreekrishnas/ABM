@@ -92,15 +92,17 @@ export const TOOLS: Record<string, Tool> = {
   ),
 
   pipeline_events: tool(
-    "Structured execution log (PipelineEvent). Filter by step prefix (e.g. 'visitors.enrich', 'apollo.visitors', 'orchestrator', 'fit_tier', 'discover', 'lookalike', 'company_profile', 'buying_group', 'draft_review', 'sequence_send'), outcome (pass|block|info|error), runId (execution id), accountId, text in the reason, and a date range. Newest first.",
+    "Structured execution log (PipelineEvent). Returns {total, shown, events}: total is the true number of matching events; events is capped (newest first). Filter by step prefix (e.g. 'visitors.enrich', 'apollo.visitors', 'orchestrator', 'fit_tier', 'discover', 'lookalike', 'company_profile', 'buying_group', 'draft_review', 'sequence_send'), outcome (pass|block|info|error), runId (execution id), accountId, text in the reason, and a date range. Newest first.",
     z.object({ step: z.string().max(60).optional(), outcome: z.enum(["pass", "block", "info", "error"]).optional(), runId: z.string().max(60).optional(), accountId: z.string().max(40).optional(), text: z.string().max(100).optional(), limit: z.number().int().optional(), ...Range }),
-    async ({ step, outcome, runId, accountId, text, limit, days, from, to }) =>
-      db.pipelineEvent.findMany({
-        where: { ...(step ? { step: { startsWith: step } } : {}), ...(outcome ? { outcome } : {}), ...(runId ? { runId } : {}), ...(accountId ? { accountId } : {}), ...(text ? { reason: { contains: text, mode: "insensitive" } } : {}), ...(runId ? {} : { createdAt: { gte: since(days, from), lte: until(to) } }) },
-        orderBy: { createdAt: "desc" },
-        take: lim(limit),
-        select: { id: true, createdAt: true, stage: true, step: true, outcome: true, reason: true, runId: true, accountId: true, data: true, account: { select: { name: true, domain: true } } },
-      }),
+    async ({ step, outcome, runId, accountId, text, limit, days, from, to }) => {
+      const where: Prisma.PipelineEventWhereInput = { ...(step ? { step: { startsWith: step } } : {}), ...(outcome ? { outcome } : {}), ...(runId ? { runId } : {}), ...(accountId ? { accountId } : {}), ...(text ? { reason: { contains: text, mode: "insensitive" } } : {}), ...(runId ? {} : { createdAt: { gte: since(days, from), lte: until(to) } }) };
+      const [total, events] = await Promise.all([
+        db.pipelineEvent.count({ where }),
+        db.pipelineEvent.findMany({ where, orderBy: { createdAt: "desc" }, take: lim(limit), select: { id: true, createdAt: true, stage: true, step: true, outcome: true, reason: true, runId: true, accountId: true, data: true, account: { select: { name: true, domain: true } } } }),
+      ]);
+      // The list is capped; totals must come from "total" (or event_counts), never from counting the list.
+      return { total, shown: events.length, events };
+    },
   ),
 
   event_counts: tool(

@@ -75,3 +75,11 @@ export async function askAssistant(conversationId: string | null, question: stri
     return { ok: false, error: /OPENROUTER_API_KEY/.test(msg) ? msg : `The assistant couldn't answer right now (${msg.slice(0, 160)}). Your question is saved; try again.` };
   }
 }
+
+/** Browser-side errors in the assistant, kept in the error log (Super Admin only). */
+export async function reportAssistantClientError(message: string, stack: string): Promise<void> {
+  const u = await me();
+  if (!u) return;
+  const { recordError } = await import("@/lib/admin/errors");
+  await recordError("assistant.client", new Error(message.slice(0, 500)), stack.slice(0, 1500));
+}
