@@ -118,6 +118,14 @@ export const CONFIG = {
     financialsLookup: 0.25,
   },
 
+  /** Website visitors → Apollo prospects (Import › Via Apollo). */
+  visitorProspects: {
+    /** People looked up per company, in the seller's target roles. */
+    perCompany: 2,
+    /** Companies enriched per click (Apollo rate limits; each takes two requests). */
+    maxPerRun: 50,
+  },
+
   buyingGroup: {
     /** Stakeholder search: how many missing groups are searched per tier and how many people per group. T3 relies on the owning-function search only. */
     stakeholderSearch: { T1: { groups: 6, perGroup: 2 }, T2: { groups: 4, perGroup: 1 } } as Record<string, { groups: number; perGroup: number }>,

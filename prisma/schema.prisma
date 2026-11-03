@@ -1217,6 +1217,29 @@ model WebVisit {
   @@index([companyDomain])
 }
 
+/// Apollo prospects found for a company seen on the website, kept so people can review,
+/// export or import them later without asking Apollo again. Prospects are stored as rows
+/// in the CSV import's own columns (Company Name, Company Website, First Name, …).
+model VisitorEnrichment {
+  id            String    @id @default(cuid())
+  sellerId      String
+  /// d:<domain> or n:<normalized name>
+  companyKey    String
+  companyName   String
+  domain        String?
+  /// found | no_match | no_prospects | failed | not_connected
+  status        String
+  message       String?
+  rows          Json      @default("[]")
+  enrichedAt    DateTime  @default(now())
+  enrichedBy    String?
+  importedAt    DateTime?
+  importBatchId String?
+  importedBy    String?
+
+  @@unique([sellerId, companyKey])
+}
+
 /// A client workspace Trilliant runs ABM for. Its id is the seller pack id (e.g. "manch").
 model Client {
   id               String       @id

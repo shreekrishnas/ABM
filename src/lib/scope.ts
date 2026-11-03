@@ -104,6 +104,7 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "KnowledgeChunk":
     case "ImportBatch":
     case "DiscoverySearch":
+    case "VisitorEnrichment":
       return acct;
     case "Contact":
     case "Opportunity":
