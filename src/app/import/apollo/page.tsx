@@ -3,7 +3,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
 import { fetchApolloVisitorsAction } from "@/app/discover/actions";
-import { customerCheck, listVisitorCompanies, parseRange } from "@/lib/web/visitor-prospects";
+import { customerCheck, earliestVisit, listVisitorCompanies, parseRange } from "@/lib/web/visitor-prospects";
 import { VisitorsTable, type VisitorRow } from "./visitors-table";
 import { checkApolloAction } from "./actions";
 
@@ -16,7 +16,8 @@ const short = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month
 export default async function ApolloImportPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   await ensureSellerPacks();
   const sp = await searchParams;
-  const { from, to } = parseRange(sp.from, sp.to);
+  // Without a chosen range, show every visitor company Apollo has dated (its visit dates can be months back).
+  const { from, to } = parseRange(sp.from, sp.to, new Date(), sp.from ? null : await earliestVisit());
   const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
   const list = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
   // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
@@ -63,7 +64,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
           <p className="secondary text-sm">No identified companies visited between {short(from)} and {short(to)}. Try a wider range{ready ? ", or fetch visitors from Apollo now" : ""}.</p>
         )}
       </Card>
-      <h2 className="mb-2 text-base font-semibold">Suggested by your targeting rule</h2>
+      <h2 className="mb-2 text-base font-semibold">Waiting for approval</h2>
       <SuggestionReview origin="website_visitor" emptyText={ready ? "No visitor companies waiting for approval." : "Visitor companies appear here once Apollo is connected."} />
     </div>
   );

@@ -89,9 +89,10 @@ export async function fetchApolloVisitorsAction(): Promise<ActionState> {
   const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
   const r = await syncApolloVisitors(newContext(), { force: true });
   if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY in Vercel" };
-  refresh("/discover", "/accounts");
+  refresh("/discover", "/accounts", "/import/apollo", "/import");
   if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — press Check Apollo connection to see why" };
-  redirect("/import/apollo");
+  // Stay on the page (and its date range); the list refreshes in place.
+  return { ok: true, message: `Fetched ${r.companies} visitor compan${r.companies === 1 ? "y" : "ies"} from Apollo · ${r.recorded} new visit${r.recorded === 1 ? "" : "s"}${r.suggested ? ` · ${r.suggested} new waiting for approval` : ""}` };
 }
 
 export async function dismissSuggestionAction(id: string): Promise<ActionState> {

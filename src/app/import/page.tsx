@@ -10,7 +10,7 @@ const TEXT: Record<string, string> = {
   "/import/upload": "Your own list of companies and people. See what each column needs, map your columns, preview what will be used, then import.",
   "/import/describe": "Describe the companies you want in plain words. The AI drafts criteria for you to check, searches the web, researches each company it finds against your criteria, and lists them for approval.",
   "/import/lookalikes": "Enter a customer's website. The AI finds companies with the same business model and operations, researches each one and scores fit and readiness; you approve which ones to keep.",
-  "/import/apollo": "Companies visiting your website, identified by Apollo. Sorted by your rule; you approve which ones to research.",
+  "/import/apollo": "Companies visiting your website, identified by Apollo. Find the right people at them, download them as Excel or add them to the pipeline.",
 };
 
 /** Import data: four ways in, each its own layer. Found companies wait for approval before research. */

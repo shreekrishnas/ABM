@@ -73,12 +73,18 @@ export async function listVisitorCompanies(from: Date, to: Date): Promise<Visito
   return [...by.values()];
 }
 
-/** The range from the page's ?from=&to= (YYYY-MM-DD), defaulting to the last 30 days. */
-export function parseRange(fromRaw: string | undefined, toRaw: string | undefined, now = new Date()): { from: Date; to: Date } {
+/** The range from the page's ?from=&to= (YYYY-MM-DD); without one, from `defaultFrom` (or 30 days back) to today. */
+export function parseRange(fromRaw: string | undefined, toRaw: string | undefined, now = new Date(), defaultFrom?: Date | null): { from: Date; to: Date } {
   const day = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00.000Z`) : null);
   const to = day(toRaw) ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const from = day(fromRaw) ?? new Date(to.getTime() - 29 * DAY);
+  const from = day(fromRaw) ?? (defaultFrom ? new Date(Date.UTC(defaultFrom.getUTCFullYear(), defaultFrom.getUTCMonth(), defaultFrom.getUTCDate())) : new Date(to.getTime() - 29 * DAY));
   return from <= to ? { from, to: new Date(to.getTime() + DAY - 1) } : { from: to, to: new Date(from.getTime() + DAY - 1) };
+}
+
+/** The first identified visit in the last year: the page opens on a range that shows every visitor company. */
+export async function earliestVisit(now = new Date()): Promise<Date | null> {
+  const v = await db.webVisit.findFirst({ where: { occurredAt: { gte: new Date(now.getTime() - 365 * DAY) }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } });
+  return v?.occurredAt ?? null;
 }
 
 /** The roles to look for: the seller's buying-group personas, decision makers first. */
