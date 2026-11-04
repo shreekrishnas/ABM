@@ -2,7 +2,7 @@
    Design tokens: Design 2 (Design_2.md). Loaded last, so it governs every page.
    Glass cards over an indigo/slate atmosphere; one violet accent for focus, links
    and active states; primary buttons and the sidebar pill in indigo; opaque modals.
-   Type: Inter Variable (Plex Mono for code-like data), 12px floor, 400/500/600.
+   Type: Poppins (Plex Mono for code-like data), 12px floor, 400/500/600.
    Rule: components use these variables only; no hex colours or px font sizes
    outside this block (checked by scripts/check-tokens.mjs).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -38,8 +38,8 @@
   /* Atmosphere: one cool hue family (indigo/slate) */
   --atm-1: #E0E7FF; --atm-2: #EDE9FE; --atm-3: #F1F5F9; --atm-4: #E0E7FF; --atm-5: #E2E8F0;
 
-  /* Type (Design 2: Inter Variable; Plex Mono for code-like data) */
-  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type (Design 2 with Poppins; Plex Mono for code-like data) */
+  --font-sans: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --fs-12: 12px;  /* labels, table headers, meta */
   --fs-13: 13px;  /* dense rows, controls */

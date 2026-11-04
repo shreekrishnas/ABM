@@ -80,7 +80,7 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Poppins", system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 }
@@ -812,7 +812,7 @@ kbd { background: var(--sunk); color: var(--ink-3); }
   --intent-hot: #dc2626; --intent-warm: #f59e0b; --intent-cold: #94a3b8;
   --fam-trigger: #6366f1; --fam-conversation: #0ea5e9; --fam-programme: #7c3aed; --fam-hiring: #10b981; --fam-leadership: #f59e0b; --fam-engagement: #f472b6; --fam-negative: #dc2626; --fam-third_party: #06b6d4; --fam-team_context: #94a3b8;
   --ok: #10b981; --wait: #f59e0b; --stop: #dc2626;
-  --font-ui: "Inter Variable", "Inter", system-ui, -apple-system, sans-serif;
+  --font-ui: "Poppins", system-ui, -apple-system, sans-serif;
   --font-figure: "Fraunces Variable", "Fraunces", ui-serif, Georgia, serif;
   --font-display: var(--font-ui);
 }
