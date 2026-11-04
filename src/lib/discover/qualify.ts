@@ -75,6 +75,8 @@ export interface SuggestionInput {
   seed?: string | null;
   /** Lookalikes: the seed company's profile, for "why similar". */
   seedProfile?: { industry: string | null; employees: number | null; country: string | null; keywords?: string[]; profile?: import("@/lib/adapters/types").LookalikeProfile; focus?: string[]; avoid?: string[] } | null;
+  /** Pass through without the targeting rule (website visitors). */
+  skipTargeting?: boolean;
 }
 
 /** Save (or refresh) a suggestion. Approved and dismissed ones are left alone. */
@@ -84,7 +86,8 @@ export async function saveSuggestion(s: SuggestionInput): Promise<"new" | "exclu
   if (!nameKey) return null;
   const prev = await db.prospectSuggestion.findUnique({ where: { sellerId_nameKey: { sellerId: p.id, nameKey } } });
   if (prev && (prev.status === "added" || prev.status === "dismissed")) return "kept";
-  const gate = mustHaveGate({ country: s.firmo.country, employees: s.firmo.employees });
+  // Website visitors are passed through: the targeting rule doesn't apply to them.
+  const gate = s.skipTargeting ? { pass: true, reason: null as string | null, unknown: false } : mustHaveGate({ country: s.firmo.country, employees: s.firmo.employees });
   const status = gate.pass || gate.unknown ? "new" : "excluded";
   const data = {
     origin: s.origin, seed: s.seed ?? null, name: s.candidate.name, domain: normalizeDomain(s.candidate.domain), industry: s.firmo.industry, bucket: bucketOf(s.firmo.industry),

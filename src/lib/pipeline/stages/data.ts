@@ -144,7 +144,9 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   }
 
   // Hard targeting rules from the seller pack, after the gap fill has had its chance.
-  const must = mustHaveGate(account);
+  // Companies that came from website visitors pass straight through: the targeting rule doesn't apply to them.
+  const fromVisitors = account.addedVia === "website_visitor";
+  const must = fromVisitors ? { pass: true, reason: "Website visitor: targeting rule not applied", unknown: false } : mustHaveGate(account);
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.targeting_rules", outcome: must.pass ? "pass" : "block", reason: must.reason });
   if (!must.pass) {
     if (must.unknown) {
@@ -154,7 +156,7 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
     await proposeRejection(account, ctx, "targeting", must.reason, S, { country: account.country, employees: account.employees });
   }
   // Newer data now meets the rules: lift an earlier targeting stop.
-  if (account.disqualifyReason && /^(Outside target countries|Too small|Can't confirm)/.test(account.disqualifyReason)) {
+  if (account.disqualifyReason && /^(Outside target countries|Too small|Can't confirm)/.test(account.disqualifyReason) && must.pass) {
     account = await db.account.update({ where: { id: account.id }, data: { disqualifyReason: null, ...(account.stage === "DISQUALIFIED" ? { stage: "UNAWARE" } : {}) } });
   }
 

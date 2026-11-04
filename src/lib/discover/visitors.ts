@@ -1,6 +1,7 @@
 // Website visitors → suggestions. Companies that visited the site (from Apollo or another
 // visitor tool) but aren't in the database are checked against the targeting rule and saved
-// as suggestions; a person approves them before any research or outreach.
+// as suggestions (the targeting rule doesn't apply to them); a person approves them before any
+// research or outreach.
 
 import { db } from "@/lib/db";
 import { scoreIntent, type IntentSignal } from "@/lib/brain/intent";
@@ -29,7 +30,7 @@ export async function suggestFromVisitors(ctx: RunContext, days = 30): Promise<{
     const reading = scoreIntent(signals);
     const firmo = await firmographicsFor(ctx, { name: v0.companyName!, domain: v0.companyDomain });
     const status = await saveSuggestion({
-      origin: "website_visitor", candidate: { name: v0.companyName!, domain: v0.companyDomain }, firmo,
+      origin: "website_visitor", skipTargeting: true, candidate: { name: v0.companyName!, domain: v0.companyDomain }, firmo,
       score: reading.score, level: reading.level, families: ["engagement"],
       whyNow: `Visited your website ${visits.length === 1 ? "once" : `${visits.length} times`} in the last ${days} days${topics.length ? ` — ${topics.slice(0, 3).join(", ").toLowerCase()}` : ""}`,
     });

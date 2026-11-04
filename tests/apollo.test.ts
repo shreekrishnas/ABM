@@ -67,7 +67,7 @@ describe("Apollo website visitors", () => {
   it("reads the companies from the named account list", async () => {
     fakeApollo(routes);
     const c = await apolloVisitorCompanies("k", { name: "website visitors" });
-    expect(c).toEqual([{ name: "Kaveri Foods", domain: "kaverifoods.in" }, { name: "Nilgiri Dairy", domain: "nilgiridairy.in" }]);
+    expect(c).toEqual([{ name: "Kaveri Foods", domain: "kaverifoods.in", lastSeenAt: null, dateField: null }, { name: "Nilgiri Dairy", domain: "nilgiridairy.in", lastSeenAt: null, dateField: null }]);
     expect(calls.find((x) => x.url.endsWith("/accounts/search"))!.body).toMatchObject({ account_label_ids: ["lbl1"] });
   });
 

@@ -115,6 +115,21 @@ export class ApolloProvider implements DataProvider {
 export interface ApolloVisitorCompany {
   name: string;
   domain: string | null;
+  /** When Apollo last saw activity for the account (its website visit), if Apollo says. */
+  lastSeenAt: Date | null;
+  /** Which Apollo field the date came from. */
+  dateField: string | null;
+}
+
+/** Apollo's date fields on an account, most specific first. */
+const VISIT_DATE_FIELDS = ["last_website_visit_at", "website_visit_last_at", "last_activity_date", "account_last_activity_date", "updated_at", "created_at"] as const;
+
+function visitDate(a: Record<string, unknown>): { at: Date | null; field: string | null } {
+  for (const f of VISIT_DATE_FIELDS) {
+    const v = a[f];
+    if (typeof v === "string" && !Number.isNaN(Date.parse(v))) return { at: new Date(v), field: f };
+  }
+  return { at: null, field: null };
 }
 
 export interface ApolloLabel { id: string; name: string; modality?: string; cached_count?: number }
@@ -156,13 +171,14 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
   const labelId = found.id;
   const out: ApolloVisitorCompany[] = [];
   for (let page = 1; page <= maxPages; page++) {
-    const r = await api.post<{ accounts?: { name?: string | null; domain?: string | null; website_url?: string | null }[]; pagination?: { total_pages?: number } }>("/accounts/search", {
+    const r = await api.post<{ accounts?: ({ name?: string | null; domain?: string | null; website_url?: string | null } & Record<string, unknown>)[]; pagination?: { total_pages?: number } }>("/accounts/search", {
       account_label_ids: [labelId], page, per_page: 100, sort_by_field: "account_last_activity_date", sort_ascending: false,
     });
     for (const a of r.accounts ?? []) {
       if (!a.name) continue;
       const raw = a.domain ?? a.website_url ?? null;
-      out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null });
+      const d = visitDate(a);
+      out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null, lastSeenAt: d.at, dateField: d.field });
     }
     if (!r.pagination?.total_pages || page >= r.pagination.total_pages) break;
   }
