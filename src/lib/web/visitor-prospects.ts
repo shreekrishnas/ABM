@@ -14,9 +14,8 @@ import { activeSellerId } from "@/lib/scope";
 import { companyNameKey, normalizeDomain } from "@/lib/pipeline/normalize";
 import { IMPORT_FIELDS, analyzeHeaders, rowKeys, validateRow, type FieldKey } from "@/lib/import/fields";
 import { findCompany, ingestRows } from "@/lib/pipeline/ingest";
-import { ApolloProvider, apolloOrgEnrich, type ApolloOrg } from "@/lib/adapters/live/apollo";
+import { apolloOrgEnrich, apolloProspects, type ApolloOrg, type ApolloProspect } from "@/lib/adapters/live/apollo";
 import { createMockAdapters } from "@/lib/adapters/mock";
-import type { ProviderPerson } from "@/lib/adapters/types";
 import { logEvent, newContext } from "@/lib/pipeline/context";
 import { recordError } from "@/lib/admin/errors";
 
@@ -92,32 +91,45 @@ export function targetTitles(): string[] {
 interface Finder {
   live: boolean;
   org(domain: string): Promise<ApolloOrg | null>;
-  people(domain: string, titles: string[], limit: number): Promise<ProviderPerson[]>;
+  people(domain: string, titles: string[], limit: number): Promise<ApolloProspect[]>;
 }
 
 function finder(): Finder | null {
   if (process.env.ADAPTER_MODE === "mock") {
     const p = createMockAdapters().provider;
-    return { live: false, org: async () => null, people: (d, t, n) => p.findByTitles(d, t, n) };
+    return {
+      live: false, org: async () => null,
+      people: async (d, t, n) => (await p.findByTitles(d, t, n)).map((x) => {
+        const [first, ...rest] = x.fullName.split(/\s+/);
+        return { firstName: first, lastName: rest.join(" ") || null, fullName: x.fullName, title: x.title, email: x.email, linkedinUrl: x.linkedinUrl, phone: null, seniority: null, department: null, location: null, companyDomain: x.companyDomain };
+      }),
+    };
   }
   const key = env("APOLLO_API_KEY");
   if (!key) return null;
-  const p = new ApolloProvider(key);
-  return { live: true, org: (d) => apolloOrgEnrich(key, d), people: (d, t, n) => p.findByTitles(d, t, n) };
+  return { live: true, org: (d) => apolloOrgEnrich(key, d), people: async (d, t, n) => (await apolloProspects(key, d, t, n, CONFIG.visitorProspects.revealContacts)).people };
 }
 
 /** One prospect as a CSV-import row; validated with the import's own rules. Invalid cells are left blank, never guessed. */
-export function toImportRow(company: { name: string; domain: string | null }, org: ApolloOrg | null, p: ProviderPerson | null): ProspectRow | null {
-  const [first, ...rest] = (p?.fullName ?? "").trim().split(/\s+/);
+export function toImportRow(company: { name: string; domain: string | null }, org: ApolloOrg | null, p: ApolloProspect | null, now = new Date()): ProspectRow | null {
+  // Every column of the CSV import that Apollo can fill; anything Apollo doesn't give stays blank.
   const raw: Partial<Record<FieldKey, string>> = {
     company: org?.name ?? company.name,
     domain: company.domain ?? org?.domain ?? "",
+    companyLinkedin: org?.linkedinUrl ?? "",
     industry: org?.industry ?? "",
     employees: org?.employees != null ? String(org.employees) : "",
+    city: org?.city ?? "",
     country: org?.country ?? "",
+    technologies: org?.technologies?.length ? org.technologies.slice(0, 15).join("; ") : "",
     keywords: org?.keywords.length ? org.keywords.slice(0, 8).join("; ") : "",
     dataSource: "Apollo",
-    ...(p ? { firstName: first ?? "", lastName: rest.join(" "), title: p.title ?? "", linkedinUrl: p.linkedinUrl ?? "", email: p.email ?? "" } : {}),
+    ...(p
+      ? {
+          firstName: p.firstName, lastName: p.lastName ?? "", title: p.title ?? "", linkedinUrl: p.linkedinUrl ?? "", email: p.email ?? "", phone: p.phone ?? "",
+          department: p.department ?? "", seniority: p.seniority ?? "", location: p.location ?? "", titleObservedAt: p.title ? now.toISOString().slice(0, 10) : "",
+        }
+      : {}),
   };
   const row: ProspectRow = {};
   for (const [k, v] of Object.entries(raw)) if (v) row[LABEL[k as FieldKey]] = v;

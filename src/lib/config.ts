@@ -122,8 +122,10 @@ export const CONFIG = {
   visitorProspects: {
     /** People looked up per company, in the seller's target roles. */
     perCompany: 2,
-    /** Companies enriched per click (Apollo rate limits; each takes two requests). */
+    /** Companies enriched per click (Apollo rate limits). */
     maxPerRun: 50,
+    /** Match each person found (one Apollo credit each) for full name, email, LinkedIn, seniority, department and location. */
+    revealContacts: true,
   },
 
   buyingGroup: {

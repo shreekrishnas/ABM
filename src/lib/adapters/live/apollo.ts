@@ -224,6 +224,9 @@ export interface ApolloOrg {
   employees: number | null;
   country: string | null;
   keywords: string[];
+  linkedinUrl?: string | null;
+  city?: string | null;
+  technologies?: string[];
 }
 
 interface RawOrg {
@@ -234,11 +237,22 @@ interface RawOrg {
   estimated_num_employees?: number | null;
   country?: string | null;
   keywords?: string[] | null;
+  linkedin_url?: string | null;
+  city?: string | null;
+  state?: string | null;
+  technology_names?: string[] | null;
+  current_technologies?: { name?: string | null }[] | null;
 }
 
 const cleanDomain = (raw: string | null | undefined) => (raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null);
 const toOrg = (o: RawOrg): ApolloOrg | null =>
-  o.name ? { name: o.name, domain: cleanDomain(o.primary_domain ?? o.website_url), industry: o.industry ?? null, employees: o.estimated_num_employees ?? null, country: o.country ?? null, keywords: (o.keywords ?? []).slice(0, 12) } : null;
+  o.name
+    ? {
+        name: o.name, domain: cleanDomain(o.primary_domain ?? o.website_url), industry: o.industry ?? null, employees: o.estimated_num_employees ?? null, country: o.country ?? null, keywords: (o.keywords ?? []).slice(0, 12),
+        linkedinUrl: o.linkedin_url ?? null, city: o.city ?? null,
+        technologies: [...new Set([...(o.technology_names ?? []), ...(o.current_technologies ?? []).map((t) => t.name ?? "")].filter(Boolean))].slice(0, 20),
+      }
+    : null;
 
 /** One company's profile by its website (no credits for basic firmographics). */
 export async function apolloOrgEnrich(key: string, domain: string): Promise<ApolloOrg | null> {
@@ -261,4 +275,88 @@ export async function apolloOrgSearch(key: string, q: { keywords: string[]; minE
     page: 1, per_page: Math.min(q.perPage ?? 25, 100),
   });
   return [...(r.organizations ?? []), ...(r.accounts ?? [])].map(toOrg).filter((o): o is ApolloOrg => Boolean(o));
+}
+
+
+// ── Prospects for website-visitor companies (every CSV-import person field) ──
+
+export interface ApolloProspect {
+  firstName: string;
+  lastName: string | null;
+  fullName: string;
+  title: string | null;
+  email: string | null;
+  linkedinUrl: string | null;
+  phone: string | null;
+  seniority: string | null;
+  department: string | null;
+  location: string | null;
+  companyDomain: string | null;
+}
+
+interface RawPerson {
+  id?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  last_name_obfuscated?: string | null;
+  name?: string | null;
+  title?: string | null;
+  email?: string | null;
+  email_status?: string | null;
+  linkedin_url?: string | null;
+  seniority?: string | null;
+  departments?: string[] | null;
+  subdepartments?: string[] | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  phone_numbers?: { sanitized_number?: string | null; raw_number?: string | null }[] | null;
+  organization?: { primary_domain?: string | null; website_url?: string | null } | null;
+}
+
+const titleCase = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+function toProspect(p: RawPerson, fallbackDomain: string): ApolloProspect | null {
+  const first = (p.first_name ?? p.name?.split(/\s+/)[0] ?? "").trim();
+  if (!first) return null;
+  // The free search hides surnames ("S***"): keep a surname only when Apollo gives it in full.
+  const last = p.last_name && !/\*/.test(p.last_name) ? p.last_name.trim() : null;
+  const email = p.email && !/^email_not_unlocked/.test(p.email) && p.email_status !== "unavailable" ? p.email.toLowerCase() : null;
+  const phone = p.phone_numbers?.find((n) => n.sanitized_number || n.raw_number);
+  const dept = p.departments?.[0] ?? p.subdepartments?.[0] ?? null;
+  const raw = p.organization?.primary_domain ?? p.organization?.website_url ?? fallbackDomain;
+  return {
+    firstName: first, lastName: last, fullName: [first, last].filter(Boolean).join(" "), title: p.title ?? null, email, linkedinUrl: p.linkedin_url ?? null,
+    phone: phone?.sanitized_number ?? phone?.raw_number ?? null, seniority: p.seniority ? titleCase(p.seniority) : null,
+    department: dept ? titleCase(dept.replace(/^master_/, "")) : null, location: [p.city, p.state, p.country].filter(Boolean).join(", ") || null,
+    companyDomain: cleanDomain(raw),
+  };
+}
+
+/**
+ * People in the target roles at one company. The search is free; with `reveal` each person is
+ * matched by id (one Apollo credit each) for the full name, email, LinkedIn, seniority,
+ * department and location.
+ */
+export async function apolloProspects(key: string, domain: string, titles: string[], limit: number, reveal: boolean): Promise<{ people: ApolloProspect[]; revealed: number }> {
+  const api = new ApolloClient(key);
+  const r = await api.post<{ people?: RawPerson[] }>("/mixed_people/api_search", {
+    q_organization_domains_list: [domain], person_titles: titles.slice(0, 10), page: 1, per_page: Math.min(Math.max(limit, 1), 10),
+  });
+  const found = (r.people ?? []).slice(0, limit);
+  const people: ApolloProspect[] = [];
+  let revealed = 0;
+  for (const p of found) {
+    let full: RawPerson = p;
+    if (reveal && p.id) {
+      const m = await api.post<{ person?: RawPerson | null }>("/people/match", { id: p.id, reveal_personal_emails: false, reveal_phone_number: false });
+      if (m.person) {
+        full = { ...p, ...m.person };
+        revealed++;
+      }
+    }
+    const x = toProspect(full, domain);
+    if (x) people.push(x);
+  }
+  return { people, revealed };
 }
