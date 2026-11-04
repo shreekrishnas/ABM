@@ -200,6 +200,8 @@ export function validateRow(raw: Record<string, unknown>, mapping: Record<string
   let unknownStage: string | undefined;
   if (!v.company) errors.push("Company Name is required");
   if (v.company && v.company.length > 200) errors.push("Company Name is longer than 200 characters");
+  // A website typed into the Company Name column (and no website column): it is the website.
+  if (!v.domain && v.company && !/\s/.test(v.company) && /\.[a-z]{2,}(\/|$)/i.test(v.company) && normalizeDomain(v.company)) v.domain = v.company;
   const domain = v.domain ? normalizeDomain(v.domain) : null;
   if (v.domain && !domain) errors.push(`Company Website "${v.domain}" is not a valid website`);
   const companyLinkedin = v.companyLinkedin ? normalizeCompanyLinkedin(v.companyLinkedin) : null;

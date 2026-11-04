@@ -8,6 +8,7 @@ import {
   inferFunction,
   inferSeniority,
   isValidEmail,
+  companyNameKey,
   normalizeCompanyName,
   normalizeCountry,
   normalizeDomain,
@@ -27,8 +28,32 @@ import { contactFields, setAccountField, setContactField } from "../fields";
 
 // ───────────────────────── Stage 2 ─────────────────────────
 
+/** A company name that is really a website ("https://www.acme.com/", "acme.com"): its domain, else null. */
+export function domainFromName(name: string): string | null {
+  const n = name.trim();
+  if (!n || /\s/.test(n) || !/\.[a-z]{2,}(\/|$)/i.test(n)) return null;
+  return normalizeDomain(n);
+}
+
 export async function s02CleanNormalize(account: Account, ctx: RunContext): Promise<Account> {
   const S = 2;
+  // A website typed into the company-name column: use it as the website (the research finds the real name).
+  if (!account.domain) {
+    const fromName = domainFromName(account.name);
+    if (fromName) {
+      const holder = await db.account.findFirst({ where: { domain: fromName, id: { not: account.id }, mergedIntoId: null }, select: { id: true, name: true } });
+      if (holder) {
+        await db.$transaction([
+          db.contact.updateMany({ where: { accountId: account.id }, data: { accountId: holder.id } }),
+          db.account.update({ where: { id: account.id }, data: { mergedIntoId: holder.id, pipelineStatus: "done", stage: "DISQUALIFIED", disqualifyReason: `Merged into ${holder.name}` } }),
+        ]);
+        await logEvent(ctx, { accountId: account.id, stage: S, step: "clean_normalize.dedupe_accounts", outcome: "info", reason: `Company name was the website ${fromName}, which ${holder.name} already has: merged into it` });
+        throw new StopRun(`Merged into ${holder.name}`);
+      }
+      account = await db.account.update({ where: { id: account.id }, data: { domain: fromName, name: fromName, nameKey: companyNameKey(fromName), disqualifyReason: null } });
+      await logEvent(ctx, { accountId: account.id, stage: S, step: "clean_normalize.normalize_account", outcome: "pass", reason: `Company name was a website: using ${fromName} as the website` });
+    }
+  }
   const domain = normalizeDomain(account.domain);
   if (account.domain && !domain) {
     await logEvent(ctx, { accountId: account.id, stage: S, step: "clean_normalize.normalize_account", outcome: "block", reason: `Unusable domain "${account.domain}"` });
