@@ -51,7 +51,7 @@ export function serviceStatus(): ServiceStatus[] {
     { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
     { key: "mailbox", label: "Email verification", mode: m(true), via: "Free MX check (domain accepts email)" },
     { key: "email", label: "Email sending", mode: m(Boolean(smtp)), via: smtp ? "SMTP mailbox" : "Approved emails are held (set SMTP_URL)" },
-    { key: "intent", label: "Website visitors", mode: m(Boolean(apollo && visitors)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Set APOLLO_VISITOR_LIST to the visitors list name") : "Set APOLLO_API_KEY and APOLLO_VISITOR_LIST" },
+    { key: "intent", label: "Website visitors", mode: m(Boolean(apollo)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Apollo website visitors · list found by name (\"…visitor…\") · synced daily") : "Set APOLLO_API_KEY" },
     { key: "notifier", label: "Alerts", mode: "planned", via: "Slack / Teams webhook" },
   ];
 }

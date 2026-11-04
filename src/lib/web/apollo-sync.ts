@@ -14,13 +14,14 @@ const env = (name: string) => process.env[name]?.trim() || undefined;
 const RECOUNT_DAYS = 7;
 
 export function apolloVisitorsConfigured() {
-  return Boolean(env("APOLLO_API_KEY") && (env("APOLLO_VISITOR_LIST") || env("APOLLO_VISITOR_LABEL_ID")));
+  // The visitor list is found by name ("…visitor…") when it isn't configured.
+  return Boolean(env("APOLLO_API_KEY"));
 }
 
 export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolean } = {}): Promise<{ companies: number; recorded: number; suggested: number; excluded: number } | null> {
   const key = env("APOLLO_API_KEY");
   const list = { id: env("APOLLO_VISITOR_LABEL_ID"), name: env("APOLLO_VISITOR_LIST") };
-  if (!key || !(list.id || list.name) || process.env.ADAPTER_MODE === "mock") return null;
+  if (!key || process.env.ADAPTER_MODE === "mock") return null;
   // Once a day is enough: Apollo updates visitors in batches.
   const last = await db.pipelineEvent.findFirst({ where: { step: "apollo.visitors", createdAt: { gte: new Date(ctx.now.getTime() - DAY + 3_600_000) } }, select: { id: true } });
   if (last && !opts.force) return null;

@@ -94,9 +94,9 @@ export default async function SettingsPage() {
           <Row k="Lost-deal cooldown" v={`${CONFIG.fit.lostDealCooldownDays} days`} />
         </Card>
         <Card id="visitors" title="Website visitors" sub="Visits feed intent, priority and the email angle">
-          <Row k={<span>Apollo<span className="muted block text-xs font-normal">APOLLO_API_KEY · APOLLO_VISITOR_LIST</span></span>} v={<Badge color={apolloKey && apolloLabel ? "#059669" : apolloKey ? "#B45309" : "#64748B"}>{apolloKey && apolloLabel ? "syncing daily" : apolloKey ? "list not set" : "not connected"}</Badge>} />
+          <Row k={<span>Apollo<span className="muted block text-xs font-normal">APOLLO_API_KEY · APOLLO_VISITOR_LIST</span></span>} v={<Badge color={apolloKey ? "#059669" : "#64748B"}>{apolloKey ? "syncing daily" : "not connected"}</Badge>} />
           <Row k="Visits recorded (30 days)" v={<span className="tnum">{visits30}</span>} />
-          <p className="secondary mt-3 text-xs"><b>With Apollo (recommended):</b> in Apollo, save the companies from Website Visitors to an account list (by hand, or with an Apollo workflow). Put that list&apos;s name in APOLLO_VISITOR_LIST. The app reads it every day: companies you hold get a visit signal; new ones show in Discover.</p>
+          <p className="secondary mt-3 text-xs"><b>With Apollo (recommended):</b> in Apollo, save the companies from Website Visitors to an account list (by hand, or with an Apollo workflow). Give it a name with "visitor" in it (it is found automatically), or put its name in APOLLO_VISITOR_LIST. The app reads it every day: companies you hold get a visit signal; new ones show in Discover.</p>
           <p className="muted mt-3 text-xs font-semibold">Optional: the app&apos;s own script (shows which pages, and who clicked from an email)</p>
           <Row k={<span>Allowed website<span className="muted block text-xs font-normal">TRACK_ORIGINS · your website address</span></span>} v={<Badge color={trackOrigins ? "#059669" : "#64748B"}>{trackOrigins ? "set" : "not set"}</Badge>} />
           <p className="secondary mt-2 text-xs">1. Paste this before <code>&lt;/body&gt;</code> on every page of your website:</p>

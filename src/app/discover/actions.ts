@@ -88,9 +88,9 @@ export async function researchMoreAction(id: string, _: ActionState, fd: FormDat
 export async function fetchApolloVisitorsAction(): Promise<ActionState> {
   const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
   const r = await syncApolloVisitors(newContext(), { force: true });
-  if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY and APOLLO_VISITOR_LIST in Vercel" };
+  if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY in Vercel" };
   refresh("/discover", "/accounts");
-  if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — check the list name, or see Behind the scenes for the error" };
+  if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — press Check Apollo connection to see why" };
   redirect("/import/apollo");
 }
 

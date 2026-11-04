@@ -117,23 +117,43 @@ export interface ApolloVisitorCompany {
   domain: string | null;
 }
 
+export interface ApolloLabel { id: string; name: string; modality?: string; cached_count?: number }
+
+/** Account lists in Apollo (needs a master API key). */
+export async function apolloAccountLists(key: string): Promise<ApolloLabel[]> {
+  const labels = await new ApolloClient(key).get<ApolloLabel[] | { labels?: ApolloLabel[] }>("/labels");
+  const all = Array.isArray(labels) ? labels : labels.labels ?? [];
+  return all.filter((l) => !l.modality || l.modality === "accounts");
+}
+
+/**
+ * The account list holding website visitors: the one named in APOLLO_VISITOR_LIST / its id in
+ * APOLLO_VISITOR_LABEL_ID, otherwise any account list whose name mentions "visitor"
+ * (Apollo's own visitor lists and most team-made ones do). Null when there is none.
+ */
+export async function resolveVisitorList(key: string, list: { id?: string; name?: string }): Promise<{ id: string; name: string; how: "configured" | "found" } | null> {
+  if (list.id) return { id: list.id, name: list.name ?? list.id, how: "configured" };
+  const lists = await apolloAccountLists(key);
+  if (list.name) {
+    const want = list.name.trim().toLowerCase();
+    const hit = lists.find((l) => l.name.trim().toLowerCase() === want);
+    if (!hit) throw new Error(`Apollo has no account list named "${list.name}" (lists found: ${lists.map((l) => l.name).slice(0, 10).join(", ") || "none"})`);
+    return { id: hit.id, name: hit.name, how: "configured" };
+  }
+  const hit = lists.filter((l) => /visit/i.test(l.name)).sort((a, b) => (b.cached_count ?? 0) - (a.cached_count ?? 0))[0];
+  return hit ? { id: hit.id, name: hit.name, how: "found" } : null;
+}
+
 /**
  * Companies Apollo's website-visitor tracking identified. Apollo's API has no visitors
- * endpoint, so visitors are read from the account list (label) they're saved to in Apollo
- * — by hand, or by an Apollo workflow — named in APOLLO_VISITOR_LIST (or its id in APOLLO_VISITOR_LABEL_ID).
+ * endpoint, so visitors are read from the account list they're saved to in Apollo (by hand
+ * or by an Apollo workflow): the configured list, or one whose name mentions "visitor".
  */
 export async function apolloVisitorCompanies(key: string, list: { id?: string; name?: string }, maxPages = 5): Promise<ApolloVisitorCompany[]> {
   const api = new ApolloClient(key);
-  let labelId = list.id;
-  if (!labelId && list.name) {
-    // Lists by name (needs a master API key); accounts lists only.
-    const labels = await api.get<{ id: string; name: string; modality?: string }[] | { labels?: { id: string; name: string; modality?: string }[] }>("/labels");
-    const all = Array.isArray(labels) ? labels : labels.labels ?? [];
-    const want = list.name.trim().toLowerCase();
-    labelId = all.find((l) => l.name.trim().toLowerCase() === want && (!l.modality || l.modality === "accounts"))?.id;
-    if (!labelId) throw new Error(`Apollo has no account list named "${list.name}"`);
-  }
-  if (!labelId) return [];
+  const found = await resolveVisitorList(key, list);
+  if (!found) throw new Error("No Apollo account list for website visitors was found: save visitors to an account list with \"visitor\" in its name, or set APOLLO_VISITOR_LIST");
+  const labelId = found.id;
   const out: ApolloVisitorCompany[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const r = await api.post<{ accounts?: { name?: string | null; domain?: string | null; website_url?: string | null }[]; pagination?: { total_pages?: number } }>("/accounts/search", {
@@ -145,6 +165,36 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
       out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null });
     }
     if (!r.pagination?.total_pages || page >= r.pagination.total_pages) break;
+  }
+  return out;
+}
+
+/** A plain check of the key: does it work, is it a master key, which account lists exist, which one holds visitors. */
+export async function apolloHealth(key: string, list: { id?: string; name?: string }) {
+  const api = new ApolloClient(key);
+  const out: { keyWorks: boolean; master: boolean | null; lists: string[]; visitorList: string | null; visitorListHow: string | null; visitorCompanies: number | null; problems: string[] } = { keyWorks: false, master: null, lists: [], visitorList: null, visitorListHow: null, visitorCompanies: null, problems: [] };
+  try {
+    await api.get<unknown>("/auth/health");
+    out.keyWorks = true;
+  } catch (e) {
+    out.problems.push(`Key check failed: ${e instanceof Error ? e.message.slice(0, 200) : "error"}`);
+  }
+  try {
+    const lists = await apolloAccountLists(key);
+    out.keyWorks = true;
+    out.master = true;
+    out.lists = lists.map((l) => `${l.name}${l.cached_count != null ? ` (${l.cached_count})` : ""}`);
+    const v = await resolveVisitorList(key, list);
+    if (v) {
+      out.visitorList = v.name;
+      out.visitorListHow = v.how;
+      const r = await api.post<{ pagination?: { total_entries?: number }; accounts?: unknown[] }>("/accounts/search", { account_label_ids: [v.id], page: 1, per_page: 1 });
+      out.visitorCompanies = r.pagination?.total_entries ?? r.accounts?.length ?? 0;
+    } else out.problems.push(`No account list with "visitor" in its name (lists: ${out.lists.slice(0, 10).join(", ") || "none"}). In Apollo, save website visitors to an account list named e.g. "Website Visitors".`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/ 403/.test(msg)) out.master = false;
+    out.problems.push(/ 403/.test(msg) ? "This key can't read account lists: it is not a master key (Apollo › Settings › Integrations › API › set as master key)." : `Reading account lists failed: ${msg.slice(0, 200)}`);
   }
   return out;
 }

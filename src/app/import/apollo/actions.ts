@@ -51,3 +51,17 @@ export async function importVisitorsAction(keys: string[], range: Range, exclude
     message: `Added ${r.imported} compan${r.imported === 1 ? "y" : "ies"} and ${r.prospects} prospect${r.prospects === 1 ? "" : "s"} to the pipeline${r.skipped ? ` · ${r.skipped} customer${r.skipped === 1 ? "" : "s"} excluded` : ""}${r.rejected ? ` · ${r.rejected} row${r.rejected === 1 ? "" : "s"} rejected: ${r.errors.join("; ")}` : ""}`,
   };
 }
+
+/** Check the Apollo key and find the website-visitor list (no prospects looked up, no credits). */
+export async function checkApolloAction(): Promise<ActionState> {
+  const key = process.env.APOLLO_API_KEY?.trim();
+  if (!key) return { ok: false, message: "APOLLO_API_KEY isn't set in Vercel" };
+  await logAction("visitors.check_apollo");
+  const { apolloHealth } = await import("@/lib/adapters/live/apollo");
+  const h = await apolloHealth(key, { id: process.env.APOLLO_VISITOR_LABEL_ID?.trim() || undefined, name: process.env.APOLLO_VISITOR_LIST?.trim() || undefined });
+  const { logEvent, newContext } = await import("@/lib/pipeline/context");
+  await logEvent(newContext(), { stage: 0, step: "apollo.health", outcome: h.problems.length ? "error" : "pass", reason: h.problems.join(" · ") || `Key works · master key · visitor list "${h.visitorList}" has ${h.visitorCompanies} companies`, data: h });
+  if (!h.keyWorks) return { ok: false, message: h.problems.join(" · ") };
+  if (h.problems.length) return { ok: false, message: `Key works${h.master === false ? "" : " · master key"}. ${h.problems.join(" · ")}` };
+  return { ok: true, message: `Apollo connected · master key · visitor list "${h.visitorList}"${h.visitorListHow === "found" ? " (found automatically)" : ""} has ${h.visitorCompanies} companies — press "Fetch visitors from Apollo now"` };
+}

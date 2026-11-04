@@ -5,6 +5,7 @@ import { ensureSellerPacks } from "@/lib/seller";
 import { fetchApolloVisitorsAction } from "@/app/discover/actions";
 import { customerCheck, listVisitorCompanies, parseRange } from "@/lib/web/visitor-prospects";
 import { VisitorsTable, type VisitorRow } from "./visitors-table";
+import { checkApolloAction } from "./actions";
 
 export const metadata = { title: "Website visitors · Import" };
 export const maxDuration = 300;
@@ -18,7 +19,8 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   const { from, to } = parseRange(sp.from, sp.to);
   const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
   const list = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
-  const ready = apollo && list;
+  // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
+  const ready = apollo;
   const companies = await listVisitorCompanies(from, to);
   const rows: VisitorRow[] = await Promise.all(
     companies.map(async (c) => {
@@ -39,14 +41,13 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         eyebrow="Import data · Website visitors"
         title="Companies visiting your website"
         sub="Pick companies, find the right people at them with Apollo, then download them as Excel or add them to the ABM pipeline. Nothing is added until you choose."
-        actions={ready ? <ActionButton action={fetchApolloVisitorsAction} className="btn btn-secondary">Fetch visitors from Apollo now</ActionButton> : undefined}
+        actions={ready ? <div className="flex flex-wrap gap-2"><ActionButton action={checkApolloAction} className="btn btn-secondary">Check Apollo connection</ActionButton><ActionButton action={fetchApolloVisitorsAction} className="btn btn-primary">Fetch visitors from Apollo now</ActionButton></div> : undefined}
       />
       {!ready && (
         <Card title="Connect Apollo" className="mb-5">
           <ol className="secondary grid list-decimal gap-1.5 pl-5 text-sm">
-            <li className={apollo ? "line-through" : ""}>In Vercel, add <code>APOLLO_API_KEY</code> (a master API key).</li>
-            <li className={list ? "line-through" : ""}>In Apollo, save website visitors to an account list, then add its name as <code>APOLLO_VISITOR_LIST</code>.</li>
-            <li>Redeploy. Visitors are then fetched daily, or now with one button here.</li>
+            <li>In Vercel, add <code>APOLLO_API_KEY</code> (a master API key) and redeploy.</li>
+            <li>In Apollo, save website visitors to an account list with &quot;visitor&quot; in its name (found automatically{list ? "; yours is set by name" : ""}).</li>
           </ol>
         </Card>
       )}
