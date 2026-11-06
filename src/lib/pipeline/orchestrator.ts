@@ -312,6 +312,9 @@ export async function processQueue(opts: { batchId?: string; budgetMs?: number; 
 
 async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number; max?: number; ctx?: RunContext }) {
   const ctx = opts.ctx ?? newContext();
+  // AI paused by a Super Admin: leave everything queued, run nothing.
+  const { aiPause } = await import("@/lib/admin/ai-pause");
+  if (await aiPause()) return { processed: 0, results: [] as RunResult[], remaining: await db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }), paused: true };
   await recoverStuckRuns(ctx);
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
   // Companies waiting out a retry delay are skipped until their time comes.
@@ -358,10 +361,13 @@ async function tickUnscoped(ctx: RunContext) {
   const queue = await processQueue({ ctx, budgetMs: 30_000 });
   const sequences = await tickSequences(ctx);
   const sent = await sendApproved(ctx);
-  const watch = await processWatchlist(ctx);
+  const { aiPause } = await import("@/lib/admin/ai-pause");
+  const paused = Boolean(await aiPause());
+  // Re-runs, insights and the market scan use the AI: skipped while it is paused.
+  const watch = paused ? [] : await processWatchlist(ctx);
   const escalated = await escalateOverdue(ctx);
-  const insights = await maybeGenerateInsights(ctx);
-  const market = await maybeScanMarket(ctx).catch(() => false);
+  const insights = paused ? false : await maybeGenerateInsights(ctx);
+  const market = paused ? false : await maybeScanMarket(ctx).catch(() => false);
   const visitors = await syncApolloVisitors(ctx).catch(() => null);
   return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }

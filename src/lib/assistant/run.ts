@@ -71,6 +71,8 @@ function system(today: string): string {
 async function callModel(sys: string, messages: { role: "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
   const key = env("OPENROUTER_API_KEY");
   if (!key) throw new Error("The assistant's AI isn't connected (OPENROUTER_API_KEY is not set)");
+  const { assertAiAllowed } = await import("@/lib/admin/ai-pause");
+  await assertAiAllowed();
   const res = await fetchJson<{ choices?: { message?: { content?: string } }[] }>("OpenRouter", `${env("OPENROUTER_BASE_URL") ?? "https://openrouter.ai/api/v1"}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}`, "HTTP-Referer": env("APP_URL") ?? "https://abm-chi.vercel.app", "X-Title": "ABM Intelligence admin assistant" },

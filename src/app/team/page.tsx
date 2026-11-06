@@ -10,10 +10,11 @@ import { Card, PageHeader, ago } from "@/components/ui";
 import { AccountLogo } from "@/components/account-logo";
 import { SERVICE_MODE_LABEL } from "@/lib/adapters";
 import { spendByAccount, systemHealth } from "@/lib/admin/health";
+import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAssignmentAction, setClientLogoAction, setUserStatusAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, setUserStatusAction } from "./actions";
 import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
@@ -151,10 +152,18 @@ async function AccountsTab({ clients }: { clients: Clients }) {
 }
 
 async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeof systemHealth>>; clients: Clients }) {
-  const [spend, month] = await Promise.all([spendByAccount(), monthlyStatus()]);
+  const [spend, month, aiPaused] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause()]);
   const q = health.queue;
   return (
     <>
+      <Card title="AI spending" sub="Pausing stops all OpenRouter use: no company research runs (they stay queued), scheduled AI jobs are skipped, and AI buttons say it is paused. Searches that need the AI stop with it.">
+        {aiPaused
+          ? <p className="tm-warn">Paused by {aiPaused.by} {ago(aiPaused.since)}. {q.queued} companies are waiting.</p>
+          : <p className="tm-ok">AI is running.</p>}
+        <ActionButton action={setAiPausedAction.bind(null, !aiPaused)} className={aiPaused ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"} confirm={aiPaused ? undefined : "Pause all AI spending? Research stops until you resume."}>
+          {aiPaused ? "Resume AI" : "Pause AI"}
+        </ActionButton>
+      </Card>
       <Card title="Database access" sub="Every table must be readable and writable by the app. A table created without access breaks the pages that use it.">
         {health.tables == null ? <p className="tm-warn">Couldn&apos;t check table access.</p>
           : health.tables.length ? <p className="tm-warn">The app can&apos;t use: <b>{health.tables.join(", ")}</b>. Grant access to the app&apos;s database role (see the grant_app_role migration).</p>

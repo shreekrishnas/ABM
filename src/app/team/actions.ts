@@ -233,3 +233,22 @@ export async function clearEmailConflictsAction(): Promise<ActionState> {
     return fail(e);
   }
 }
+
+/** Pause or resume all AI (OpenRouter) spending. */
+export async function setAiPausedAction(paused: boolean): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { setAiPaused } = await import("@/lib/admin/ai-pause");
+    await setAiPaused(paused, me.email);
+    await audit(me.email, paused ? "ai.pause" : "ai.resume");
+    if (!paused) {
+      const h = await headers();
+      const host = h.get("x-forwarded-host") ?? h.get("host");
+      await kickDrain(host ? `${h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https")}://${host}` : null).catch(() => undefined);
+    }
+    revalidatePath("/team");
+    return { ok: true, message: paused ? "AI paused: no OpenRouter spending until you resume" : "AI resumed: the queue picks up where it stopped" };
+  } catch (e) {
+    return fail(e);
+  }
+}

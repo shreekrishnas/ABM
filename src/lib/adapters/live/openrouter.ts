@@ -57,6 +57,8 @@ export class OpenRouterLLM implements LLM {
   }
 
   private async call(system: string, messages: { role: "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
+    const { assertAiAllowed } = await import("@/lib/admin/ai-pause");
+    await assertAiAllowed();
     const res = await fetchJson<{ choices?: { message?: { content?: string } }[] }>("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
