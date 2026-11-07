@@ -37,7 +37,7 @@ export default async function AdminHome() {
     <div className="page-enter">
       <PageHeader eyebrow="Admin" title="Workspace settings" sub="Connections, the Account Brain, team and system health." />
       {paused && sup && (
-        <div className="ad-banner" role="status"><ShieldCheck size={16} /> <span><b>AI is paused</b> by {paused.by}. {queued} companies are waiting in the queue.</span> <Link href="/team?tab=system" className="btn btn-secondary btn-sm">Review</Link></div>
+        <div className="ad-banner" role="status"><ShieldCheck size={16} /> <span><b>AI is paused</b> by an admin. {queued} companies are waiting in the queue.</span> <Link href="/team?tab=system" className="btn btn-secondary btn-sm">Review</Link></div>
       )}
       <div className="ig-grid">
         {tiles.map((t) => (

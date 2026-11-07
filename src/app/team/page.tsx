@@ -158,7 +158,7 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
     <>
       <Card title="AI spending" sub="Pausing stops all OpenRouter use: no company research runs (they stay queued), scheduled AI jobs are skipped, and AI buttons say it is paused. Searches that need the AI stop with it.">
         {aiPaused
-          ? <p className="tm-warn">Paused by {aiPaused.by} {ago(aiPaused.since)}. {q.queued} companies are waiting.</p>
+          ? <p className="tm-warn">Paused by an admin {ago(aiPaused.since)}. {q.queued} companies are waiting.</p>
           : <p className="tm-ok">AI is running.</p>}
         <ActionButton action={setAiPausedAction.bind(null, !aiPaused)} className={aiPaused ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"} confirm={aiPaused ? undefined : "Pause all AI spending? Research stops until you resume."}>
           {aiPaused ? "Resume AI" : "Pause AI"}

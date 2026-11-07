@@ -43,7 +43,7 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
   for (const h of handoffs) out.push({ id: `h-${h.id}`, kind: "handoff", tone: "info", title: `${h.account.name} is ready for a rep`, detail: "Hand-off waiting", href: "/handoffs", at: h.createdAt.toISOString() });
   if (overdue) out.push({ id: `t-${overdue}`, kind: "task", tone: "warn", title: `${overdue} overdue task${overdue === 1 ? "" : "s"}`, detail: "Tasks", href: "/crm/tasks", at: now.toISOString() });
   if (visitors) out.push({ id: `v-${visitors}`, kind: "visitor", tone: "info", title: `${visitors} website visitor compan${visitors === 1 ? "y" : "ies"} waiting for approval`, detail: "Website visitors", href: "/import/apollo", at: now.toISOString() });
-  if (paused) out.push({ id: `p-${paused.since.getTime()}`, kind: "system", tone: "warn", title: "AI is paused", detail: `Paused by ${paused.by}; research waits in the queue`, href: "/team?tab=system", at: paused.since.toISOString() });
+  if (paused) out.push({ id: `p-${paused.since.getTime()}`, kind: "system", tone: "warn", title: "AI is paused", detail: "Paused by an admin; research waits in the queue", href: "/team?tab=system", at: paused.since.toISOString() });
   if (month) {
     const clients = await db.client.findMany({ select: { id: true, name: true } });
     for (const [id, m] of month) if (m.state !== "ok") out.push({ id: `s-${id}-${m.state}`, kind: "spend", tone: m.state === "over" ? "bad" : "warn", title: `${clients.find((c) => c.id === id)?.name ?? id}: ${m.state === "over" ? "monthly cap reached" : `${Math.round((m.share ?? 0) * 100)}% of monthly cap`}`, detail: `$${m.spent.toFixed(2)} of $${(m.cap ?? 0).toFixed(2)}`, href: "/team?tab=system", at: now.toISOString() });
