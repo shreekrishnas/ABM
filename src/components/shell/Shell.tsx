@@ -127,7 +127,7 @@ function MoreSheet({ active, sup, counts }: { active: string; sup: boolean; coun
           <div className="sh-sheet-h"><b>More</b><button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Close" onClick={() => setOpen(false)}><X size={16} /></button></div>
           <div className="sh-sheet-g">
             {rest.map((r) => <Link key={r.key} href={r.href} className={`sh-sheet-i${active === r.key ? " on" : ""}`}><r.icon size={18} aria-hidden />{r.label}{r.count && counts[r.count] > 0 && <span className="sh-badge tnum">{counts[r.count]}</span>}</Link>)}
-            <Link href="/clients" className={`sh-sheet-i${active === "clients" ? " on" : ""}`}><LayoutGrid size={18} aria-hidden />Accounts</Link>
+            <Link href="/clients" className={`sh-sheet-i${active === "clients" ? " on" : ""}`}><LayoutGrid size={18} aria-hidden />Clients</Link>
             <Link href="/admin" className="sh-sheet-i"><Settings2 size={18} aria-hidden />Admin</Link>
           </div>
           <form action={signOutAction} className="sh-sheet-out"><button type="submit" className="btn btn-secondary btn-sm"><LogOut size={14} /> Sign out</button></form>
@@ -168,11 +168,11 @@ function AccountsNav({ choices, picked, on }: { choices: { id: string; name: str
   return (
     <div className={`sh-accts sh-desk${open ? " open" : ""}`}>
       {/* Narrow rail (icons only): the icon opens the Accounts page. */}
-      <Link href="/clients" className={`sh-item sh-accts-icon${on ? " on" : ""}`} data-tip="Accounts" aria-label="Accounts"><LayoutGrid size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Accounts</span></Link>
+      <Link href="/clients" className={`sh-item sh-accts-icon${on ? " on" : ""}`} data-tip="Clients" aria-label="Clients"><LayoutGrid size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Clients</span></Link>
       {/* Wide rail: a section that opens to list the accounts. */}
       <button type="button" className={`sh-item sh-accts-toggle${on ? " on" : ""}`} aria-expanded={open} aria-controls="sh-accts-list" onClick={toggle}>
         <LayoutGrid size={20} strokeWidth={1.9} aria-hidden />
-        <span className="sh-lbl">Accounts</span>
+        <span className="sh-lbl">Clients</span>
         {current && !open && <span className="sh-accts-cur" title={`Open now: ${current.name}`}><AccountLogo name={current.name} url={current.logoUrl} className="sh-accts-av" /></span>}
         <ChevronDown size={14} className="sh-accts-chev" aria-hidden />
       </button>
@@ -196,7 +196,7 @@ function AccountsNav({ choices, picked, on }: { choices: { id: string; name: str
               </form>
             </li>
           )}
-          <li><Link href="/clients" className={`sh-accts-opt sub link${on ? " on" : ""}`}>All accounts</Link></li>
+          <li><Link href="/clients" className={`sh-accts-opt sub link${on ? " on" : ""}`}>All clients</Link></li>
         </ul>
       )}
     </div>

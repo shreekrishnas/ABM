@@ -43,7 +43,7 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
           <ol>
             {account?.many ? (
               <>
-                <li><Link href="/clients">Accounts</Link></li>
+                <li><Link href="/clients">Clients</Link></li>
                 {path !== "/clients" && <li><ChevronRight size={13} aria-hidden /><Link href="/">{account.name}</Link></li>}
               </>
             ) : <li><Link href="/">Home</Link></li>}

@@ -42,12 +42,14 @@ describe("source 2: companies similar to a website", () => {
 });
 
 describe("source 3: website visitors", () => {
-  it("unknown visiting companies become suggestions checked against the rule", async () => {
+  it("unknown visiting companies become suggestions; the targeting rule does not apply to visitors", async () => {
     await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
     await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
     await recordVisit({ url: "https://seller.example/", companyName: "Marina Retail Group", source: "apollo" });
     const r = await suggestFromVisitors(newContext());
-    expect(r).toEqual({ suggested: 1, excluded: 1 });
+    // Website visitors pass through: the company outside the rule is suggested too, not excluded.
+    expect(r).toEqual({ suggested: 2, excluded: 0 });
+    expect((await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Marina Retail Group" } })).status).toBe("new");
     const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Lotus Consumer Brands" } });
     expect(s).toMatchObject({ origin: "website_visitor", status: "new", country: "IN" });
     expect(s.whyNow).toMatch(/Visited your website 2 times.*pricing/i);
