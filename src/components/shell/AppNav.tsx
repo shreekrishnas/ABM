@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
-import { IMPORT_PAGES, SECTIONS, isOn, locate, sectionHref, type Counts } from "@/lib/nav";
+import { locate, sectionHref, type Counts } from "@/lib/nav";
+import { NotificationBell } from "./NotificationBell";
 
 /**
- * Top bar. Import data: a trail (Home › Import data › option) and the options underneath.
- * Workspace: section tabs, with the section's pages underneath.
+ * Top bar: breadcrumb (module › page), the module's pages underneath, search, Discover,
+ * theme and notifications. The modules themselves are in the sidebar.
  * Everything opens in this tab; only the URL changes.
  */
 export function AppNav({ counts, discover, sellerName, account }: { counts: Counts; discover: number; sellerName: string; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
@@ -28,19 +29,12 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
   const at = locate(path);
   // Home draws its own shell (rail + topbar).
   if (at.area === "home" || path.startsWith("/login")) return null;
-  const trail: { label: string; href: string }[] = [];
-  if (at.area === "import") {
-    trail.push({ label: "Import data", href: "/import" });
-    if (at.page) trail.push({ label: at.page.label, href: at.page.href });
-  }
-  // One breadcrumb: Home › area or section › page. The page's own header carries the title.
-  const crumbs: { label: string; href: string }[] = path.startsWith("/brain") ? [{ label: "Account Brain", href: "/brain" }]
-    : path.startsWith("/team") ? [{ label: "Team & Access", href: "/team" }]
-    : path.startsWith("/settings") ? [{ label: "Settings", href: "/settings" }]
-    : at.area === "import" ? trail
-    : [...(at.section ? [{ label: at.section.label, href: sectionHref(at.section) }] : []), ...(at.page && at.page.label !== at.section?.label ? [{ label: at.page.label, href: at.page.href }] : [])];
-  const siblings = at.area === "import" ? (path === "/import" ? [] : IMPORT_PAGES) : at.section && at.section.items.length > 1 ? at.section.items : [];
-  const sectionCount = (items: (typeof SECTIONS)[number]["items"]) => items.reduce((n, it) => n + (it.count ? counts[it.count] : 0), 0);
+  // One breadcrumb: module › page. The page's own header carries the title.
+  const crumbs: { label: string; href: string }[] = [
+    ...(at.section ? [{ label: at.section.label, href: sectionHref(at.section) }] : []),
+    ...(at.page && at.page.label !== at.section?.label && at.page.href !== sectionHref(at.section!) ? [{ label: at.page.label, href: at.page.href }] : []),
+  ];
+  const siblings = at.section && at.section.items.length > 1 ? at.section.items : [];
 
   return (
     <header className="nav">
@@ -62,21 +56,6 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
           </ol>
         </nav>
 
-        {at.area === "work" && (
-          <nav className="nav-sections" aria-label="Workspace sections">
-            {SECTIONS.map((g) => {
-              const on = g === at.section;
-              const n = sectionCount(g.items);
-              return (
-                <Link key={g.key} href={sectionHref(g)} className={`nav-section${on ? " on" : ""}`} aria-current={on ? "true" : undefined}>
-                  {g.label}
-                  {n > 0 && <span className="nav-count tnum">{n > 99 ? "99+" : n}</span>}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
-
         <div className="nav-tools">
           <button type="button" className="nav-search" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
             <Search size={15} strokeWidth={1.75} />
@@ -90,6 +69,7 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
           <button type="button" className="nav-icon" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
             {dark ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>
+          <NotificationBell />
         </div>
       </div>
 
@@ -97,7 +77,7 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
         <nav className="nav-sub" aria-label="Pages here">
           {siblings.map((it) => {
             // The most specific sibling wins: /accounts/coverage lights Coverage, not Companies too.
-            const on = isOn(path, it.href) && !siblings.some((o) => o.href.length > it.href.length && isOn(path, o.href));
+            const on = it === at.page;
             const n = it.count ? counts[it.count] : 0;
             return (
               <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>

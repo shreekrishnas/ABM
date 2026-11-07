@@ -10,6 +10,9 @@ import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
 import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
+import { aiPause } from "@/lib/admin/ai-pause";
+import { NotificationBell } from "@/components/shell/NotificationBell";
+import { integrations } from "@/lib/admin/integrations";
 
 export const metadata = { title: "Home" };
 
@@ -38,7 +41,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [cc, flow, paused, conns, monthSpend, queued] = await Promise.all([
+    commandCenter(now), companyFlow(now), aiPause(), integrations(),
+    db.ledgerEntry.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { amountMicros: true } }),
+    db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
+  ]);
+  const spentUsd = (monthSpend._sum.amountMicros ?? 0) / 1_000_000;
+  const healthy = conns.filter((c) => c.state === "connected").length;
+  const needs = conns.filter((c) => c.state === "setup" || c.state === "off" || c.state === "paused");
   const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.draft.count({ where: { status: "pending_review" } }),
@@ -91,9 +102,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="hm-tools">
             <SearchPill />
             <ThemePill />
+            <NotificationBell />
             {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
           </div>
         </header>
+
+        {paused && (
+          <div className="ad-banner" role="status"><b>AI is paused</b> <span>by {paused.by}. {queued} companies are waiting in the queue.</span> <Link href="/team?tab=system" className="btn btn-secondary btn-sm">Review</Link></div>
+        )}
 
         <section className="hm2-kpis" aria-label="What needs doing">
           {actionable.map((k) => (
@@ -170,6 +186,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             )}
           </div>
         </div>
+
+        <section className="hm2-card hm-health" aria-label="Platform">
+          <div className="hm2-head"><h2>Platform</h2><Link href="/admin/integrations" className="hm-sec-link">Integrations</Link></div>
+          <div className="hm-health-row">
+            <div><span className="hm2-c-l">Connections</span><span className="hm2-c-v tnum">{healthy}/{conns.length}</span><span className="hm2-c-n">{needs.length ? `${needs.map((n) => n.name).slice(0, 3).join(", ")} need attention` : "All connected"}</span></div>
+            <div><span className="hm2-c-l">AI</span><span className="hm2-c-v">{paused ? "Paused" : "Running"}</span><span className="hm2-c-n">{queued} in the queue</span></div>
+            <div><span className="hm2-c-l">Spend this month</span><span className="hm2-c-v tnum">${spentUsd.toFixed(2)}</span><span className="hm2-c-n">Search, AI and lookups</span></div>
+          </div>
+        </section>
 
         {companies < 10 && (
           <section className="hm2-card hm2-onboard" aria-label="Import">

@@ -1199,3 +1199,48 @@ html, body { background: var(--canvas) !important; }
 .assistant-error { color: var(--danger); font-size: var(--fs-13); }
 .assistant-input { display: flex; gap: var(--sp-2); align-items: flex-end; padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); }
 .assistant-input textarea { flex: 1; resize: none; }
+
+/* ── Notifications panel (opaque, like every modal) ── */
+.nb-btn { position: relative; }
+.nb-scrim { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--scrim); }
+.nb-panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(400px, calc(100vw - 24px)); z-index: var(--z-modal); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3xl); box-shadow: var(--shadow-xl); overflow: hidden; }
+.nb-head { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); }
+.nb-head h2 { font-size: var(--fs-lg); font-weight: 600; margin: 0; }
+.nb-list { overflow-y: auto; flex: 1; }
+.nb-item { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--text); text-decoration: none; }
+.nb-item:hover { background: var(--subtle); }
+.nb-item.new { background: var(--accent-subtle); }
+.nb-ic { width: 30px; height: 30px; border-radius: var(--r-full); display: grid; place-items: center; flex: none; background: var(--subtle); color: var(--text-2); }
+.nb-ic.ok { background: var(--success-bg); color: var(--success); }
+.nb-ic.warn { background: var(--warning-bg); color: var(--warning); }
+.nb-ic.bad { background: var(--danger-bg); color: var(--danger); }
+.nb-ic.info { background: var(--info-bg); color: var(--info); }
+.nb-t { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: var(--fs-sm); }
+.nb-t b { font-weight: 500; }
+.nb-t small { color: var(--muted); font-size: var(--fs-xs); }
+.nb-at { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.nb-empty { display: flex; gap: var(--sp-2); align-items: center; padding: var(--sp-5); color: var(--muted); }
+
+/* ── Admin and Integrations ── */
+.ig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: var(--sp-4); }
+.ig-card { padding: var(--sp-5); display: grid; gap: var(--sp-3); align-content: start; }
+.ig-head { display: flex; gap: var(--sp-3); align-items: center; }
+.ig-head h2 { font-size: var(--fs-base); font-weight: 600; margin: 0; }
+.ig-logo { width: 40px; height: 40px; border-radius: var(--r-md); display: grid; place-items: center; flex: none; font-weight: 700; font-size: var(--fs-sm); background: var(--pill-subtle); color: var(--pill); }
+.ig-state { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.ig-state i { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--muted); }
+.ig-state.ok { color: var(--success); } .ig-state.ok i { background: var(--success); }
+.ig-state.warn { color: var(--warning); } .ig-state.warn i { background: var(--warning); }
+.ig-state.info { color: var(--info); } .ig-state.info i { background: var(--info); }
+.ig-what { margin: 0; font-size: var(--fs-sm); color: var(--text-2); }
+.ig-detail { margin: 0; font-size: var(--fs-xs); color: var(--muted); overflow-wrap: anywhere; }
+.ig-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-1); }
+.ig-last { font-size: var(--fs-xs); color: var(--muted); }
+.ad-tile { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-5); color: var(--text); text-decoration: none; }
+.ad-tile b { display: block; font-weight: 600; }
+.ad-tile small { display: block; color: var(--muted); font-size: var(--fs-xs); margin-top: 2px; }
+.ad-ic { width: 38px; height: 38px; border-radius: var(--r-md); display: grid; place-items: center; flex: none; background: var(--accent-subtle); color: var(--accent); }
+.ad-banner { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); border-radius: var(--r-lg); background: var(--warning-bg); color: var(--warning); font-size: var(--fs-sm); }
+.ad-banner .btn { margin-left: auto; }
+.hm-health-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--sp-4); }
+.hm-health-row > div { display: grid; gap: 2px; }

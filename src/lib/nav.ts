@@ -1,8 +1,8 @@
-// The app's drill-down map: Home › Import data | Workspace › section › page.
+// The app's map: Home, then the modules (Accounts, Prospecting, Engage, Pipeline, Insights, Admin) › page.
 // Used by the top bar (trail and sibling pages), the hub pages and the command palette.
 
 import {
-  BadgeDollarSign, BarChart3, Building2, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Radar, Send, Settings2, Sparkles, Sun, Users, Workflow,
+  BadgeDollarSign, BarChart3, Brain, Building2, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Plug, Radar, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Upload, Users, Workflow,
 } from "lucide-react";
 
 export type Counts = { review: number; handoffs: number; tasks: number };
@@ -14,43 +14,60 @@ export const IMPORT_PAGES: NavPage[] = [
   { href: "/import/upload", label: "Upload CSV", blurb: "Map columns, preview, import", icon: FileSpreadsheet },
   { href: "/import/describe", label: "Describe companies", blurb: "Find companies from a description", icon: Radar },
   { href: "/import/lookalikes", label: "Lookalikes", blurb: "Companies like one website", icon: Sparkles },
-  { href: "/import/apollo", label: "Via Apollo", blurb: "Companies visiting your website", icon: Globe2 },
+  { href: "/import/apollo", label: "Website visitors", blurb: "Companies visiting your website", icon: Globe2 },
 ];
 
+// The product's modules. Every page keeps its address; modules only group them.
 export const SECTIONS: NavSection[] = [
-  { key: "today", label: "Today", blurb: "What needs a person right now", icon: Sun, items: [{ href: "/work/today", label: "Today", blurb: "Replies, approvals, follow-ups and hot companies", icon: Sun }] },
   {
-    key: "research", label: "Research", blurb: "Companies, people and the signals behind them", icon: Building2,
+    key: "accounts", label: "Accounts", blurb: "Every company, its people and the signals behind it", icon: Building2,
     items: [
       { href: "/accounts", label: "Companies", blurb: "Every company: filter, sort, table or priority map", icon: Building2 },
-      { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users },
       { href: "/people", label: "People", blurb: "The buying group at each company", icon: Users },
+      { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users },
       { href: "/signals", label: "Signals", blurb: "Buying events, with sources", icon: Radar },
-      { href: "/discover", label: "Discover", blurb: "New companies and rising industries", icon: Globe },
     ],
   },
   {
-    key: "outreach", label: "Email drafting", blurb: "Drafts to approve and what was sent", icon: Send,
+    key: "prospecting", label: "Prospecting", blurb: "Find new companies and bring them in", icon: Globe,
     items: [
+      { href: "/import", label: "All ways in", blurb: "Every way to bring companies in", icon: Upload },
+      ...IMPORT_PAGES,
+      { href: "/discover", label: "Market signals", blurb: "New companies and rising industries", icon: Globe },
+    ],
+  },
+  {
+    key: "engage", label: "Engage", blurb: "Today's work, approvals and conversations", icon: Send,
+    items: [
+      { href: "/work/today", label: "Today", blurb: "Replies, approvals, follow-ups and hot companies", icon: Sun },
       { href: "/review", label: "Approvals", blurb: "Drafts and decisions waiting for you", icon: ClipboardCheck, count: "review" },
       { href: "/outreach", label: "Emails", blurb: "Sequences, sent emails and replies", icon: Send },
     ],
   },
   {
-    key: "sales", label: "CRM", blurb: "Hand-offs, opportunities and tasks", icon: Handshake,
+    key: "pipeline", label: "Pipeline", blurb: "Hand-offs, deals and tasks", icon: Handshake,
     items: [
       { href: "/handoffs", label: "Hand-offs", blurb: "Companies ready for a rep", icon: Handshake, count: "handoffs" },
-      { href: "/crm/opportunities", label: "Opportunities", blurb: "Open deals by stage", icon: BadgeDollarSign },
+      { href: "/crm/opportunities", label: "Deals", blurb: "Open deals by stage", icon: BadgeDollarSign },
       { href: "/crm/tasks", label: "Tasks", blurb: "Due and overdue work", icon: ListTodo, count: "tasks" },
     ],
   },
   {
-    key: "insights", label: "Insights", blurb: "How the program is doing, and settings", icon: BarChart3,
+    key: "insights", label: "Insights", blurb: "How the program is doing", icon: BarChart3,
     items: [
       { href: "/overview", label: "Program overview", blurb: "Coverage, pipeline and results", icon: LayoutDashboard },
       { href: "/analytics", label: "Analytics", blurb: "Trends and conversion", icon: BarChart3 },
       { href: "/pipeline", label: "Behind the scenes", blurb: "What the brain did and why", icon: Workflow },
-      { href: "/settings", label: "Settings", blurb: "Seller pack, senders, connections", icon: Settings2 },
+    ],
+  },
+  {
+    key: "admin", label: "Admin", blurb: "Connections, brain, team and settings", icon: Settings2,
+    items: [
+      { href: "/admin", label: "Overview", blurb: "Workspace settings in one place", icon: Settings2 },
+      { href: "/admin/integrations", label: "Integrations", blurb: "Every connection, its status and last sync", icon: Plug },
+      { href: "/brain", label: "Account Brain", blurb: "What the client sells and to whom", icon: Brain },
+      { href: "/settings", label: "Settings", blurb: "Seller pack, senders, knowledge", icon: SlidersHorizontal },
+      { href: "/team", label: "Team & Access", blurb: "People, accounts, system health (Super Admin)", icon: ShieldCheck },
     ],
   },
 ];
@@ -60,12 +77,11 @@ export const isOn = (path: string, href: string) => path === href || path.starts
 /** Where a path sits in the map: the area, the section and the page, for the trail. */
 export function locate(path: string): { area: "home" | "import" | "work"; section?: NavSection; page?: NavPage } {
   if (path === "/") return { area: "home" };
-  if (isOn(path, "/import")) return { area: "import", page: IMPORT_PAGES.find((p) => isOn(path, p.href)) };
   const sectionKey = path.match(/^\/work\/([^/]+)/)?.[1];
   for (const s of SECTIONS) {
-    if (s.key === sectionKey) return { area: "work", section: s, page: s.items.find((p) => isOn(path, p.href)) };
-    const page = s.items.find((p) => isOn(path, p.href));
-    if (page) return { area: "work", section: s, page };
+    // The most specific page wins (/import/upload is Upload CSV, not "All ways in").
+    const page = s.items.filter((p) => isOn(path, p.href)).sort((a, b) => b.href.length - a.href.length)[0];
+    if (page || s.key === sectionKey) return { area: "work", section: s, page };
   }
   return { area: "work" };
 }

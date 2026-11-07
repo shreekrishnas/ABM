@@ -3,26 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, Brain, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Send, Settings2, ShieldCheck, Sun, Upload, Users, X } from "lucide-react";
+import { BarChart3, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Plug, Search, Send, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
 import { AccountLogo } from "@/components/account-logo";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
-// Rail entries: Home, Import, then the workspace sections. Active state follows the
+// Rail entries: Home, then the modules (Admin sits at the foot). Active state follows the
 // nav map, so every page inside a section lights its rail icon.
 const RAIL = [
   { key: "home", href: "/", label: "Home", short: "Home", icon: HomeIcon },
-  { key: "import", href: "/import", label: "Import", short: "Import", icon: Upload },
-  { key: "brain", href: "/brain", label: "Account Brain", short: "Brain", icon: Brain },
-  { key: "today", href: "/work/today", label: "Today", short: "Today", icon: Sun },
-  { key: "research", href: "/accounts", label: "Research", short: "Research", icon: Building2 },
-  { key: "outreach", href: "/review", label: "Email drafting", short: "Emails", icon: Send, count: "review" as const },
-  { key: "sales", href: "/handoffs", label: "CRM", short: "CRM", icon: Handshake, count: "handoffs" as const },
+  { key: "accounts", href: "/accounts", label: "Accounts", short: "Accounts", icon: Building2 },
+  { key: "prospecting", href: "/import", label: "Prospecting", short: "Prospect", icon: Search },
+  { key: "engage", href: "/work/today", label: "Engage", short: "Engage", icon: Send, count: "review" as const },
+  { key: "pipeline", href: "/handoffs", label: "Pipeline", short: "Pipeline", icon: Handshake, count: "handoffs" as const },
   { key: "insights", href: "/overview", label: "Insights", short: "Insights", icon: BarChart3 },
 ];
 
-const PHONE = ["home", "today", "research", "outreach"];
+const PHONE = ["home", "accounts", "engage", "pipeline"];
 
 export type Access = { name: string; email: string; canSuperAdmin: boolean; superAdmin: boolean; clients: string[]; state: "ok" | "noclient" | "removed"; choices: { id: string; name: string; logoUrl?: string | null }[]; picked: string | null; everyClient: boolean } | null;
 
@@ -33,7 +31,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   if (access?.state === "removed") return <Gate title="Your access has been removed" text="Ask ShreeKrishna if you think this is a mistake." />;
   if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text="You're on the team, but no client is assigned to you yet. ShreeKrishna will assign one; this page opens up as soon as he does." />;
   const at = locate(path);
-  const active = isOn(path, "/clients") ? "clients" : isOn(path, "/team") ? "team" : isOn(path, "/brain") ? "brain" : at.area === "home" ? "home" : at.area === "import" ? "import" : isOn(path, "/settings") ? "settings" : (at.section?.key ?? "");
+  const active = isOn(path, "/clients") ? "clients" : at.area === "home" ? "home" : (at.section?.key ?? "");
   const sup = Boolean(access?.superAdmin);
   return (
     <div className="sh-outer">
@@ -55,8 +53,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
           </div>
           <div className="sh-rail-foot">
             {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
-            {sup && <Link href="/team" className={`sh-item${active === "team" ? " on" : ""}`} data-tip="Team & Access" aria-label="Team & Access"><Users size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Team &amp; Access</span></Link>}
-            <Link href="/settings" className={`sh-item${active === "settings" ? " on" : ""}`} data-tip="Settings" aria-label="Settings"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Settings</span></Link>
+            <Link href="/admin" className={`sh-item${active === "admin" ? " on" : ""}`} data-tip="Admin" aria-label="Admin"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Admin</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
           </div>
           <MoreSheet active={active} sup={sup} counts={counts} />
@@ -101,7 +98,9 @@ function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolea
               <button type="submit" role="menuitem" className="sh-menu-i"><ShieldCheck size={15} /> {sup ? "Switch to User" : "Switch to Super Admin"}</button>
             </form>
           )}
-          <Link href="/settings" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> Settings</Link>
+          <Link href="/settings" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> Profile &amp; settings</Link>
+          <Link href="/admin/integrations" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Plug size={15} /> Integrations</Link>
+          {sup && <Link href="/team" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Users size={15} /> Team &amp; Access</Link>}
           <div className="sh-menu-sep" />
           <form action={signOutAction}><button type="submit" role="menuitem" className="sh-menu-i danger"><LogOut size={15} /> Sign out</button></form>
         </div>
@@ -129,8 +128,7 @@ function MoreSheet({ active, sup, counts }: { active: string; sup: boolean; coun
           <div className="sh-sheet-g">
             {rest.map((r) => <Link key={r.key} href={r.href} className={`sh-sheet-i${active === r.key ? " on" : ""}`}><r.icon size={18} aria-hidden />{r.label}{r.count && counts[r.count] > 0 && <span className="sh-badge tnum">{counts[r.count]}</span>}</Link>)}
             <Link href="/clients" className={`sh-sheet-i${active === "clients" ? " on" : ""}`}><LayoutGrid size={18} aria-hidden />Accounts</Link>
-            {sup && <Link href="/team" className="sh-sheet-i"><Users size={18} aria-hidden />Team &amp; Access</Link>}
-            <Link href="/settings" className="sh-sheet-i"><Settings2 size={18} aria-hidden />Settings</Link>
+            <Link href="/admin" className="sh-sheet-i"><Settings2 size={18} aria-hidden />Admin</Link>
           </div>
           <form action={signOutAction} className="sh-sheet-out"><button type="submit" className="btn btn-secondary btn-sm"><LogOut size={14} /> Sign out</button></form>
         </div>
