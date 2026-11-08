@@ -2,7 +2,7 @@
    Design tokens: Design 2 (Design_2.md). Loaded last, so it governs every page.
    Glass cards over an indigo/slate atmosphere; one violet accent for focus, links
    and active states; primary buttons and the sidebar pill in indigo; opaque modals.
-   Type: Poppins (Plex Mono for code-like data), 12px floor, 400/500/600.
+   Type: Inter (Plex Mono for code-like data), 12px floor, 400/500/600.
    Rule: components use these variables only; no hex colours or px font sizes
    outside this block (checked by scripts/check-tokens.mjs).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -10,21 +10,21 @@
 :root {
   color-scheme: light;
   /* Colour roles (Design 2: slate text, one violet accent, indigo primary pill) */
-  --canvas: #EEF1F8;
+  --canvas: #F9FAFB;
   --surface: #FFFFFF;                      /* opaque: header, inputs, menus, modals */
   --glass: rgba(255, 255, 255, 0.65);      /* .glass-card */
   --glass-hover: rgba(255, 255, 255, 0.82);
   --glass-panel: rgba(255, 255, 255, 0.45);
   --glass-border: rgba(255, 255, 255, 0.7);
-  --subtle: #F4F5FA;
-  --border: #E4E7F0;
-  --border-2: #D2D6E4;
+  --subtle: #F3F4F6;
+  --border: #E5E7EB;
+  --border-2: #E2E8F0;
   --text: #0F172A;
-  --text-2: #475569;
-  --muted: #64748B;
-  --accent: #7C3AED;
-  --accent-h: #6D28D9;
-  --accent-subtle: #F3EEFF;
+  --text-2: #374151;
+  --muted: #6B7280;
+  --accent: #6366F1;
+  --accent-h: #4F46E5;
+  --accent-subtle: #EEF0FF;
   --on-accent: #FFFFFF;
   --pill: #6366F1;                         /* primary buttons and the sidebar's active pill (deliberately indigo) */
   --pill-h: #4F46E5;
@@ -38,8 +38,8 @@
   /* Atmosphere: one cool hue family (indigo/slate) */
   --atm-1: #E0E7FF; --atm-2: #EDE9FE; --atm-3: #F1F5F9; --atm-4: #E0E7FF; --atm-5: #E2E8F0;
 
-  /* Type (Design 2 with Poppins; Plex Mono for code-like data) */
-  --font-sans: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type (Inter; Plex Mono for code-like data) */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --fs-12: 12px;  /* labels, table headers, meta */
   --fs-13: 13px;  /* dense rows, controls */
@@ -48,7 +48,7 @@
   --fs-20: 20px;  /* sub-page titles */
   --fs-24: 24px;  /* page title */
   --fs-28: 28px;  /* hero numbers */
-  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600;
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
 
   /* Space: 4px grid */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
@@ -88,13 +88,14 @@
   --l1-shadow: var(--shadow-sm); --l2-shadow: var(--shadow-lg); --l3-shadow: var(--shadow-xl);
   --line: var(--border); --ink: var(--text); --ground: var(--canvas); --panel: var(--surface);
   --teal: var(--accent); --teal-hover: var(--accent-h); --teal-soft: var(--accent-subtle);
-  --chart-1: var(--pill); --chart-2: var(--info); --chart-3: var(--warning); --chart-seq: var(--pill); --chart-area: var(--accent);
-  --chart-4: var(--success); --chart-5: var(--accent); --chart-6: var(--danger);
+  --chart-1: #3b82f6; --chart-2: #10b981; --chart-3: #f59e0b; --chart-seq: var(--pill); --chart-area: var(--accent);
+  --chart-4: #ef4444; --chart-5: #8b5cf6; --chart-6: #0ea5e9;
   --fs-2xs: var(--fs-12); --fs-xs: var(--fs-12); --fs-sm: var(--fs-13); --fs-base: var(--fs-14); --fs-lg: var(--fs-16); --fs-xl: var(--fs-16); --fs-3xl: var(--fs-24); --fs-4xl: var(--fs-28);
   --r-xl: var(--r-lg); --r-2xl: var(--r-lg);
 }
 
 [data-theme="dark"], :root[data-theme="dark"] {
+  --chart-1: #60a5fa; --chart-2: #34d399; --chart-3: #fbbf24; --chart-4: #f87171; --chart-5: #a78bfa; --chart-6: #38bdf8;
   color-scheme: dark;
   --canvas: #0B1020; --surface: #121931; --subtle: #1A2340; --border: #263055; --border-2: #33406B;
   --glass: rgba(18, 25, 49, 0.62); --glass-hover: rgba(24, 33, 64, 0.8); --glass-panel: rgba(11, 16, 32, 0.5); --glass-border: rgba(148, 163, 184, 0.14);
@@ -1274,7 +1275,7 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .vz-donut { display: flex; align-items: center; gap: var(--sp-5); flex-wrap: wrap; }
 .vz-donut svg { flex: none; max-width: 100%; }
 .vz-donut svg circle[stroke-dasharray] { transition: stroke-width 150ms; cursor: default; }
-.vz-donut svg circle[stroke-dasharray]:hover { stroke-width: 32; }
+.vz-donut svg circle[stroke-dasharray]:hover { stroke-width: 42; }
 .vz-donut .vz-legend.col { flex: 1; min-width: 150px; }
 .vz-donut-v { fill: var(--text); font-size: var(--fs-4xl); font-weight: 600; }
 .vz-donut-l { fill: var(--muted); font-size: var(--fs-2xs); }
@@ -1376,3 +1377,16 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .tm-roleform select { font: inherit; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text); padding: 1px var(--sp-1); }
 .tm-set { font-size: var(--fs-xs); border: 0; background: none; color: var(--pill); cursor: pointer; font-weight: 600; }
 .tm-link { font-size: var(--fs-xs); border: 0; background: none; color: var(--pill); cursor: pointer; padding: 0; }
+
+/* ── Video-style charts: bright bars, thick ring with a % bubble ── */
+.vz-donut.v2 { flex-direction: column; align-items: center; gap: var(--sp-4); }
+.vz-donut.v2 .vz-legend.col { grid-template-columns: 1fr 1fr; column-gap: var(--sp-5); min-width: 0; }
+.vz-bubble rect { fill: var(--surface); filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.18)); }
+.vz-bubble text { fill: var(--chart-1); font-size: var(--fs-sm); font-weight: 600; }
+.vz-chart rect:hover { opacity: 0.85; }
+.vz-chart svg { max-height: 300px; }
+.hm2-grid.charts { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+@media (max-width: 1023px) { .hm2-grid.charts { grid-template-columns: minmax(0, 1fr); } }
+
+/* Inter: bold headings and big numbers */
+h1, .page-title, .vz-kpi-v, .hm2-q-v, .hm2-c-v, .vz-donut-v, .vz-spark-v { font-weight: 700; letter-spacing: -0.02em; }

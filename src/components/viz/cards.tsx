@@ -6,8 +6,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, ChevronRight } from "lucide-react";
 
-// Indigo, green, amber first (clearly different side by side), then violet, blue, red.
-const SERIES = ["var(--chart-1)", "var(--chart-4)", "var(--chart-3)", "var(--chart-5)", "var(--chart-2)", "var(--chart-6)"];
+// Blue, green, orange, red, violet, sky: bright and clearly different side by side.
+const SERIES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"];
 const fmt = (n: number) => (Math.abs(n) >= 1000 ? n.toLocaleString("en-IN") : Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /** % change from `before` to `now`; null when there is nothing to compare. */
@@ -49,13 +49,13 @@ export function KpiRow({ children }: { children: ReactNode }) {
 export function GroupedBars({ categories, series, height = 220, empty = "No data yet" }: { categories: string[]; series: { name: string; values: number[] }[]; height?: number; empty?: string }) {
   const max = Math.max(0, ...series.flatMap((s) => s.values));
   if (!max) return <p className="vz-empty">{empty}</p>;
-  const W = 600, H = height, padL = 34, padB = 26, padT = 10;
+  const W = 600, H = height, padL = 8, padR = 34, padB = 26, padT = 10;
   const whole = series.every((x) => x.values.every((v) => Number.isInteger(v)));
   const step = whole ? Math.max(1, niceStep(max)) : niceStep(max);
   const top = Math.ceil(max / step) * step;
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
-  const plotH = H - padB - padT, plotW = W - padL - 8;
-  const gw = plotW / categories.length, bw = Math.min(18, (gw * 0.7) / series.length);
+  const plotH = H - padB - padT, plotW = W - padL - padR;
+  const gw = plotW / categories.length, bw = Math.min(24, (gw * 0.72) / series.length);
   const y = (v: number) => padT + plotH - (v / top) * plotH;
   return (
     <div className="vz-chart">
@@ -63,8 +63,8 @@ export function GroupedBars({ categories, series, height = 220, empty = "No data
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={series.map((s) => `${s.name}: ${s.values.join(", ")}`).join("; ")}>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={padL} x2={W - 8} y1={y(t)} y2={y(t)} className="vz-grid" />
-            <text x={padL - 6} y={y(t) + 4} textAnchor="end" className="vz-axis">{fmt(t)}</text>
+            <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} className="vz-grid" />
+            <text x={W - padR + 8} y={y(t) + 4} textAnchor="start" className="vz-axis">{fmt(t)}</text>
           </g>
         ))}
         {categories.map((c, ci) => {
@@ -74,7 +74,7 @@ export function GroupedBars({ categories, series, height = 220, empty = "No data
               {series.map((s, si) => {
                 const v = s.values[ci] ?? 0;
                 const h = Math.max(v ? 2 : 0, (v / top) * plotH);
-                return <rect key={s.name} x={gx + si * (bw + 4)} y={padT + plotH - h} width={bw} height={h} rx={4} fill={SERIES[si]}><title>{`${c} · ${s.name}: ${fmt(v)}`}</title></rect>;
+                return <rect key={s.name} x={gx + si * (bw + 4)} y={padT + plotH - h} width={bw} height={h} rx={5} fill={SERIES[si]}><title>{`${c} · ${s.name}: ${fmt(v)}`}</title></rect>;
               })}
               {/* Many categories: label every other one so the axis stays readable. */}
               {(categories.length <= 8 || ci % 2 === 0) && <text x={padL + ci * gw + gw / 2} y={H - 8} textAnchor="middle" className="vz-axis">{c}</text>}
@@ -93,25 +93,30 @@ function niceStep(max: number) {
 }
 
 /** Donut with the largest share called out in the middle and a legend underneath. */
-export function Donut({ data, center, empty = "No data yet", size = 180 }: { data: { label: string; value: number }[]; center?: string; empty?: string; size?: number }) {
+export function Donut({ data, center, empty = "No data yet", size = 210 }: { data: { label: string; value: number }[]; center?: string; empty?: string; size?: number }) {
   const rows = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const total = rows.reduce((t, d) => t + d.value, 0);
   if (!total) return <p className="vz-empty">{empty}</p>;
-  const r = 70, c = 2 * Math.PI * r;
+  const r = 66, c = 2 * Math.PI * r, sw = 36;
   let off = 0;
   const top = rows[0];
+  const topPct = Math.round((top.value / total) * 100);
+  // Bubble sits on the outer edge at the middle of the largest slice.
+  const mid = ((top.value / total) * 360) / 2 - 90;
+  const bx = 100 + (r + sw / 2) * Math.cos((mid * Math.PI) / 180), by = 100 + (r + sw / 2) * Math.sin((mid * Math.PI) / 180);
   return (
-    <div className="vz-donut">
-      <svg viewBox="0 0 200 200" width={size} height={size} role="img" aria-label={rows.map((d) => `${d.label}: ${d.value}`).join(", ")}>
-        <circle cx="100" cy="100" r={r} fill="none" stroke="var(--subtle)" strokeWidth="26" />
+    <div className="vz-donut v2">
+      <svg viewBox="-12 -12 224 224" width={size} height={size} role="img" aria-label={rows.map((d) => `${d.label}: ${d.value}`).join(", ")}>
+        <circle cx="100" cy="100" r={r} fill="none" stroke="var(--subtle)" strokeWidth={sw} />
         {rows.map((d, i) => {
           const len = (d.value / total) * c;
-          const el = <circle key={d.label} cx="100" cy="100" r={r} fill="none" stroke={SERIES[i % SERIES.length]} strokeWidth="26" strokeDasharray={`${Math.max(len - 2, 0.5)} ${c}`} strokeDashoffset={-off} transform="rotate(-90 100 100)"><title>{`${d.label}: ${fmt(d.value)} (${Math.round((d.value / total) * 100)}%)`}</title></circle>;
+          const el = <circle key={d.label} cx="100" cy="100" r={r} fill="none" stroke={SERIES[i % SERIES.length]} strokeWidth={sw} strokeDasharray={`${Math.max(len - 2, 0.5)} ${c}`} strokeDashoffset={-off} transform="rotate(-90 100 100)"><title>{`${d.label}: ${fmt(d.value)} (${Math.round((d.value / total) * 100)}%)`}</title></circle>;
           off += len;
           return el;
         })}
-        <text x="100" y="96" textAnchor="middle" className="vz-donut-v">{Math.round((top.value / total) * 100)}%</text>
-        <text x="100" y="116" textAnchor="middle" className="vz-donut-l">{center ?? top.label}</text>
+        <text x="100" y="98" textAnchor="middle" className="vz-donut-v">{fmt(total)}</text>
+        <text x="100" y="118" textAnchor="middle" className="vz-donut-l">{center ?? "total"}</text>
+        {rows.length > 1 && <g className="vz-bubble"><rect x={bx - 22} y={by - 13} width="44" height="26" rx="13" /><text x={bx} y={by + 5} textAnchor="middle">{topPct}%</text></g>}
       </svg>
       <ul className="vz-legend col">
         {rows.slice(0, 6).map((d, i) => <li key={d.label}><i style={{ background: SERIES[i % SERIES.length] }} /><span>{d.label}</span><b className="tnum">{fmt(d.value)}</b></li>)}
