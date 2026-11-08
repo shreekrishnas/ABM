@@ -10,6 +10,7 @@ import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/clie
 import { AddTaskButton } from "@/components/shell/QuickTask";
 import { ReplyAssistant } from "@/components/reply-assistant";
 import { Avatar, Badge, Card, Empty, ago, date } from "@/components/ui";
+import { KpiRow, KpiTile } from "@/components/viz/cards";
 import { ProspectTrack } from "./prospect-track";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { WebVisitsCard } from "@/components/web-visits";
@@ -111,6 +112,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
       {sp.edit === "1" && <Card title="Edit person" className="mb-5">{editForm}</Card>}
 
+      <PersonSummary contactId={c.id} stage={j ? STAGE_INFO[j.stage].label : "Not in a journey"} followUps={j?.followUpCount ?? 0} replies={j?.replyCount ?? 0} last={j?.lastEngagementAt ?? null} next={next?.text ?? null} />
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="grid min-w-0 content-start gap-5 xl:col-span-2">
           <InteractionRail contactId={c.id} />
@@ -241,5 +243,26 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
         </div>
       </div>
     </div>
+  );
+}
+
+/** The person at a glance: where they stand, what we've sent, what came back, what's next. */
+async function PersonSummary({ contactId, stage, followUps, replies, last, next }: { contactId: string; stage: string; followUps: number; replies: number; last: Date | null; next: string | null }) {
+  // LinkedIn steps the team logs (or imports) are journey events; count them with the emails.
+  const [sent, emailReplies, liEvents] = await Promise.all([
+    db.message.count({ where: { contactId, sentAt: { not: null } } }),
+    db.reply.count({ where: { contactId } }),
+    db.journeyEvent.groupBy({ by: ["type"], where: { journey: { contactId }, type: { in: ["connection_sent", "follow_up_sent", "message_sent", "details_shared", "reply"] } }, _count: true }),
+  ]);
+  const ev = (t: string[]) => liEvents.filter((e) => t.includes(e.type)).reduce((n, e) => n + e._count, 0);
+  const liOut = ev(["connection_sent", "follow_up_sent", "message_sent", "details_shared"]);
+  const liIn = ev(["reply"]);
+  return (
+    <div className="mb-5"><KpiRow>
+      <KpiTile tint={0} label="Journey stage" value={<span className="ps-stage">{stage}</span>} note={next ?? undefined} />
+      <KpiTile tint={1} label="Messages sent" value={sent + liOut} note={`${sent} email · ${liOut} LinkedIn · ${followUps} follow-up${followUps === 1 ? "" : "s"}`} />
+      <KpiTile tint={2} label="Replies" value={Math.max(replies, emailReplies + liIn)} note={`${emailReplies} email · ${liIn} LinkedIn`} />
+      <KpiTile tint={3} label="Last touch" value={last ? ago(last) : "None yet"} note={last ? date(last) : "No engagement recorded"} />
+    </KpiRow></div>
   );
 }

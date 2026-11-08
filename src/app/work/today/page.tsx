@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KpiRow, KpiTile } from "@/components/viz/cards";
 import { ArrowRight, Circle, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
@@ -40,6 +41,8 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
     .map((j) => ({ j, n: nextAction({ stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement }, now, { disqualifyReason: j.contact.account.stage === "DISQUALIFIED" ? j.contact.account.disqualifyReason : null }) }))
     .filter((x) => x.n.dueAt && x.n.dueAt <= now && !x.n.text.startsWith("No outreach"))
     .slice(0, 6);
+  // Same count as the Engage badge and Home; emails are the draft-approval items among them.
+  const [openAll, openEmails] = await Promise.all([db.reviewItem.count({ where: { status: "open" } }), db.reviewItem.count({ where: { status: "open", type: "draft_approval" } })]);
   const total = replies.length + approvalsCount + followUps.length + decisions.length;
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now));
 
@@ -80,12 +83,12 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
         </div>
       </header>
 
-      <ul className="td3-week" aria-label="This week">
-        <li><b className="tnum">{sentWeek}</b> emails sent this week</li>
-        <li><b className="tnum">{repliesWeek}</b> replies this week</li>
-        <li><b className="tnum">{liveConversations}</b> conversations under way</li>
-        <li><b className="tnum">{hotRaw.length}</b> hot companies</li>
-      </ul>
+      <div className="mb-4"><KpiRow>
+        <KpiTile tint={0} label="Waiting for you" value={openAll} period="Now" note={`${openAll - openEmails} decisions · ${openEmails} emails`} href="/review" />
+        <KpiTile tint={1} label="Emails sent" value={sentWeek} period="This week" note={`${repliesWeek} repl${repliesWeek === 1 ? "y" : "ies"} back`} href="/outreach" />
+        <KpiTile tint={2} label="Conversations" value={liveConversations} period="Now" note="under way across email and LinkedIn" href="/people" />
+        <KpiTile tint={3} label="Hot companies" value={hotRaw.length} period="Now" note="buying signals converging" href="/work/today?q=hot" />
+      </KpiRow></div>
 
       <div className="td3-split">
         <section className="td3-queue" aria-label="Your queue">

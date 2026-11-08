@@ -1349,3 +1349,5 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .ns-item small { display: block; color: var(--muted); font-size: var(--fs-xs); margin-top: 2px; }
 .ns-n { width: 26px; height: 26px; border-radius: var(--r-full); display: grid; place-items: center; flex: none; background: var(--pill-subtle); color: var(--pill); font-weight: 600; font-size: var(--fs-xs); }
 .vz-spark-empty { font-size: var(--fs-xs); color: var(--muted); }
+.ps-stage { font-size: var(--fs-xl); }
+.vz-chart svg { max-height: 280px; }

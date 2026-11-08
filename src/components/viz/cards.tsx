@@ -76,7 +76,8 @@ export function GroupedBars({ categories, series, height = 220, empty = "No data
                 const h = Math.max(v ? 2 : 0, (v / top) * plotH);
                 return <rect key={s.name} x={gx + si * (bw + 4)} y={padT + plotH - h} width={bw} height={h} rx={4} fill={SERIES[si]}><title>{`${c} · ${s.name}: ${fmt(v)}`}</title></rect>;
               })}
-              <text x={padL + ci * gw + gw / 2} y={H - 8} textAnchor="middle" className="vz-axis">{c}</text>
+              {/* Many categories: label every other one so the axis stays readable. */}
+              {(categories.length <= 8 || ci % 2 === 0) && <text x={padL + ci * gw + gw / 2} y={H - 8} textAnchor="middle" className="vz-axis">{c}</text>}
             </g>
           );
         })}

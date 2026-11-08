@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { JourneyStage, Prisma } from "@prisma/client";
 import { Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
 import { ViewSwitch } from "@/components/v2";
+import { KpiRow, KpiTile } from "@/components/viz/cards";
 import { JourneyBoard, LANES, type BoardCard } from "./journey-board";
 import { db } from "@/lib/db";
 import { JOURNEY_STAGES, STAGE_INFO, stageLabel, CLOSED } from "@/lib/journey/stages";
@@ -75,6 +76,23 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         sub={`${total.toLocaleString()} ${total === 1 ? "person" : "people"}. Each column is a step of the LinkedIn journey; click anyone to see their whole story.`}
         actions={<><ViewSwitch base="/people" params={{ q: sp.q, campaign: sp.campaign, sender: sp.sender, call: sp.call }} current={view} views={[{ id: "board", label: "Journey board", icon: <Columns3 size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /><Link href="/import" className="btn btn-brand"><Upload size={15} /> Import</Link></>}
       />
+
+      {(() => {
+        const c = (ks: string[]) => ks.reduce((n, k) => n + (stageCounts.find((x) => x.stage === k)?._count ?? 0), 0);
+        const contacted = allJourneys - c(["not_contacted"]);
+        const connected = c(["connection_accepted", "follow_up_sent", "replied_neutral", "details_requested", "details_shared", "interested", "nurture", "referred", "call_scheduled", "demo_scheduled", "opportunity", "closed_won"]);
+        const replied = c(["replied_neutral", "details_requested", "details_shared", "interested", "nurture", "referred", "not_interested", "call_scheduled", "demo_scheduled", "opportunity", "closed_won", "closed_lost"]);
+        const meetings = c(["call_scheduled", "demo_scheduled", "opportunity", "closed_won"]);
+        const pct = (n: number) => (contacted ? `${Math.round((n / contacted) * 100)}% of contacted` : "none contacted yet");
+        return (
+          <div className="mb-4"><KpiRow>
+            <KpiTile tint={0} label="People" value={total.toLocaleString()} note={`${contacted} contacted`} />
+            <KpiTile tint={1} label="Connected" value={connected} note={pct(connected)} />
+            <KpiTile tint={2} label="Replied" value={replied} note={pct(replied)} />
+            <KpiTile tint={3} label="Meetings & deals" value={meetings} note={pct(meetings)} />
+          </KpiRow></div>
+        );
+      })()}
 
       {view === "list" && (() => {
         const live = JOURNEY_STAGES.map((k) => ({ k, n: stageCounts.find((x) => x.stage === k)?._count ?? 0 })).filter((x) => x.n > 0 || x.k === stage);

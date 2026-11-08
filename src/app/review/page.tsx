@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { ago, date } from "@/components/ui";
 import { Badge as Kb, ConfidenceTag, EmptyState, FormField, PageHeader } from "@/components/kit";
+import { KpiRow, KpiTile } from "@/components/viz/cards";
 import { approveRejectionAction, keepCompanyAction, moreResearchAction, resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
 import { DecideButton, KeyNav } from "./decide";
 import { BodyEditor } from "./body-editor";
@@ -55,6 +56,21 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         const emails = counts.find((c) => c.type === "draft_approval")?._count ?? 0;
         return `${total} waiting: ${total - emails} decision${total - emails === 1 ? "" : "s"} and ${emails} email${emails === 1 ? "" : "s"} to approve. Only a person can decide these; pick one on the left and its evidence and actions open on the right.`;
       })()} />
+      {(() => {
+        const n = (ts: string[]) => counts.filter((c) => ts.includes(c.type)).reduce((t, c) => t + c._count, 0);
+        const person = n(["identity_conflict", "no_usable_person"]);
+        const ruleOut = n(["proposed_rejection", "possible_blocker"]);
+        const emails = n(["draft_approval", "draft_refresh", "guardrail_failed", "needs_human_reply"]);
+        const other = total - person - ruleOut - emails;
+        return (
+          <div className="mb-5"><KpiRow>
+            <KpiTile tint={0} label="Right person?" value={person} note="job or company doesn't match" href="/review?type=identity_conflict" />
+            <KpiTile tint={1} label="Rule out a company?" value={ruleOut} note="a rule or bad news says so" href="/review?type=proposed_rejection" />
+            <KpiTile tint={2} label="Emails to approve" value={emails} note="drafts and replies to check" href="/review?type=draft_approval" />
+            <KpiTile tint={3} label="Other" value={other} note="budget, data and hand-offs" href="/review" />
+          </KpiRow></div>
+        );
+      })()}
 
       <div className="dz-chips" role="group" aria-label="Filter by kind">
         <Link href="/review" className={`dz-chip${!type ? " on" : ""}`}>All · {total}</Link>

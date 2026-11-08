@@ -8,6 +8,7 @@ import { CONFIG } from "@/lib/config";
 import { breakerState } from "@/lib/pipeline/stages/engagement";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, Kpi, Meter, PageHeader, TabLinks, TierBadge, ago } from "@/components/ui";
+import { GroupedBars, KpiRow, KpiTile, change, daily } from "@/components/viz/cards";
 import { recordReplyAction, sendApprovedAction, tickAction } from "../actions";
 
 export const metadata = { title: "Outreach" };
@@ -23,6 +24,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
       <div className="page-enter">
       <PeekPanel peek={sp.peek} close={closeHref("/outreach", keep)} />
         <PageHeader eyebrow="Every email as a conversation" title="Emails" sub="Each person's thread: what the brain wrote, where it stands, and what they said back — email and LinkedIn together." actions={<ViewSwitch base="/outreach" params={{}} current="threads" views={[{ id: "threads", label: "Conversations", icon: <MessagesSquare size={13} /> }, { id: "overview", label: "Sending & sequences", icon: <Send size={13} /> }]} />} />
+        <EmailStats />
         <EmailThreads selected={sp.c} />
       </div>
     );
@@ -162,6 +164,35 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Email at a glance: what went out, what came back, and the last 14 days side by side. */
+async function EmailStats() {
+  const now = new Date();
+  const since = new Date(now.getTime() - 14 * 86_400_000), wk = new Date(now.getTime() - 7 * 86_400_000);
+  const [sent, replies, bounced, threads] = await Promise.all([
+    db.message.findMany({ where: { sentAt: { gte: since } }, select: { sentAt: true } }),
+    db.reply.findMany({ where: { receivedAt: { gte: since } }, select: { receivedAt: true, class: true } }),
+    db.message.count({ where: { status: "bounced", sentAt: { gte: since } } }),
+    db.message.groupBy({ by: ["contactId"], where: { sentAt: { not: null } } }),
+  ]);
+  const sentWk = sent.filter((m) => m.sentAt! >= wk).length, sentPrev = sent.length - sentWk;
+  const repWk = replies.filter((r) => r.receivedAt >= wk).length, repPrev = replies.length - repWk;
+  const positive = replies.filter((r) => r.class === "positive").length;
+  const rate = sent.length ? Math.round((replies.filter((r) => r.class !== "out_of_office").length / sent.length) * 100) : 0;
+  return (
+    <div className="mb-5 grid gap-4">
+      <KpiRow>
+        <KpiTile tint={0} label="Emails sent" period="This week" value={sentWk} pct={change(sentWk, sentPrev)} note="vs last week" />
+        <KpiTile tint={1} label="Replies" period="This week" value={repWk} pct={change(repWk, repPrev)} note={`${positive} positive in 14 days`} />
+        <KpiTile tint={2} label="Reply rate" period="14 days" value={`${rate}%`} note={`${bounced} bounced`} />
+        <KpiTile tint={3} label="Conversations" period="All time" value={threads.length} note="people emailed" />
+      </KpiRow>
+      <Card title="Sent and replies" sub="Last 14 days">
+        <GroupedBars categories={Array.from({ length: 14 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13 + i).toLocaleDateString("en-GB", { day: "numeric", month: "short" }))} series={[{ name: "Emails sent", values: daily(sent.map((m) => m.sentAt!), 14, now) }, { name: "Replies", values: daily(replies.map((r) => r.receivedAt), 14, now) }]} height={180} empty="No emails sent in the last 14 days." />
+      </Card>
     </div>
   );
 }
