@@ -130,7 +130,7 @@ export function SparkStat({ label, value, sub, points, href, tone = "up" }: { la
       <span className="vz-kpi-l">{label}</span>
       <span className="vz-spark-row">
         <span className="vz-spark-v tnum">{value}</span>
-        {points.length > 1 && <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden className={`vz-spark-line ${tone}`}><path d={d} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        {points.length > 1 && points.every((v) => v === 0) ? <span className="vz-spark-empty">None this week</span> : points.length > 1 && <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden className={`vz-spark-line ${tone}`}><path d={d} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
       </span>
       <span className="vz-spark-f">{sub && <span className="vz-kpi-n">{sub}</span>}{href && <Link href={href} className="vz-link">View details <ChevronRight size={13} /></Link>}</span>
     </div>

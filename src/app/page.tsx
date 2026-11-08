@@ -147,6 +147,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </section>
 
+        {(() => {
+          const steps = [
+            paused && { href: "/team?tab=system", t: "Resume AI", d: `Research is paused; ${queued} compan${queued === 1 ? "y is" : "ies are"} waiting` },
+            companies < 25 && { href: "/import", t: "Add more companies", d: `Only ${companies} in this workspace. Upload a list, describe the companies you want, or find lookalikes` },
+            waiting > 0 && { href: "/review", t: `Review ${waiting} waiting item${waiting === 1 ? "" : "s"}`, d: "Decisions and emails on Approvals that only a person can make" },
+            stageCount("UNAWARE") > 0 && stageCount("UNAWARE") === companies && { href: "/accounts", t: "Start outreach", d: "No company has been contacted yet: review the research and approve the first drafts" },
+            needs.length > 0 && { href: "/admin/integrations", t: `Connect ${needs[0].name}`, d: needs[0].detail },
+          ].filter(Boolean) as { href: string; t: string; d: string }[];
+          return steps.length ? (
+            <section className="hm2-card" aria-label="Next steps">
+              <div className="hm2-head"><h2>Next steps</h2><span className="hm2-meta">{steps.length} to do</span></div>
+              <div className="ns-list">{steps.slice(0, 4).map((x, i) => <Link key={x.t} href={x.href} className="ns-item"><span className="ns-n">{i + 1}</span><span className="min-w-0"><b>{x.t}</b><small>{x.d}</small></span></Link>)}</div>
+            </section>
+          ) : null;
+        })()}
+
         <section className="vz-sparks" aria-label="This week">
           <SparkStat label="Replies this week" value={sparkReplies.reduce((a, b) => a + b, 0)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
           <SparkStat label="Drafts written" value={sparkDrafts.reduce((a, b) => a + b, 0)} sub={toApprove ? `${toApprove} waiting` : "None waiting"} points={sparkDrafts} tone={trend(sparkDrafts)} href="/review" />
@@ -161,7 +177,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
               { name: "Companies added", values: daily(wkAccounts.map((a) => a.createdAt), 7, now) },
               { name: "Drafts written", values: sparkDrafts },
               { name: "Emails sent", values: daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now) },
-            ]} empty="Nothing happened in the last 7 days." />
+            ]} empty="Nothing happened in the last 7 days. New companies, drafts and emails show here as they happen." />
           </section>
           <section className="hm2-card">
             <div className="hm2-head"><h2>Companies by stage</h2><Link href="/accounts" className="hm-sec-link">All companies</Link></div>
