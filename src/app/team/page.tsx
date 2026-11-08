@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
@@ -10,6 +10,9 @@ import { Card, PageHeader, ago } from "@/components/ui";
 import { AccountLogo } from "@/components/account-logo";
 import { SERVICE_MODE_LABEL } from "@/lib/adapters";
 import { spendByAccount, systemHealth } from "@/lib/admin/health";
+import { clientOverview, type ClientRow } from "@/lib/admin/overview";
+import { GroupedBars, KpiRow, KpiTile } from "@/components/viz/cards";
+import { switchClientAction } from "@/app/login/actions";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
@@ -20,6 +23,7 @@ import { reResearchAllAction } from "@/app/actions";
 export const metadata = { title: "Team & Access" };
 
 const TABS = [
+  { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "people", label: "People", icon: ShieldCheck },
   { key: "accounts", label: "Accounts", icon: Building2 },
   { key: "system", label: "System health", icon: Activity },
@@ -35,14 +39,14 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const me = await getMe();
   if (!me?.superAdmin) notFound();
   const sp = await searchParams;
-  const tab: Tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "people";
+  const tab: Tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "overview";
   const clients = await db.client.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } });
   const [health, month] = await Promise.all([systemHealth(), monthlyStatus()]);
   const problems = (health.tables?.length ? 1 : 0) + (health.queue.stuck ? 1 : 0) + [...month.values()].filter((m) => m.state !== "ok").length + (health.errors.length ? 1 : 0);
 
   return (
     <div className="page-enter space-y-5">
-      <PageHeader eyebrow="Super Admin" title="Team & Access" sub="Who can sign in, which accounts each person works on, how the system is doing, and every Super Admin action." />
+      <PageHeader eyebrow="Super Admin" title="Super Admin" sub="Every client at a glance, who can sign in and to what, how the system is doing, and every Super Admin action." />
       <nav className="k-seg tm-tabs" aria-label="Team & Access sections">
         {TABS.map((t) => (
           <Link key={t.key} href={`/team?tab=${t.key}`} className={tab === t.key ? "on" : undefined} aria-current={tab === t.key ? "page" : undefined}>
@@ -51,6 +55,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           </Link>
         ))}
       </nav>
+      {tab === "overview" && <OverviewTab health={health} />}
       {tab === "people" && <PeopleTab me={me.email} clients={clients} />}
       {tab === "accounts" && <AccountsTab clients={clients} />}
       {tab === "system" && <SystemTab health={health} clients={clients} />}
@@ -287,5 +292,66 @@ async function AuditTab({ clients, who, what, account }: { clients: Clients; who
         </div>
       )}
     </Card>
+  );
+}
+
+/** Every client side by side, what needs a Super Admin's attention, and activity across clients. */
+async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof systemHealth>> }) {
+  const rows = await clientOverview();
+  const paused = await aiPause();
+  const sum = (k: keyof ClientRow) => rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+  const alerts: { tone: "bad" | "warn"; text: string; href: string }[] = [
+    ...(paused ? [{ tone: "warn" as const, text: `AI is paused: ${sum("queued")} companies waiting across clients`, href: "/team?tab=system" }] : []),
+    ...(health.queue.stuck ? [{ tone: "bad" as const, text: "The background queue has stopped", href: "/team?tab=system" }] : []),
+    ...(health.tables?.length ? [{ tone: "bad" as const, text: `The app can't use ${health.tables.length} table(s)`, href: "/team?tab=system" }] : []),
+    ...(health.errors.length ? [{ tone: "warn" as const, text: `${health.errors.length} error type(s) in the log`, href: "/team?tab=system" }] : []),
+    ...rows.flatMap((r) => r.issues.map((i) => ({ tone: (r.health === "bad" ? "bad" : "warn") as "bad" | "warn", text: `${r.name}: ${i}`, href: "/team?tab=accounts" }))),
+  ];
+  return (
+    <div className="grid gap-5">
+      <KpiRow>
+        <KpiTile tint={0} label="Clients" value={rows.length} note={`${rows.filter((r) => r.health === "ok").length} healthy`} />
+        <KpiTile tint={1} label="Companies" value={sum("companies").toLocaleString()} note={`${sum("added7")} added this week`} />
+        <KpiTile tint={2} label="Waiting for people" value={sum("waiting")} note="approvals across clients" />
+        <KpiTile tint={3} label="Emails / replies" period="7 days" value={`${sum("emails7")} / ${sum("replies7")}`} note="sent and received" />
+        <KpiTile tint={0} label="Spend" period="This month" value={usd(sum("spent"))} note="recorded across clients" />
+      </KpiRow>
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card title="Needs attention" sub={alerts.length ? `${alerts.length} item${alerts.length === 1 ? "" : "s"}` : "All clear"} pad={false}>
+          {alerts.length ? (
+            <ul className="so-alerts">{alerts.slice(0, 10).map((a, i) => <li key={i}><Link href={a.href} className={a.tone}><i />{a.text}</Link></li>)}</ul>
+          ) : <p className="tm-ok so-pad">Nothing needs you right now.</p>}
+        </Card>
+        <Card title="This week by client" sub="Companies added, emails sent and replies" className="xl:col-span-2">
+          <GroupedBars categories={rows.map((r) => r.name)} series={[{ name: "Companies added", values: rows.map((r) => r.added7) }, { name: "Emails sent", values: rows.map((r) => r.emails7) }, { name: "Replies", values: rows.map((r) => r.replies7) }]} height={200} empty="No activity this week in any client." />
+        </Card>
+      </div>
+
+      <Card title="Clients" sub="Health, work waiting and spend against each client's monthly cap" pad={false}>
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Client</th><th>Health</th><th className="r">Companies</th><th className="r">Queued</th><th className="r">Stopped</th><th className="r">Waiting</th><th className="r">Emails 7d</th><th className="r">Replies 7d</th><th>Spend this month</th><th>Last activity</th><th /></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td><span className="inline-flex items-center gap-2"><AccountLogo name={r.name} url={r.logoUrl} className="tm-logo" /><b>{r.name}</b></span><div className="muted text-xs">{r.people} {r.people === 1 ? "person" : "people"}</div></td>
+                  <td><span className={`so-health ${r.health}`} title={r.issues.join(" · ") || "All good"}><i />{r.health === "ok" ? "Healthy" : r.health === "warn" ? "Check" : "Problem"}</span></td>
+                  <td className="r tnum">{r.companies}</td>
+                  <td className="r tnum">{r.queued}</td>
+                  <td className="r tnum">{r.blocked}</td>
+                  <td className="r tnum">{r.waiting}</td>
+                  <td className="r tnum">{r.emails7}</td>
+                  <td className="r tnum">{r.replies7}</td>
+                  <td><div className="so-spend"><span className="tnum">{usd(r.spent)}{r.cap != null ? ` of $${r.cap}` : ""}</span>{r.cap != null && <span className={`so-bar ${r.capState}`}><i style={{ width: `${Math.min(100, (r.spent / Math.max(r.cap, 0.01)) * 100)}%` }} /></span>}</div></td>
+                  <td className="muted">{r.lastActivity ? ago(r.lastActivity) : "never"}</td>
+                  <td className="r"><form action={switchClientAction.bind(null, r.id)}><button type="submit" className="btn btn-secondary btn-sm">Open</button></form></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
   );
 }
