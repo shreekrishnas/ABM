@@ -62,6 +62,6 @@ export async function verify<T extends { exp: number }>(token: string | undefine
   }
 }
 
-export type Session = { email: string; exp: number };
+export type Session = { email: string; exp: number; v?: number };
 
-export const sessionToken = (email: string, secret: string) => sign({ email, exp: Date.now() + SESSION_DAYS * 86_400_000 } satisfies Session, secret);
+export const sessionToken = (email: string, secret: string, v = 0) => sign({ email, exp: Date.now() + SESSION_DAYS * 86_400_000, v } satisfies Session, secret);

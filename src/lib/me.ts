@@ -13,7 +13,7 @@ export type Me = {
   id: string;
   name: string;
   email: string;
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; role: import("@/lib/roles").Role }[];
   /** May switch into Super Admin. */
   canSuperAdmin: boolean;
   /** Super Admin is switched on for this session. */
@@ -29,11 +29,12 @@ export const getMe = cache(async (): Promise<Me | null> => {
   if (!session) return null;
   const user = await db.user.findUnique({ where: { email: session.email }, include: { clients: { include: { client: true } } } });
   if (!user || user.status !== "active") return null;
+  if ((session.v ?? 0) !== user.sessionVersion) return null;
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    clients: user.clients.map((c) => ({ id: c.client.id, name: c.client.name })),
+    clients: user.clients.map((c) => ({ id: c.client.id, name: c.client.name, role: (["owner", "manager", "rep", "viewer"].includes(c.role) ? c.role : "manager") as import("@/lib/roles").Role })),
     canSuperAdmin: user.superAdmin,
     superAdmin: user.superAdmin && jar.get(MODE_COOKIE)?.value === "super",
   };

@@ -23,9 +23,16 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
   if (!byIp.ok || !byEmail.ok) return { email, error: `Too many sign-in attempts. Try again in ${Math.ceil(Math.max(byIp.retryAfter, byEmail.retryAfter) / 60)} minutes.` };
   if (!domainAllowed(email)) return { email, error: `Only @${allowedDomains().join(" or @")} addresses can sign in.` };
   // Only people on the team list get in; Super Admin adds them on Team & Access.
-  const member = await db.user.findUnique({ where: { email }, select: { status: true } });
-  if (!member || member.status !== "active") return { email, error: "You're not on the team yet. Ask a Super Admin to add you in Team & Access." };
-  (await cookies()).set(SESSION_COOKIE, await sessionToken(email, secret), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
+  const member = await db.user.findUnique({ where: { email }, select: { id: true, status: true, sessionVersion: true } });
+  const h = await headers();
+  const record = (ok: boolean, reason?: string) =>
+    db.signInEvent.create({ data: { email, ok, reason: reason ?? null, ip: ip.slice(0, 64), userAgent: (h.get("user-agent") ?? "").slice(0, 300) } }).catch(() => undefined);
+  if (!member || member.status !== "active") {
+    await record(false, member ? "access removed" : "not on the team");
+    return { email, error: "You're not on the team yet. Ask a Super Admin to add you in Team & Access." };
+  }
+  await Promise.all([record(true), db.user.update({ where: { id: member.id }, data: { lastSignInAt: new Date() } })]);
+  (await cookies()).set(SESSION_COOKIE, await sessionToken(email, secret, member.sessionVersion), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
   redirect(safeNext(fd.get("next")));
 }
 

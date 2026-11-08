@@ -55,7 +55,7 @@ export async function setAssignmentAction(userId: string, clientId: string, assi
   try {
     const me = await requireSuperAdmin();
     const [user, client] = await Promise.all([db.user.findUniqueOrThrow({ where: { id: userId } }), db.client.findUniqueOrThrow({ where: { id: clientId } })]);
-    if (assigned) await db.userClient.upsert({ where: { userId_clientId: { userId, clientId } }, create: { userId, clientId }, update: {} });
+    if (assigned) await db.userClient.upsert({ where: { userId_clientId: { userId, clientId } }, create: { userId, clientId, role: "rep" }, update: {} });
     else await db.userClient.deleteMany({ where: { userId, clientId } });
     await audit(me.email, assigned ? "assignment.add" : "assignment.remove", { target: user.email, clientId, before: { assigned: !assigned }, after: { assigned } });
     revalidatePath("/team");
@@ -248,6 +248,36 @@ export async function setAiPausedAction(paused: boolean): Promise<ActionState> {
     }
     revalidatePath("/team");
     return { ok: true, message: paused ? "AI paused: no OpenRouter spending until you resume" : "AI resumed: the queue picks up where it stopped" };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function setRoleAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { isRole, ROLE_LABEL } = await import("@/lib/roles");
+    const userId = String(fd.get("userId") ?? ""), clientId = String(fd.get("clientId") ?? ""), role = fd.get("role");
+    if (!isRole(role)) return { ok: false, message: "Pick a role" };
+    const row = await db.userClient.findUnique({ where: { userId_clientId: { userId, clientId } }, include: { user: true, client: true } });
+    if (!row) return { ok: false, message: "Assign them to this client first" };
+    await db.userClient.update({ where: { userId_clientId: { userId, clientId } }, data: { role } });
+    (await import("@/lib/scope")).clearScopeCache();
+    await audit(me.email, "assignment.role", { target: row.user.email, clientId, before: { role: row.role }, after: { role } });
+    revalidatePath("/team");
+    return { ok: true, message: `${row.user.name} is now ${ROLE_LABEL[role]} in ${row.client.name}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function signOutEverywhereAction(userId: string): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const u = await db.user.update({ where: { id: userId }, data: { sessionVersion: { increment: 1 } } });
+    await audit(me.email, "user.sign_out_everywhere", { target: u.email });
+    revalidatePath("/team");
+    return { ok: true, message: `${u.name} is signed out on every device` };
   } catch (e) {
     return fail(e);
   }

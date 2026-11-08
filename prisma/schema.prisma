@@ -225,6 +225,10 @@ model User {
   /// Entitled to switch into Super Admin (team, clients, access). Switching never removes it.
   superAdmin Boolean  @default(false)
   createdAt  DateTime @default(now())
+  /// Last successful sign-in.
+  lastSignInAt DateTime?
+  /// Bumped to sign this person out everywhere (sessions carry the version they were issued with).
+  sessionVersion Int @default(0)
 
   clients       UserClient[]
   ownedAccounts Account[]     @relation("AccountOwner")
@@ -1283,6 +1287,8 @@ model Client {
 model UserClient {
   userId    String
   clientId  String
+  /// owner | manager | rep | viewer (per client). Super Admin overrides it.
+  role      String   @default("manager")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -1554,4 +1560,18 @@ model LinkedInMessage {
 
   @@index([journeyId, createdAt])
   @@index([contactId])
+}
+
+/// Every sign-in attempt, for Super Admin security review.
+model SignInEvent {
+  id        String   @id @default(cuid())
+  email     String
+  ok        Boolean
+  reason    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([createdAt])
 }

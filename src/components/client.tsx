@@ -1,4 +1,5 @@
 "use client";
+import { deniedMessage } from "@/lib/roles";
 
 import { useActionState, useEffect, useState, useTransition, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
@@ -59,7 +60,7 @@ export function ActionButton({ action, children, className = "btn btn-secondary"
             } catch (e) {
               // A redirect is not an error; anything else becomes a message instead of a crashed page.
               if (isRedirect(e)) throw e;
-              toast({ ok: false, message: "Something went wrong — try again. If it keeps happening, the server or database may be down." });
+              toast({ ok: false, message: deniedMessage(e) ?? "Something went wrong — try again. If it keeps happening, the server or database may be down." });
             }
           });
         }}
@@ -82,7 +83,7 @@ export function ActionForm({ action, children, className, resetOnSuccess = true 
       return r;
     } catch (e) {
       if (isRedirect(e)) throw e;
-      const r = { ok: false, message: "Something went wrong — try again. If it keeps happening, the server or database may be down." };
+      const r = { ok: false, message: deniedMessage(e) ?? "Something went wrong — try again. If it keeps happening, the server or database may be down." };
       toast(r);
       return r;
     }

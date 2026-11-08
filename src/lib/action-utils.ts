@@ -55,6 +55,7 @@ export interface ActionRef {
  * must not fail because its log entry couldn't be written.
  */
 export async function logAction(action: string, ref: ActionRef = {}): Promise<void> {
+  let denied: string | null = null;
   try {
     const [{ getMe, audit }, { baseDb }] = await Promise.all([import("@/lib/me"), import("@/lib/db-base")]);
     const me = await getMe();
@@ -87,9 +88,30 @@ export async function logAction(action: string, ref: ActionRef = {}): Promise<vo
       name = s?.name ?? null;
       clientId = s?.sellerId ?? null;
     }
+    // Role check: Super Admin may do anything; others by their role in the client the action touches.
+    const { minRoleFor, atLeast, denyText } = await import("@/lib/roles");
+    const { resolveScope } = await import("@/lib/scope");
+    const scope = await resolveScope();
+    if (!scope?.all) {
+      const cid = clientId ?? scope?.active ?? null;
+      const roles = me.clients.filter((c) => !cid || c.id === cid).map((c) => c.role);
+      const best = roles.sort((a, b) => (atLeast(a, b) ? -1 : 1))[0] ?? "viewer";
+      const min = minRoleFor(action);
+      if (!atLeast(best, min)) denied = denyText(best, min);
+    }
+    if (denied) {
+      await audit(me.email, `denied.${action}`, { ...(clientId ? { clientId } : {}) });
+      return;
+    }
     const target = [person, name, ref.detail].filter(Boolean).join(" · ") || undefined;
     await audit(me.email, action, { target, ...(clientId ? { clientId } : {}) });
   } catch {
-    // never block the action
+    // never block the action because logging failed
+  } finally {
+    if (denied) {
+      const { ActionDenied } = await import("@/lib/roles");
+      // eslint-disable-next-line no-unsafe-finally
+      throw new ActionDenied(denied);
+    }
   }
 }

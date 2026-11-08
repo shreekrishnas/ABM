@@ -1368,3 +1368,11 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .so-bar i { display: block; height: 100%; background: var(--pill); border-radius: var(--r-full); }
 .so-bar.warn i { background: var(--warning); }
 .so-bar.over i { background: var(--danger); }
+
+/* ── Team: role per client ── */
+.tm-rolechip { display: inline-flex; align-items: center; gap: var(--sp-1); padding-right: 4px; }
+.tm-x { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.tm-roleform { display: inline-flex; gap: 2px; align-items: center; }
+.tm-roleform select { font: inherit; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text); padding: 1px var(--sp-1); }
+.tm-set { font-size: var(--fs-xs); border: 0; background: none; color: var(--pill); cursor: pointer; font-weight: 600; }
+.tm-link { font-size: var(--fs-xs); border: 0; background: none; color: var(--pill); cursor: pointer; padding: 0; }

@@ -17,7 +17,12 @@ async function editor(clientId: string): Promise<string> {
     if (authRequired()) throw new Error("Sign in first");
     return "local";
   }
-  if (!me.superAdmin && !me.clients.some((c) => c.id === clientId)) throw new Error("You are not assigned to this account");
+  if (!me.superAdmin) {
+    const c = me.clients.find((x) => x.id === clientId);
+    if (!c) throw new Error("You are not assigned to this account");
+    const { atLeast, ActionDenied, denyText } = await import("@/lib/roles");
+    if (!atLeast(c.role, "manager")) throw new ActionDenied(denyText(c.role, "manager"));
+  }
   return me.email;
 }
 

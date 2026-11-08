@@ -17,7 +17,8 @@ import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, setUserStatusAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, setRoleAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
@@ -74,10 +75,11 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
       <Card title="People" sub={`${users.filter((u) => u.status === "active").length} active. Click an account to assign or unassign.`} pad={false}>
         <div className="table-wrap">
           <table className="data">
-            <thead><tr><th>Name</th><th>Access</th><th>Accounts</th><th className="text-right">Sign-in</th></tr></thead>
+            <thead><tr><th>Name</th><th>Access</th><th>Clients and role</th><th>Last sign-in</th><th className="text-right">Sign-in</th></tr></thead>
             <tbody>
               {users.map((u) => {
                 const assigned = new Set(u.clients.map((c) => c.clientId));
+                const roleOf = new Map(u.clients.map((c) => [c.clientId, c.role]));
                 const removed = u.status !== "active";
                 return (
                   <tr key={u.id} style={removed ? { opacity: 0.55 } : undefined}>
@@ -86,13 +88,25 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
                     <td>
                       <div className="flex flex-wrap gap-1.5">
                         {clients.map((c) => assigned.has(c.id) ? (
-                          <ActionButton key={c.id} action={setAssignmentAction.bind(null, u.id, c.id, false)} className="tm-chip on" confirm={`Remove ${u.name} from ${c.name}?`} title="Click to unassign">{c.name} ✓</ActionButton>
+                          <span key={c.id} className="tm-chip on tm-rolechip">
+                            <ActionButton action={setAssignmentAction.bind(null, u.id, c.id, false)} className="tm-x" confirm={`Remove ${u.name} from ${c.name}?`} title="Unassign">{c.name}</ActionButton>
+                            {!u.superAdmin && (
+                              <ActionForm action={setRoleAction} className="tm-roleform">
+                                <input type="hidden" name="userId" value={u.id} /><input type="hidden" name="clientId" value={c.id} />
+                                <select name="role" defaultValue={roleOf.get(c.id) ?? "manager"} aria-label={`${u.name}'s role in ${c.name}`} title={ROLES.map((r) => `${ROLE_LABEL[r]}: ${ROLE_HELP[r]}`).join("\n")}>
+                                  {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                                </select>
+                                <SubmitButton className="tm-set">Set</SubmitButton>
+                              </ActionForm>
+                            )}
+                          </span>
                         ) : (
                           <ActionButton key={c.id} action={setAssignmentAction.bind(null, u.id, c.id, true)} className="tm-chip" title="Click to assign" disabled={removed}>+ {c.name}</ActionButton>
                         ))}
                         {assigned.size === 0 && <span className="muted text-xs">No account yet</span>}
                       </div>
                     </td>
+                    <td className="muted text-xs">{u.lastSignInAt ? ago(u.lastSignInAt) : "Never"}{!removed && u.email !== me && u.lastSignInAt && <div><ActionButton action={signOutEverywhereAction.bind(null, u.id)} className="tm-link" confirm={`Sign ${u.name} out on every device?`}>Sign out everywhere</ActionButton></div>}</td>
                     <td className="text-right">
                       {u.email === me ? <span className="muted text-xs">You</span> : removed
                         ? <ActionButton action={setUserStatusAction.bind(null, u.id, "active")} className="btn btn-secondary btn-sm">Restore</ActionButton>
@@ -105,7 +119,7 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
           </table>
         </div>
       </Card>
-      <Card title={<span className="inline-flex items-center gap-2"><UserPlus size={18} /> Add a person</span>} sub="They sign in with this email; assign their accounts in the table above.">
+      <Card title={<span className="inline-flex items-center gap-2"><UserPlus size={18} /> Add a person</span>} sub="They sign in with this email. Assign their clients and role in the table above; new assignments start as Rep.">
         <ActionForm action={addUserAction} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <input name="name" className="glass-input" placeholder="Full name" aria-label="Full name" required />
           <input name="email" type="email" className="glass-input" placeholder={`name@${allowedDomains()[0] ?? "company.com"}`} aria-label="Email" required />
