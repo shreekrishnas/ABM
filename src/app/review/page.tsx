@@ -51,7 +51,10 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page-enter">
-      <PageHeader title="Approvals" description="Only a person can decide these. Pick one on the left; its evidence and actions open on the right." />
+      <PageHeader title="Approvals" description={(() => {
+        const emails = counts.find((c) => c.type === "draft_approval")?._count ?? 0;
+        return `${total} waiting: ${total - emails} decision${total - emails === 1 ? "" : "s"} and ${emails} email${emails === 1 ? "" : "s"} to approve. Only a person can decide these; pick one on the left and its evidence and actions open on the right.`;
+      })()} />
 
       <div className="dz-chips" role="group" aria-label="Filter by kind">
         <Link href="/review" className={`dz-chip${!type ? " on" : ""}`}>All · {total}</Link>

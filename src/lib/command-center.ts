@@ -67,6 +67,12 @@ export async function commandCenter(now = new Date()) {
     db.handoff.findMany({ where: { status: "open", acknowledgedAt: null, ackDueAt: { lt: now } }, include: { account: { select: { name: true } } }, take: 20 }),
   ]);
 
+  // Same count as the Engage badge: every open approval item (email drafts are among them).
+  const [openItems, openDrafts] = await Promise.all([
+    db.reviewItem.count({ where: { status: "open" } }),
+    db.reviewItem.count({ where: { status: "open", type: "draft_approval" } }),
+  ]);
+  const decisions = openItems - openDrafts;
   const atRisk = atRiskPaused.length + atRiskError.length;
   const overdue = overdueTasks.length + overdueHandoffs.length;
   const kpis: Kpi[] = [
@@ -74,7 +80,7 @@ export async function commandCenter(now = new Date()) {
     { key: "engaged", label: metric("engaged_groups").label, value: engagedAll, note: contactedAll ? `of ${contactedAll} contacted` : "No outreach yet", href: metric("engaged_groups").href ?? "", tone: engagedAll ? "up" : "", define: metric("engaged_groups").define },
     { key: "opps", label: metric("open_opps").label, value: openOpps, note: oppValue._sum.amountUsd ? `$${oppValue._sum.amountUsd.toLocaleString()} entered` : "No value entered", href: metric("open_opps").href ?? "", tone: "", define: metric("open_opps").define },
     { key: "risk", label: metric("at_risk").label, value: atRisk, note: atRisk ? `${atRiskPaused.length} paused · ${atRiskError.length} stuck` : "Nothing stuck", href: metric("at_risk").href ?? "", tone: atRisk ? "risk" : "", define: metric("at_risk").define },
-    { key: "approve", label: metric("emails_to_approve").label, value: toApprove, note: refresh.some((r) => r.type === "draft_refresh") ? `${refresh.filter((r) => r.type === "draft_refresh").length} need a fresh version` : toApprove ? "Drafts checked, waiting for you" : "Nothing waiting", href: metric("emails_to_approve").href ?? "", tone: toApprove ? "warn" : "", define: metric("emails_to_approve").define },
+    { key: "approve", label: "Waiting for you", value: openItems, note: openItems ? `${decisions} decision${decisions === 1 ? "" : "s"} · ${openDrafts} email${openDrafts === 1 ? "" : "s"}${toApprove > openDrafts ? ` · ${toApprove} drafts ready` : ""}` : "Nothing waiting", href: "/review", tone: openItems ? "warn" : "", define: "Everything on the Approvals page: decisions (is this the right person, rule this company out, hand-offs) and email drafts to approve. Same number as the Engage badge." },
     { key: "overdue", label: metric("overdue").label, value: overdue, note: overdue ? `${overdueTasks.length} task${overdueTasks.length === 1 ? "" : "s"} · ${overdueHandoffs.length} hand-off${overdueHandoffs.length === 1 ? "" : "s"}` : "All on time", href: metric("overdue").href ?? "", tone: overdue ? "risk" : "", define: metric("overdue").define },
   ];
 

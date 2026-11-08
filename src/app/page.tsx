@@ -96,6 +96,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     const what: Record<string, string> = { research_plan: "Research planned", account_research: "Research ran", account_twin: "Evidence updated", investigate: "Investigation", readiness: e.outcome === "block" ? "Held at readiness" : "Ready for outreach", draft_review: "Draft written", rejection: "Rejection proposed", fit_tier: e.outcome === "block" ? "Stopped at fit" : "Fit scored", intake: "Data filled", brain: "Brief written", orchestrator: e.outcome === "block" ? "Stopped" : "Run finished" };
     return what[area] ?? area.replace(/_/g, " ");
   };
+  const waiting = Number(cc.kpis.find((k) => k.key === "approve")?.value ?? 0);
   const actionable = ["approve", "overdue"].map((k) => cc.kpis.find((x) => x.key.includes(k))).filter(Boolean) as typeof cc.kpis;
   const context = cc.kpis.filter((k) => !actionable.includes(k));
 
@@ -113,7 +114,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="min-w-0">
             <div className="hm-date">{dateLine}</div>
             <h1 className="hm-title">{greeting(now)}{userName ? `, ${userName}` : ""}</h1>
-            <p className="hm-brief">{toApprove ? <><b>{toApprove} draft{toApprove === 1 ? "" : "s"}</b> waiting for your approval</> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
+            <p className="hm-brief">{waiting ? <><b>{waiting} item{waiting === 1 ? "" : "s"}</b> waiting for you on <Link href="/review">Approvals</Link></> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
           </div>
           <div className="hm-tools">
             <SearchPill />
