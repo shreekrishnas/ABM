@@ -13,7 +13,6 @@ import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { NotificationBell } from "@/components/shell/NotificationBell";
 import { Donut, GroupedBars, SparkStat, dayLabels, daily } from "@/components/viz/cards";
-import { integrations } from "@/lib/admin/integrations";
 
 export const metadata = { title: "Home" };
 
@@ -42,13 +41,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [cc, flow, paused, conns, monthSpend, queued] = await Promise.all([
-    commandCenter(now), companyFlow(now), aiPause(), integrations(),
-    db.ledgerEntry.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { amountMicros: true } }),
+  const [cc, flow, paused, queued] = await Promise.all([
+    commandCenter(now), companyFlow(now), aiPause(),
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
   ]);
-  const spentUsd = (monthSpend._sum.amountMicros ?? 0) / 1_000_000;
   const wkAgo = new Date(now.getTime() - 7 * DAY);
   const [wkAccounts, wkDrafts, wkSent, wkReplies, wkHandoffs, wkVisits] = await Promise.all([
     db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
@@ -64,8 +60,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const sparkHandoffs = daily(wkHandoffs.map((h) => h.createdAt), 7, now);
   const sparkVisits = daily(wkVisits.map((v) => v.occurredAt), 7, now);
   const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
-  const healthy = conns.filter((c) => c.state === "connected").length;
-  const needs = conns.filter((c) => c.state === "setup" || c.state === "off" || c.state === "paused");
   const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.draft.count({ where: { status: "pending_review" } }),
@@ -147,21 +141,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </section>
 
-        {(() => {
-          const steps = [
-            paused && { href: "/team?tab=system", t: "Resume AI", d: `Research is paused; ${queued} compan${queued === 1 ? "y is" : "ies are"} waiting` },
-            companies < 25 && { href: "/import", t: "Add more companies", d: `Only ${companies} in this workspace. Upload a list, describe the companies you want, or find lookalikes` },
-            waiting > 0 && { href: "/review", t: `Review ${waiting} waiting item${waiting === 1 ? "" : "s"}`, d: "Decisions and emails on Approvals that only a person can make" },
-            stageCount("UNAWARE") > 0 && stageCount("UNAWARE") === companies && { href: "/accounts", t: "Start outreach", d: "No company has been contacted yet: review the research and approve the first drafts" },
-            needs.length > 0 && { href: "/admin/integrations", t: `Connect ${needs[0].name}`, d: needs[0].detail },
-          ].filter(Boolean) as { href: string; t: string; d: string }[];
-          return steps.length ? (
-            <section className="hm2-card" aria-label="Next steps">
-              <div className="hm2-head"><h2>Next steps</h2><span className="hm2-meta">{steps.length} to do</span></div>
-              <div className="ns-list">{steps.slice(0, 4).map((x, i) => <Link key={x.t} href={x.href} className="ns-item"><span className="ns-n">{i + 1}</span><span className="min-w-0"><b>{x.t}</b><small>{x.d}</small></span></Link>)}</div>
-            </section>
-          ) : null;
-        })()}
 
         <section className="vz-sparks" aria-label="This week">
           <SparkStat label="Replies this week" value={sparkReplies.reduce((a, b) => a + b, 0)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
@@ -242,14 +221,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </div>
 
-        <section className="hm2-card hm-health" aria-label="Platform">
-          <div className="hm2-head"><h2>Platform</h2><Link href="/admin/integrations" className="hm-sec-link">Integrations</Link></div>
-          <div className="hm-health-row">
-            <div><span className="hm2-c-l">Connections</span><span className="hm2-c-v tnum">{healthy}/{conns.length}</span><span className="hm2-c-n">{needs.length ? `${needs.map((n) => n.name).slice(0, 3).join(", ")} need attention` : "All connected"}</span></div>
-            <div><span className="hm2-c-l">AI</span><span className="hm2-c-v">{paused ? "Paused" : "Running"}</span><span className="hm2-c-n">{queued} in the queue</span></div>
-            <div><span className="hm2-c-l">Spend this month</span><span className="hm2-c-v tnum">${spentUsd.toFixed(2)}</span><span className="hm2-c-n">Search, AI and lookups</span></div>
-          </div>
-        </section>
 
         {companies < 10 && (
           <section className="hm2-card hm2-onboard" aria-label="Import">
