@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, Bell, CheckCircle2, ClipboardCheck, DollarSign, Globe2, Handshake, ListTodo, MessageSquareReply, X } from "lucide-react";
 import { loadNotifications } from "./notification-actions";
 import type { Notice } from "@/lib/notifications";
@@ -53,7 +54,8 @@ export function NotificationBell() {
         <Bell size={17} strokeWidth={1.75} />
         {unread > 0 && <span className="nav-dotcount tnum">{unread > 9 ? "9+" : unread}</span>}
       </button>
-      {open && (
+      {/* Drawn on <body>: the glass top bar would otherwise trap the fixed panel inside it. */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
           <div className="nb-scrim" onMouseDown={() => setOpen(false)} />
           <aside className="nb-panel" role="dialog" aria-label="Notifications">
@@ -73,7 +75,8 @@ export function NotificationBell() {
                   })}
             </div>
           </aside>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
