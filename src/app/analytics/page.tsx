@@ -5,7 +5,7 @@ import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
 import { classifyTrigger } from "@/lib/seller/fit";
 import { HBars } from "@/components/charts";
-import { StatStrip } from "@/components/v2";
+import { Donut, GroupedBars, KpiRow, KpiTile, change, dayLabels, daily } from "@/components/viz/cards";
 import { STAGE_SHORT } from "@/lib/stage-docs";
 import { Card, PageHeader, money } from "@/components/ui";
 
@@ -15,6 +15,13 @@ import { LinkedInPerformance } from "./linkedin-card";
 
 export default async function AnalyticsPage() {
   await ensureSellerPacks();
+  const now = new Date();
+  const wk = new Date(now.getTime() - 7 * 86_400_000), wk2 = new Date(now.getTime() - 14 * 86_400_000);
+  const [thisWeek, lastWeek] = await Promise.all([
+    db.ledgerEntry.groupBy({ by: ["kind"], where: { createdAt: { gte: wk } }, _sum: { amountMicros: true } }),
+    db.ledgerEntry.groupBy({ by: ["kind"], where: { createdAt: { gte: wk2, lt: wk } }, _sum: { amountMicros: true } }),
+  ]);
+  const wkSpend = (rows: typeof thisWeek, k?: string) => rows.filter((r) => !k || r.kind === k).reduce((t, r) => t + (r._sum.amountMicros ?? 0), 0) / 1e6;
   const [messages, replies, evidence, ledgerByKind, ledgerByStage, oppsByTier, accountsByTier, closed] = await Promise.all([
     db.message.findMany({ where: { status: { in: ["delivered", "bounced"] } }, include: { draft: true, contact: { include: { account: true } } } }),
     db.reply.findMany({ include: { message: { include: { draft: true } }, contact: { include: { account: true } } } }),
@@ -60,6 +67,8 @@ export default async function AnalyticsPage() {
     return { tier: t, accounts: accountsByTier.find((a) => a.tier === t)?._count ?? 0, sent, rate: sent ? Math.round((rep / sent) * 100) : 0, pipeline: opps.filter((o) => !["won", "lost"].includes(o.stage)).reduce((a, o) => a + o.amountUsd, 0), won: won.reduce((a, o) => a + o.amountUsd, 0) };
   });
 
+  const sentWeek = messages.filter((m) => m.sentAt && m.sentAt >= wk).length;
+  const sentPrevWeek = messages.filter((m) => m.sentAt && m.sentAt >= wk2 && m.sentAt < wk).length;
   const spend = (k: string) => (ledgerByKind.find((l) => l.kind === k)?._sum.amountMicros ?? 0) / 1e6;
   // One definition everywhere: every cost recorded (AI, web search, paid lookups, verification).
   const totalSpend = SPEND_KINDS.reduce((t, k) => t + spend(k), 0);
@@ -68,15 +77,23 @@ export default async function AnalyticsPage() {
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Learning loop" title="Analytics" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
-      <StatStrip items={[
-        { label: metric("spend_total").label, value: `$${totalSpend.toFixed(2)}`, meta: metric("spend_total").define },
-        { label: "Web search", value: `$${spend("search").toFixed(2)}`, meta: `${ledgerByKind.find((l) => l.kind === "search")?._count ?? 0} searches` },
-        { label: "AI (research and writing)", value: `$${spend("llm").toFixed(2)}`, meta: `${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls` },
-        { label: "Paid lookups", value: `$${spend("lookup").toFixed(2)}`, meta: "Only for missing fields" },
-        { label: "Emails sent", value: messages.length, meta: `${replies.length} replies` },
-      ]} />
+      <KpiRow>
+        <KpiTile tint={0} label={metric("spend_total").label} period="All time" value={`$${totalSpend.toFixed(2)}`} pct={change(wkSpend(thisWeek), wkSpend(lastWeek))} goodWhenUp={false} note="this week vs last" />
+        <KpiTile tint={1} label="AI (research and writing)" period="All time" value={`$${spend("llm").toFixed(2)}`} pct={change(wkSpend(thisWeek, "llm"), wkSpend(lastWeek, "llm"))} goodWhenUp={false} note={`${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls`} />
+        <KpiTile tint={2} label="Web search" period="All time" value={`$${spend("search").toFixed(2)}`} pct={change(wkSpend(thisWeek, "search"), wkSpend(lastWeek, "search"))} goodWhenUp={false} note={`${ledgerByKind.find((l) => l.kind === "search")?._count ?? 0} searches`} />
+        <KpiTile tint={3} label="Emails sent" period="All time" value={messages.length} pct={change(sentWeek, sentPrevWeek)} note={`${replies.length} replies`} />
+      </KpiRow>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+      <div className="mt-5 grid gap-5 xl:grid-cols-3">
+        <Card title="Emails and replies" sub="Last 7 days" className="xl:col-span-2">
+          <GroupedBars categories={dayLabels(7, now)} series={[{ name: "Emails sent", values: daily(messages.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now) }, { name: "Replies", values: daily(replies.map((r) => r.receivedAt), 7, now) }]} empty="No emails sent in the last 7 days." />
+        </Card>
+        <Card title="Reply types" sub="How replies were routed">
+          <Donut data={replyClasses} center="of replies" empty="No replies yet. This fills once emails are sent." />
+        </Card>
+      </div>
+
+      <div className="mt-5 grid gap-5">
         <Card title="Reply rate by angle" sub="Which trigger type, used as the lead, gets answers" pad={false}>
           <div className="table-wrap">
             <table className="data">
@@ -89,9 +106,6 @@ export default async function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        </Card>
-        <Card title="Reply classes" sub="How replies were routed">
-          <HBars data={replyClasses} unit="replies" height={220} empty="No replies yet. This fills once emails are sent." />
         </Card>
       </div>
 

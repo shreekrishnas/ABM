@@ -12,6 +12,7 @@ import { FunnelTrack } from "@/components/viz/funnel-track";
 import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { NotificationBell } from "@/components/shell/NotificationBell";
+import { Donut, GroupedBars, SparkStat, dayLabels, daily } from "@/components/viz/cards";
 import { integrations } from "@/lib/admin/integrations";
 
 export const metadata = { title: "Home" };
@@ -48,6 +49,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
   ]);
   const spentUsd = (monthSpend._sum.amountMicros ?? 0) / 1_000_000;
+  const wkAgo = new Date(now.getTime() - 7 * DAY);
+  const [wkAccounts, wkDrafts, wkSent, wkReplies, wkHandoffs, wkVisits] = await Promise.all([
+    db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
+    db.draft.findMany({ where: { createdAt: { gte: wkAgo } }, select: { createdAt: true, status: true } }),
+    db.message.findMany({ where: { sentAt: { gte: wkAgo } }, select: { sentAt: true } }),
+    db.reply.findMany({ where: { receivedAt: { gte: wkAgo } }, select: { receivedAt: true } }),
+    db.handoff.findMany({ where: { createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
+    db.webVisit.findMany({ where: { occurredAt: { gte: wkAgo } }, select: { occurredAt: true } }),
+  ]);
+  const trend = (pts: number[]) => (pts.length < 2 ? "flat" : pts[pts.length - 1] > pts[0] ? "up" : pts[pts.length - 1] < pts[0] ? "down" : "flat") as "up" | "down" | "flat";
+  const sparkReplies = daily(wkReplies.map((r) => r.receivedAt), 7, now);
+  const sparkDrafts = daily(wkDrafts.map((d) => d.createdAt), 7, now);
+  const sparkHandoffs = daily(wkHandoffs.map((h) => h.createdAt), 7, now);
+  const sparkVisits = daily(wkVisits.map((v) => v.occurredAt), 7, now);
+  const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
   const healthy = conns.filter((c) => c.state === "connected").length;
   const needs = conns.filter((c) => c.state === "setup" || c.state === "off" || c.state === "paused");
   const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
@@ -129,6 +145,28 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             ))}
           </div>
         </section>
+
+        <section className="vz-sparks" aria-label="This week">
+          <SparkStat label="Replies this week" value={sparkReplies.reduce((a, b) => a + b, 0)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
+          <SparkStat label="Drafts written" value={sparkDrafts.reduce((a, b) => a + b, 0)} sub={toApprove ? `${toApprove} waiting` : "None waiting"} points={sparkDrafts} tone={trend(sparkDrafts)} href="/review" />
+          <SparkStat label="Hand-offs" value={sparkHandoffs.reduce((a, b) => a + b, 0)} points={sparkHandoffs} tone={trend(sparkHandoffs)} href="/handoffs" />
+          <SparkStat label="Website visits" value={sparkVisits.reduce((a, b) => a + b, 0)} points={sparkVisits} tone={trend(sparkVisits)} href="/import/apollo" />
+        </section>
+
+        <div className="hm2-grid">
+          <section className="hm2-card">
+            <div className="hm2-head"><h2>Activity this week</h2><span className="hm2-meta">Last 7 days</span></div>
+            <GroupedBars categories={dayLabels(7, now)} series={[
+              { name: "Companies added", values: daily(wkAccounts.map((a) => a.createdAt), 7, now) },
+              { name: "Drafts written", values: sparkDrafts },
+              { name: "Emails sent", values: daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now) },
+            ]} empty="Nothing happened in the last 7 days." />
+          </section>
+          <section className="hm2-card">
+            <div className="hm2-head"><h2>Companies by stage</h2><Link href="/accounts" className="hm-sec-link">All companies</Link></div>
+            <Donut data={byStage.map((b) => ({ label: STAGE_WORD[b.stage] ?? b.stage, value: b._count }))} center="of companies" empty="No companies yet." />
+          </section>
+        </div>
 
         <section className="hm2-card hm2-flow">
           <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
