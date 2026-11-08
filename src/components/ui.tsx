@@ -129,8 +129,8 @@ export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: string;
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
-        <h1 className="page-title">{title}</h1>
+        {/* The breadcrumb above says where the page is; no second label over the title. */}
+        <h1 className="page-title" data-section={eyebrow}>{title}</h1>
         {sub && <p className="secondary mt-1.5 max-w-3xl text-sm">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

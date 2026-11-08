@@ -90,13 +90,14 @@ export function NextAction({ text, why, children }: { text: string; why?: ReactN
 }
 
 export function StatStrip({ items }: { items: { label: string; value: ReactNode; meta?: ReactNode }[] }) {
+  // Same look as every headline number in the app: soft tinted cards (components/viz/cards).
   return (
-    <div className="stat-strip">
-      {items.map((i) => (
-        <div key={i.label}>
-          <div className="micro">{i.label}</div>
-          <div className="v">{i.value}</div>
-          {i.meta && <div className="m">{i.meta}</div>}
+    <div className="vz-kpis">
+      {items.map((i, n) => (
+        <div key={i.label} className={`vz-kpi t${n % 4}`}>
+          <span className="vz-kpi-l">{i.label}</span>
+          <span className="vz-kpi-v tnum">{i.value}</span>
+          {i.meta && <span className="vz-kpi-n">{i.meta}</span>}
         </div>
       ))}
     </div>

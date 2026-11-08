@@ -1247,7 +1247,7 @@ html, body { background: var(--canvas) !important; }
 .hm-health-row > div { display: grid; gap: 2px; }
 
 /* ── Dashboard pieces (components/viz/cards.tsx): tinted KPI tiles, bars, donut, sparkline cards ── */
-.vz-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: var(--sp-3); }
+.vz-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: var(--sp-3); }
 .vz-kpi { display: grid; gap: var(--sp-1); padding: var(--sp-4) var(--sp-5); border-radius: var(--r-lg); border: 1px solid transparent; color: var(--text); text-decoration: none; min-width: 0; transition: transform 160ms, box-shadow 160ms; }
 a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .vz-kpi.t0 { background: color-mix(in srgb, var(--pill) 9%, var(--surface)); }
@@ -1293,3 +1293,25 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .vz-mini-row small { display: block; font-size: var(--fs-2xs); color: var(--muted); }
 .vz-mini-row b { font-size: var(--fs-lg); font-weight: 600; }
 .vz-empty { color: var(--muted); font-size: var(--fs-sm); margin: var(--sp-4) 0; }
+
+/* ── One look for headline numbers: kit Stat tiles match the tinted KPI cards ── */
+.k-stats.vz-kpis { display: grid !important; border: 0 !important; background: none !important; padding: 0 !important; box-shadow: none !important; }
+.k-stats.vz-kpis > .k-stat { display: grid; gap: var(--sp-1); padding: var(--sp-4) var(--sp-5) !important; border-radius: var(--r-lg) !important; border: 1px solid transparent !important; box-shadow: none !important; background: color-mix(in srgb, var(--pill) 9%, var(--surface)) !important; }
+.k-stats.vz-kpis > .k-stat:nth-child(4n+2) { background: color-mix(in srgb, var(--accent) 9%, var(--surface)) !important; }
+.k-stats.vz-kpis > .k-stat:nth-child(4n+3) { background: color-mix(in srgb, var(--info) 9%, var(--surface)) !important; }
+.k-stats.vz-kpis > .k-stat:nth-child(4n+4) { background: color-mix(in srgb, var(--success) 9%, var(--surface)) !important; }
+.k-stats.vz-kpis .k-stat-v { font-size: var(--fs-3xl) !important; font-weight: 600; letter-spacing: -0.02em; }
+.k-stats.vz-kpis > .k-stat::before, .k-stats.vz-kpis > .k-stat + .k-stat { border-left: 0 !important; }
+.vz-kpi .micro { font-size: var(--fs-xs); }
+/* Legacy Kpi boxes (Hand-offs, Deals, Emails, Signals, Behind the scenes): same tinted cards */
+.kpi { padding: var(--sp-4) var(--sp-5) !important; border-radius: var(--r-lg) !important; border: 1px solid transparent !important; box-shadow: none !important; background: color-mix(in srgb, var(--pill) 9%, var(--surface)) !important; backdrop-filter: none !important; }
+.kpi::before, .kpi::after { display: none !important; }
+*:nth-child(4n+2) > .kpi, .kpi:nth-child(4n+2) { background: color-mix(in srgb, var(--accent) 9%, var(--surface)) !important; }
+*:nth-child(4n+3) > .kpi, .kpi:nth-child(4n+3) { background: color-mix(in srgb, var(--info) 9%, var(--surface)) !important; }
+*:nth-child(4n+4) > .kpi, .kpi:nth-child(4n+4) { background: color-mix(in srgb, var(--success) 9%, var(--surface)) !important; }
+.kpi .micro { font-size: var(--fs-xs) !important; color: var(--text-2) !important; text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; }
+.kpi .value { font-family: var(--font-sans) !important; font-size: var(--fs-3xl) !important; font-weight: 600 !important; letter-spacing: -0.02em; color: var(--text) !important; }
+.kpi .meta { font-size: var(--fs-xs) !important; color: var(--muted) !important; }
+/* One page-title style for both header components */
+.page-title, .k-ph-title { font-size: var(--fs-4xl) !important; font-weight: 600 !important; letter-spacing: -0.025em !important; line-height: 1.2 !important; color: var(--text) !important; }
+.k-ph { margin-bottom: var(--sp-6) !important; }

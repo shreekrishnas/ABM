@@ -22,5 +22,5 @@ export function Stat({ id, value, sub, tone = "default", loading, pending }: { i
 }
 
 export function StatRow({ children }: { children: React.ReactNode }) {
-  return <div className="k-stats">{children}</div>;
+  return <div className="k-stats vz-kpis">{children}</div>;
 }
