@@ -42,19 +42,20 @@ export async function HeaderSignals({ account: a, brief, intent, progress }: { a
   const n = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
   const mqa = CONFIG.engagement.stages.MQA;
   const pp = a.priorityParts as { intent: number; fit: number; value: number; timing: number } | null;
-  const cells: { label: string; value: string; unit?: string; note: string; tone?: string; title?: string; href?: string }[] = [
-    { label: "Priority", value: a.priorityScore != null ? `${a.priorityScore}` : "—", note: pp ? `I ${pp.intent} · F ${pp.fit} · V ${pp.value} · T ${pp.timing}` : "Scored after research", title: "Intent, fit, company value and timing, weighted in the Account Brain" },
-    { label: "Fit", value: a.fitScore != null ? `${a.fitScore}` : "—", unit: a.fitScore != null ? "/100" : "", note: a.tier ? `Tier ${a.tier}` : "Scored at step 3", href: "?tab=overview#fit" },
-    { label: "Intent", value: intent ? `${intent.score}` : "—", unit: intent?.level, note: intent ? "Signals, decayed by age" : "Read after research", tone: intent?.level === "hot" ? "hot" : undefined },
-    { label: "Engagement", value: `${Math.round(a.engagementScore)}`, unit: `/${mqa}`, note: a.engagementScore >= mqa ? "Hand-off reached" : `${Math.max(0, Math.round(mqa - a.engagementScore))} to hand-off`, href: "?tab=activity" },
-    { label: "Evidence", value: `${n("verified")}`, unit: "verified", note: `${n("probable")} single · ${n("conflicting")} disputed${latest ? ` · ${ago(latest.createdAt)}` : ""}` },
+  const total = n("verified") + n("probable") + n("conflicting");
+  const cells: { label: string; value: string; unit?: string; note: string; tone?: string; title?: string; href?: string; ratio?: number | null }[] = [
+    { label: "Priority", value: a.priorityScore != null ? `${a.priorityScore}` : "—", note: pp ? `I ${pp.intent} · F ${pp.fit} · V ${pp.value} · T ${pp.timing}` : "Scored after research", title: "Intent, fit, company value and timing, weighted in the Account Brain", ratio: a.priorityScore != null ? a.priorityScore / 100 : null },
+    { label: "Fit", value: a.fitScore != null ? `${a.fitScore}` : "—", unit: a.fitScore != null ? "/100" : "", note: a.tier ? `Tier ${a.tier}` : "Scored at step 3", href: "?tab=overview#fit", ratio: a.fitScore != null ? a.fitScore / 100 : null },
+    { label: "Intent", value: intent ? `${intent.score}` : "—", unit: intent?.level, note: intent ? "Signals, decayed by age" : "Read after research", tone: intent?.level === "hot" ? "hot" : undefined, ratio: intent ? Math.min(1, intent.score / 100) : null },
+    { label: "Engagement", value: `${Math.round(a.engagementScore)}`, unit: `/${mqa}`, note: a.engagementScore >= mqa ? "Hand-off reached" : `${Math.max(0, Math.round(mqa - a.engagementScore))} to hand-off`, href: "?tab=activity", ratio: Math.min(1, a.engagementScore / mqa) },
+    { label: "Evidence", value: `${n("verified")}`, unit: "verified", note: `${n("probable")} single · ${n("conflicting")} disputed${latest ? ` · ${ago(latest.createdAt)}` : ""}`, ratio: total ? n("verified") / total : null },
   ];
   return (
     <div className="ch-strip" title={`Kept separate on purpose: fit says whether they match, intent whether now is the moment, engagement whether they respond, evidence how much we can prove.${brief ? ` Research brief v${brief.version}.` : ""}`}>
       {cells.map((c) => {
         const body = (
           <>
-            <span className="ch-l">{c.label}</span>
+            <span className="ch-top"><span className="ch-l">{c.label}</span>{c.ratio != null && <Ring ratio={c.ratio} tone={c.tone} />}</span>
             <span className={`ch-v${c.tone ? ` ${c.tone}` : ""}`}><b className="tnum">{c.value}</b>{c.unit && <small>{c.unit}</small>}</span>
             <span className="ch-n">{c.note}</span>
           </>
@@ -109,5 +110,16 @@ export async function WhyNow({ brief, fallback }: { brief: StoredBrief | null; f
         <p className="wn-inf"><span className="wn-chip muted">inferred</span> Read from signals, not a sourced fact: treat as a reason to look, not proof of buying.</p>
       )}
     </div>
+  );
+}
+
+/** A small score ring (0–1), as on the dashboard cards. */
+function Ring({ ratio, tone }: { ratio: number; tone?: string }) {
+  const r = 13, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, ratio));
+  return (
+    <svg viewBox="0 0 34 34" width="30" height="30" className={`ch-ring${tone ? ` ${tone}` : ""}`} aria-hidden>
+      <circle cx="17" cy="17" r={r} fill="none" strokeWidth="4" className="bg" />
+      <circle cx="17" cy="17" r={r} fill="none" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${v * c} ${c}`} transform="rotate(-90 17 17)" className="fg" />
+    </svg>
   );
 }

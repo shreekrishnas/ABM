@@ -1315,3 +1315,15 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 /* One page-title style for both header components */
 .page-title, .k-ph-title { font-size: var(--fs-4xl) !important; font-weight: 600 !important; letter-spacing: -0.025em !important; line-height: 1.2 !important; color: var(--text) !important; }
 .k-ph { margin-bottom: var(--sp-6) !important; }
+
+/* ── Company page score row: tinted cards with score rings ── */
+.ch-strip { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)) !important; gap: var(--sp-3) !important; border: 0 !important; background: none !important; padding: 0 !important; }
+.ch-strip > .ch-c { border: 0 !important; border-radius: var(--r-lg) !important; padding: var(--sp-4) !important; display: grid; gap: var(--sp-1); align-content: start; background: color-mix(in srgb, var(--pill) 8%, var(--surface)); }
+.ch-strip > .ch-c:nth-child(4n+2) { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.ch-strip > .ch-c:nth-child(4n+3) { background: color-mix(in srgb, var(--info) 8%, var(--surface)); }
+.ch-strip > .ch-c:nth-child(4n+4) { background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+.ch-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.ch-ring .bg { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
+.ch-ring .fg { stroke: var(--pill); }
+.ch-ring.hot .fg { stroke: var(--danger); }
+.ch-strip .ch-v b { font-size: var(--fs-3xl); font-weight: 600; letter-spacing: -0.02em; }

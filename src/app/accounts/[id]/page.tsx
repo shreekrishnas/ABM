@@ -25,6 +25,7 @@ import { BuyingGroupPlan } from "./buying-group";
 import { TimelineCard } from "./timeline-card";
 import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
+import { Donut, GroupedBars, KpiRow, KpiTile } from "@/components/viz/cards";
 import { ProfileCard } from "./profile-card";
 import { StakeholdersCard } from "./stakeholders-card";
 
@@ -325,6 +326,25 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       {tab === "research" && <ResearchTrace accountId={a.id} />}
       {tab === "intake" && <IntakeTab account={a} />}
 
+      {tab === "people" && (() => {
+        const roles: Record<string, string> = { decision_maker: "Decision makers", champion: "Champions", influencer: "Influencers", budget_owner: "Budget owners", unknown: "Role not set" };
+        const byRole = Object.entries(a.contacts.reduce<Record<string, number>>((m, c) => ({ ...m, [c.buyingRole ?? "unknown"]: (m[c.buyingRole ?? "unknown"] ?? 0) + 1 }), {})).map(([k, v]) => ({ label: roles[k] ?? k, value: v }));
+        const contacted = a.contacts.filter((c) => c.drafts.some((d) => d.status === "sent" || d.status === "approved")).length;
+        const withEmail = a.contacts.filter((c) => c.email).length;
+        const withLinkedin = a.contacts.filter((c) => c.linkedinUrl).length;
+        return (
+          <div className="mb-5 grid items-stretch gap-5 xl:grid-cols-3">
+            <div className="xl:col-span-2 grid content-start gap-3">
+              <KpiRow>
+                <KpiTile tint={0} label="People found" value={a.contacts.length} note="in the buying group" />
+                <KpiTile tint={1} label="Contacted" value={contacted} note={`${a.contacts.length ? Math.round((contacted / a.contacts.length) * 100) : 0}% of the group`} />
+                <KpiTile tint={2} label="With email" value={withEmail} note={`${withLinkedin} with LinkedIn`} />
+              </KpiRow>
+            </div>
+            <Card title="Roles covered" sub="Who we know, by buying role"><Donut data={byRole} center="of people" size={150} empty="No people yet." /></Card>
+          </div>
+        );
+      })()}
       {tab === "people" && <NetworkCard accountId={a.id} company={a.name} />}
       {tab === "people" && <div className="mb-5"><StakeholdersCard accountId={a.id} /></div>}
       {tab === "people" && <BuyingGroupPlan accountId={a.id} />}
@@ -387,6 +407,30 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {tab === "activity" && (() => {
+        const weeks = 8;
+        const start = new Date(new Date().getTime() - weeks * 7 * 86_400_000);
+        const wk = (d: Date) => Math.min(weeks - 1, Math.max(0, Math.floor((d.getTime() - start.getTime()) / (7 * 86_400_000))));
+        const sig = Array.from({ length: weeks }, () => 0);
+        for (const x of signals) if (x.occurredAt >= start) sig[wk(x.occurredAt)]++;
+        const sentDrafts = a.contacts.flatMap((c) => c.drafts).filter((d) => d.status === "sent");
+        const em = Array.from({ length: weeks }, () => 0);
+        for (const d of sentDrafts) if (d.createdAt >= start) em[wk(d.createdAt)]++;
+        const labels = Array.from({ length: weeks }, (_, i) => new Date(start.getTime() + i * 7 * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+        return (
+          <div className="mb-5 grid gap-5 xl:grid-cols-3">
+            <div className="grid content-start gap-3">
+              <KpiRow>
+                <KpiTile tint={0} label="Signals" value={signals.length} note="engagement and intent" />
+                <KpiTile tint={1} label="Emails sent" value={sentDrafts.length} note={`${a.notes.length} team notes`} />
+              </KpiRow>
+            </div>
+            <Card title="Activity by week" sub="Last 8 weeks" className="xl:col-span-2">
+              <GroupedBars categories={labels} series={[{ name: "Signals", values: sig }, { name: "Emails sent", values: em }]} height={190} empty="No activity in the last 8 weeks." />
+            </Card>
+          </div>
+        );
+      })()}
       {tab === "activity" && (
         <div className="grid gap-5 xl:grid-cols-2">
           <div className="xl:col-span-2"><WebVisitsCard accountId={a.id} /></div>

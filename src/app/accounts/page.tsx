@@ -10,6 +10,7 @@ import { ActiveChips, CompanyFilterBar, SelectAllBox, type FilterDef } from "./f
 import { PriorityMap } from "./priority-map";
 import { NewCompany } from "./new-company";
 import { PageHeader } from "@/components/kit";
+import { KpiRow, KpiTile } from "@/components/viz/cards";
 import type { IntentLevel } from "@/components/v2";
 
 export const metadata = { title: "Companies" };
@@ -130,6 +131,13 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   };
   const exportHref = `/accounts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`;
 
+  const [sAll, sT1, sHot, sNoPeople, sCust] = await Promise.all([
+    db.account.count({ where: { mergedIntoId: null } }),
+    db.account.count({ where: { mergedIntoId: null, tier: "T1" } }),
+    db.account.count({ where: { mergedIntoId: null, intentReading: { path: ["level"], equals: "hot" } } }),
+    db.account.count({ where: { mergedIntoId: null, contacts: { none: {} } } }),
+    db.account.count({ where: { mergedIntoId: null, relationship: "customer" } }),
+  ]);
   return (
     <div className="dir">
       <PageHeader
@@ -141,6 +149,12 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
           <a href={exportHref} className="btn btn-secondary"><Download size={15} /> Export</a>
         </>}
       />
+      <div className="mb-4"><KpiRow>
+        <KpiTile tint={0} label="All companies" value={sAll} note={`${sCust} customers`} />
+        <KpiTile tint={1} label="Tier 1 (1:1)" value={sT1} note={`${sAll ? Math.round((sT1 / sAll) * 100) : 0}% of companies`} />
+        <KpiTile tint={2} label="Hot intent" value={sHot} note="buying signals converging" />
+        <KpiTile tint={3} label="No people yet" value={sNoPeople} note="need a buying group" />
+      </KpiRow></div>
       <section className="dir-main">
           <CompanyFilterBar filters={filters} total={total} view={view} />
           <ActiveChips chips={chips} />
