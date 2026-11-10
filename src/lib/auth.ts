@@ -64,4 +64,11 @@ export async function verify<T extends { exp: number }>(token: string | undefine
 
 export type Session = { email: string; exp: number; v?: number };
 
+/** An emailed sign-in link: short-lived, and tied to the person's last sign-in so it works once. */
+export type LinkToken = { email: string; exp: number; kind: "link"; last: number };
+export const LINK_MINUTES = 15;
+export const linkToken = (email: string, secret: string, last: number) => sign({ email, exp: Date.now() + LINK_MINUTES * 60_000, kind: "link", last } satisfies LinkToken, secret);
+/** Sign-in by emailed link is on once a mailbox is connected (AUTH_LINK_REQUIRED=false switches it off). */
+export const linkSignIn = () => Boolean(process.env.SMTP_URL?.trim()) && process.env.AUTH_LINK_REQUIRED !== "false";
+
 export const sessionToken = (email: string, secret: string, v = 0) => sign({ email, exp: Date.now() + SESSION_DAYS * 86_400_000, v } satisfies Session, secret);

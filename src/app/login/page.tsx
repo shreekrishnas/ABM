@@ -1,4 +1,4 @@
-import { allowedDomains, authSecret } from "@/lib/auth";
+import { allowedDomains, authSecret, linkSignIn } from "@/lib/auth";
 import { LoginForm } from "./form";
 import { Logo } from "@/components/brand/Logo";
 
@@ -8,8 +8,9 @@ export const metadata = { title: "Sign in" };
 const NODES: [number, number, number][] = [[8, 18, 0], [22, 64, 1.2], [36, 30, 2.4], [14, 86, 0.6], [48, 78, 1.8], [62, 12, 3], [78, 40, 0.9], [90, 74, 2.1], [70, 88, 1.5], [54, 48, 2.7]];
 const LINKS: [number, number][] = [[0, 2], [2, 1], [1, 3], [2, 9], [9, 4], [9, 6], [5, 6], [6, 7], [7, 8], [4, 8], [5, 2]];
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; e?: string }> }) {
+  const { next, e } = await searchParams;
+  const notice = e === "used" ? "That sign-in link was already used. Ask for a new one." : e === "expired" ? "That sign-in link has expired. Ask for a new one." : undefined;
   const domains = allowedDomains();
   return (
     <div className="lg-root">
@@ -42,7 +43,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </section>
 
         <section className="lg-card" aria-label="Sign in">
-          <LoginForm next={next ?? ""} domains={domains} ready={Boolean(authSecret())} />
+          <LoginForm next={next ?? ""} domains={domains} ready={Boolean(authSecret())} byLink={linkSignIn()} notice={notice} />
         </section>
       </main>
     </div>
