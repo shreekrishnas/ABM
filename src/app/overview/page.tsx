@@ -77,7 +77,7 @@ export default async function ProgramOverview() {
         </Card>
         <Card title="Active companies by priority" sub="Top: one-to-one outreach. Mid: small groups. Broad: everyone else.">
           <TierDonut data={(["T1", "T2", "T3"] as const).map((t) => ({ label: TIER_LABEL[t], value: tierGroups.find((g) => g.tier === t)?._count ?? 0 }))} />
-          <p className="muted mt-4 text-xs leading-relaxed">Tier is set by company size and upgraded to T1 when buying intent turns hot. It sets research depth.</p>
+          <p className="muted mt-4 text-xs leading-relaxed">Priority is set by company size and raised to Top priority when buying intent turns hot. It decides how deeply each company is researched.</p>
         </Card>
       </div>
 

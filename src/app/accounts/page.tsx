@@ -151,8 +151,8 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         </>}
       />
       <div className="mb-4"><KpiRow>
-        <KpiTile tint={0} label="All companies" value={sAll} note={`${sCust} customers`} />
-        <KpiTile tint={1} label="Tier 1 (1:1)" value={sT1} note={`${sAll ? Math.round((sT1 / sAll) * 100) : 0}% of companies`} />
+        <KpiTile tint={0} label="All companies" value={sAll} note={`${sCust} customer${sCust === 1 ? "" : "s"}`} />
+        <KpiTile tint={1} label="Top priority" value={sT1} note={`${sAll ? Math.round((sT1 / sAll) * 100) : 0}% of companies`} />
         <KpiTile tint={2} label="Hot intent" value={sHot} note="buying signals converging" />
         <KpiTile tint={3} label="No people yet" value={sNoPeople} note="need a buying group" />
       </KpiRow></div>
@@ -216,7 +216,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                           ) : <span className="muted">—</span>}
                         </td>
                         <td className="num"><span className={`dir-intent ${intent >= 70 ? "hot" : intent >= 40 ? "warm" : intent > 0 ? "cool" : ""}`}>{intent}</span></td>
-                        <td className="num tnum" title={r.tier ? tierLabel(r.tier) : undefined}>{r.priorityScore ?? <span className="muted">—</span>}{r.tier && <small className="dir-tier">{r.tier}</small>}</td>
+                        <td className="num tnum" title={r.tier ? tierLabel(r.tier) : undefined}>{r.priorityScore ?? <span className="muted">—</span>}{r.tier && <small className="dir-tier">{tierLabel(r.tier).replace(" priority", "")}</small>}</td>
                         <td><StageBadge stage={r.stage} /></td>
                         <td className="dir-src dir-wide" title={src}>{src}</td>
                         <td className="num tnum">{r._count.contacts}</td>

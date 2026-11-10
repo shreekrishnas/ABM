@@ -1426,3 +1426,6 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 
 /* Narrow context cards: the label wins over the period tag */
 .hm2-c-l em { display: none; }
+
+/* Phones: the assistant button sits above the bottom bar instead of covering "More" */
+@media (max-width: 767px) { .assistant-fab { bottom: calc(64px + var(--sp-3)); width: 46px; height: 46px; } }

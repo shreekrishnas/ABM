@@ -361,7 +361,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     autonomy: human ? "needs_human" : "acted", accountId: account.id, contactId: contact.id, draftId: draft.id,
   });
   if (human) {
-    await openReview({ type: "draft_approval", stage: S, accountId: account.id, contactId: contact.id, draftId: draft.id, reason: `Step ${stepOrder} draft for ${contact.fullName} (${account.tier})`, dueInHours: 24 });
+    await openReview({ type: "draft_approval", stage: S, accountId: account.id, contactId: contact.id, draftId: draft.id, reason: `Step ${stepOrder} draft for ${contact.fullName}${account.tier ? ` (${({ T1: "Top priority", T2: "Mid priority", T3: "Broad" } as Record<string, string>)[account.tier] ?? account.tier})` : ""}`, dueInHours: 24 });
   }
   await publish(ctx, { type: "draft.ready", module: "writer", accountId: account.id, payload: { contactId: contact.id, draftId: draft.id, versions: attempt, needsHuman: human } });
   await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.human_review", outcome: "pass", reason: human ? `Queued for approval (${criticDown ? "a critic could not run" : sp.autonomy})` : `Auto-approved (${sp.autonomy})` });
