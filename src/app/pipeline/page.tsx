@@ -76,7 +76,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                 <div className="text-[0.78rem] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{s.name}</div>
                 <div className="mt-1 flex flex-wrap justify-center gap-1">
                   <span className="badge" style={{ background: "var(--surface-track)", color: "var(--text-secondary)" }} title="Accounts that completed this stage">{reached(s.n)}</span>
-                  {blocks(s.n) > 0 && <span className="badge" style={{ background: "rgba(245,158,11,0.12)", color: "#B45309" }} title="Gate blocks logged">{blocks(s.n)}</span>}
+                  {blocks(s.n) > 0 && <span className="badge" style={{ background: "rgba(245,158,11,0.12)", color: "#B45309" }} title="Companies stopped at this step">{blocks(s.n)}</span>}
                 </div>
               </Link>
             ))}

@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -33,7 +34,7 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Link href={q({ gaps: undefined })} className={`btn btn-sm ${sp.gaps !== "1" ? "btn-primary" : "btn-secondary"}`}>All {accounts.length}</Link>
         <Link href={q({ gaps: "1" })} className={`btn btn-sm ${sp.gaps === "1" ? "btn-primary" : "btn-secondary"}`}>Missing a key role · {gapCount}</Link>
-        {(["T1", "T2", "T3"] as const).map((t) => <Link key={t} href={q({ tier: sp.tier === t ? undefined : t })} className={`btn btn-sm ${sp.tier === t ? "btn-primary" : "btn-secondary"}`}>{t}</Link>)}
+        {(["T1", "T2", "T3"] as const).map((t) => <Link key={t} href={q({ tier: sp.tier === t ? undefined : t })} className={`btn btn-sm ${sp.tier === t ? "btn-primary" : "btn-secondary"}`}>{tierLabel(t)}</Link>)}
         <span className="ml-auto flex flex-wrap gap-2">{STATUS_ORDER.map((s) => <span key={s} className="hm-legend"><i style={{ background: STATUS_COLOR[s] }} />{s === "missing" ? "none found" : s}</span>)}</span>
       </div>
       <Card pad={false}>

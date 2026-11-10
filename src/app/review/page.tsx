@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import type { ReviewType } from "@prisma/client";
 import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
@@ -107,7 +108,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                   <h2>{r.reason}</h2>
                   <p className="dz-meta">
                     {r.account && <Link href={`/accounts/${r.account.id}`}>{r.account.name}</Link>}
-                    {r.account?.tier && <> · Tier {r.account.tier}</>} · opened {ago(r.createdAt)}{r.dueAt ? ` · due ${date(r.dueAt)}` : ""}
+                    {r.account?.tier && <> · {tierLabel(r.account.tier)}</>} · opened {ago(r.createdAt)}{r.dueAt ? ` · due ${date(r.dueAt)}` : ""}
                   </p>
                 </div>
                 <p className="dz-keys"><kbd>J</kbd> next · <kbd>K</kbd> previous</p>

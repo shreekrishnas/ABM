@@ -126,7 +126,7 @@ export function Donut({ data, center, empty = "No data yet", size = 210 }: { dat
 }
 
 /** A small stat card with a sparkline and a link to the details. */
-export function SparkStat({ label, value, sub, points, href, tone = "up" }: { label: string; value: ReactNode; sub?: string; points: number[]; href?: string; tone?: "up" | "down" | "flat" }) {
+export function SparkStat({ label, value, sub, points, href, tone = "up", pct }: { label: string; value: ReactNode; sub?: string; points: number[]; href?: string; tone?: "up" | "down" | "flat"; pct?: number | null }) {
   const W = 110, H = 36, max = Math.max(1, ...points), min = Math.min(0, ...points);
   const xs = (i: number) => (points.length > 1 ? (i / (points.length - 1)) * (W - 4) + 2 : W / 2);
   const ys = (v: number) => H - 4 - ((v - min) / (max - min || 1)) * (H - 8);
@@ -138,7 +138,7 @@ export function SparkStat({ label, value, sub, points, href, tone = "up" }: { la
         <span className="vz-spark-v tnum">{value}</span>
         {points.length > 1 && points.every((v) => v === 0) ? <span className="vz-spark-empty">None this week</span> : points.length > 1 && <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden className={`vz-spark-line ${tone}`}><path d={d} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
       </span>
-      <span className="vz-spark-f">{sub && <span className="vz-kpi-n">{sub}</span>}{href && <Link href={href} className="vz-link">View details <ChevronRight size={13} /></Link>}</span>
+      <span className="vz-spark-f">{pct !== undefined && pct !== 0 && <span className="vz-spark-d"><Delta pct={pct} /> <span className="vz-kpi-n">vs last week</span></span>}{sub && <span className="vz-kpi-n">{sub}</span>}{href && <Link href={href} className="vz-link">View details <ChevronRight size={13} /></Link>}</span>
     </div>
   );
 }

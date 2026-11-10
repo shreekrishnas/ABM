@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { ArrowDown, ArrowUp, Download, Plus, RefreshCw, RotateCcw, Upload } from "lucide-react";
@@ -68,7 +69,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     { key: "source", label: "Source", any: "Any source", options: sources.map((s) => ({ value: s.source, label: s.source, n: s._count })) },
     { key: "list", label: "Import list", any: "Any list", options: batches.map((b) => ({ value: b.id, label: b.filename })) },
     { key: "campaign", label: "Campaign", any: "Any campaign", options: campaigns.map((c) => ({ value: c.id, label: c.name })) },
-    { key: "tier", label: "Tier", any: "Any tier", options: ["T1", "T2", "T3"].map((t) => ({ value: t, label: t })) },
+    { key: "tier", label: "Priority", any: "Any priority", options: ["T1", "T2", "T3"].map((t) => ({ value: t, label: tierLabel(t) })) },
     { key: "stage", label: "Status", any: "Any status", options: STAGES.map((s) => ({ value: s, label: label(s) })) },
   ];
 
@@ -215,7 +216,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                           ) : <span className="muted">—</span>}
                         </td>
                         <td className="num"><span className={`dir-intent ${intent >= 70 ? "hot" : intent >= 40 ? "warm" : intent > 0 ? "cool" : ""}`}>{intent}</span></td>
-                        <td className="num tnum" title={r.tier ? `Tier ${r.tier}` : undefined}>{r.priorityScore ?? <span className="muted">—</span>}{r.tier && <small className="dir-tier">{r.tier}</small>}</td>
+                        <td className="num tnum" title={r.tier ? tierLabel(r.tier) : undefined}>{r.priorityScore ?? <span className="muted">—</span>}{r.tier && <small className="dir-tier">{r.tier}</small>}</td>
                         <td><StageBadge stage={r.stage} /></td>
                         <td className="dir-src dir-wide" title={src}>{src}</td>
                         <td className="num tnum">{r._count.contacts}</td>

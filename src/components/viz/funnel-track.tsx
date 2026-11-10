@@ -1,4 +1,5 @@
 "use client";
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 
 // Company flow: a column per step (count in the bar, step name above), a soft band joining the
 // steps, the conversion between each pair (the biggest drop in red), how many stopped at each step
@@ -57,7 +58,7 @@ export function FunnelTrack({ steps, accounts }: { steps: { key: string; label: 
         </div>
         <div className="cf-tools">
           <div className="k-seg cf-seg" role="group" aria-label="Filter by tier">
-            {["all", "T1", "T2", "T3"].map((t) => <button key={t} type="button" aria-pressed={tier === t} onClick={() => { setTier(t); setSel(null); }}>{t === "all" ? "All" : t}</button>)}
+            {["all", "T1", "T2", "T3"].map((t) => <button key={t} type="button" aria-pressed={tier === t} onClick={() => { setTier(t); setSel(null); }}>{t === "all" ? "All" : tierLabel(t)}</button>)}
           </div>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTable(!table)} aria-pressed={table}><Table2 size={15} /> {table ? "Show as chart" : "Show as table"}</button>
         </div>

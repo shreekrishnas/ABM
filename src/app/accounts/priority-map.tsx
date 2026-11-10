@@ -64,7 +64,7 @@ export function PriorityMap({ accounts }: { accounts: Dot[] }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs secondary">
         <span className="inline-flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full" style={{ boxShadow: "0 0 0 2px var(--intent-hot)" }} /> Hot: signals converging</span>
-        <span>Bigger mark = higher tier (T1 · T2 · T3)</span>
+        <span>Bigger mark = higher priority (top, mid, broad)</span>
         {waiting.length > 0 && <span className="muted">Not on the map yet ({waiting.length}): {waiting.slice(0, 6).map((w, i) => <Link key={w.id} href={`/accounts/${w.id}`} className="hover:underline">{i ? ", " : ""}{w.name}</Link>)}{waiting.length > 6 ? "…" : ""}</span>}
       </div>
     </div>

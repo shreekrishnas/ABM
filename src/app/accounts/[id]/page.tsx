@@ -494,7 +494,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
                 <select id="owner" name="ownerId" defaultValue={a.ownerId ?? ""} className="glass-select"><option value="">Unassigned</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}</select>
               </div>
               <div><label className="field-label" htmlFor="tier">Tier override</label>
-                <select id="tier" name="tier" defaultValue={a.tierLocked && a.tier ? a.tier : "auto"} className="glass-select"><option value="auto">Automatic from fit</option><option value="T1">T1 · 1:1</option><option value="T2">T2 · 1:few</option><option value="T3">T3 · 1:many</option></select>
+                <select id="tier" name="tier" defaultValue={a.tierLocked && a.tier ? a.tier : "auto"} className="glass-select"><option value="auto">Automatic from fit</option><option value="T1">Top priority (one-to-one)</option><option value="T2">Mid priority (small group)</option><option value="T3">Broad</option></select>
               </div>
               <label className="flex items-center gap-2 text-sm secondary"><input type="checkbox" name="doNotContact" defaultChecked={a.doNotContact} className="h-4 w-4 accent-indigo-500" /> Do not contact (owner request)</label>
               <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Save</SubmitButton></div>

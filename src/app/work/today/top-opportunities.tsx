@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import { Download, Globe } from "lucide-react";
 import { db } from "@/lib/db";
@@ -70,7 +71,7 @@ export async function TopOpportunities({ now, compact }: { now: Date; compact?: 
                 <Avatar name={a.name} id={a.id} size={28} />
                 <span className="min-w-0">
                   <b>{a.name}</b>
-                  <span className="td3-o-meta">{a.tier && <Badge>{a.tier}</Badge>}<span className="tnum" title={parts ? `I ${parts.intent} · F ${parts.fit} · V ${parts.value} · T ${parts.timing}` : undefined}>Priority {a.priorityScore}</span>{r && <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)}</Badge>}</span>
+                  <span className="td3-o-meta">{a.tier && <Badge>{tierLabel(a.tier)}</Badge>}<span className="tnum" title={parts ? `I ${parts.intent} · F ${parts.fit} · V ${parts.value} · T ${parts.timing}` : undefined}>Priority {a.priorityScore}</span>{r && <Badge tone={r.level === "hot" ? "danger" : r.level === "warm" ? "warning" : "info"}>{r.level[0].toUpperCase() + r.level.slice(1)}</Badge>}</span>
                 </span>
               </Link>
               {(() => { const w = whyNowShort(r?.whyNow); return <p className="td3-o-why">{w.first ?? "No converging signals yet"}{w.more > 0 && <span className="td3-more-n"> +{w.more} more</span>}</p>; })()}
@@ -85,7 +86,7 @@ export async function TopOpportunities({ now, compact }: { now: Date; compact?: 
   type R = (typeof rows)[number];
   const columns: Column<R>[] = [
     { key: "co", header: "Company", primary: true, cell: ({ a, visited }) => (
-      <Link href={`/accounts/${a.id}`} className="td2-co"><Avatar name={a.name} id={a.id} size={28} /><span className="min-w-0"><b>{a.name}</b><span className="td2-co-m">{a.tier && <Badge>{a.tier}</Badge>}{visited && <Badge tone="danger" icon={<Globe size={11} aria-hidden />}>On our site</Badge>}</span></span></Link>
+      <Link href={`/accounts/${a.id}`} className="td2-co"><Avatar name={a.name} id={a.id} size={28} /><span className="min-w-0"><b>{a.name}</b><span className="td2-co-m">{a.tier && <Badge>{tierLabel(a.tier)}</Badge>}{visited && <Badge tone="danger" icon={<Globe size={11} aria-hidden />}>On our site</Badge>}</span></span></Link>
     ) },
     { key: "p", header: "Priority", align: "right", cell: ({ a, parts }) => (
       <span title={parts ? `Weights: intent ${parts.weights.intent}%, fit ${parts.weights.fit}%, value ${parts.weights.value}%, timing ${parts.weights.timing}%` : undefined}><b className="tnum">{a.priorityScore}</b>{parts && <span className="td2-s tnum">I {parts.intent} · F {parts.fit} · V {parts.value} · T {parts.timing}</span>}</span>

@@ -12,7 +12,7 @@ import { FunnelTrack } from "@/components/viz/funnel-track";
 import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { NotificationBell } from "@/components/shell/NotificationBell";
-import { Donut, GroupedBars, SparkStat, dayLabels, daily } from "@/components/viz/cards";
+import { Donut, GroupedBars, SparkStat, change, dayLabels, daily } from "@/components/viz/cards";
 
 export const metadata = { title: "Home" };
 
@@ -45,7 +45,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     commandCenter(now), companyFlow(now), aiPause(),
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
   ]);
-  const wkAgo = new Date(now.getTime() - 7 * DAY);
+  // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
+  const wkAgo = new Date(now.getTime() - 14 * DAY);
   const [wkAccounts, wkDrafts, wkSent, wkReplies, wkHandoffs, wkVisits] = await Promise.all([
     db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
     db.draft.findMany({ where: { createdAt: { gte: wkAgo } }, select: { createdAt: true, status: true } }),
@@ -59,6 +60,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const sparkDrafts = daily(wkDrafts.map((d) => d.createdAt), 7, now);
   const sparkHandoffs = daily(wkHandoffs.map((h) => h.createdAt), 7, now);
   const sparkVisits = daily(wkVisits.map((v) => v.occurredAt), 7, now);
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  const vsLast = (dates: Date[], spark: number[]) => change(sum(spark), dates.length - sum(spark));
   const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
   const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
@@ -125,7 +128,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         <section className="hm2-kpis" aria-label="What needs doing">
           {actionable.map((k) => (
             <Link key={k.key} href={k.href} className={`hm2-q${k.value ? " due" : ""}`} title={k.define}>
-              <span className="hm2-q-l">{k.label}</span>
+              <span className="hm2-q-l">{k.label}<em>Now</em></span>
               <span className="hm2-q-v tnum">{k.value}</span>
               <span className="hm2-q-n">{k.note}</span>
             </Link>
@@ -133,7 +136,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="hm2-ctx" aria-label="Context">
             {context.map((k) => (
               <Link key={k.key} href={k.href} className="hm2-c" title={k.define}>
-                <span className="hm2-c-l">{k.label}</span>
+                <span className="hm2-c-l">{k.label}<em>{k.key === "opps" ? "Open" : "All time"}</em></span>
                 <span className="hm2-c-v tnum">{k.value}</span>
                 <span className="hm2-c-n">{k.note}</span>
               </Link>
@@ -158,10 +161,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         </div>
 
         <section className="vz-sparks" aria-label="This week">
-          <SparkStat label="Replies this week" value={sparkReplies.reduce((a, b) => a + b, 0)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
-          <SparkStat label="Drafts written" value={sparkDrafts.reduce((a, b) => a + b, 0)} sub={toApprove ? `${toApprove} waiting` : "None waiting"} points={sparkDrafts} tone={trend(sparkDrafts)} href="/review" />
-          <SparkStat label="Hand-offs" value={sparkHandoffs.reduce((a, b) => a + b, 0)} points={sparkHandoffs} tone={trend(sparkHandoffs)} href="/handoffs" />
-          <SparkStat label="Website visits" value={sparkVisits.reduce((a, b) => a + b, 0)} points={sparkVisits} tone={trend(sparkVisits)} href="/import/apollo" />
+          <SparkStat label="Replies this week" value={sum(sparkReplies)} pct={vsLast(wkReplies.map((r) => r.receivedAt), sparkReplies)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
+          <SparkStat label="Drafts written" value={sum(sparkDrafts)} pct={vsLast(wkDrafts.map((d) => d.createdAt), sparkDrafts)} sub={toApprove ? `${toApprove} waiting` : "None waiting"} points={sparkDrafts} tone={trend(sparkDrafts)} href="/review" />
+          <SparkStat label="Hand-offs" value={sum(sparkHandoffs)} pct={vsLast(wkHandoffs.map((h) => h.createdAt), sparkHandoffs)} points={sparkHandoffs} tone={trend(sparkHandoffs)} href="/handoffs" />
+          <SparkStat label="Website visits" value={sum(sparkVisits)} pct={vsLast(wkVisits.map((v) => v.occurredAt), sparkVisits)} points={sparkVisits} tone={trend(sparkVisits)} href="/import/apollo" />
         </section>
 
         <section className="hm2-card hm2-flow">

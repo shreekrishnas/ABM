@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import { SPEND_KINDS, metric } from "@/lib/metrics";
 import Link from "next/link";
 import { ArrowRight, Building2 } from "lucide-react";
@@ -74,8 +75,8 @@ export default async function ProgramOverview() {
         <Card title="Buying-stage funnel" sub="Accounts by stage, account-level engagement">
           <HBars data={funnel} unit="accounts" empty="No accounts have reached a buying stage yet." />
         </Card>
-        <Card title="Active accounts by tier" sub="T1 1:1 · T2 1:few · T3 1:many">
-          <TierDonut data={(["T1", "T2", "T3"] as const).map((t) => ({ label: t === "T1" ? "T1 · 1:1" : t === "T2" ? "T2 · 1:few" : "T3 · 1:many", value: tierGroups.find((g) => g.tier === t)?._count ?? 0 }))} />
+        <Card title="Active companies by priority" sub="Top: one-to-one outreach. Mid: small groups. Broad: everyone else.">
+          <TierDonut data={(["T1", "T2", "T3"] as const).map((t) => ({ label: TIER_LABEL[t], value: tierGroups.find((g) => g.tier === t)?._count ?? 0 }))} />
           <p className="muted mt-4 text-xs leading-relaxed">Tier is set by company size and upgraded to T1 when buying intent turns hot. It sets research depth.</p>
         </Card>
       </div>
@@ -84,7 +85,7 @@ export default async function ProgramOverview() {
         <Card title="Engagement points, last 30 days" sub="Daily total of all signals at target accounts, including anonymous visits">
           <AreaTrend data={days} unit="points" empty="No engagement recorded in the last 30 days. This fills once emails are sent or visits arrive." />
         </Card>
-        <Card title="Gate blocks by stage" sub="Where records stop — every block is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Pipeline <ArrowRight size={14} /></Link>}>
+        <Card title="Where companies stopped" sub="Each stop is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Pipeline <ArrowRight size={14} /></Link>}>
           {blocksByStage.length ? <HBars data={blocksByStage} unit="blocks" height={Math.max(140, blocksByStage.length * 40)} /> : <Empty title="No blocks yet" sub="Every stop is logged here with its reason." />}
         </Card>
       </div>

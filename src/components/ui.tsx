@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 // Server-safe UI primitives that follow docs/DESIGN-reference.md.
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -46,7 +47,7 @@ export function TierBadge({ tier }: { tier: Tier | null }) {
   if (!tier) return <span className="muted text-xs">—</span>;
   return (
     <span className={`badge tier-${tier}`}>
-      {tier} · {tier === "T1" ? "1:1" : tier === "T2" ? "1:few" : "1:many"}
+      {tierLabel(tier)}
     </span>
   );
 }

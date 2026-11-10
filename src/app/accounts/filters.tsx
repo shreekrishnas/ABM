@@ -112,7 +112,7 @@ export function CompanyFilterBar({ filters, total, view }: { filters: FilterDef[
     <FilterBar
       search={{ value: q, onChange: setQ, placeholder: "Search company or domain…" }}
       inline={<>
-        {seg([{ v: "", l: "All tiers" }, { v: "T1", l: "T1" }, { v: "T2", l: "T2" }, { v: "T3", l: "T3" }], tier, (v) => set({ tier: v || null }), "Tier")}
+        {seg([{ v: "", l: "All priorities" }, { v: "T1", l: "Top" }, { v: "T2", l: "Mid" }, { v: "T3", l: "Broad" }], tier, (v) => set({ tier: v || null }), "Priority")}
         {seg([{ v: "table", l: "Table" }, { v: "map", l: "Map" }], view, (v) => set({ view: v === "table" ? null : v }), "View")}
       </>}
       activeCount={active}

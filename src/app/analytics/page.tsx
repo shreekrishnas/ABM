@@ -1,3 +1,4 @@
+import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import { SPEND_KINDS, metric } from "@/lib/metrics";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -117,7 +118,7 @@ export default async function AnalyticsPage() {
               <thead><tr><th>Tier</th><th>Accounts</th><th>Sends</th><th>Reply rate</th><th>Open pipeline</th><th>Won</th><th>Budget / account</th></tr></thead>
               <tbody>
                 {tierRows.map((r) => (
-                  <tr key={r.tier}><td className="strong">{r.tier}</td><td className="tnum">{r.accounts}</td><td className="tnum">{r.sent}</td><td className="tnum">{r.rate}%</td><td className="tnum">{money(r.pipeline)}</td><td className="tnum">{money(r.won)}</td><td className="tnum">${CONFIG.budgetsUsd[r.tier].toFixed(2)}</td></tr>
+                  <tr key={r.tier}><td className="strong">{tierLabel(r.tier)}</td><td className="tnum">{r.accounts}</td><td className="tnum">{r.sent}</td><td className="tnum">{r.rate}%</td><td className="tnum">{money(r.pipeline)}</td><td className="tnum">{money(r.won)}</td><td className="tnum">${CONFIG.budgetsUsd[r.tier].toFixed(2)}</td></tr>
                 ))}
               </tbody>
             </table>
