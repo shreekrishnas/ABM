@@ -19,6 +19,8 @@ export function Badge({ color, bg, children, dot, title }: { color: string; bg?:
 }
 
 export function hexA(hex: string, a: number) {
+  // Theme tokens (var(--x)) can't be parsed as hex: mix them with transparent instead.
+  if (!hex.startsWith("#")) return `color-mix(in srgb, ${hex} ${Math.round(a * 100)}%, transparent)`;
   const h = hex.replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map((x) => x + x).join("") : h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;

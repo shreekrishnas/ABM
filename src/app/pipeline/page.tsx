@@ -44,8 +44,8 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
     <div className="page-enter">
       <PageHeader
         eyebrow="Verify before drafting"
-        title="Intelligence pipeline"
-        sub="Thirteen stages take raw account data to evidence-based outreach and a sales handoff. Fit now runs before identity checks, so excluded accounts spend nothing."
+        title="Behind the scenes"
+        sub="The thirteen steps every company goes through, from import to hand-off, with how many passed and how many stopped at each one."
         actions={
           <>
             <ActionButton action={tickAction} className="btn btn-secondary"><Timer size={15} /> Run scheduler</ActionButton>
@@ -76,7 +76,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                 <div className="text-[0.78rem] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{s.name}</div>
                 <div className="mt-1 flex flex-wrap justify-center gap-1">
                   <span className="badge" style={{ background: "var(--surface-track)", color: "var(--text-secondary)" }} title="Accounts that completed this stage">{reached(s.n)}</span>
-                  {blocks(s.n) > 0 && <span className="badge" style={{ background: "rgba(245,158,11,0.12)", color: "#B45309" }} title="Companies stopped at this step">{blocks(s.n)}</span>}
+                  {blocks(s.n) > 0 && <span className="badge" style={{ background: "var(--warning-bg)", color: "var(--warning)" }} title="Companies stopped at this step">{blocks(s.n)}</span>}
                 </div>
               </Link>
             ))}
@@ -110,10 +110,10 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                   {[...steps.entries()].map(([k, v]) => (
                     <tr key={k}>
                       <td className="strong" title={k}>{humanize(k.split(".")[1] ?? k)}</td>
-                      <td className="tnum" style={{ color: v.pass ? "#059669" : undefined }}>{v.pass}</td>
-                      <td className="tnum" style={{ color: v.block ? "#B45309" : undefined }}>{v.block}</td>
+                      <td className="tnum" style={{ color: v.pass ? "var(--success)" : undefined }}>{v.pass}</td>
+                      <td className="tnum" style={{ color: v.block ? "var(--warning)" : undefined }}>{v.block}</td>
                       <td className="tnum">{v.info}</td>
-                      <td className="tnum" style={{ color: v.error ? "#DC2626" : undefined }}>{v.error}</td>
+                      <td className="tnum" style={{ color: v.error ? "var(--danger)" : undefined }}>{v.error}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -125,7 +125,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         <div className="grid content-start gap-5">
           <div className="grid grid-cols-2 gap-3">
             <Kpi label="Completed" value={reached(sel)} meta="accounts past this stage" accent={CAT_COLOR[stage.cat]} />
-            <Kpi label="Stopped here" value={stuck(sel)} meta="currently blocked" accent="#F59E0B" />
+            <Kpi label="Stopped here" value={stuck(sel)} meta="currently blocked" accent="var(--warning)" />
           </div>
           <Card title="Recent blocks" sub="Every stop has a reason and a destination">
             {recentBlocks.length === 0 ? <Empty title="No blocks at this stage" /> : (
@@ -164,12 +164,12 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         <Card title="Field status" sub="Every important field and fact carries one of six statuses">
           <div className="grid gap-2.5 sm:grid-cols-2">
             {[
-              ["verified", "#059669", "Official source, two independent sources, provider or mailbox check."],
-              ["probable", "#0D9488", "One credible source and nothing against it. Usable in a draft."],
-              ["conflicting", "#DC2626", "Sources disagree. One focused re-check, then a person."],
-              ["stale", "#B45309", `Older than its limit: email ${CONFIG.freshnessDays.email}d, title ${CONFIG.freshnessDays.title}d, triggers ${CONFIG.freshnessDays.trigger}d.`],
-              ["invalid", "#991B1B", "Proven wrong: malformed, hard bounce."],
-              ["unknown", "#64748B", "Not yet checked, or nothing found."],
+              ["verified", "var(--success)", "Official source, two independent sources, provider or mailbox check."],
+              ["probable", "var(--info)", "One credible source and nothing against it. Usable in a draft."],
+              ["conflicting", "var(--danger)", "Sources disagree. One focused re-check, then a person."],
+              ["stale", "var(--warning)", `Older than its limit: email ${CONFIG.freshnessDays.email}d, title ${CONFIG.freshnessDays.title}d, triggers ${CONFIG.freshnessDays.trigger}d.`],
+              ["invalid", "var(--danger)", "Proven wrong: malformed, hard bounce."],
+              ["unknown", "var(--muted)", "Not yet checked, or nothing found."],
             ].map(([k, c, d]) => (
               <div key={k} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)" }}>
                 <Badge color={c} dot>{k}</Badge>

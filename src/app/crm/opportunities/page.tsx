@@ -12,12 +12,12 @@ import { LIKELIHOOD, attention } from "@/lib/crm/opportunities";
 export const metadata = { title: "CRM · Opportunities" };
 
 const COLUMNS: { id: OppStage; label: string; color: string }[] = [
-  { id: "discovery", label: "Discovery", color: "#94A3B8" },
-  { id: "qualification", label: "Qualification", color: "#0EA5E9" },
-  { id: "proposal", label: "Proposal", color: "#8B5CF6" },
-  { id: "negotiation", label: "Negotiation", color: "#F59E0B" },
-  { id: "won", label: "Won", color: "#10B981" },
-  { id: "lost", label: "Lost", color: "#EF4444" },
+  { id: "discovery", label: "Discovery", color: "var(--muted)" },
+  { id: "qualification", label: "Qualification", color: "var(--info)" },
+  { id: "proposal", label: "Proposal", color: "var(--accent)" },
+  { id: "negotiation", label: "Negotiation", color: "var(--warning)" },
+  { id: "won", label: "Won", color: "var(--success)" },
+  { id: "lost", label: "Lost", color: "var(--danger)" },
 ];
 
 export default async function OpportunitiesPage({ searchParams }: { searchParams: Promise<{ account?: string; peek?: string }> }) {
@@ -60,9 +60,9 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
       />
       <div className="stagger mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Kpi label="Open pipeline" value={money(open.reduce((a, o) => a + o.amountUsd, 0))} meta={`${open.length} open · ${money(Math.round(weighted))} weighted${needs ? ` · ${needs} need attention` : ""}`} />
-        <Kpi label="ABM-sourced" value={money(abm.reduce((a, o) => a + o.amountUsd, 0))} accent="#7C3AED" meta={`${abm.length} deals from the program`} />
-        <Kpi label="Won" value={money(won.reduce((a, o) => a + o.amountUsd, 0))} accent="#10B981" meta={`${won.length} deals`} />
-        <Kpi label="Win rate" value={`${winRate}%`} accent="#0EA5E9" meta={`${won.length} won · ${lost.length} lost`} />
+        <Kpi label="ABM-sourced" value={money(abm.reduce((a, o) => a + o.amountUsd, 0))} accent="var(--accent)" meta={`${abm.length} deals from the program`} />
+        <Kpi label="Won" value={money(won.reduce((a, o) => a + o.amountUsd, 0))} accent="var(--success)" meta={`${won.length} deals`} />
+        <Kpi label="Win rate" value={`${winRate}%`} accent="var(--info)" meta={`${won.length} won · ${lost.length} lost`} />
       </div>
       {account && <div className="mb-3 text-sm secondary">Filtered to one account · <Link href="/crm/opportunities" className="underline">show all</Link></div>}
       <div className="table-wrap pb-2">

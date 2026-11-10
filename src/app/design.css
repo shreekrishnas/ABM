@@ -1417,3 +1417,6 @@ table.data tbody tr:hover, .hm-table tbody tr:hover { background: var(--subtle);
 table.data td .btn-secondary.btn-sm, .hm-table td .btn-secondary.btn-sm { background: var(--pill); color: var(--on-accent); border-color: var(--pill); }
 table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:hover { background: var(--pill-h); border-color: var(--pill-h); }
 .hm-status, .so-health { border-radius: var(--r-full); padding: 2px var(--sp-2); font-size: var(--fs-12); font-weight: 500; }
+
+/* Card notes wrap to two lines instead of being cut off */
+.k-stat-s, .vz-kpi-n { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

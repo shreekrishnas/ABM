@@ -59,9 +59,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
               const overdue = t.status !== "done" && t.dueAt && t.dueAt < now;
               const Icon = t.channel === "linkedin" ? Linkedin : t.channel === "call" ? Phone : Timer;
               return (
-                <li key={t.id} className="flex items-start gap-3 px-5 py-3.5" style={{ borderBottom: "1px solid var(--border-subtle)", borderLeft: `3px solid ${overdue ? "#EF4444" : t.status === "in_progress" ? "#0EA5E9" : "transparent"}` }}>
+                <li key={t.id} className="flex items-start gap-3 px-5 py-3.5" style={{ borderBottom: "1px solid var(--border-subtle)", borderLeft: `3px solid ${overdue ? "var(--danger)" : t.status === "in_progress" ? "var(--info)" : "transparent"}` }}>
                   <ActionButton action={setTaskStatusAction.bind(null, t.id, t.status === "done" ? "todo" : "done")} className="btn btn-icon -mt-1.5 h-8 w-8" title={t.status === "done" ? "Reopen" : "Mark done"}>
-                    {t.status === "done" ? <CheckCircle2 size={18} style={{ color: "#10B981" }} /> : <Circle size={18} />}
+                    {t.status === "done" ? <CheckCircle2 size={18} style={{ color: "var(--success)" }} /> : <Circle size={18} />}
                   </ActionButton>
                   <div className="min-w-0 flex-1">
                     <div className={cx("text-sm font-semibold", t.status === "done" && "line-through opacity-60")} style={{ color: "var(--text-primary)" }}>{t.title}</div>
@@ -76,7 +76,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {t.status === "todo" && <ActionButton action={setTaskStatusAction.bind(null, t.id, "in_progress")} className="btn btn-ghost btn-sm">Start</ActionButton>}
-                    {overdue ? <Badge color="#DC2626">overdue · {date(t.dueAt)}</Badge> : t.dueAt ? <Badge color="#64748B">{date(t.dueAt)}</Badge> : null}
+                    {overdue ? <Badge color="var(--danger)">overdue · {date(t.dueAt)}</Badge> : t.dueAt ? <Badge color="var(--muted)">{date(t.dueAt)}</Badge> : null}
                   </div>
                 </li>
               );

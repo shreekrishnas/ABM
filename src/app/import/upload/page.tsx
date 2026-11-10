@@ -70,10 +70,10 @@ export default async function UploadPage() {
                     <tr key={b.id}>
                       <td className="strong mono">{b.filename}<div className="muted max-w-[260px] truncate text-[0.7rem] font-normal" title={errs.map((e) => `Row ${e.row}: ${e.error}`).slice(0, 10).join("\n")}>{errs[0] ? `Row ${errs[0].row}: ${errs[0].error}` : ""}</div></td>
                       <td className="text-xs">{b.campaign?.name ?? "—"}<div className="muted">{b.sender?.name ?? ""}</div></td>
-                      <td><Badge color={b.status === "done" ? "#059669" : b.status === "processing" ? "#0EA5E9" : b.status === "failed" ? "#DC2626" : "#B45309"}>{b.status === "processing" ? `processing ${b.processed}/${b.toProcess}` : b.status}</Badge></td>
+                      <td><Badge color={b.status === "done" ? "var(--success)" : b.status === "processing" ? "var(--info)" : b.status === "failed" ? "var(--danger)" : "var(--warning)"}>{b.status === "processing" ? `processing ${b.processed}/${b.toProcess}` : b.status}</Badge></td>
                       <td className="tnum">{b.rows}</td>
                       <td className="tnum">{b.accepted}</td>
-                      <td className="tnum">{b.rejected ? <Badge color="#DC2626">{b.rejected}</Badge> : 0}</td>
+                      <td className="tnum">{b.rejected ? <Badge color="var(--danger)">{b.rejected}</Badge> : 0}</td>
                       <td className="tnum">{s.accountsCreated ?? 0} / {s.accountsUpdated ?? 0} / {s.accountsUnchanged ?? 0}</td>
                       <td className="tnum">{s.contactsCreated ?? 0} / {s.contactsUpdated ?? 0} / {s.contactsUnchanged ?? 0}</td>
                       <td className="tnum">{s.journeysCreated ?? 0} / {s.journeysUpdated ?? 0}</td>

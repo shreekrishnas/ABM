@@ -58,10 +58,10 @@ export default async function HandoffsPage() {
     <div className="page-enter">
       <PageHeader eyebrow="CRM" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Waiting for a decision" value={open.length} accent="#7C3AED" />
-        <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "#DC2626" : "#10B981"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />
-        <Kpi label="Accepted" value={accepted.length} accent="#10B981" />
-        <Kpi label="Sent back" value={sentBack.length} accent="#F59E0B" meta={sentBack.length ? `Top reason: ${topReason(sentBack.map((h) => h.decisionReason))}` : "None yet"} />
+        <Kpi label="Waiting for a decision" value={open.length} accent="var(--accent)" />
+        <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "var(--danger)" : "var(--success)"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />
+        <Kpi label="Accepted" value={accepted.length} accent="var(--success)" />
+        <Kpi label="Sent back" value={sentBack.length} accent="var(--warning)" meta={sentBack.length ? `Top reason: ${topReason(sentBack.map((h) => h.decisionReason))}` : "None yet"} />
       </div>
 
       <div className="mt-5 grid gap-4">
@@ -71,7 +71,7 @@ export default async function HandoffsPage() {
           const b = h.briefing as unknown as Brief;
           const pk = packets.get(h.id);
           const t = h.status === "open" && !h.blocked ? timer(h.ackDueAt, now) : null;
-          const tone = h.status === "accepted" ? "#10B981" : h.status === "sent_back" ? "#F59E0B" : t?.late ? "#EF4444" : "#7C3AED";
+          const tone = h.status === "accepted" ? "var(--success)" : h.status === "sent_back" ? "var(--warning)" : t?.late ? "var(--danger)" : "var(--accent)";
           return (
             <section key={h.id} className="glass-card-static card-pad ho-card" style={{ borderLeft: `4px solid ${tone}` }}>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -82,7 +82,7 @@ export default async function HandoffsPage() {
                     <div className="muted mt-0.5 text-xs">To {h.owner?.name ?? "the unassigned queue"} · {ago(h.createdAt)}{h.escalatedAt ? " · escalated to a manager" : ""}</div>
                   </div>
                 </div>
-                {h.blocked ? <Badge color="#DC2626">Held: briefing failed a fact check</Badge>
+                {h.blocked ? <Badge color="var(--danger)">Held: briefing failed a fact check</Badge>
                   : h.status === "accepted" ? <span className="ho-state ok"><Check size={14} /> Accepted {h.decidedAt ? ago(h.decidedAt) : ""}{h.decidedBy ? ` by ${h.decidedBy.split("@")[0]}` : ""}</span>
                   : h.status === "sent_back" ? <span className="ho-state back"><Undo2 size={14} /> Sent back: {h.decisionReason}</span>
                   : t && <span className={`ho-state${t.late ? " late" : ""}`}>{t.late ? <AlertTriangle size={14} /> : <Clock size={14} />} {t.text}</span>}
