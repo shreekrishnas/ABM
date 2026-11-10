@@ -501,7 +501,9 @@ export async function processImportAction(batchId?: string) {
 // ── Demo data (hosted environments) ──
 
 export async function seedDemoAction(): Promise<ActionState> {
-  if (process.env.ALLOW_SEED !== "true") return { ok: false, message: "Seeding is disabled (set ALLOW_SEED=true to enable)" };
+  const { isTestCopy } = await import("@/lib/test-copy");
+  if (process.env.NODE_ENV === "production" && !isTestCopy()) return { ok: false, message: "Sample data can only be loaded on the test copy, never on the live site" };
+  if (process.env.ALLOW_SEED !== "true" && !isTestCopy()) return { ok: false, message: "Seeding is disabled (set ALLOW_SEED=true to enable)" };
   const { seedDemo } = await import("@/lib/seed");
   const counts = await seedDemo(() => undefined);
   refresh("/accounts", "/pipeline", "/review", "/outreach", "/signals", "/handoffs", "/crm/contacts", "/crm/opportunities", "/crm/tasks", "/analytics", "/settings");

@@ -23,7 +23,13 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
   if (!byIp.ok || !byEmail.ok) return { email, error: `Too many sign-in attempts. Try again in ${Math.ceil(Math.max(byIp.retryAfter, byEmail.retryAfter) / 60)} minutes.` };
   if (!domainAllowed(email)) return { email, error: `Only @${allowedDomains().join(" or @")} addresses can sign in.` };
   // Only people on the team list get in; Super Admin adds them on Team & Access.
-  const member = await db.user.findUnique({ where: { email }, select: { id: true, status: true, sessionVersion: true, lastSignInAt: true } });
+  let member = await db.user.findUnique({ where: { email }, select: { id: true, status: true, sessionVersion: true, lastSignInAt: true } });
+  // Test copy only: anyone on the allowed domain can get in, as Super Admin, so it can be checked without setup.
+  if (!member && process.env.ABM_TEST_COPY === "true") {
+    member = await db.user.create({ data: { email, name: email.split("@")[0], superAdmin: true }, select: { id: true, status: true, sessionVersion: true, lastSignInAt: true } });
+    const clients = await db.client.findMany({ select: { id: true } });
+    for (const c of clients) await db.userClient.create({ data: { userId: member.id, clientId: c.id, role: "owner" } }).catch(() => undefined);
+  }
   const h = await headers();
   const record = (ok: boolean, reason?: string) =>
     db.signInEvent.create({ data: { email, ok, reason: reason ?? null, ip: ip.slice(0, 64), userAgent: (h.get("user-agent") ?? "").slice(0, 300) } }).catch(() => undefined);

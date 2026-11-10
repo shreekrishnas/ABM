@@ -43,7 +43,7 @@ export default async function SettingsPage() {
   const visits30 = await db.webVisit.count({ where: { occurredAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } });
   const sp = await activeSeller();
   const accounts = await db.account.count();
-  const seedAllowed = process.env.ALLOW_SEED === "true";
+  const seedAllowed = process.env.ABM_TEST_COPY === "true" || (process.env.ALLOW_SEED === "true" && process.env.NODE_ENV !== "production");
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Configuration" title="Settings" sub={<>The seller profile (targeting, messaging, approval) is editable, with version history. Pipeline mechanics live in <code className="mono">src/lib/config.ts</code>.</>} />

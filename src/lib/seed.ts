@@ -36,6 +36,31 @@ const ACCOUNTS: [string, string, string, number, string, string][] = [
   ["Mosaic Marketplace", "mosaicmarket.in", "ecommerce marketplace", 1300, "IN", "Oracle EBS"],
   ["Helios Fintech", "heliosfintech.in", "fintech", 1200, "IN", "Microsoft Dynamics 365"],
   ["Brightpath Consumer", "brightpathconsumer.in", "fmcg personal care", 900, "IN", "SAP S/4HANA"],
+  ["Aravalli Tiles", "aravallitiles.in", "building materials", 2100, "IN", "SAP ECC"],
+  ["Konkan Seafoods", "konkanseafoods.in", "food and beverage", 1700, "IN", "Tally; Excel vendor forms"],
+  ["Deccan Agro Inputs", "deccanagro.in", "agri inputs", 2400, "IN", "SAP S/4HANA"],
+  ["Malabar Spices", "malabarspices.in", "fmcg", 1300, "IN", "Oracle NetSuite"],
+  ["Indus Tyres", "industyres.in", "auto components manufacturing", 5600, "IN", "SAP ECC; SAP Ariba"],
+  ["Vindhya Chemicals", "vindhyachem.in", "chemicals", 1900, "IN", "SAP S/4HANA"],
+  ["Nilgiri Tea Estates", "nilgiritea.in", "beverages", 2700, "IN", "Microsoft Dynamics 365"],
+  ["Harbour Freight Lines", "harbourfreight.ae", "logistics", 1500, "AE", "Oracle EBS"],
+  ["Al Noor Retail", "alnoorretail.sa", "retail", 4100, "SA", "SAP ECC"],
+  ["Sunrise Appliances", "sunriseappliances.in", "consumer durables", 3300, "IN", "SAP S/4HANA; Salesforce"],
+  ["Cauvery Textiles", "cauverytextiles.in", "textiles", 2900, "IN", "Infor"],
+  ["Satpura Power Systems", "satpurapower.in", "electrical equipment", 1250, "IN", "SAP ECC"],
+  ["QuickKart Wholesale", "quickkart.in", "quick commerce", 800, "IN", "Power Apps"],
+  ["Everest Paper Mills", "everestpaper.in", "paper and packaging", 1800, "IN", "Oracle EBS"],
+  ["Lumen Lighting", "lumenlighting.in", "electrical equipment", 950, "IN", "Microsoft Dynamics 365"],
+  ["Orchid Hospitals", "orchidhospitals.my", "healthcare", 3800, "MY", "SAP Business One"],
+  ["Pearl Jewellers", "pearljewellers.in", "retail", 600, "IN", "Tally"],
+  ["Granite Infra Supplies", "graniteinfra.in", "building materials", 2250, "IN", "SAP ECC"],
+  ["Sagar Marine Foods", "sagarmarine.in", "food and beverage", 1150, "IN", ""],
+  ["Tapi Polymers", "tapipolymers.in", "chemicals", 1450, "IN", "SAP S/4HANA; Informatica"],
+  ["Crescent Capital Finance", "crescentcapital.in", "nbfc lending", 2050, "IN", "Finacle"],
+  ["BlueLeaf Organics", "blueleaforganics.in", "fmcg", 520, "IN", ""],
+  ["Zenith Two Wheelers", "zenithtwowheelers.in", "auto components manufacturing", 7200, "IN", "SAP S/4HANA; SAP MDG"],
+  ["Oasis Dairy", "oasisdairy.ae", "fmcg dairy", 2600, "AE", "Oracle NetSuite"],
+  ["Summit Cables", "summitcables.in", "electrical equipment", 1650, "IN", "SAP ECC"],
 ];
 
 // Titles shaped like Manch's buying group (one with an abbreviation to exercise normalization).
@@ -86,7 +111,7 @@ async function seedJourneys(campaignId: string, sender1: string, sender2: string
   }
 }
 
-/** Wipes the database and seeds a demo workspace through the real pipeline. */
+/** Wipes the companies and their history (never the team or the clients) and seeds a demo workspace through the real pipeline. Test copy and local only. */
 export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   log("Resetting data…");
   await db.$transaction([
@@ -95,15 +120,20 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
     db.pipelineEvent.deleteMany(), db.researchQuery.deleteMany(), db.accountBrief.deleteMany(), db.brainInsight.deleteMany(), db.evidence.deleteMany(), db.twinVersion.deleteMany(), db.researchPlan.deleteMany(), db.fieldState.deleteMany(),
     db.task.deleteMany(), db.note.deleteMany(), db.opportunity.deleteMany(), db.contact.deleteMany(), db.account.deleteMany(),
     db.journeyEvent.deleteMany(), db.journey.deleteMany(), db.campaign.deleteMany(), db.senderProfile.deleteMany(),
-    db.suppression.deleteMany(), db.mailbox.deleteMany(), db.importBatch.deleteMany(), db.user.deleteMany(),
+    db.suppression.deleteMany(), db.mailbox.deleteMany(), db.importBatch.deleteMany(),
   ]);
 
-  const [maya, arjun, jess] = await Promise.all([
-    db.user.create({ data: { name: "Maya Chen", email: "maya@company.com", role: "rep" } }),
-    db.user.create({ data: { name: "Arjun Rao", email: "arjun@company.com", role: "rep" } }),
-    db.user.create({ data: { name: "Jess Taylor", email: "jess@company.com", role: "marketer" } }),
-  ]);
-  await db.user.create({ data: { name: "Admin", email: "admin@company.com", role: "admin" } });
+  // A client to hold the sample companies, with everyone already on the team assigned to it.
+  const { baseDb } = await import("@/lib/db-base");
+  const { DEFAULT_SELLER_ID } = await import("@/lib/seller");
+  await baseDb.client.upsert({ where: { id: DEFAULT_SELLER_ID }, create: { id: DEFAULT_SELLER_ID, name: "Sample client", monthlyBudgetUsd: 500 }, update: {} });
+  const sample = (name: string, email: string, role: "rep" | "marketer" | "admin") => baseDb.user.upsert({ where: { email }, create: { name, email, role }, update: {} });
+
+  const [maya, arjun, jess] = await Promise.all([sample("Maya Chen", "maya@company.com", "rep"), sample("Arjun Rao", "arjun@company.com", "rep"), sample("Jess Taylor", "jess@company.com", "marketer")]);
+  await sample("Admin", "admin@company.com", "admin");
+  for (const u of await baseDb.user.findMany({ select: { id: true } })) {
+    await baseDb.userClient.upsert({ where: { userId_clientId: { userId: u.id, clientId: DEFAULT_SELLER_ID } }, create: { userId: u.id, clientId: DEFAULT_SELLER_ID }, update: {} });
+  }
   await db.mailbox.createMany({ data: [{ address: "jess@outreach.company.com", dailyCap: 40 }, { address: "team@outreach.company.com", dailyCap: 40 }] });
 
   const steps = (tier: string) =>
@@ -128,7 +158,8 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   const rows: Record<string, unknown>[] = ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
     const people = PEOPLE.filter((_, j) => (i + j) % 2 === 0 || j < 2).slice(0, 3 + (i % 3));
     return people.map(([name, title], j) => ({
-      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees, country, "Tech Stack": tech || undefined,
+      // Most sample companies are sized to pass the fit rule, so every later page has data; every sixth stays small to show a rule-out.
+      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees: i % 6 === 5 ? employees : Math.max(employees * 5, 6000), country, "Tech Stack": tech || undefined,
       contactName: name, title, "Person LinkedIn URL": `https://www.linkedin.com/in/${name.toLowerCase().replace(/[^a-z]+/g, "-")}-${i}`,
       Keywords: j === 0 ? KEYWORDS[industry] : undefined, City: j === 0 ? CITY[country] : undefined,
       email: j === 2 && i % 7 === 0 ? `${name.split(" ")[0].toLowerCase()}@gmail.com` : `${name.toLowerCase().replace(" ", ".")}@${domain}`,

@@ -1420,3 +1420,9 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 
 /* Card notes wrap to two lines instead of being cut off */
 .k-stat-s, .vz-kpi-n { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Test copy ribbon */
+.tc-ribbon { position: sticky; top: 0; z-index: var(--z-toast); background: var(--text); color: var(--surface); text-align: center; font-size: var(--fs-12); font-weight: 500; padding: 4px var(--sp-3); }
+
+/* Narrow context cards: the label wins over the period tag */
+.hm2-c-l em { display: none; }

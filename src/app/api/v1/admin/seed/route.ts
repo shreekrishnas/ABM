@@ -7,6 +7,7 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const key = process.env.ABM_API_KEY;
+  if (process.env.NODE_ENV === "production" && process.env.ABM_TEST_COPY !== "true") return NextResponse.json({ error: "seeding is only allowed on the test copy" }, { status: 403 });
   if (!key || process.env.ALLOW_SEED !== "true") return NextResponse.json({ error: "seeding disabled" }, { status: 403 });
   if (req.headers.get("authorization") !== `Bearer ${key}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const lines: string[] = [];

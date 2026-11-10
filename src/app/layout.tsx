@@ -63,6 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
+        {process.env.ABM_TEST_COPY === "true" && <div className="tc-ribbon" role="status">Test copy: sample data only. Nothing here is real and no emails are sent.</div>}
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>

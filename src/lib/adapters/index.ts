@@ -19,7 +19,8 @@ function env(name: string): string | undefined {
 
 /** ADAPTER_MODE=mock forces every service onto mocks (tests, demos). */
 function forcedMock() {
-  return process.env.ADAPTER_MODE === "mock";
+  // The test copy never calls a real service or sends a real email.
+  return process.env.ADAPTER_MODE === "mock" || process.env.ABM_TEST_COPY === "true";
 }
 
 function researchKeys() {
