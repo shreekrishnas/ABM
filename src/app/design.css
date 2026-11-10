@@ -1390,3 +1390,12 @@ a.vz-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
 /* Inter: bold headings and big numbers */
 h1, .page-title, .vz-kpi-v, .hm2-q-v, .hm2-c-v, .vz-donut-v, .vz-spark-v { font-weight: 700; letter-spacing: -0.02em; }
+
+/* ── Super Admin: go-live checklist ── */
+.gl-list { list-style: none; margin: 0; padding: 0; }
+.gl-list li { display: grid; grid-template-columns: 10px 48px minmax(140px, 220px) 1fr; gap: var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); color: var(--muted); }
+.gl-list li i { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--warning); }
+.gl-list li.ok i { background: var(--success); }
+.gl-list li b { color: var(--text); font-weight: 600; }
+.gl-list li span { color: var(--text-2); }
+@media (max-width: 700px) { .gl-list li { grid-template-columns: 10px 48px 1fr; } .gl-list li span { grid-column: 1 / -1; } }

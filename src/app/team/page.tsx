@@ -17,7 +17,8 @@ import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, setRoleAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, sendTestEmailAction, setRoleAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { serviceStatus } from "@/lib/adapters";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { reResearchAllAction } from "@/app/actions";
 
@@ -321,8 +322,27 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
     ...(health.errors.length ? [{ tone: "warn" as const, text: `${health.errors.length} error type(s) in the log`, href: "/team?tab=system" }] : []),
     ...rows.flatMap((r) => r.issues.map((i) => ({ tone: (r.health === "bad" ? "bad" : "warn") as "bad" | "warn", text: `${r.name}: ${i}`, href: "/team?tab=accounts" }))),
   ];
+  const svc = new Map(serviceStatus().map((x) => [x.key, x]));
+  const live = (k: string) => svc.get(k as never)?.mode === "live";
+  const noCap = rows.filter((r) => r.cap == null).map((r) => r.name);
+  const checks = [
+    { ok: live("llm"), t: "AI connected", d: live("llm") ? "The AI key is set" : "Add OPENROUTER_API_KEY in Vercel" },
+    { ok: live("research"), t: "Web search connected", d: live("research") ? "Search is set" : "Add a search key (Exa, Tavily or SerpAPI) in Vercel" },
+    { ok: live("email"), t: "Email sending connected", d: live("email") ? "A mailbox is set. Send a test to prove it." : "Add SMTP_URL and SMTP_FROM in Vercel. Until then approved emails are held." },
+    { ok: noCap.length === 0 && rows.length > 0, t: "Monthly cap on every client", d: noCap.length ? `No cap: ${noCap.join(", ")}. Set it under Clients.` : "Every client has a spending ceiling" },
+    { ok: !paused, t: "AI running", d: paused ? "Paused. Resume it under System once the rows above are green." : "Research and drafting are running" },
+  ];
+  const ready = checks.filter((c) => c.ok).length;
   return (
     <div className="grid gap-5">
+      {ready < checks.length && (
+        <Card title="Go live" sub={`${ready} of ${checks.length} ready. Real emails go out only when all are green.`} pad={false}>
+          <ul className="gl-list">
+            {checks.map((c) => <li key={c.t} className={c.ok ? "ok" : "todo"}><i aria-hidden />{c.ok ? "Done" : "To do"}<b>{c.t}</b><span>{c.d}</span></li>)}
+          </ul>
+          <div className="so-pad"><ActionButton action={sendTestEmailAction} className="btn btn-secondary btn-sm">Send me a test email</ActionButton></div>
+        </Card>
+      )}
       <KpiRow>
         <KpiTile tint={0} label="Clients" value={rows.length} note={`${rows.filter((r) => r.health === "ok").length} healthy`} />
         <KpiTile tint={1} label="Companies" value={sum("companies").toLocaleString()} note={`${sum("added7")} added this week`} />

@@ -239,6 +239,11 @@ export async function setAiPausedAction(paused: boolean): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
     const { setAiPaused } = await import("@/lib/admin/ai-pause");
+    if (!paused) {
+      // Never resume spending without a ceiling on every client.
+      const uncapped = await baseDb.client.findMany({ where: { monthlyBudgetUsd: null }, select: { name: true } });
+      if (uncapped.length) return { ok: false, message: `Set a monthly cap first for: ${uncapped.map((c) => c.name).join(", ")} (Super Admin → Clients)` };
+    }
     await setAiPaused(paused, me.email);
     await audit(me.email, paused ? "ai.pause" : "ai.resume");
     if (!paused) {
@@ -280,5 +285,21 @@ export async function signOutEverywhereAction(userId: string): Promise<ActionSta
     return { ok: true, message: `${u.name} is signed out on every device` };
   } catch (e) {
     return fail(e);
+  }
+}
+
+/** Sends one real email to the signed-in Super Admin, to prove sending works before any prospect is emailed. */
+export async function sendTestEmailAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const url = process.env.SMTP_URL?.trim();
+    if (!url) return { ok: false, message: "Email sending is not connected yet: add SMTP_URL (and SMTP_FROM) in Vercel, then redeploy" };
+    const { SmtpSender } = await import("@/lib/adapters/live/email");
+    const from = process.env.SMTP_FROM?.trim() || me.email;
+    await new SmtpSender(url, from).send({ from, to: me.email, subject: "ABM test email", body: "This is a test from your ABM workspace. If you can read it, email sending works.", idempotencyKey: `test-${Date.now()}` });
+    await audit(me.email, "email.test", { target: me.email });
+    return { ok: true, message: `Test email sent to ${me.email}. Check the inbox (and spam).` };
+  } catch (e) {
+    return { ok: false, message: `The mailbox refused the test: ${e instanceof Error ? e.message.slice(0, 160) : "unknown error"}` };
   }
 }
