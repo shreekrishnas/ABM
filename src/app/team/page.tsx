@@ -17,12 +17,17 @@ import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
+import { sampleState } from "@/lib/sample";
+import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
+
+// Loading the Test client runs the research steps a few companies at a time.
+export const maxDuration = 60;
 
 const TABS = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -323,6 +328,7 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
     ...(health.errors.length ? [{ tone: "warn" as const, text: `${health.errors.length} error type(s) in the log`, href: "/team?tab=system" }] : []),
     ...rows.flatMap((r) => r.issues.map((i) => ({ tone: (r.health === "bad" ? "bad" : "warn") as "bad" | "warn", text: `${r.name}: ${i}`, href: "/team?tab=accounts" }))),
   ];
+  const sample = await sampleState();
   const svc = new Map(serviceStatus().map((x) => [x.key, x]));
   const live = (k: string) => svc.get(k as never)?.mode === "live";
   const noCap = rows.filter((r) => r.cap == null).map((r) => r.name);
@@ -344,6 +350,13 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
           <div className="so-pad"><ActionButton action={sendTestEmailAction} className="btn btn-secondary btn-sm">Send me a test email</ActionButton></div>
         </Card>
       )}
+      <Card title="Test client" sub="A separate client filled with 50 made-up companies, people, emails and deals, for trying things safely. It never touches your real clients, spends no credits and sends no email.">
+        {sample.done ? (
+          <div className="flex items-center gap-3 flex-wrap"><span className="tm-ok">Loaded: {sample.companies} sample companies. Pick &quot;Test (sample data)&quot; in the client menu.</span><ActionButton action={removeSampleAction} className="btn btn-secondary btn-sm" confirm="Remove the Test client and all its sample data? Your real clients are not affected.">Remove it</ActionButton></div>
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap"><SampleLoader label={sample.exists ? "Continue loading" : "Create the Test client"} />{sample.exists && <ActionButton action={removeSampleAction} className="btn btn-ghost btn-sm" confirm="Remove the partly loaded Test client?">Remove it</ActionButton>}</div>
+        )}
+      </Card>
       <KpiRow>
         <KpiTile tint={0} label="Clients" value={rows.length} note={`${rows.filter((r) => r.health === "ok").length} healthy`} />
         <KpiTile tint={1} label="Companies" value={sum("companies").toLocaleString()} note={`${sum("added7")} added this week`} />

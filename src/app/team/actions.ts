@@ -315,3 +315,34 @@ export async function setShowExtrasAction(clientId: string, on: boolean): Promis
     return fail(e);
   }
 }
+
+/** Loads the Test client one short step at a time; the page keeps calling until done. */
+export async function sampleStepAction(): Promise<{ ok: boolean; done: boolean; message: string }> {
+  try {
+    const me = await requireSuperAdmin();
+    const { sampleStep } = await import("@/lib/sample");
+    const r = await sampleStep(me.email);
+    if (r.done) {
+      await audit(me.email, "sample.load", { target: "Test (sample data)" });
+      (await import("@/lib/scope")).clearScopeCache();
+      revalidatePath("/", "layout");
+    }
+    return { ok: true, ...r };
+  } catch (e) {
+    return { ok: false, done: true, message: e instanceof Error ? e.message.slice(0, 200) : "Something went wrong" };
+  }
+}
+
+export async function removeSampleAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { removeSample } = await import("@/lib/sample");
+    const n = await removeSample();
+    await audit(me.email, "sample.remove", { target: "Test (sample data)", before: { companies: n } });
+    (await import("@/lib/scope")).clearScopeCache();
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Removed the Test client and its ${n} sample companies. Nothing else was touched.` };
+  } catch (e) {
+    return fail(e);
+  }
+}

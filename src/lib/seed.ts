@@ -81,8 +81,24 @@ const KEYWORDS: Record<string, string> = {
 };
 const CITY: Record<string, string> = { IN: "Mumbai", AE: "Dubai", SA: "Riyadh", US: "Austin", GB: "London", SG: "Singapore", MY: "Kuala Lumpur" };
 
+/** The sample companies and their people, as import rows. */
+export function sampleRows(): Record<string, unknown>[] {
+  return ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
+    const people = PEOPLE.filter((_, j) => (i + j) % 2 === 0 || j < 2).slice(0, 3 + (i % 3));
+    return people.map(([name, title], j) => ({
+      // Most sample companies are sized to pass the fit rule, so every later page has data; every sixth stays small to show a rule-out.
+      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees: i % 6 === 5 ? employees : Math.max(employees * 5, 6000), country, "Tech Stack": tech || undefined,
+      contactName: name, title, "Person LinkedIn URL": `https://www.linkedin.com/in/${name.toLowerCase().replace(/[^a-z]+/g, "-")}-${i}`,
+      Keywords: j === 0 ? KEYWORDS[industry] : undefined, City: j === 0 ? CITY[country] : undefined,
+      email: j === 2 && i % 7 === 0 ? `${name.split(" ")[0].toLowerCase()}@gmail.com` : `${name.toLowerCase().replace(" ", ".")}@${domain}`,
+      phone: j === 0 ? DIAL[country] : undefined,
+      titleObservedAt: j === 1 && i % 4 === 0 ? new Date(Date.now() - 200 * 86_400_000).toISOString() : undefined,
+    }));
+  });
+}
+
 /** Varied LinkedIn journeys so every stage shows up in the sample data. */
-async function seedJourneys(campaignId: string, sender1: string, sender2: string) {
+export async function seedJourneys(campaignId: string, sender1: string, sender2: string) {
   const { recordActivities } = await import("@/lib/journey/service");
   const { classifyReplyRules } = await import("@/lib/journey/engine");
   type A = import("@/lib/journey/engine").Activity;
@@ -155,18 +171,7 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   }
 
   log("Ingesting accounts…");
-  const rows: Record<string, unknown>[] = ACCOUNTS.flatMap(([company, domain, industry, employees, country, tech], i) => {
-    const people = PEOPLE.filter((_, j) => (i + j) % 2 === 0 || j < 2).slice(0, 3 + (i % 3));
-    return people.map(([name, title], j) => ({
-      // Most sample companies are sized to pass the fit rule, so every later page has data; every sixth stays small to show a rule-out.
-      company, domain: j === 0 && i % 5 === 0 ? `https://www.${domain}/` : domain, industry, employees: i % 6 === 5 ? employees : Math.max(employees * 5, 6000), country, "Tech Stack": tech || undefined,
-      contactName: name, title, "Person LinkedIn URL": `https://www.linkedin.com/in/${name.toLowerCase().replace(/[^a-z]+/g, "-")}-${i}`,
-      Keywords: j === 0 ? KEYWORDS[industry] : undefined, City: j === 0 ? CITY[country] : undefined,
-      email: j === 2 && i % 7 === 0 ? `${name.split(" ")[0].toLowerCase()}@gmail.com` : `${name.toLowerCase().replace(" ", ".")}@${domain}`,
-      phone: j === 0 ? DIAL[country] : undefined,
-      titleObservedAt: j === 1 && i % 4 === 0 ? new Date(Date.now() - 200 * 86_400_000).toISOString() : undefined,
-    }));
-  });
+  const rows = sampleRows();
   // A malformed row and an exact duplicate to exercise the gates.
   rows.push({ company: "Sahyadri Beverages", domain: "sahyadribev.in", industry: "beverages", employees: 6500, country: "IN", "Tech Stack": undefined, contactName: "Asha Mehta", title: "Head of Master Data", email: "asha.mehta@sahyadribev.in", phone: undefined, titleObservedAt: undefined });
   rows.push({ company: "", domain: "nowhere", industry: "", employees: 0, country: "", "Tech Stack": undefined, contactName: "", title: "", email: "sam@@broken", phone: undefined, titleObservedAt: undefined });
