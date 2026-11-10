@@ -1279,6 +1279,8 @@ model Client {
   logoUrl          String?
   /// Monthly spending cap in dollars (search, AI and lookups). Empty = no cap.
   monthlyBudgetUsd Int?
+  /// Show the extra pages (Coverage, Signals, Lookalikes, Market signals, Analytics, Behind the scenes) in the menu.
+  showExtras       Boolean      @default(false)
   createdAt        DateTime     @default(now())
   users            UserClient[]
 }

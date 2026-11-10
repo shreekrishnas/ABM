@@ -23,13 +23,14 @@ const ACTIONS: Hit[] = [
   { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Discover → Website visitors", href: "/discover?origin=website_visitor" },
   { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?sort=priority" },
 ];
+const PAGE_EXTRA = new Set([...IMPORT_PAGES, ...SECTIONS.flatMap((g) => g.items)].filter((p) => p.extra).map((p) => p.href));
 const PAGES: Hit[] = [...IMPORT_PAGES.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: "Import data", href: it.href })), ...SECTIONS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label, href: it.href })))];
 
 /**
  * ⌘K / Ctrl+K (or "/"): jump to any page, company or person, or start a common action.
  * On a company or person, → (or Tab) lists what you can do with it right here.
  */
-export function CommandPalette({ canAct = true }: { canAct?: boolean }) {
+export function CommandPalette({ canAct = true, extras = true }: { canAct?: boolean; extras?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -86,7 +87,7 @@ export function CommandPalette({ canAct = true }: { canAct?: boolean }) {
   const hits = useMemo(() => {
     const t = q.trim().toLowerCase();
     const match = (h: Hit) => !t || `${h.label} ${h.sub ?? ""}`.toLowerCase().includes(t);
-    return [...found, ...ACTIONS.filter(match), ...PAGES.filter(match)].slice(0, 14);
+    return [...found, ...ACTIONS.filter((a) => extras || !a.href?.startsWith("/discover")).filter(match), ...PAGES.filter((p) => extras || !PAGE_EXTRA.has(p.href ?? "")).filter(match)].slice(0, 14);
   }, [q, found]);
 
   const go = useCallback((h: Hit | undefined) => {

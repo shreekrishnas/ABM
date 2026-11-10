@@ -17,7 +17,7 @@ import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, sendTestEmailAction, setRoleAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { reResearchAllAction } from "@/app/actions";
@@ -152,6 +152,7 @@ async function AccountsTab({ clients }: { clients: Clients }) {
                   <input name="budget" className="glass-input" inputMode="numeric" defaultValue={c.monthlyBudgetUsd ?? ""} placeholder="Monthly cap in $ (empty = no cap)" aria-label={`${c.name} monthly spending cap in dollars`} />
                   <SubmitButton className="btn btn-secondary btn-sm">Set cap</SubmitButton>
                 </ActionForm>
+                <ActionButton action={setShowExtrasAction.bind(null, c.id, !c.showExtras)} className="btn btn-ghost btn-sm" title="Extra pages: Coverage, Signals, Lookalikes, Market signals, Analytics, Behind the scenes">{c.showExtras ? "Extra pages: on" : "Extra pages: off"}</ActionButton>
               </li>
             );
           })}

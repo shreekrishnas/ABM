@@ -303,3 +303,15 @@ export async function sendTestEmailAction(): Promise<ActionState> {
     return { ok: false, message: `The mailbox refused the test: ${e instanceof Error ? e.message.slice(0, 160) : "unknown error"}` };
   }
 }
+
+export async function setShowExtrasAction(clientId: string, on: boolean): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const c = await baseDb.client.update({ where: { id: clientId }, data: { showExtras: on } });
+    await audit(me.email, "client.extras", { target: c.name, clientId, after: { showExtras: on } });
+    revalidatePath("/", "layout");
+    return { ok: true, message: on ? `${c.name}: extra pages are shown` : `${c.name}: menu shows the core pages only` };
+  } catch (e) {
+    return fail(e);
+  }
+}

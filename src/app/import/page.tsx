@@ -30,13 +30,14 @@ export default async function ImportHub() {
     "/import/lookalikes": [lookalikes ? `${lookalikes} waiting for approval` : "From one website", lookalikes > 0],
     "/import/apollo": [!apollo ? "Not connected yet" : visitors ? `${visitors} waiting for approval` : "Website visitors", visitors > 0],
   };
+  const extras = await (await import("@/lib/extras")).showExtras();
   return (
     <Hub
       eyebrow="Import data"
       title="How do you want to bring companies in?"
       sub="Every way in ends at the same place: companies you approve are researched, scored and drafted for automatically."
       // A page added to the Import menu without its own text still renders (from its menu blurb).
-      cards={IMPORT_PAGES.map((p) => ({ href: p.href, icon: p.icon, title: p.label, text: TEXT[p.href] ?? p.blurb, meta: meta[p.href]?.[0] ?? p.blurb, alert: meta[p.href]?.[1] ?? false }))}
+      cards={IMPORT_PAGES.filter((p) => extras || !p.extra).map((p) => ({ href: p.href, icon: p.icon, title: p.label, text: TEXT[p.href] ?? p.blurb, meta: meta[p.href]?.[0] ?? p.blurb, alert: meta[p.href]?.[1] ?? false }))}
     />
   );
 }

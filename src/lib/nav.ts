@@ -7,13 +7,14 @@ import {
 
 export type Counts = { review: number; handoffs: number; tasks: number };
 export type Icon = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-export type NavPage = { href: string; label: string; blurb: string; icon: Icon; count?: keyof Counts };
+/** `extra` pages are hidden from menus until a Super Admin switches them on for the client; they still open by address. */
+export type NavPage = { href: string; label: string; blurb: string; icon: Icon; count?: keyof Counts; extra?: boolean };
 export type NavSection = { key: string; label: string; blurb: string; icon: Icon; items: NavPage[] };
 
 export const IMPORT_PAGES: NavPage[] = [
   { href: "/import/upload", label: "Upload CSV", blurb: "Map columns, preview, import", icon: FileSpreadsheet },
   { href: "/import/describe", label: "Describe companies", blurb: "Find companies from a description", icon: Radar },
-  { href: "/import/lookalikes", label: "Lookalikes", blurb: "Companies like one website", icon: Sparkles },
+  { href: "/import/lookalikes", label: "Lookalikes", blurb: "Companies like one website", icon: Sparkles, extra: true },
   { href: "/import/apollo", label: "Website visitors", blurb: "Companies visiting your website", icon: Globe2 },
 ];
 
@@ -24,8 +25,8 @@ export const SECTIONS: NavSection[] = [
     items: [
       { href: "/accounts", label: "Companies", blurb: "Every company: filter, sort, table or priority map", icon: Building2 },
       { href: "/people", label: "People", blurb: "The buying group at each company", icon: Users },
-      { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users },
-      { href: "/signals", label: "Signals", blurb: "Buying events, with sources", icon: Radar },
+      { href: "/accounts/coverage", label: "Coverage", blurb: "Buying groups by role: who is found, contacted, engaged", icon: Users, extra: true },
+      { href: "/signals", label: "Signals", blurb: "Buying events, with sources", icon: Radar, extra: true },
     ],
   },
   {
@@ -33,7 +34,7 @@ export const SECTIONS: NavSection[] = [
     items: [
       { href: "/import", label: "All ways in", blurb: "Every way to bring companies in", icon: Upload },
       ...IMPORT_PAGES,
-      { href: "/discover", label: "Market signals", blurb: "New companies and rising industries", icon: Globe },
+      { href: "/discover", label: "Market signals", blurb: "New companies and rising industries", icon: Globe, extra: true },
     ],
   },
   {
@@ -56,8 +57,8 @@ export const SECTIONS: NavSection[] = [
     key: "insights", label: "Insights", blurb: "How the program is doing", icon: BarChart3,
     items: [
       { href: "/overview", label: "Program overview", blurb: "Coverage, pipeline and results", icon: LayoutDashboard },
-      { href: "/analytics", label: "Analytics", blurb: "Trends and conversion", icon: BarChart3 },
-      { href: "/pipeline", label: "Behind the scenes", blurb: "What the brain did and why", icon: Workflow },
+      { href: "/analytics", label: "Analytics", blurb: "Trends and conversion", icon: BarChart3, extra: true },
+      { href: "/pipeline", label: "Behind the scenes", blurb: "What the brain did and why", icon: Workflow, extra: true },
     ],
   },
   {
@@ -71,6 +72,9 @@ export const SECTIONS: NavSection[] = [
     ],
   },
 ];
+
+/** The pages to list: everything when extras are on, else the core pages (plus the one being viewed). */
+export const shown = (items: NavPage[], extras: boolean, path?: string) => (extras ? items : items.filter((p) => !p.extra || (path != null && (path === p.href || path.startsWith(`${p.href}/`)))));
 
 export const isOn = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
 

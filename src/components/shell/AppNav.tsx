@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
-import { locate, sectionHref, type Counts } from "@/lib/nav";
+import { locate, sectionHref, shown, type Counts } from "@/lib/nav";
 import { NotificationBell } from "./NotificationBell";
 
 /**
@@ -12,7 +12,7 @@ import { NotificationBell } from "./NotificationBell";
  * theme and notifications. The modules themselves are in the sidebar.
  * Everything opens in this tab; only the URL changes.
  */
-export function AppNav({ counts, discover, sellerName, account }: { counts: Counts; discover: number; sellerName: string; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
+export function AppNav({ counts, discover, sellerName, account, extras = true }: { counts: Counts; discover: number; sellerName: string; extras?: boolean; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
   const path = usePathname();
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(document.documentElement.dataset.theme === "dark"), []);
@@ -34,7 +34,8 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
     ...(at.section ? [{ label: at.section.label, href: sectionHref(at.section) }] : []),
     ...(at.page && at.page.label !== at.section?.label && at.page.href !== sectionHref(at.section!) ? [{ label: at.page.label, href: at.page.href }] : []),
   ];
-  const siblings = at.section && at.section.items.length > 1 ? at.section.items : [];
+  const pages = at.section ? shown(at.section.items, extras, path) : [];
+  const siblings = pages.length > 1 ? pages : [];
 
   return (
     <header className="nav">
@@ -62,10 +63,10 @@ export function AppNav({ counts, discover, sellerName, account }: { counts: Coun
             <span className="hide-sm">Search</span>
             <kbd className="hide-sm">⌘K</kbd>
           </button>
-          <Link href="/discover" className={`nav-icon${path.startsWith("/discover") ? " on" : ""}`} aria-label={`Discover${discover ? ` (${discover} suggested)` : ""}`} title="Discover new companies">
+          {extras && <Link href="/discover" className={`nav-icon${path.startsWith("/discover") ? " on" : ""}`} aria-label={`Discover${discover ? ` (${discover} suggested)` : ""}`} title="Discover new companies">
             <Globe size={17} strokeWidth={1.75} />
             {discover > 0 && <span className="nav-dotcount tnum">{discover > 99 ? "99+" : discover}</span>}
-          </Link>
+          </Link>}
           <button type="button" className="nav-icon" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
             {dark ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>

@@ -51,6 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     });
   }
   const scope = await resolveScope();
+  const extras = await (await import("@/lib/extras")).showExtras();
   const sp = await activeSeller();
   const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);
   const access = me
@@ -65,13 +66,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
-          <AppNav counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
+          <AppNav extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
           <main className="app-main" id="main"><UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
         {/* Super Admin only (re-checked on the server for every request it makes). */}
         {me?.superAdmin && <AssistantBoundary><AdminAssistant /></AssistantBoundary>}
-        <CommandPalette canAct={Boolean(access && access.state === "ok")} />
+        <CommandPalette extras={extras} canAct={Boolean(access && access.state === "ok")} />
         <QuickTask users={team} />
       </body>
     </html>
