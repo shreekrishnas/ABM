@@ -63,6 +63,8 @@ export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {
   const budgetMs = opts.budgetMs ?? sliceMs();
   if (!(await acquireLease(QUEUE_LEASE, holder, budgetMs + 60_000))) return { status: "busy", processed: 0, remaining: queued };
   let r: { processed: number; remaining: number } = { processed: 0, remaining: queued };
+  const startedAt = new Date();
+  let failed: string | null = null;
   try {
     // Companies first, then lookalike investigations (they wait for a person anyway).
     const started = Date.now();
@@ -71,8 +73,13 @@ export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {
     const l = lookalikes && left > 5_000 ? await processLookalikeQueue({ budgetMs: left }) : { processed: 0, remaining: lookalikes };
     r = { processed: a.processed + l.processed, remaining: a.remaining + l.remaining };
     return { status: "drained", processed: r.processed, remaining: r.remaining };
+  } catch (e) {
+    failed = e instanceof Error ? e.message : String(e);
+    throw e;
   } finally {
     await releaseLease(QUEUE_LEASE, holder, { processed: r.processed, remaining: r.remaining });
+    const { recordRun } = await import("@/lib/admin/ops");
+    await recordRun("Research queue", startedAt, { ok: !failed, processed: r.processed, remaining: r.remaining, note: failed });
   }
 }
 

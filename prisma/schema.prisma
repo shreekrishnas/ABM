@@ -1399,8 +1399,24 @@ model ErrorLog {
   count       Int      @default(1)
   firstSeen   DateTime @default(now())
   lastSeen    DateTime @default(now())
+  /// A Super Admin marked it fixed; cleared again if the error happens again.
+  resolvedAt  DateTime?
 
   @@index([lastSeen])
+}
+
+/// One row per background run (queue slice, scheduled tick), for Super Admin → System health.
+model RunLog {
+  id         String   @id @default(cuid())
+  job        String
+  startedAt  DateTime
+  finishedAt DateTime @default(now())
+  ok         Boolean  @default(true)
+  processed  Int      @default(0)
+  remaining  Int?
+  note       String?
+
+  @@index([finishedAt])
 }
 
 /// Fixed-window request counters (sign-in attempts, API calls).

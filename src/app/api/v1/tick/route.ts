@@ -10,8 +10,18 @@ import { authorize, json } from "@/lib/api";
 // every tick spends search and LLM credits.
 async function run(req: Request) {
   const ctx = newContext();
-  const result = await tick(ctx);
-  const intent = await processIntent(ctx);
+  const startedAt = new Date();
+  const { recordRun } = await import("@/lib/admin/ops");
+  let result: Awaited<ReturnType<typeof tick>>;
+  let intent: Awaited<ReturnType<typeof processIntent>>;
+  try {
+    result = await tick(ctx);
+    intent = await processIntent(ctx);
+  } catch (e) {
+    await recordRun("Daily check", startedAt, { ok: false, note: e instanceof Error ? e.message : String(e) });
+    throw e;
+  }
+  await recordRun("Daily check", startedAt, { ok: true, note: `${intent.length} intent re-run${intent.length === 1 ? "" : "s"}` });
   // Whatever the tick couldn't finish in its slice continues in the background queue.
   const origin = new URL(req.url).origin;
   after(() => kickDrain(origin));

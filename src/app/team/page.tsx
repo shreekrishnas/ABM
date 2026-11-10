@@ -17,9 +17,10 @@ import { aiPause } from "@/lib/admin/ai-pause";
 import { ACTION_WORD } from "@/lib/admin/audit";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
 import { sampleState } from "@/lib/sample";
+import { runHistory, stoppedGroups } from "@/lib/admin/ops";
 import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { reResearchAllAction } from "@/app/actions";
@@ -178,8 +179,11 @@ async function AccountsTab({ clients }: { clients: Clients }) {
 }
 
 async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeof systemHealth>>; clients: Clients }) {
-  const [spend, month, aiPaused] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause()]);
+  const [spend, month, aiPaused, runs, stopped] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause(), runHistory(30), stoppedGroups()]);
   const q = health.queue;
+  const clientName = new Map(clients.map((c) => [c.id, c.name]));
+  const stoppedTotal = stopped.reduce((t, g) => t + g.count, 0);
+  const dur = (a: Date, b: Date) => { const s = Math.max(0, Math.round((b.getTime() - a.getTime()) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
   return (
     <>
       <Card title="AI spending" sub="Pausing stops all OpenRouter use: no company research runs (they stay queued), scheduled AI jobs are skipped, and AI buttons say it is paused. Searches that need the AI stop with it.">
@@ -205,6 +209,42 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
         {q.stuck && <p className="tm-warn">The queue has stopped: work is waiting and nothing has run for over 10 minutes.</p>}
         <ActionButton action={restartQueueAction} className={q.stuck ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}><RotateCcw size={14} /> Restart queue</ActionButton>
       </Card>
+      <Card title="Stopped companies" sub={stoppedTotal ? `${stoppedTotal} companies stopped, grouped by client and why. Retry puts a whole group back in the queue from the step it stopped at. Stops that wait for a person's decision link to Approvals instead.` : "Companies that stopped during research show here, grouped by why."} pad={false}>
+        {stopped.length === 0 ? <p className="tm-ok so-pad">No stopped companies.</p> : (
+          <div className="table-wrap">
+            <table className="data compact">
+              <thead><tr><th>Client</th><th>Why they stopped</th><th className="r">Companies</th><th /></tr></thead>
+              <tbody>{stopped.slice(0, 15).map((g) => (
+                <tr key={g.clientId + g.key}>
+                  <td className="strong">{clientName.get(g.clientId) ?? g.clientId}</td>
+                  <td>{g.reason.length > 140 ? `${g.reason.slice(0, 140)}…` : g.reason}</td>
+                  <td className="r tnum">{g.count}</td>
+                  <td className="r">{/^(Rejection proposed|Identity confidence)|human review|a person approves/i.test(g.reason) ? <Link href="/review" className="vz-link">Decide on Approvals</Link> : <ActionButton action={retryStoppedAction.bind(null, g.clientId, g.key)} className="btn btn-secondary btn-sm" confirm={`Queue these ${g.count} companies again? ${aiPaused ? "AI is paused, so they wait until you resume it." : "This uses research credits."}`}>Retry {g.count}</ActionButton>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      <Card title="Run history" sub="Each background run: when, how long, how many companies it moved on, and whether it finished cleanly. Newest first." pad={false}>
+        {runs.length === 0 ? <p className="muted so-pad text-sm">No runs recorded yet. They appear here from the next background run.</p> : (
+          <div className="table-wrap">
+            <table className="data compact">
+              <thead><tr><th>When</th><th>Job</th><th className="r">Took</th><th className="r">Companies done</th><th className="r">Still waiting</th><th>Result</th></tr></thead>
+              <tbody>{runs.map((r) => (
+                <tr key={r.id}>
+                  <td className="muted">{ago(r.finishedAt)}</td>
+                  <td className="strong">{r.job}</td>
+                  <td className="r tnum">{dur(r.startedAt, r.finishedAt)}</td>
+                  <td className="r tnum">{r.processed}</td>
+                  <td className="r tnum">{r.remaining ?? "—"}</td>
+                  <td>{r.ok ? <span className="so-health ok"><i />Finished</span> : <span className="so-health bad" title={r.note ?? undefined}><i />Failed{r.note ? `: ${r.note.slice(0, 60)}` : ""}</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
       <Card title="Recent errors" sub="Server errors from pages, actions, background research and lookalikes, grouped by place and message. Kept here because the host keeps logs for only an hour." action={health.errors.length ? <ActionButton action={clearErrorsAction} className="btn btn-secondary btn-sm" confirm="Clear the error log?">Clear</ActionButton> : undefined} pad={false}>
         {health.errors.length === 0 ? <p className="tm-ok px-5 py-4">No errors recorded.</p> : (
           <ul className="tm-errors">
@@ -212,10 +252,14 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
               <li key={e.id}>
                 <div className="tm-err-top"><b>{e.message}</b><span className="tnum">{e.count > 1 ? `×${e.count} · ` : ""}{ago(e.lastSeen)}</span></div>
                 <div className="tm-err-src">{e.source}{e.detail ? ` · ${e.detail.split("\n")[0]}` : ""}</div>
+                <div><ActionButton action={resolveErrorAction.bind(null, e.id)} className="tm-link">Mark resolved</ActionButton></div>
               </li>
             ))}
           </ul>
         )}
+      </Card>
+      <Card title="Alerts" sub="Email the Super Admins when the queue stops, a run fails or a client nears its spending cap.">
+        <p className="muted text-sm">{process.env.SMTP_URL?.trim() ? "Coming next: switch alerts on here." : "Available once email sending is connected (add SMTP_URL and SMTP_FROM in Vercel)."}</p>
       </Card>
       <Card title="Services" pad={false}>
         <table className="data compact">

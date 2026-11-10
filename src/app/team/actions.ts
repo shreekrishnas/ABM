@@ -346,3 +346,39 @@ export async function removeSampleAction(): Promise<ActionState> {
     return fail(e);
   }
 }
+
+export async function resolveErrorAction(id: string): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { resolveError } = await import("@/lib/admin/errors");
+    await resolveError(id);
+    await audit(me.email, "errors.resolve", { target: id });
+    revalidatePath("/team");
+    return { ok: true, message: "Marked resolved. It comes back here if it happens again." };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Puts every stopped company in one group (same client, same reason) back in the queue, from the step it stopped at. */
+export async function retryStoppedAction(clientId: string, key: string): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { stoppedIds } = await import("@/lib/admin/ops");
+    const rows = await stoppedIds(clientId, key);
+    if (!rows.length) return { ok: false, message: "Nothing to retry: these companies have moved on already" };
+    for (const a of rows) await baseDb.account.update({ where: { id: a.id }, data: { pipelineStatus: "queued", queuedFromStage: Math.max(2, a.pipelineStage + 1), nextRetryAt: null, retryCount: 0, lastError: null } });
+    const client = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
+    await audit(me.email, "companies.retry_stopped", { target: `${client?.name ?? clientId}: ${key}`, clientId, after: { companies: rows.length } });
+    const { aiPause } = await import("@/lib/admin/ai-pause");
+    const paused = await aiPause();
+    if (!paused) {
+      const { startBackgroundQueue } = await import("@/lib/action-utils");
+      await startBackgroundQueue().catch(() => undefined);
+    }
+    revalidatePath("/team");
+    return { ok: true, message: `${rows.length} compan${rows.length === 1 ? "y" : "ies"} queued again${paused ? ". AI is paused, so they wait until you resume it." : "."}` };
+  } catch (e) {
+    return fail(e);
+  }
+}

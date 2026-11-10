@@ -19,7 +19,7 @@ export async function recordError(source: string, err: unknown, detail?: string)
     await baseDb.errorLog.upsert({
       where: { fingerprint },
       create: { fingerprint, source: source.slice(0, 200), message, detail: extra },
-      update: { count: { increment: 1 }, lastSeen: new Date(), message, detail: extra },
+      update: { count: { increment: 1 }, lastSeen: new Date(), message, detail: extra, resolvedAt: null },
     });
   } catch {
     // The database itself may be the problem; the host's logs still have it.
@@ -27,7 +27,12 @@ export async function recordError(source: string, err: unknown, detail?: string)
 }
 
 export async function recentErrors(limit = 20) {
-  return baseDb.errorLog.findMany({ orderBy: { lastSeen: "desc" }, take: limit });
+  return baseDb.errorLog.findMany({ where: { resolvedAt: null }, orderBy: { lastSeen: "desc" }, take: limit });
+}
+
+/** Hide one error until it happens again. */
+export async function resolveError(id: string) {
+  await baseDb.errorLog.update({ where: { id }, data: { resolvedAt: new Date() } });
 }
 
 /** Clear errors a Super Admin has looked at. */
