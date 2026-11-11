@@ -1,17 +1,15 @@
-import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
+import { tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ArrowDown, ArrowUp, Download, Plus, RefreshCw, RotateCcw, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, RotateCcw, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
-import { Avatar, StageBadge } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { reResearchSelectedAction } from "@/app/actions";
-import { ActiveChips, CompanyFilterBar, SelectAllBox, type FilterDef } from "./filters";
+import { ActiveChips, FilterPanel, RefreshButton, SearchBox, SelectAllBox, type FilterDef } from "./filters";
 import { PriorityMap } from "./priority-map";
 import { NewCompany } from "./new-company";
-import { PageHeader } from "@/components/kit";
-import { KpiRow, KpiTile } from "@/components/viz/cards";
 import type { IntentLevel } from "@/components/v2";
 
 export const metadata = { title: "Companies" };
@@ -26,6 +24,7 @@ const SIZES = [
 ];
 const STAGES = ["UNAWARE", "AWARE", "ENGAGED", "MQA", "OPPORTUNITY", "CUSTOMER", "WATCH", "DISQUALIFIED"] as const;
 const SORTS = {
+  updated: { updatedAt: "desc" },
   name: { name: "asc" },
   employees: { employees: { sort: "desc", nulls: "last" } },
   intent: { intentScore: "desc" },
@@ -64,13 +63,13 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   const filters: FilterDef[] = [
     { key: "industry", label: "Industry", any: "Any industry", options: industries.map((i) => ({ value: i.industry!, label: label(i.industry!), n: i._count })) },
     { key: "tech", label: "Technology", any: "Any technology", options: technologies.map(([t, n]) => ({ value: t, label: t, n })) },
+    { key: "source", label: "Source", any: "Any source", options: sources.map((s) => ({ value: s.source, label: s.source, n: s._count })) },
     { key: "size", label: "Employees", any: "Any size", options: SIZES.map((s) => ({ value: s.value, label: s.label })) },
     { key: "country", label: "Location", any: "Anywhere", options: countries.map((c) => ({ value: c.country!, label: c.country!, n: c._count })) },
-    { key: "source", label: "Source", any: "Any source", options: sources.map((s) => ({ value: s.source, label: s.source, n: s._count })) },
-    { key: "list", label: "Import list", any: "Any list", options: batches.map((b) => ({ value: b.id, label: b.filename })) },
-    { key: "campaign", label: "Campaign", any: "Any campaign", options: campaigns.map((c) => ({ value: c.id, label: c.name })) },
+    { key: "campaign", label: "LinkedIn campaign", any: "Any campaign", options: campaigns.map((c) => ({ value: c.id, label: c.name })) },
     { key: "tier", label: "Priority", any: "Any priority", options: ["T1", "T2", "T3"].map((t) => ({ value: t, label: tierLabel(t) })) },
     { key: "stage", label: "Status", any: "Any status", options: STAGES.map((s) => ({ value: s, label: label(s) })) },
+    { key: "list", label: "Import list", any: "Any list", options: batches.map((b) => ({ value: b.id, label: b.filename })) },
   ];
 
   // ── The filtered list ──
@@ -103,7 +102,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     db.account.count({ where }),
     db.account.findMany({
       where, orderBy: [orderBy, { name: "asc" }], skip: (page - 1) * PAGE, take: PAGE,
-      select: { id: true, name: true, domain: true, industry: true, employees: true, technologies: true, intentScore: true, priorityScore: true, tier: true, stage: true, source: true, city: true, country: true, lastImportBatchId: true, _count: { select: { contacts: { where: { mergedIntoId: null } } } } },
+      select: { id: true, name: true, domain: true, industry: true, employees: true, technologies: true, intentScore: true, priorityScore: true, tier: true, stage: true, source: true, city: true, country: true, lastImportBatchId: true, updatedAt: true, _count: { select: { contacts: { where: { mergedIntoId: null } } } } },
     }),
   ]);
   const mapRows = view === "map" ? await db.account.findMany({ where, select: { id: true, name: true, tier: true, fitScore: true, intentReading: true }, take: 300 }) : [];
@@ -132,110 +131,94 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   };
   const exportHref = `/accounts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`;
 
-  const [sAll, sT1, sHot, sNoPeople, sCust] = await Promise.all([
-    db.account.count({ where: { mergedIntoId: null } }),
-    db.account.count({ where: { mergedIntoId: null, tier: "T1" } }),
-    db.account.count({ where: { mergedIntoId: null, intentReading: { path: ["level"], equals: "hot" } } }),
-    db.account.count({ where: { mergedIntoId: null, contacts: { none: {} } } }),
-    db.account.count({ where: { mergedIntoId: null, relationship: "customer" } }),
-  ]);
   return (
-    <div className="dir">
-      <PageHeader
-        title="Companies"
-        description="Every company you target: filter, sort, or switch to the priority map."
-        actions={<>
-          <NewCompany />
-          <Link href="/import/upload" className="btn btn-secondary"><Upload size={15} /> Import</Link>
-          <a href={exportHref} className="btn btn-secondary"><Download size={15} /> Export</a>
-        </>}
-      />
-      <div className="mb-4"><KpiRow>
-        <KpiTile tint={0} label="All companies" value={sAll} note={`${sCust} customer${sCust === 1 ? "" : "s"}`} />
-        <KpiTile tint={1} label="Top priority" value={sT1} note={`${sAll ? Math.round((sT1 / sAll) * 100) : 0}% of companies`} />
-        <KpiTile tint={2} label="Hot intent" value={sHot} note="buying signals converging" />
-        <KpiTile tint={3} label="No people yet" value={sNoPeople} note="need a buying group" />
-      </KpiRow></div>
+    <div className="dir dir-grid">
+      <FilterPanel filters={filters} />
       <section className="dir-main">
-          <CompanyFilterBar filters={filters} total={total} view={view} />
-          <ActiveChips chips={chips} />
+        <div className="dir-bar">
+          <SearchBox />
+          <span className="dir-count"><b className="tnum">{total.toLocaleString()}</b> {total === 1 ? "company" : "companies"}</span>
+          <Link href="/import/upload" className="btn btn-secondary btn-sm"><Upload size={14} /> Import</Link>
+          <NewCompany />
+          <a href={exportHref} className="btn btn-secondary btn-sm btn-icon" title="Export these companies" aria-label="Export"><Download size={14} /></a>
+          <RefreshButton />
+        </div>
+        <ActiveChips chips={chips} />
 
-          {view === "map" ? (
-            <div className="k-table-wrap dir-map"><PriorityMap accounts={mapRows.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} /></div>
-          ) : (
-          <ActionForm action={reResearchSelectedAction} className="dir-table-wrap">
-            <div className="dir-bulk">
-              <span>Ticked companies:</span>
-              <SubmitButton className="btn btn-secondary btn-sm"><RotateCcw size={13} /> Re-research</SubmitButton>
+        {view === "map" ? (
+          <div className="k-table-wrap dir-map"><PriorityMap accounts={mapRows.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} /></div>
+        ) : (
+        <ActionForm action={reResearchSelectedAction} className="dir-table-wrap">
+          <div className="dir-bulk">
+            <span>Ticked companies:</span>
+            <SubmitButton className="btn btn-secondary btn-sm"><RotateCcw size={13} /> Re-research</SubmitButton>
+          </div>
+          {rows.length === 0 ? (
+            <div className="dir-empty">
+              <b>No companies match</b>
+              <span>{chips.length || q ? "Loosen a filter or clear the search." : "Import a list to get started."}</span>
             </div>
-            {rows.length === 0 ? (
-              <div className="dir-empty">
-                <b>No companies match</b>
-                <span>{chips.length || q ? "Loosen a filter or clear the search." : "Import a list to get started."}</span>
-              </div>
-            ) : (
-              <table className="dir-table">
-                <thead>
-                  <tr>
-                    <th className="dir-cb"><SelectAllBox /></th>
-                    <Th k="name">Company</Th>
-                    <Th>Industry</Th>
-                    <Th k="employees" className="num">Employees</Th>
-                    <Th>Technology</Th>
-                    <Th k="intent" className="num">Intent</Th>
-                    <Th k="priority" className="num">Priority</Th>
-                    <Th>Status</Th>
-                    <Th className="dir-wide">Source</Th>
-                    <Th k="contacts" className="num">Contacts</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => {
-                    const intent = Math.round(r.intentScore);
-                    const src = r.lastImportBatchId ? batchName.get(r.lastImportBatchId) ?? r.source : r.source;
-                    return (
-                      <tr key={r.id}>
-                        <td className="dir-cb"><input type="checkbox" name="ids" value={r.id} aria-label={`Select ${r.name}`} /></td>
-                        <td>
-                          <Link href={`/accounts/${r.id}`} className="dir-co">
-                            <Avatar name={r.name} id={r.id} size={30} round />
-                            <span className="min-w-0">
-                              <b>{r.name}</b>
-                              <small>{r.domain ?? "no website"}{r.city || r.country ? ` · ${[r.city, r.country].filter(Boolean).join(", ")}` : ""}</small>
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="dir-ind">{r.industry ? label(r.industry) : <span className="muted">—</span>}</td>
-                        <td className="num tnum">{r.employees ? r.employees.toLocaleString() : <span className="muted">—</span>}</td>
-                        <td>
-                          {r.technologies.length ? (
-                            <span className="dir-tech" title={r.technologies.join(", ")}>
-                              {r.technologies.slice(0, 2).map((t) => <span key={t}>{t}</span>)}
-                              {r.technologies.length > 2 && <em>+{r.technologies.length - 2}</em>}
-                            </span>
-                          ) : <span className="muted">—</span>}
-                        </td>
-                        <td className="num"><span className={`dir-intent ${intent >= 70 ? "hot" : intent >= 40 ? "warm" : intent > 0 ? "cool" : ""}`}>{intent}</span></td>
-                        <td className="num tnum" title={r.tier ? tierLabel(r.tier) : undefined}>{r.priorityScore ?? <span className="muted">—</span>}{r.tier && <small className="dir-tier">{tierLabel(r.tier).replace(" priority", "")}</small>}</td>
-                        <td><StageBadge stage={r.stage} /></td>
-                        <td className="dir-src dir-wide" title={src}>{src}</td>
-                        <td className="num tnum">{r._count.contacts}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </ActionForm>
+          ) : (
+            <table className="dir-table">
+              <thead>
+                <tr>
+                  <th className="dir-cb"><SelectAllBox /></th>
+                  <Th k="name">Company</Th>
+                  <Th>Industry</Th>
+                  <Th k="employees">Employees</Th>
+                  <Th>Technology</Th>
+                  <Th k="intent">Intent</Th>
+                  <Th className="dir-wide">Source</Th>
+                  <Th k="contacts">Contacts</Th>
+                  <Th k="updated">Last activity</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const intent = Math.round(r.intentScore);
+                  const src = r.lastImportBatchId ? batchName.get(r.lastImportBatchId) ?? r.source : r.source;
+                  return (
+                    <tr key={r.id}>
+                      <td className="dir-cb"><input type="checkbox" name="ids" value={r.id} aria-label={`Select ${r.name}`} /></td>
+                      <td>
+                        <Link href={`/accounts/${r.id}`} className="dir-co">
+                          <Avatar name={r.name} id={r.id} size={30} round />
+                          <span className="min-w-0">
+                            <b>{r.name}</b>
+                            <small className="mono">{r.domain ?? "—"}</small>
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="dir-ind">{r.industry ? r.industry.toLowerCase() : <span className="muted">—</span>}</td>
+                      <td className="tnum">{r.employees ? r.employees : <span className="muted">—</span>}</td>
+                      <td>
+                        {r.technologies.length ? (
+                          <span className="dir-tech" title={r.technologies.join(", ")}>
+                            {r.technologies.slice(0, 2).map((t) => <span key={t}>{t}</span>)}
+                            {r.technologies.length > 2 && <em>+{r.technologies.length - 2}</em>}
+                          </span>
+                        ) : <span className="muted">—</span>}
+                      </td>
+                      <td><span className={`dir-intent ${intent >= 70 ? "hot" : intent >= 40 ? "warm" : intent > 0 ? "cool" : ""}`}>{intent}</span></td>
+                      <td className="dir-src dir-wide" title={src}>{src}</td>
+                      <td className="tnum">{r._count.contacts}</td>
+                      <td className="muted tnum">{r.updatedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
+        </ActionForm>
+        )}
 
-          {view === "table" && pages > 1 && (
-            <nav className="dir-pages" aria-label="Pages">
-              <span className="muted">{(page - 1) * PAGE + 1}–{Math.min(page * PAGE, total)} of {total.toLocaleString()}</span>
-              {page > 1 && <Link href={href({ page: String(page - 1) })} className="btn btn-secondary btn-sm">Previous</Link>}
-              {page < pages && <Link href={href({ page: String(page + 1) })} className="btn btn-secondary btn-sm">Next</Link>}
-            </nav>
-          )}
+        {view === "table" && pages > 1 && (
+          <nav className="dir-pages" aria-label="Pages">
+            <span className="muted">{(page - 1) * PAGE + 1}–{Math.min(page * PAGE, total)} of {total.toLocaleString()}</span>
+            {page > 1 && <Link href={href({ page: String(page - 1) })} className="btn btn-secondary btn-sm">Previous</Link>}
+            {page < pages && <Link href={href({ page: String(page + 1) })} className="btn btn-secondary btn-sm">Next</Link>}
+          </nav>
+        )}
       </section>
     </div>
   );

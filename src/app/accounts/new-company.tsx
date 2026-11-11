@@ -8,7 +8,7 @@ import { createAccountAction } from "../actions";
 export async function NewCompany() {
   const users = await db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   return (
-    <Modal trigger={<><Plus size={16} /> New company</>} title="Add a company" eyebrow="Companies" triggerClass="btn btn-primary">
+    <Modal trigger={<><Plus size={15} /> Add company</>} title="Add a company" eyebrow="Companies" triggerClass="btn btn-primary btn-sm">
       <ActionForm action={createAccountAction} className="grid gap-3">
         <FormField label="Company name" required><input name="name" required className="glass-input" placeholder="Northwind Analytics" /></FormField>
         <div className="grid grid-cols-2 gap-3">

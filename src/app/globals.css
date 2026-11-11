@@ -2068,5 +2068,5 @@ a.ch-c:hover .ch-v b { color: #6D28D9; }
 .dir-tech span { max-width: 110px; }
 .dir-tier { margin-left: 5px; font-size: 0.66rem; font-weight: 600; color: var(--text-muted); }
 .dir-table td .badge { white-space: nowrap; }
-@media (max-width: 1500px) { .dir-wide { display: none; } }
+@media (max-width: 1100px) { .dir-wide { display: none; } }
 @media (max-width: 960px) { .dir-ftitle { display: none; } }

@@ -5,7 +5,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { FilterBar, FormField } from "@/components/kit";
 
 type Opt = { value: string; label: string; n?: number };
@@ -132,5 +132,16 @@ export function CompanyFilterBar({ filters, total, view }: { filters: FilterDef[
         </FormField>
       </>}
     />
+  );
+}
+
+/** Re-read the list from the server (after imports or research finish in the background). */
+export function RefreshButton() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button type="button" className="btn btn-secondary btn-sm btn-icon" onClick={() => start(() => router.refresh())} aria-label="Refresh" title="Refresh" disabled={pending}>
+      <RefreshCw size={14} className={pending ? "spin" : undefined} />
+    </button>
   );
 }

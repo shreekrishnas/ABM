@@ -1536,3 +1536,22 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .ih-st { font-size: var(--fs-xs); font-weight: 600; padding: 1px var(--sp-2); border-radius: var(--r-full); background: var(--success-bg); color: var(--success); }
 .ih-st.failed { background: var(--danger-bg); color: var(--danger); }
 .ih-st.processing, .ih-st.uploading { background: var(--warning-bg); color: var(--warning); }
+
+/* ── Companies: sidebar filters, search row and table (reference layout) ── */
+.dir.dir-grid { grid-template-columns: 240px minmax(0, 1fr); }
+.dir-filters { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-lg) !important; padding: var(--sp-4) !important; gap: var(--sp-3) !important; }
+.dir-ftitle { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.dir-f > span { font-size: var(--fs-xs) !important; font-weight: 600 !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; color: var(--muted) !important; }
+.dir-f .glass-select { background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--r-sm); }
+.dir-f input[type=range] { accent-color: var(--pill); }
+.dir-bar { gap: var(--sp-2) !important; }
+.dir-search { background: var(--surface) !important; border: 1px solid var(--border-2) !important; border-radius: var(--r-full) !important; }
+.dir-count { font-size: var(--fs-sm) !important; color: var(--muted) !important; }
+.dir-count b { font-weight: 600; }
+.dir-table th { font-size: var(--fs-xs) !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; background: var(--surface) !important; }
+.dir-table td { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+.dir-co b { font-weight: 600; color: var(--text); }
+.dir-co small.mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--muted); }
+.dir-tech span { background: var(--subtle); color: var(--text-2); border-radius: var(--r-xs); font-weight: 600; }
+.dir-intent { background: var(--info-bg); color: var(--info); border-radius: var(--r-full); min-width: 22px; text-align: center; font-weight: 600; }
+.dir-src { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
