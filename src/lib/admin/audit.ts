@@ -18,7 +18,19 @@ export const ACTION_WORD: Record<string, string> = {
   "fact.flag": "marked a fact wrong", "fact.correct": "corrected a fact",
   "suggestion.approve": "approved a company", "suggestion.approve_many": "approved companies", "suggestion.dismiss": "dismissed a company",
   "lookalike.search": "searched lookalikes", "lookalike.reject": "rejected a lookalike", "lookalike.research_more": "asked for more lookalike research",
+  "assignment.role": "changed a role", "user.sign_out_everywhere": "signed a person out everywhere", "security.sign_out_all": "signed everyone out",
+  "client.rename": "renamed a client", "client.paused": "paused a client", "client.archived": "archived a client", "client.resume": "reactivated a client",
+  "client.export": "exported a client's data", "client.extras": "changed a client's pages", "ai.pause": "paused AI", "ai.resume": "resumed AI",
+  "companies.retry_stopped": "retried stopped companies", "errors.resolve": "resolved an error", "email.test": "sent a test email",
+  "sample.load": "loaded the Test client", "sample.remove": "removed the Test client",
 };
+
+/** Changes a Super Admin should hear about: access, data removal, spending and client status. */
+export const SENSITIVE = new Set([
+  "user.add", "user.remove", "user.restore", "assignment.add", "assignment.remove", "assignment.role", "user.sign_out_everywhere", "security.sign_out_all",
+  "data.clear", "data.clear_account", "person.erase", "person.delete", "client.export", "client.archived", "client.paused", "client.budget", "ai.resume", "mode.super_admin",
+]);
+export const isSensitive = (action: string) => SENSITIVE.has(action);
 
 const cell = (v: unknown) => {
   const s = v == null ? "" : typeof v === "string" ? v : JSON.stringify(v);

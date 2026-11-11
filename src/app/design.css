@@ -1451,3 +1451,12 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .cs-logo, .tm-logo { display: inline-grid; place-items: center; background: var(--pill-subtle); color: var(--pill); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); overflow: hidden; }
 .tm-logo { width: 26px; height: 26px; flex: none; }
 .cs-logo { font-size: var(--fs-sm); }
+
+/* ── Security & audit ── */
+.sec-flag { margin-left: var(--sp-2); font-size: var(--fs-xs); font-weight: 600; padding: 1px var(--sp-2); border-radius: var(--r-full); background: var(--warning-bg); color: var(--warning); }
+.sec-diff summary { cursor: pointer; color: var(--pill); }
+.sec-diff code { font-size: var(--fs-xs); word-break: break-all; }
+.sec-list { list-style: none; margin: 0; padding: 0; }
+.sec-list li { display: flex; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.sec-list time { flex: none; font-size: var(--fs-xs); }
+.tm-date { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }

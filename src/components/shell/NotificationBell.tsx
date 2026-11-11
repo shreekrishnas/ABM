@@ -6,12 +6,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, Bell, CheckCircle2, ClipboardCheck, DollarSign, Globe2, Handshake, ListTodo, MessageSquareReply, X } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Bell, CheckCircle2, ClipboardCheck, DollarSign, Globe2, Handshake, ListTodo, MessageSquareReply, X } from "lucide-react";
 import { loadNotifications } from "./notification-actions";
 import type { Notice } from "@/lib/notifications";
 
 const KEY = "abm:notices-seen";
-const ICON = { reply: MessageSquareReply, approval: ClipboardCheck, handoff: Handshake, task: ListTodo, visitor: Globe2, system: AlertTriangle, spend: DollarSign, error: AlertTriangle } as const;
+const ICON = { reply: MessageSquareReply, approval: ClipboardCheck, handoff: Handshake, task: ListTodo, visitor: Globe2, system: AlertTriangle, spend: DollarSign, error: AlertTriangle, security: ShieldAlert } as const;
 
 const ago = (iso: string) => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);

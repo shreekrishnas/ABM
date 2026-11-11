@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { Lock, LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
@@ -14,10 +14,11 @@ import { clientOverview, type ClientRow } from "@/lib/admin/overview";
 import { GroupedBars, KpiRow, KpiTile } from "@/components/viz/cards";
 import { switchClientAction } from "@/app/login/actions";
 import { aiPause } from "@/lib/admin/ai-pause";
-import { ACTION_WORD } from "@/lib/admin/audit";
+import { ACTION_WORD, isSensitive } from "@/lib/admin/audit";
+import { auditWhere } from "@/lib/admin/audit-where";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, signOutAllAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
 import { sampleState } from "@/lib/sample";
 import { setupSteps } from "@/lib/admin/client-setup";
@@ -38,6 +39,7 @@ const TABS = [
   { key: "accounts", label: "Accounts", icon: Building2 },
   { key: "system", label: "System health", icon: Activity },
   { key: "data", label: "Data", icon: Trash2 },
+  { key: "security", label: "Security", icon: Lock },
   { key: "audit", label: "Audit log", icon: History },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
@@ -45,7 +47,7 @@ type Tab = (typeof TABS)[number]["key"];
 const usd = (n: number) => (n < 0.01 && n > 0 ? "<$0.01" : `$${n.toFixed(n >= 100 ? 0 : 2)}`);
 
 /** Super Admin only: people, accounts, system health, data and the audit log, one tab each. */
-export default async function TeamPage({ searchParams }: { searchParams: Promise<{ tab?: string; who?: string; what?: string; account?: string }> }) {
+export default async function TeamPage({ searchParams }: { searchParams: Promise<{ tab?: string; who?: string; what?: string; account?: string; from?: string; to?: string; sensitive?: string; result?: string }> }) {
   const me = await getMe();
   if (!me?.superAdmin) notFound();
   const sp = await searchParams;
@@ -70,7 +72,8 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
       {tab === "accounts" && <AccountsTab clients={clients} />}
       {tab === "system" && <SystemTab health={health} clients={clients} />}
       {tab === "data" && <DataTab clients={clients} />}
-      {tab === "audit" && <AuditTab clients={clients} who={sp.who} what={sp.what} account={sp.account} />}
+      {tab === "audit" && <AuditTab clients={clients} who={sp.who} what={sp.what} account={sp.account} from={sp.from} to={sp.to} sensitive={sp.sensitive} />}
+      {tab === "security" && <SecurityTab me={me.email} result={sp.result} />}
     </div>
   );
 }
@@ -328,15 +331,15 @@ function DataTab({ clients }: { clients: Clients }) {
   );
 }
 
-async function AuditTab({ clients, who, what, account }: { clients: Clients; who?: string; what?: string; account?: string }) {
-  const where: Prisma.AuditEntryWhereInput = { ...(who ? { actorEmail: who } : {}), ...(what ? { action: what } : {}), ...(account ? { clientId: account } : {}) };
+async function AuditTab({ clients, who, what, account, from, to, sensitive }: { clients: Clients; who?: string; what?: string; account?: string; from?: string; to?: string; sensitive?: string }) {
+  const where = auditWhere({ who, what, account, from, to, sensitive });
   const [log, people, actions] = await Promise.all([
     db.auditEntry.findMany({ where, orderBy: { createdAt: "desc" }, take: 200 }),
     db.auditEntry.findMany({ distinct: ["actorEmail"], select: { actorEmail: true }, orderBy: { actorEmail: "asc" } }),
     db.auditEntry.findMany({ distinct: ["action"], select: { action: true }, orderBy: { action: "asc" } }),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
-  const qs = new URLSearchParams({ ...(who ? { who } : {}), ...(what ? { what } : {}), ...(account ? { account } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(who ? { who } : {}), ...(what ? { what } : {}), ...(account ? { account } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}), ...(sensitive ? { sensitive } : {}) }).toString();
   return (
     <Card title="Audit log" sub="Who did what: approvals, sends, hand-offs, deals, research runs and every Super Admin change. Entries can't be edited." pad={false}>
       <form className="tm-filter" action="/team">
@@ -344,7 +347,11 @@ async function AuditTab({ clients, who, what, account }: { clients: Clients; who
         <select name="who" defaultValue={who ?? ""} className="glass-input" aria-label="Who"><option value="">Anyone</option>{people.map((p) => <option key={p.actorEmail} value={p.actorEmail}>{p.actorEmail}</option>)}</select>
         <select name="what" defaultValue={what ?? ""} className="glass-input" aria-label="What"><option value="">Any action</option>{actions.map((a) => <option key={a.action} value={a.action}>{ACTION_WORD[a.action] ?? a.action}</option>)}</select>
         <select name="account" defaultValue={account ?? ""} className="glass-input" aria-label="Account"><option value="">Any account</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <label className="tm-date"><span>From</span><input type="date" name="from" defaultValue={from ?? ""} className="glass-input" /></label>
+        <label className="tm-date"><span>To</span><input type="date" name="to" defaultValue={to ?? ""} className="glass-input" /></label>
+        <label className="tm-pick"><input type="checkbox" name="sensitive" value="1" defaultChecked={sensitive === "1"} /> Sensitive only</label>
         <button type="submit" className="btn btn-secondary btn-sm">Filter</button>
+        {qs && <Link href="/team?tab=audit" className="btn btn-ghost btn-sm">Clear</Link>}
         <a href={`/team/audit.csv${qs ? `?${qs}` : ""}`} className="btn btn-secondary btn-sm"><Download size={14} /> Export CSV</a>
       </form>
       {log.length === 0 ? <p className="muted px-5 py-4 text-sm">Nothing recorded{qs ? " for this filter" : " yet"}.</p> : (
@@ -356,8 +363,8 @@ async function AuditTab({ clients, who, what, account }: { clients: Clients; who
                 <tr key={e.id}>
                   <td className="muted whitespace-nowrap text-xs" title={e.createdAt.toISOString()}>{ago(e.createdAt)}</td>
                   <td className="text-xs">{e.actorEmail}</td>
-                  <td className="text-sm font-semibold">{ACTION_WORD[e.action] ?? e.action}</td>
-                  <td className="muted text-xs">{[e.target, e.clientId ? clientName.get(e.clientId) ?? e.clientId : null].filter(Boolean).join(" · ")}</td>
+                  <td className="text-sm font-semibold">{ACTION_WORD[e.action] ?? e.action}{isSensitive(e.action) && <span className="sec-flag">Sensitive</span>}</td>
+                  <td className="muted text-xs">{[e.target, e.clientId ? clientName.get(e.clientId) ?? e.clientId : null].filter(Boolean).join(" · ")}{(e.before != null || e.after != null) && <details className="sec-diff"><summary>Before / after</summary><code>{JSON.stringify(e.before ?? null)}</code> → <code>{JSON.stringify(e.after ?? null)}</code></details>}</td>
                 </tr>
               ))}
             </tbody>
@@ -457,4 +464,82 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
       </Card>
     </div>
   );
+}
+
+/** Sign-ins, failed attempts, sensitive changes and an emergency "sign everyone out". */
+async function SecurityTab({ me, result }: { me: string; result?: string }) {
+  const { SENSITIVE } = await import("@/lib/admin/audit");
+  const { linkSignIn } = await import("@/lib/auth");
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+  const ok = result === "ok" ? true : result === "failed" ? false : undefined;
+  const [events, failedByEmail, failedWeek, okWeek, changes, people] = await Promise.all([
+    db.signInEvent.findMany({ where: ok === undefined ? {} : { ok }, orderBy: { createdAt: "desc" }, take: 100 }),
+    db.signInEvent.groupBy({ by: ["email"], where: { ok: false, createdAt: { gte: weekAgo } }, _count: true, orderBy: { _count: { email: "desc" } }, take: 5 }),
+    db.signInEvent.count({ where: { ok: false, createdAt: { gte: weekAgo } } }),
+    db.signInEvent.count({ where: { ok: true, createdAt: { gte: weekAgo } } }),
+    db.auditEntry.findMany({ where: { action: { in: [...SENSITIVE] }, createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 15 }),
+    db.user.count({ where: { status: "active" } }),
+  ]);
+  const byLink = linkSignIn();
+  return (
+    <>
+      <KpiRow>
+        <KpiTile tint={0} label="Sign-ins" period="7 days" value={okWeek} note="successful" />
+        <KpiTile tint={failedWeek ? 2 : 3} label="Failed attempts" period="7 days" value={failedWeek} note={failedWeek ? "see who below" : "none"} />
+        <KpiTile tint={1} label="Sensitive changes" period="30 days" value={changes.length} note="access, data, spending" />
+        <KpiTile tint={3} label="Sign-in method" value={byLink ? "Email link" : "Email only"} note={byLink ? "proves the person owns the inbox" : "add SMTP_URL to switch to email links"} />
+      </KpiRow>
+
+      {!byLink && <p className="tm-warn">Anyone who types an allowed team email can sign in, because nothing checks they own that inbox. Once email sending is connected (SMTP_URL in Vercel), sign-in switches to a one-time emailed link automatically.</p>}
+
+      <div className="grid gap-5 xl:grid-cols-2 items-start">
+        <Card title="Failed attempts by email" sub="Last 7 days. Many failures for one address can mean someone guessing." pad={false}>
+          {failedByEmail.length === 0 ? <p className="tm-ok so-pad">No failed sign-ins this week.</p> : (
+            <table className="data compact"><tbody>{failedByEmail.map((f) => <tr key={f.email}><td>{f.email}</td><td className="r tnum">{f._count}</td></tr>)}</tbody></table>
+          )}
+        </Card>
+        <Card title="Sensitive changes" sub="Last 30 days: people and roles, data removal, exports, spending caps and client status." pad={false} action={<Link href="/team?tab=audit&sensitive=1" className="btn btn-ghost btn-sm">All</Link>}>
+          {changes.length === 0 ? <p className="muted so-pad text-sm">None in the last 30 days.</p> : (
+            <ul className="sec-list">{changes.map((c) => <li key={c.id}><span><b>{c.actorEmail === me ? "You" : c.actorEmail}</b> {ACTION_WORD[c.action] ?? c.action}{c.target ? `: ${c.target}` : ""}</span><time className="muted">{ago(c.createdAt)}</time></li>)}</ul>
+          )}
+        </Card>
+      </div>
+
+      <Card title="Sign-in history" sub="Every attempt, newest first, with where it came from." pad={false}>
+        <div className="so-pad"><nav className="k-seg tm-tabs" aria-label="Filter sign-ins">
+          <Link href="/team?tab=security" className={result ? undefined : "on"}>All</Link>
+          <Link href="/team?tab=security&result=ok" className={result === "ok" ? "on" : undefined}>Successful</Link>
+          <Link href="/team?tab=security&result=failed" className={result === "failed" ? "on" : undefined}>Failed</Link>
+        </nav></div>
+        {events.length === 0 ? <p className="muted so-pad text-sm">No sign-ins recorded yet.</p> : (
+          <div className="table-wrap">
+            <table className="data compact">
+              <thead><tr><th>When</th><th>Email</th><th>Result</th><th>From</th><th>Browser</th></tr></thead>
+              <tbody>{events.map((e) => (
+                <tr key={e.id}>
+                  <td className="muted" title={e.createdAt.toISOString()}>{ago(e.createdAt)}</td>
+                  <td>{e.email}</td>
+                  <td>{e.ok ? <span className="so-health ok"><i />{e.reason ?? "Signed in"}</span> : <span className="so-health bad"><i />{e.reason ?? "Failed"}</span>}</td>
+                  <td className="muted mono text-xs">{e.ip ?? "—"}</td>
+                  <td className="muted text-xs">{browserOf(e.userAgent)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card title="Sign everyone out" sub={`For an emergency, e.g. a lost laptop. Every one of the ${people} active people (you too) must sign in again on every device. Nothing else changes.`}>
+        <ActionButton action={signOutAllAction} className="btn btn-danger btn-sm" confirm="Sign everyone out on every device, including you?">Sign everyone out</ActionButton>
+      </Card>
+    </>
+  );
+}
+
+/** "Chrome on Windows" from a user-agent string. */
+function browserOf(ua: string | null): string {
+  if (!ua) return "—";
+  const b = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Browser";
+  const o = /Windows/.test(ua) ? "Windows" : /iPhone|iPad/.test(ua) ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "";
+  return o ? `${b} on ${o}` : b;
 }

@@ -424,3 +424,19 @@ export async function setClientStatusAction(clientId: string, status: "active" |
     return fail(e);
   }
 }
+
+/** Emergency: every active person must sign in again on every device. */
+export async function signOutAllAction(): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const r = await baseDb.user.updateMany({ where: { status: "active" }, data: { sessionVersion: { increment: 1 } } });
+    await audit(me.email, "security.sign_out_all", { after: { people: r.count } });
+    const { redirect } = await import("next/navigation");
+    redirect("/login");
+  } catch (e) {
+    const { isRedirectError } = await import("next/dist/client/components/redirect-error");
+    if (isRedirectError(e)) throw e;
+    return fail(e);
+  }
+  return { ok: true, message: "" };
+}
