@@ -56,7 +56,7 @@ export async function loginAction(_: LoginState, fd: FormData): Promise<LoginSta
   }
   await Promise.all([record(true), db.user.update({ where: { id: member.id }, data: { lastSignInAt: new Date() } })]);
   (await cookies()).set(SESSION_COOKIE, await sessionToken(email, secret, member.sessionVersion), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
-  redirect(safeNext(fd.get("next")));
+  { const n = safeNext(fd.get("next")); const { prefsFor, landingFor } = await import("@/lib/prefs"); redirect(n === "/" ? landingFor(await prefsFor(email)) : n); }
 }
 
 /** Completes sign-in from an emailed link (a button press, so email scanners that open links can't use it up). */
@@ -74,7 +74,7 @@ export async function verifyLinkAction(token: string, next: string) {
   if ((member.lastSignInAt?.getTime() ?? 0) !== data.last) { await record(false, "link already used"); return bad("used"); }
   await Promise.all([record(true, "email link"), db.user.update({ where: { id: member.id }, data: { lastSignInAt: new Date() } })]);
   (await cookies()).set(SESSION_COOKIE, await sessionToken(data.email, secret, member.sessionVersion), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400 });
-  redirect(safeNext(next));
+  { const n = safeNext(next); const { prefsFor, landingFor } = await import("@/lib/prefs"); redirect(n === "/" ? landingFor(await prefsFor(data.email)) : n); }
 }
 
 export async function signOutAction() {

@@ -90,7 +90,7 @@ function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolea
           {access.canSuperAdmin && (
             <div className="sh-menu-i sh-menu-toggle" role="menuitem"><ShieldCheck size={15} /> <span className="flex-1">Super Admin mode</span><Toggle on={sup} label="Super Admin mode" size="sm" onChange={(next) => switchModeAction(next ? "super" : "user")} /></div>
           )}
-          <Link href="/settings" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> Profile &amp; settings</Link>
+          <Link href="/me" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> My settings</Link>
           <Link href="/admin/integrations" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Plug size={15} /> Integrations</Link>
           {sup && <Link href="/team" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Users size={15} /> Team &amp; Access</Link>}
           <div className="sh-menu-sep" />

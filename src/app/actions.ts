@@ -48,6 +48,35 @@ export async function reResearchAction(accountId?: string): Promise<ActionState>
 }
 
 /** Bulk: re-research the companies ticked in a list. */
+/** One bulk change to the ticked companies: owner, priority, outreach pause, or relationship. */
+export async function bulkCompaniesAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const op = str(fd, "op") ?? "";
+  const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string").slice(0, 500);
+  if (op === "research") return reResearchSelectedAction(_, fd);
+  await logAction(`company.bulk_${op || "update"}`, { detail: `${ids.length} companies` });
+  if (!ids.length) return { ok: false, message: "Tick at least one company" };
+  const where = { id: { in: ids } };
+  let r: { count: number };
+  if (op === "owner") {
+    const owner = str(fd, "ownerId");
+    r = await db.account.updateMany({ where, data: { ownerId: owner && owner !== "none" ? owner : null } });
+  } else if (op === "priority") {
+    const t = str(fd, "tier");
+    if (t === "auto") r = await db.account.updateMany({ where, data: { tierLocked: false } });
+    else if (t === "T1" || t === "T2" || t === "T3") r = await db.account.updateMany({ where, data: { tier: t, tierLocked: true } });
+    else return { ok: false, message: "Pick a priority" };
+  } else if (op === "pause") {
+    r = await db.account.updateMany({ where, data: { outreachPausedUntil: new Date(Date.now() + 3650 * 86_400_000), outreachPauseReason: "Paused by hand" } });
+  } else if (op === "resume") {
+    r = await db.account.updateMany({ where, data: { outreachPausedUntil: null, outreachPauseReason: null } });
+  } else if (op === "customer" || op === "competitor" || op === "prospect") {
+    r = await db.account.updateMany({ where, data: { relationship: op } });
+  } else return { ok: false, message: "Choose what to do with the ticked companies" };
+  refresh("/accounts", "/");
+  const what: Record<string, string> = { owner: "owner set", priority: "priority set", pause: "outreach paused", resume: "outreach resumed", customer: "marked as customers", competitor: "marked as competitors", prospect: "marked as prospects" };
+  return { ok: true, message: `${r.count} compan${r.count === 1 ? "y" : "ies"}: ${what[op]}` };
+}
+
 export async function reResearchSelectedAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string").slice(0, 200);
   if (!ids.length) return { ok: false, message: "Tick at least one company" };

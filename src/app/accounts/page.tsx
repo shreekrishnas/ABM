@@ -1,13 +1,17 @@
 import { tierLabel } from "@/lib/tier-label";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
+import { SIZES, STAGES, accountWhere, type SP } from "@/lib/accounts/filters";
+import { SavedViews } from "@/components/saved-views";
+import { BUILT_IN, savedViews } from "@/lib/views";
+import { getMe } from "@/lib/me";
 import { ArrowDown, ArrowUp, Download, RotateCcw, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
 import { Avatar } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { reResearchSelectedAction } from "@/app/actions";
-import { ActiveChips, FilterPanel, RefreshButton, SearchBox, SelectAllBox, type FilterDef } from "./filters";
+import { bulkCompaniesAction } from "@/app/actions";
+import { ActiveChips, ExportTicked, FilterPanel, RefreshButton, SearchBox, SelectAllBox, type FilterDef } from "./filters";
 import { PriorityMap } from "./priority-map";
 import { NewCompany } from "./new-company";
 import type { IntentLevel } from "@/components/v2";
@@ -15,14 +19,6 @@ import type { IntentLevel } from "@/components/v2";
 export const metadata = { title: "Companies" };
 
 const PAGE = 50;
-const SIZES = [
-  { value: "1-200", label: "1–200", min: 1, max: 200 },
-  { value: "201-1000", label: "201–1,000", min: 201, max: 1000 },
-  { value: "1001-5000", label: "1,001–5,000", min: 1001, max: 5000 },
-  { value: "5001-20000", label: "5,001–20,000", min: 5001, max: 20000 },
-  { value: "20001+", label: "20,000+", min: 20001, max: undefined },
-];
-const STAGES = ["UNAWARE", "AWARE", "ENGAGED", "MQA", "OPPORTUNITY", "CUSTOMER", "WATCH", "DISQUALIFIED"] as const;
 const SORTS = {
   updated: { updatedAt: "desc" },
   name: { name: "asc" },
@@ -33,7 +29,6 @@ const SORTS = {
   added: { createdAt: "desc" },
 } as const;
 type SortKey = keyof typeof SORTS;
-type SP = Record<string, string | undefined>;
 
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/_/g, " ");
 
@@ -48,12 +43,13 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
 
   // ── What to filter by: options come from the companies themselves ──
   const live = { mergedIntoId: null };
-  const [industries, countries, sources, batches, campaigns, techRows] = await Promise.all([
+  const [industries, countries, sources, batches, campaigns, owners, techRows] = await Promise.all([
     db.account.groupBy({ by: ["industry"], where: { ...live, industry: { not: null } }, _count: true, orderBy: { _count: { industry: "desc" } }, take: 80 }),
     db.account.groupBy({ by: ["country"], where: { ...live, country: { not: null } }, _count: true, orderBy: { _count: { country: "desc" } }, take: 60 }),
     db.account.groupBy({ by: ["source"], where: live, _count: true, orderBy: { _count: { source: "desc" } }, take: 40 }),
     db.importBatch.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, filename: true }, take: 40 }),
     db.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.account.findMany({ where: { ...live, technologies: { isEmpty: false } }, select: { technologies: true }, take: 5000 }),
   ]);
   const techCount = new Map<string, number>();
@@ -67,28 +63,17 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     { key: "size", label: "Employees", any: "Any size", options: SIZES.map((s) => ({ value: s.value, label: s.label })) },
     { key: "country", label: "Location", any: "Anywhere", options: countries.map((c) => ({ value: c.country!, label: c.country!, n: c._count })) },
     { key: "campaign", label: "LinkedIn campaign", any: "Any campaign", options: campaigns.map((c) => ({ value: c.id, label: c.name })) },
+    { key: "owner", label: "Owner", any: "Anyone", options: [{ value: "none", label: "No owner" }, ...owners.map((u) => ({ value: u.id, label: u.name }))] },
     { key: "tier", label: "Priority", any: "Any priority", options: ["T1", "T2", "T3"].map((t) => ({ value: t, label: tierLabel(t) })) },
     { key: "stage", label: "Status", any: "Any status", options: STAGES.map((s) => ({ value: s, label: label(s) })) },
     { key: "list", label: "Import list", any: "Any list", options: batches.map((b) => ({ value: b.id, label: b.filename })) },
   ];
 
-  // ── The filtered list ──
-  const and: Prisma.AccountWhereInput[] = [live];
+  // ── The filtered list (same filter as the export) ──
   const q = sp.q?.trim();
-  if (q) and.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { domain: { contains: q, mode: "insensitive" } }] });
-  if (sp.industry) and.push({ industry: sp.industry });
-  if (sp.tech) and.push({ technologies: { has: sp.tech } });
-  const size = SIZES.find((s) => s.value === sp.size);
-  if (size) and.push({ employees: { gte: size.min, ...(size.max ? { lte: size.max } : {}) } });
-  if (sp.country) and.push({ country: sp.country });
-  if (sp.source) and.push({ source: sp.source });
-  if (sp.list) and.push({ lastImportBatchId: sp.list });
-  if (sp.campaign) and.push({ contacts: { some: { journeys: { some: { campaignId: sp.campaign } } } } });
-  if (sp.tier === "T1" || sp.tier === "T2" || sp.tier === "T3") and.push({ tier: sp.tier });
-  if (sp.stage && (STAGES as readonly string[]).includes(sp.stage)) and.push({ stage: sp.stage as (typeof STAGES)[number] });
   const minIntent = Number(sp.intent) || 0;
-  if (minIntent > 0) and.push({ intentScore: { gte: minIntent } });
-  const where: Prisma.AccountWhereInput = { AND: and };
+  const where = accountWhere(sp);
+  const views = await savedViews("companies", (await getMe())?.email ?? null);
 
   const orderBy = (() => {
     const base = SORTS[sort] as Record<string, unknown>;
@@ -129,7 +114,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
       </th>
     );
   };
-  const exportHref = `/accounts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+  const exportHref = `/accounts/export${(() => { const n = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && !["page", "view", "peek"].includes(k)) as [string, string][]); return n.size ? `?${n}` : ""; })()}`;
 
   return (
     <div className="dir dir-grid">
@@ -137,6 +122,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
       <section className="dir-main">
         <div className="dir-bar">
           <SearchBox />
+          <SavedViews page="companies" builtIn={BUILT_IN.companies} views={views} />
           <span className="dir-count"><b className="tnum">{total.toLocaleString()}</b> {total === 1 ? "company" : "companies"}</span>
           <Link href="/import/upload" className="btn btn-secondary btn-sm"><Upload size={14} /> Import</Link>
           <NewCompany />
@@ -148,10 +134,23 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         {view === "map" ? (
           <div className="k-table-wrap dir-map"><PriorityMap accounts={mapRows.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} /></div>
         ) : (
-        <ActionForm action={reResearchSelectedAction} className="dir-table-wrap">
+        <ActionForm action={bulkCompaniesAction} className="dir-table-wrap">
           <div className="dir-bulk">
             <span>Ticked companies:</span>
-            <SubmitButton className="btn btn-secondary btn-sm"><RotateCcw size={13} /> Re-research</SubmitButton>
+            <SubmitButton className="btn btn-secondary btn-sm" name="op" value="research"><RotateCcw size={13} /> Re-research</SubmitButton>
+            <span className="dir-bulk-g">
+              <select name="ownerId" className="glass-select" aria-label="Owner for ticked companies" defaultValue=""><option value="" disabled>Owner…</option><option value="none">No owner</option>{owners.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              <SubmitButton className="btn btn-secondary btn-sm" name="op" value="owner">Set owner</SubmitButton>
+            </span>
+            <span className="dir-bulk-g">
+              <select name="tier" className="glass-select" aria-label="Priority for ticked companies" defaultValue=""><option value="" disabled>Priority…</option><option value="T1">Top</option><option value="T2">Mid</option><option value="T3">Broad</option><option value="auto">Automatic</option></select>
+              <SubmitButton className="btn btn-secondary btn-sm" name="op" value="priority">Set priority</SubmitButton>
+            </span>
+            <SubmitButton className="btn btn-secondary btn-sm" name="op" value="pause">Pause outreach</SubmitButton>
+            <SubmitButton className="btn btn-secondary btn-sm" name="op" value="resume">Resume outreach</SubmitButton>
+            <SubmitButton className="btn btn-secondary btn-sm" name="op" value="customer">Mark customer</SubmitButton>
+            <SubmitButton className="btn btn-secondary btn-sm" name="op" value="competitor">Mark competitor</SubmitButton>
+            <ExportTicked />
           </div>
           {rows.length === 0 ? (
             <div className="dir-empty">

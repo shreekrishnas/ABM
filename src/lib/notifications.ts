@@ -54,5 +54,8 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
     for (const c of changes) out.push({ id: `x-${c.id}`, kind: "security", tone: "warn", title: `${c.actorEmail} ${ACTION_WORD[c.action] ?? c.action}`, detail: c.target ?? "Sensitive change", href: "/team?tab=security", at: c.createdAt.toISOString() });
   }
   for (const e of errors) out.push({ id: `e-${e.id}-${e.count}`, kind: "error", tone: "bad", title: `Error in ${e.source}${e.count > 1 ? ` (${e.count}×)` : ""}`, detail: e.message.slice(0, 120), href: "/team?tab=system", at: e.lastSeen.toISOString() });
-  return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25);
+  const { prefsFor } = await import("@/lib/prefs");
+  const mute = new Set<string>((await prefsFor(me?.email)).mute ?? []);
+  const group = (k: Notice["kind"]) => (k === "spend" || k === "error" || k === "security" ? "system" : k);
+  return out.filter((n) => !mute.has(group(n.kind))).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25);
 }

@@ -4,6 +4,7 @@ import { ArrowRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
+import { GetStarted } from "@/components/home/get-started";
 import { SuperAdminSwitch } from "@/components/shell/SuperAdminSwitch";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
@@ -102,6 +103,29 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const userName = me?.name.split(/\s+/)[0] || process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
   const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
 
+  // First-time checklist: shown until every step is done, or dismissed.
+  const getStarted = await (async () => {
+    const { prefsFor } = await import("@/lib/prefs");
+    const prefs = await prefsFor(me?.email);
+    if (prefs.dismissed?.includes("get-started")) return null;
+    const { activeSellerId } = await import("@/lib/scope");
+    const { setupSteps } = await import("@/lib/admin/client-setup");
+    const cid = await activeSellerId();
+    const [setup, researched, approved] = await Promise.all([
+      setupSteps(cid).catch(() => []),
+      db.account.count({ where: { mergedIntoId: null, pipelineStatus: "done" } }),
+      db.draft.count({ where: { status: { in: ["approved", "sent"] } } }),
+    ]);
+    const steps = [
+      ...setup.filter((x) => x.key === "brain" || x.key === "companies").map((x) => ({ label: x.label, done: x.done, href: x.href })),
+      { label: "First research finished", done: researched > 0, href: "/import" },
+      { label: "First email approved", done: approved > 0, href: "/review" },
+    ];
+    if (steps.every((x) => x.done)) return null;
+    const left = steps.filter((x) => !x.done).length;
+    return <GetStarted steps={steps} left={left} />;
+  })();
+
   return (
     <div className="hm-main">
         <header className="hm-top">
@@ -118,6 +142,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
           </div>
         </header>
+
+        {getStarted}
 
         <section className="hm2-kpis" aria-label="What needs doing">
           {actionable.map((k) => (

@@ -2,8 +2,11 @@ import { PersonPeek } from "@/components/peek/peek";
 import { ListKeys } from "@/components/peek/list-keys";
 import Link from "next/link";
 import type { JourneyStage, Prisma } from "@prisma/client";
-import { Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
+import { Download, Columns3, Eye, List, Pencil, Phone, Search, Trash2, Upload, Users } from "lucide-react";
 import { ViewSwitch } from "@/components/v2";
+import { SavedViews } from "@/components/saved-views";
+import { BUILT_IN, savedViews } from "@/lib/views";
+import { getMe } from "@/lib/me";
 import { KpiRow, KpiTile } from "@/components/viz/cards";
 import { JourneyBoard, LANES, type BoardCard } from "./journey-board";
 import { db } from "@/lib/db";
@@ -36,6 +39,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   if (sp.call === "yes") and.push({ phone: { not: null }, state: { notIn: ["suppressed", "do_not_contact"] }, account: { doNotContact: false }, journeys: { some: { ...scope, stage: { notIn: NOT_CALLABLE } } } });
   if (sp.call === "no") and.push({ OR: [{ phone: null }, { state: { in: ["suppressed", "do_not_contact"] } }, { account: { doNotContact: true } }, { journeys: { none: { ...scope, stage: { notIn: NOT_CALLABLE } } } }] });
   const where: Prisma.ContactWhereInput = { AND: and };
+  const views = await savedViews("people", (await getMe())?.email ?? null);
 
   const [people, total, campaigns, senders, stageCounts] = await Promise.all([
     db.contact.findMany({
@@ -74,7 +78,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         eyebrow="Where every prospect stands"
         title="People"
         sub={`${total.toLocaleString()} ${total === 1 ? "person" : "people"}. Each column is a step of the LinkedIn journey; click anyone to see their whole story.`}
-        actions={<><ViewSwitch base="/people" params={{ q: sp.q, campaign: sp.campaign, sender: sp.sender, call: sp.call }} current={view} views={[{ id: "board", label: "Journey board", icon: <Columns3 size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /><Link href="/import" className="btn btn-brand"><Upload size={15} /> Import</Link></>}
+        actions={<><SavedViews page="people" builtIn={BUILT_IN.people} views={views} /><ViewSwitch base="/people" params={{ q: sp.q, campaign: sp.campaign, sender: sp.sender, call: sp.call }} current={view} views={[{ id: "board", label: "Journey board", icon: <Columns3 size={13} /> }, { id: "list", label: "List", icon: <List size={13} /> }]} /><a href={`/people/export${(() => { const n = new URLSearchParams(Object.entries({ q: sp.q, campaign: sp.campaign, sender: sp.sender, stage: sp.stage }).filter(([, v]) => v) as [string, string][]); return n.size ? `?${n}` : ""; })()}`} className="btn btn-secondary"><Download size={15} /> Export</a><Link href="/import" className="btn btn-brand"><Upload size={15} /> Import</Link></>}
       />
 
       {(() => {

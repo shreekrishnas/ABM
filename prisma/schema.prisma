@@ -216,6 +216,8 @@ enum UserRole {
 // ───────────────────────────── CRM core ─────────────────────────────
 
 model User {
+  /// Personal preferences: landing page, notification kinds, theme, dismissed hints.
+  prefs      Json?
   id         String   @id @default(cuid())
   name       String
   email      String   @unique
@@ -1222,6 +1224,19 @@ model WebVisit {
 }
 
 /// Super Admin assistant: one conversation per thread, owned by the Super Admin who started it.
+/// A named set of list filters (Companies or People), private or shared with the team.
+model SavedView {
+  id         String   @id @default(cuid())
+  ownerEmail String
+  page       String
+  name       String
+  query      String
+  shared     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([page, ownerEmail])
+}
+
 /// An integration's on/off switch and the keys a Super Admin entered in the app (encrypted).
 model IntegrationSetting {
   key       String   @id

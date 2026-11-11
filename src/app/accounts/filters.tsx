@@ -5,7 +5,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { Download, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { FilterBar, FormField } from "@/components/kit";
 
 type Opt = { value: string; label: string; n?: number };
@@ -143,5 +143,16 @@ export function RefreshButton() {
     <button type="button" className="btn btn-secondary btn-sm btn-icon" onClick={() => start(() => router.refresh())} aria-label="Refresh" title="Refresh" disabled={pending}>
       <RefreshCw size={14} className={pending ? "spin" : undefined} />
     </button>
+  );
+}
+
+/** Download only the ticked companies. */
+export function ExportTicked() {
+  return (
+    <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+      const ids = [...document.querySelectorAll<HTMLInputElement>("input[name=ids]:checked")].map((c) => c.value);
+      if (!ids.length) return alert("Tick at least one company");
+      window.location.href = `/accounts/export?${new URLSearchParams(ids.map((id) => ["ids", id]))}`;
+    }}><Download size={13} /> Export ticked</button>
   );
 }
