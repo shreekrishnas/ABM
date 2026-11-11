@@ -1222,6 +1222,17 @@ model WebVisit {
 }
 
 /// Super Admin assistant: one conversation per thread, owned by the Super Admin who started it.
+/// Questions a Super Admin saved in the assistant, to ask again with one click.
+model AssistantSavedQuestion {
+  id        String   @id @default(cuid())
+  userEmail String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@unique([userEmail, text])
+  @@index([userEmail, createdAt])
+}
+
 model AssistantConversation {
   id        String             @id @default(cuid())
   userEmail String

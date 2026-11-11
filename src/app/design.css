@@ -1460,3 +1460,19 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .sec-list li { display: flex; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
 .sec-list time { flex: none; font-size: var(--fs-xs); }
 .tm-date { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }
+
+/* ── Assistant: digest, saved questions, record links ── */
+.asst-digest { display: flex; gap: var(--sp-2); align-items: flex-start; border-color: var(--pill); }
+.asst-digest span { display: grid; gap: 2px; }
+.asst-digest small { color: var(--muted); font-size: var(--fs-xs); }
+.asst-label { margin-top: var(--sp-2); font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.asst-saved { display: flex; gap: var(--sp-1); align-items: center; }
+.asst-saved .assistant-example { flex: 1; display: flex; gap: var(--sp-2); align-items: center; }
+.asst-star { color: var(--muted); }
+.asst-star.on { color: var(--warning); fill: var(--warning); }
+.assistant-q { position: relative; }
+.asst-starbtn { margin-left: var(--sp-2); background: none; border: 0; cursor: pointer; padding: 0; vertical-align: -2px; }
+.asst-refs { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
+.asst-ref { font-size: var(--fs-xs); padding: 2px var(--sp-2); border-radius: var(--r-full); background: var(--pill-subtle); color: var(--pill); text-decoration: none; font-weight: 500; }
+.asst-ref:hover { text-decoration: underline; }
+.asst-ref.plain { background: var(--subtle); color: var(--text-2); }
