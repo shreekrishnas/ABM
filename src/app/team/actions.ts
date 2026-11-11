@@ -440,3 +440,25 @@ export async function signOutAllAction(): Promise<ActionState> {
   }
   return { ok: true, message: "" };
 }
+
+/** Live research (real web search) on or off for one client. Off: its companies stay queued and nothing is searched. */
+export async function setResearchClientAction(clientId: string, on: boolean): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const client = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
+    if (!client) return { ok: false, message: "That client no longer exists" };
+    if (clientId === "test" && on) return { ok: false, message: "The Test client uses sample data only and never searches for real" };
+    const { setResearchAllowed } = await import("@/lib/admin/research-clients");
+    await setResearchAllowed(clientId, on, me.email);
+    await audit(me.email, on ? "client.research_on" : "client.research_off", { target: client.name, clientId });
+    revalidatePath(`/team/client/${clientId}`);
+    if (on) {
+      const h = await headers();
+      const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
+      await kickDrain(origin).catch(() => false);
+    }
+    return { ok: true, message: on ? `Live research is on for ${client.name}: its queued companies start now` : `Live research is off for ${client.name}: its companies stay queued and nothing is searched` };
+  } catch (e) {
+    return fail(e);
+  }
+}

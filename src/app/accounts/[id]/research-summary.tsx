@@ -23,12 +23,14 @@ const monthYear = (d: Date) => d.toLocaleDateString("en-GB", { month: "short", y
 const groupKey = (e: Evidence) => `${e.key}|${(e.value ?? e.claim).toLowerCase()}`;
 
 export async function ResearchSummary({ account, sp, unknowns, usedInEmail }: {
-  account: { id: string; name: string; domain: string | null };
+  account: { id: string; name: string; domain: string | null; sellerId: string };
   sp: SellerProfile;
   unknowns: string[];
   usedInEmail: Set<string>;
 }) {
-  await ensurePrecision(account.id, account.domain);
+  // Older facts get confidence and dates (code only) for the Test client and clients with live research on.
+  const { researchAllowed } = await import("@/lib/admin/research-clients");
+  if (account.sellerId === "test" || (await researchAllowed(account.sellerId))) await ensurePrecision(account.id, account.domain);
   const all = await db.evidence.findMany({ where: { accountId: account.id, supersededById: null, flagged: false }, orderBy: [{ confidence: "desc" }, { publishedAt: "desc" }] });
   const label = (key: string) => sp.researchQuestions.find((q) => q.key === key)?.label ?? ({ website: "Official website", firmographics: "Industry, size, country", negative: "Negative news", trigger: "Buying trigger", investigation: "Investigation" } as Record<string, string>)[key] ?? key.replace(/[_:]/g, " ");
   const isTrigger = (key: string) => key === "trigger" || sp.researchQuestions.some((q) => q.key === key && q.trigger);

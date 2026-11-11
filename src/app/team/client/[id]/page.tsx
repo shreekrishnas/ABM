@@ -11,6 +11,8 @@ import { monthlyStatus } from "@/lib/budget";
 import { setupSteps } from "@/lib/admin/client-setup";
 import { CLIENT_STATUS_LABEL, isClientStatus } from "@/lib/admin/client-status";
 import { ROLES, ROLE_HELP, ROLE_LABEL } from "@/lib/roles";
+import { researchAllowed } from "@/lib/admin/research-clients";
+import { ResearchSwitch } from "./research-switch";
 import { clearAccountDataAction, renameClientAction, setAssignmentAction, setClientLogoAction, setClientStatusAction, setMonthlyBudgetAction, setRoleAction, setShowExtrasAction } from "../../actions";
 
 export const metadata = { title: "Client settings" };
@@ -33,6 +35,7 @@ export default async function ClientSettingsPage({ params, searchParams }: { par
     baseDb.account.findFirst({ where: { sellerId: id }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
   ]);
   const status = isClientStatus(client.status) ? client.status : "active";
+  const [researchOn, held] = await Promise.all([researchAllowed(id), baseDb.account.count({ where: { sellerId: id, mergedIntoId: null, pipelineStatus: "queued" } })]);
   const done = steps.filter((s) => s.done).length;
   const m = month.get(id);
   const assigned = new Set(client.users.map((u) => u.userId));
@@ -132,6 +135,11 @@ export default async function ClientSettingsPage({ params, searchParams }: { par
           {status === "active" && <ActionButton action={setClientStatusAction.bind(null, id, "paused")} className="btn btn-secondary btn-sm" confirm={`Pause ${client.name}? Its research and approved emails wait until you resume it.`}>Pause</ActionButton>}
           {status !== "archived" && <ActionButton action={setClientStatusAction.bind(null, id, "archived")} className="btn btn-ghost btn-sm" confirm={`Archive ${client.name}? Work stops and it leaves team members' menus. Nothing is deleted; you can restore it.`}>Archive</ActionButton>}
         </div>
+      </Card>
+
+      <Card title="Live research" sub={id === "test" ? "The Test client runs on sample data and stand-in services only. It never searches the web." : "Real web search and AI reading for this client's companies. Off: nothing is searched, and its queued companies wait untouched until it is switched on."}>
+        <ResearchSwitch clientId={id} on={researchOn} locked={id === "test"} />
+        {!researchOn && held > 0 && <p className="muted mt-2 text-xs">{held.toLocaleString()} compan{held === 1 ? "y is" : "ies are"} queued and waiting.</p>}
       </Card>
 
       <Card title="Export" sub="Everything for this client in one .zip: companies, people, facts with sources, emails, replies, deals, tasks and notes as spreadsheets, plus its Account Brain. Only this client's data.">

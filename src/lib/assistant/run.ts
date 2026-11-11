@@ -76,7 +76,7 @@ async function callModel(sys: string, messages: { role: "user" | "assistant"; co
   const res = await fetchJson<{ choices?: { message?: { content?: string } }[] }>("OpenRouter", `${env("OPENROUTER_BASE_URL") ?? "https://openrouter.ai/api/v1"}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}`, "HTTP-Referer": env("APP_URL") ?? "https://abm-chi.vercel.app", "X-Title": "ABM Intelligence admin assistant" },
-    body: JSON.stringify({ model: env("ASSISTANT_MODEL") ?? env("LLM_MODEL") ?? "anthropic/claude-sonnet-4.5", temperature: 0, max_tokens: maxTokens, response_format: { type: "json_object" }, messages: [{ role: "system", content: `${sys}\nRespond with a single JSON object only.` }, ...messages] }),
+    body: JSON.stringify({ model: env("ASSISTANT_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini", temperature: 0, max_tokens: maxTokens, response_format: { type: "json_object" }, messages: [{ role: "system", content: `${sys}\nRespond with a single JSON object only.` }, ...messages] }),
     timeoutMs: 60_000,
   });
   return res.choices?.[0]?.message?.content ?? "";

@@ -19,7 +19,7 @@ export const ACTION_WORD: Record<string, string> = {
   "suggestion.approve": "approved a company", "suggestion.approve_many": "approved companies", "suggestion.dismiss": "dismissed a company",
   "lookalike.search": "searched lookalikes", "lookalike.reject": "rejected a lookalike", "lookalike.research_more": "asked for more lookalike research",
   "assignment.role": "changed a role", "user.sign_out_everywhere": "signed a person out everywhere", "security.sign_out_all": "signed everyone out",
-  "client.rename": "renamed a client", "client.paused": "paused a client", "client.archived": "archived a client", "client.resume": "reactivated a client",
+  "client.rename": "renamed a client", "client.paused": "paused a client", "client.archived": "archived a client", "client.resume": "reactivated a client", "client.research_on": "switched live research on for a client", "client.research_off": "switched live research off for a client",
   "client.export": "exported a client's data", "client.extras": "changed a client's pages", "ai.pause": "paused AI", "ai.resume": "resumed AI",
   "companies.retry_stopped": "retried stopped companies", "errors.resolve": "resolved an error", "email.test": "sent a test email",
   "sample.load": "loaded the Test client", "sample.remove": "removed the Test client",

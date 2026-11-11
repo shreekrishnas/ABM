@@ -384,8 +384,10 @@ export async function requestMoreResearch(id: string, note: string | null) {
 export async function processLookalikeQueue(opts: { budgetMs: number; ctx?: RunContext }): Promise<{ processed: number; remaining: number }> {
   const until = Date.now() + opts.budgetMs;
   let processed = 0;
+  // Only clients with live research on; the others' suggestions stay queued.
+  const on = await (await import("@/lib/admin/research-clients")).researchOnIds();
   while (Date.now() < until) {
-    const next = await db.prospectSuggestion.findFirst({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" }, orderBy: { updatedAt: "asc" }, select: { id: true, sellerId: true } });
+    const next = await db.prospectSuggestion.findFirst({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued", sellerId: { in: on } }, orderBy: { updatedAt: "asc" }, select: { id: true, sellerId: true } });
     if (!next) break;
     try {
       await withSeller(next.sellerId, () => investigateSuggestion(next.id, opts.ctx ?? newContext()));
@@ -397,6 +399,6 @@ export async function processLookalikeQueue(opts: { budgetMs: number; ctx?: RunC
   }
   // A run that died mid-way leaves "running" behind: retry those after 15 minutes.
   await db.prospectSuggestion.updateMany({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "running", updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } }, data: { researchStatus: "queued" } });
-  const remaining = await db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" } });
+  const remaining = await db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued", sellerId: { in: on } } });
   return { processed, remaining };
 }

@@ -267,7 +267,9 @@ export async function runBatch(accountIds: string[], ctx: RunContext = newContex
 
 /** Due watchlist entries go back to stage 5 with loop counters reset. */
 export async function processWatchlist(ctx: RunContext = newContext()) {
-  const due = await db.watchlistEntry.findMany({ where: { status: { in: ["waiting", "due"] }, recheckAt: { lte: ctx.now } } });
+  // Re-checks only for clients with live research on; the others wait on the watchlist.
+  const on = await (await import("@/lib/admin/research-clients")).researchOnIds();
+  const due = await db.watchlistEntry.findMany({ where: { status: { in: ["waiting", "due"] }, recheckAt: { lte: ctx.now }, account: { sellerId: { in: on } } } });
   const results: RunResult[] = [];
   for (const w of due) {
     await db.watchlistEntry.update({ where: { id: w.id }, data: { status: "processed" } });
@@ -282,7 +284,8 @@ export async function processWatchlist(ctx: RunContext = newContext()) {
 export async function processIntent(ctx: RunContext = newContext()) {
   // No real intent provider: no scores, no surges, no re-runs.
   if (ctx.adapters.intent.connected === false) return [];
-  const watched = await db.account.findMany({ where: { stage: { in: ["WATCH", "RECYCLED"] }, mergedIntoId: null, domain: { not: null } } });
+  const on = await (await import("@/lib/admin/research-clients")).researchOnIds();
+  const watched = await db.account.findMany({ where: { stage: { in: ["WATCH", "RECYCLED"] }, mergedIntoId: null, domain: { not: null }, sellerId: { in: on } } });
   const results: RunResult[] = [];
   for (const a of watched) {
     const i = await ctx.adapters.intent.intent(a.domain!);
@@ -319,7 +322,7 @@ async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number;
   // Companies stopped only because research couldn't run (AI or search down) go back in the queue once a day.
   if (!opts.batchId) {
     const waiting = await db.account.findMany({
-      where: { mergedIntoId: null, pipelineStatus: { notIn: ["queued", "running"] }, disqualifyReason: { contains: "research couldn't run" }, updatedAt: { lte: new Date(ctx.now.getTime() - 86_400_000) } },
+      where: { mergedIntoId: null, sellerId: { in: await (await import("@/lib/admin/research-clients")).researchOnIds() }, pipelineStatus: { notIn: ["queued", "running"] }, disqualifyReason: { contains: "research couldn't run" }, updatedAt: { lte: new Date(ctx.now.getTime() - 86_400_000) } },
       select: { id: true }, take: 50, orderBy: { updatedAt: "asc" },
     });
     if (waiting.length) await db.account.updateMany({ where: { id: { in: waiting.map((w) => w.id) } }, data: { pipelineStatus: "queued", queuedFromStage: 2, nextRetryAt: null, retryCount: 0 } });
@@ -329,7 +332,10 @@ async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number;
   // Companies of a paused or archived client stay queued until it is active again.
   const { stoppedClientIds } = await import("@/lib/admin/client-status");
   const stopped = await stoppedClientIds();
-  const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], ...(stopped.length ? { sellerId: { notIn: stopped } } : {}), ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
+  // Only clients with live research on are worked; the others' companies stay queued, untouched.
+  const { researchOnIds } = await import("@/lib/admin/research-clients");
+  const on = (await researchOnIds()).filter((id) => !stopped.includes(id));
+  const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], sellerId: { in: on }, ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
   const results: RunResult[] = [];
   while (Date.now() < deadline && results.length < (opts.max ?? 500)) {
     const next = await db.account.findFirst({ where, orderBy: { updatedAt: "asc" } });

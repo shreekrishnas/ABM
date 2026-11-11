@@ -128,6 +128,11 @@ export async function withSeller<T>(id: string | null | undefined, fn: () => Pro
   return als.run(loadSeller(id), fn);
 }
 
+/** The client of the run in progress, or null outside a run (a page request, a scheduled job). */
+export function runSellerId(): string | null {
+  return als.getStore()?.pack.id ?? null;
+}
+
 export function sellerContext(): SellerContext {
   return als.getStore() ?? loadSeller(DEFAULT_SELLER_ID);
 }

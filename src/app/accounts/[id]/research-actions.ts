@@ -15,10 +15,15 @@ export async function researchQuestionAction(accountId: string, key: string): Pr
   const account = await db.account.findUnique({ where: { id: accountId } });
   if (!account) return { ok: false, message: "Company not found" };
   await logAction("research.question", { accountId, detail: key });
+  // The Test client runs on stand-in services (never a real search); other clients need live research switched on.
+  const sample = account.sellerId === "test";
+  const { researchAllowed } = await import("@/lib/admin/research-clients");
+  if (!sample && !(await researchAllowed(account.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
   const before = await db.evidence.count({ where: { accountId, key, flagged: false } });
   try {
     await unscoped(async () => {
       const ctx = newContext();
+      if (sample) ctx.adapters = (await import("@/lib/adapters/mock")).createMockAdapters();
       if (ctx.adapters.research.connected === false) throw new Error("Web research isn't switched on (search and AI keys in Admin → Integrations)");
       const { s06AccountResearch, s07AccountTwin } = await import("@/lib/pipeline/stages/research");
       const a = await s06AccountResearch(account, ctx, { pass: "refresh", keys: [key] });

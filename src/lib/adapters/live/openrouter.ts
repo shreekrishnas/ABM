@@ -1,4 +1,4 @@
-// Live LLM via OpenRouter (default model: anthropic/claude-sonnet-4.5).
+// Live LLM via OpenRouter (default model: openai/gpt-4o-mini).
 // Every call asks for strict JSON and is validated. Source URLs and dates are
 // never taken from the model — they come from the fetched pages — so the model
 // cannot invent a source. Compliance lines are appended by code, not the model.
@@ -52,7 +52,7 @@ const BRAIN = (sellerName: string) =>
 
 export class OpenRouterLLM implements LLM {
   readonly model: string;
-  constructor(private apiKey: string, model = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.5") {
+  constructor(private apiKey: string, model = process.env.LLM_MODEL || "openai/gpt-4o-mini") {
     this.model = model;
   }
 

@@ -155,6 +155,7 @@ export class WebResearch implements ResearchSource {
   }
 
   private async findSimilarLive(url: string): Promise<ResearchPage[]> {
+    await (await import("@/lib/admin/research-clients")).assertResearchAllowed();
     const res = await fetchJson<{ results?: ExaResult[] }>("Exa", "https://api.exa.ai/findSimilar", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": this.keys.exa ?? "" },
@@ -175,6 +176,8 @@ export class WebResearch implements ResearchSource {
   }
 
   private async searchLive(domain: string, companyName: string, key: string, pass: ResearchPass, hint: SearchHint = {}): Promise<ResearchPage[]> {
+    // Live research is switched on per client (Super Admin → client settings); off means no search at all.
+    await (await import("@/lib/admin/research-clients")).assertResearchAllowed();
     const base = queryFor(key, companyName);
     const q = hint.query?.trim() || base.q;
     const { days, news } = base;
