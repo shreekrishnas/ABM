@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, DollarSign, Plug, ShieldCheck, SlidersHorizontal, Users, Activity } from "lucide-react";
+import { Brain, DollarSign, Plug, SlidersHorizontal, Users, Activity } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { PageHeader } from "@/components/ui";
@@ -36,9 +36,6 @@ export default async function AdminHome() {
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Admin" title="Workspace settings" sub="Connections, the Account Brain, team and system health." />
-      {paused && sup && (
-        <div className="ad-banner" role="status"><ShieldCheck size={16} /> <span><b>AI is paused</b> by an admin. {queued} companies are waiting in the queue.</span> <Link href="/team?tab=system" className="btn btn-secondary btn-sm">Review</Link></div>
-      )}
       <div className="ig-grid">
         {tiles.map((t) => (
           <Link key={t.title} href={t.href} className="glass-card ad-tile">

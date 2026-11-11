@@ -10,7 +10,6 @@ import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
 import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
-import { aiPause } from "@/lib/admin/ai-pause";
 import { NotificationBell } from "@/components/shell/NotificationBell";
 import { Donut, GroupedBars, SparkStat, change, dayLabels, daily } from "@/components/viz/cards";
 
@@ -41,10 +40,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const [cc, flow, paused, queued] = await Promise.all([
-    commandCenter(now), companyFlow(now), aiPause(),
-    db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
-  ]);
+  const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
   // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
   const wkAgo = new Date(now.getTime() - 14 * DAY);
   const [wkAccounts, wkDrafts, wkSent, wkReplies, wkHandoffs, wkVisits] = await Promise.all([
@@ -120,10 +116,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
           </div>
         </header>
-
-        {paused && (
-          <div className="ad-banner" role="status"><b>AI is paused</b> <span>by an admin. {queued} companies are waiting in the queue.</span> <Link href="/team?tab=system" className="btn btn-secondary btn-sm">Review</Link></div>
-        )}
 
         <section className="hm2-kpis" aria-label="What needs doing">
           {actionable.map((k) => (
