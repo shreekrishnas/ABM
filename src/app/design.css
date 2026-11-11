@@ -1555,3 +1555,20 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .dir-tech span { background: var(--subtle); color: var(--text-2); border-radius: var(--r-xs); font-weight: 600; }
 .dir-intent { background: var(--info-bg); color: var(--info); border-radius: var(--r-full); min-width: 22px; text-align: center; font-weight: 600; }
 .dir-src { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+
+/* ── Tasks ── */
+.tk-filters { display: flex; flex-wrap: wrap; gap: var(--sp-3); justify-content: space-between; margin-bottom: var(--sp-3); }
+.tk-n { margin-left: 4px; font-size: var(--fs-xs); color: var(--muted); font-weight: 600; }
+.tk-n.bad { color: var(--danger); }
+.tk-bulk { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.tk-row { border-bottom: 1px solid var(--border); }
+.tk-h { padding: var(--sp-2) var(--sp-5); background: var(--subtle); font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tk-h.bad { color: var(--danger); }
+
+.op-setdate { display: grid; gap: var(--sp-1); margin-top: var(--sp-2); }
+.op-setdate .glass-input { height: 30px; font-size: var(--fs-xs); padding: 0 var(--sp-2); min-width: 0; width: 100%; }
+.op-setdate .btn { width: 100%; justify-content: center; }
+
+.ho-kpi { display: block; text-decoration: none; color: inherit; border-radius: var(--r-lg); outline-offset: 2px; }
+.ho-kpi:hover .kpi { transform: translateY(-2px); }
+.ho-kpi.on .kpi { box-shadow: 0 0 0 2px var(--pill) !important; }

@@ -29,7 +29,8 @@ function timer(due: Date | null, now: Date) {
 }
 
 /** Hand-offs: everything a rep needs to make the first call, and a clear accept or send-back. */
-export default async function HandoffsPage() {
+export default async function HandoffsPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  const { show } = await searchParams;
   const now = new Date();
   const all = await db.handoff.findMany({ orderBy: { createdAt: "desc" }, take: 60, include: { account: true, owner: true } });
   // Waiting for a decision first (most overdue on top), then held ones; decided ones are listed compactly below.
@@ -42,7 +43,10 @@ export default async function HandoffsPage() {
   const accepted = decided.filter((h) => h.status === "accepted");
 
   // The packet: what they read, what they said, and a suggested first call.
-  const active = handoffs.filter((h) => h.status === "open");
+  const activeAll = handoffs.filter((h) => h.status === "open");
+  const active = show === "overdue" ? overdue : show === "accepted" || show === "sent_back" ? [] : activeAll;
+  const decidedShown = show === "accepted" ? accepted : show === "sent_back" ? sentBack : show === "overdue" ? [] : decided;
+  const card = (key: string, el: React.ReactNode) => <Link href={show === key ? "/handoffs" : `/handoffs?show=${key}`} className={`ho-kpi${show === key ? " on" : ""}`} aria-pressed={show === key}>{el}</Link>;
   const label = (sellerId: string, key: string) => { try { return sellerFor(sellerId).researchQuestions.find((q) => q.key === key)?.label ?? key.replace(/_/g, " "); } catch { return key.replace(/_/g, " "); } };
   const packets = new Map(await Promise.all(active.slice(0, 20).map(async (h) => {
     const [visits, replies, sent, brief] = await Promise.all([
@@ -58,15 +62,15 @@ export default async function HandoffsPage() {
     <div className="page-enter">
       <PageHeader eyebrow="CRM" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Waiting for a decision" value={open.length} accent="var(--accent)" />
-        <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "var(--danger)" : "var(--success)"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />
-        <Kpi label="Accepted" value={accepted.length} accent="var(--success)" />
-        <Kpi label="Sent back" value={sentBack.length} accent="var(--warning)" meta={sentBack.length ? `Top reason: ${topReason(sentBack.map((h) => h.decisionReason))}` : "None yet"} />
+        {card("waiting", <Kpi label="Waiting for a decision" value={open.length} accent="var(--accent)" />)}
+        {card("overdue", <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "var(--danger)" : "var(--success)"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />)}
+        {card("accepted", <Kpi label="Accepted" value={accepted.length} accent="var(--success)" />)}
+        {card("sent_back", <Kpi label="Sent back" value={sentBack.length} accent="var(--warning)" meta={sentBack.length ? `Top reason: ${topReason(sentBack.map((h) => h.decisionReason))}` : "None yet"} />)}
       </div>
 
       <div className="mt-5 grid gap-4">
         {handoffs.length === 0 && <Card><Empty icon={<Handshake size={20} />} title="No hand-offs yet" sub="They appear when an account becomes ready for sales or someone replies positively." /></Card>}
-        {handoffs.length > 0 && active.length === 0 && <p className="ho-none"><Check size={15} /> Nothing waiting: every hand-off has been decided.</p>}
+        {handoffs.length > 0 && active.length === 0 && !show && <p className="ho-none"><Check size={15} /> Nothing waiting: every hand-off has been decided.</p>}
         {active.map((h) => {
           const b = h.briefing as unknown as Brief;
           const pk = packets.get(h.id);
@@ -137,11 +141,12 @@ export default async function HandoffsPage() {
         })}
       </div>
 
-      {decided.length > 0 && (
+      {show && <p className="muted text-sm mt-3">Showing {show === "waiting" ? "hand-offs waiting for a decision" : show === "overdue" ? "overdue hand-offs" : show === "accepted" ? "accepted hand-offs" : "hand-offs sent back"} · <Link href="/handoffs" className="vz-link">Show all</Link></p>}
+      {decidedShown.length > 0 && (
         <section className="ho-done" aria-labelledby="ho-done-h">
-          <h2 id="ho-done-h">Decided <span className="tnum">{decided.length}</span></h2>
+          <h2 id="ho-done-h">{show === "accepted" ? "Accepted" : show === "sent_back" ? "Sent back" : "Decided"} <span className="tnum">{decidedShown.length}</span></h2>
           <ul>
-            {decided.map((h) => (
+            {decidedShown.map((h) => (
               <li key={h.id}>
                 <Avatar name={h.account.name} id={h.account.id} size={28} />
                 <Link href={`/accounts/${h.accountId}`} className="ho-done-co">{h.account.name}</Link>

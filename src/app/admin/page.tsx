@@ -23,14 +23,16 @@ export default async function AdminHome() {
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
   ]);
   const live = list.filter((i) => i.state === "connected").length;
-  const setup = list.filter((i) => i.state === "setup" || i.state === "off").length;
+  const offNames = list.filter((i) => i.state === "setup" || i.state === "off").map((i) => i.name.replace(" (AI)", ""));
+  const { integrationKeyStates } = await import("@/lib/integration-keys");
+  const keysSaved = [...(await integrationKeyStates()).values()].flatMap((k) => k.fields).filter((f) => f.source === "app").length;
   const usd = (spend._sum.amountMicros ?? 0) / 1_000_000;
   const tiles = [
-    { href: "/admin/integrations", icon: Plug, title: "Integrations", text: `${live} connected${setup ? ` · ${setup} to set up` : ""}`, show: true },
+    { href: "/admin/integrations", icon: Plug, title: "Integrations", text: `${live} of ${list.length} on${offNames.length ? ` · off: ${offNames.slice(0, 3).join(", ")}${offNames.length > 3 ? "…" : ""}` : ""}${keysSaved ? ` · ${keysSaved} key${keysSaved === 1 ? "" : "s"} saved` : ""}`, show: true },
     { href: "/brain", icon: Brain, title: "Account Brain", text: "What the client sells, to whom, and how to talk about it", show: true },
-    { href: "/settings", icon: SlidersHorizontal, title: "Settings", text: "Seller pack, senders, knowledge base", show: true },
-    { href: "/team", icon: Users, title: "Team & Access", text: `${users} people · ${clients} client accounts`, show: sup },
-    { href: "/team?tab=system", icon: Activity, title: "System health", text: paused ? `AI paused · ${queued} companies waiting` : `${queued} companies in the queue`, show: sup },
+    { href: "/settings", icon: SlidersHorizontal, title: "Settings", text: "Campaigns, senders, who you target, approval", show: true },
+    { href: "/team", icon: Users, title: "Team & Access", text: `${users} people · ${clients} client${clients === 1 ? "" : "s"}`, show: sup },
+    { href: "/team?tab=system", icon: Activity, title: "System health", text: `${paused ? "AI paused" : "AI on"} · ${queued} compan${queued === 1 ? "y" : "ies"} in the queue`, show: sup },
     { href: "/team?tab=system", icon: DollarSign, title: "Usage & spend", text: `$${usd.toFixed(2)} recorded this month`, show: sup },
   ].filter((t) => t.show);
   return (

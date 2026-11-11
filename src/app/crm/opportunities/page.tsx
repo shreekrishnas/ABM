@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { OppMover } from "@/components/opp-mover";
 import { Avatar, Kpi, PageHeader, date, money } from "@/components/ui";
-import { createOpportunityAction } from "../../actions";
+import { createOpportunityAction , setDealDetailsAction } from "../../actions";
 import { LIKELIHOOD, attention } from "@/lib/crm/opportunities";
 
 export const metadata = { title: "CRM · Opportunities" };
@@ -20,12 +20,13 @@ const COLUMNS: { id: OppStage; label: string; color: string }[] = [
   { id: "lost", label: "Lost", color: "var(--danger)" },
 ];
 
-export default async function OpportunitiesPage({ searchParams }: { searchParams: Promise<{ account?: string; peek?: string }> }) {
-  const { account, peek } = await searchParams;
+export default async function OpportunitiesPage({ searchParams }: { searchParams: Promise<{ account?: string; peek?: string; owner?: string }> }) {
+  const { account, peek, owner } = await searchParams;
   const keep = { account };
-  const [opps, accounts] = await Promise.all([
-    db.opportunity.findMany({ where: account ? { accountId: account } : {}, include: { account: true, owner: true }, orderBy: { updatedAt: "desc" } }),
+  const [opps, accounts, owners] = await Promise.all([
+    db.opportunity.findMany({ where: { ...(account ? { accountId: account } : {}), ...(owner === "none" ? { ownerId: null } : owner ? { ownerId: owner } : {}) }, include: { account: true, owner: true }, orderBy: { updatedAt: "desc" } }),
     db.account.findMany({ where: { mergedIntoId: null, relationship: { not: "competitor" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { status: "active", opportunities: { some: {} } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => [] as { id: string; name: string }[]),
   ]);
   const open = opps.filter((o) => !["won", "lost"].includes(o.stage));
   const won = opps.filter((o) => o.stage === "won");
@@ -64,6 +65,11 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
         <Kpi label="Won" value={money(won.reduce((a, o) => a + o.amountUsd, 0))} accent="var(--success)" meta={`${won.length} deals`} />
         <Kpi label="Win rate" value={`${winRate}%`} accent="var(--info)" meta={`${won.length} won · ${lost.length} lost`} />
       </div>
+      <nav className="k-seg tm-tabs mb-3" aria-label="Owner">
+        <Link href={`/crm/opportunities${account ? `?account=${account}` : ""}`} className={owner ? undefined : "on"}>Everyone</Link>
+        {owners.map((u) => <Link key={u.id} href={`/crm/opportunities?${new URLSearchParams({ ...(account ? { account } : {}), owner: u.id })}`} className={owner === u.id ? "on" : undefined}>{u.name}</Link>)}
+        <Link href={`/crm/opportunities?${new URLSearchParams({ ...(account ? { account } : {}), owner: "none" })}`} className={owner === "none" ? "on" : undefined}>No owner</Link>
+      </nav>
       {account && <div className="mb-3 text-sm secondary">Filtered to one account · <Link href="/crm/opportunities" className="underline">show all</Link></div>}
       <div className="table-wrap pb-2">
         <div className="op-board">
@@ -74,7 +80,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
               <div key={col.id} className="op-col">
                 <div className="op-col-h">
                   <span className="op-col-t"><i style={{ background: col.color }} />{col.label}</span>
-                  <span className="op-col-n tnum">{items.length} · {money(items.reduce((a, o) => a + o.amountUsd, 0))}{flagged > 0 && <b title={`${flagged} need attention`}>{flagged} need attention</b>}</span>
+                  <span className="op-col-n tnum">{money(items.reduce((a, o) => a + o.amountUsd, 0))} · {items.length} deal{items.length === 1 ? "" : "s"}{flagged > 0 && <b title={`${flagged} need attention`}>{flagged} need attention</b>}</span>
                 </div>
                 <div className="grid gap-2">
                   {items.length === 0 && <p className="op-empty">No deals</p>}
@@ -91,7 +97,13 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
                         </div>
                         <div className="op-amt"><b className="tnum">{money(o.amountUsd)}</b>{o.source !== "abm" && <span className="op-src">{o.source}</span>}</div>
                         <p className="op-meta">{o.owner?.name ?? "No owner"} · {o.closedAt ? `closed ${date(o.closedAt)}` : o.closeDate ? `close ${date(o.closeDate)}` : "no close date"}</p>
-                        {warn && <p className="op-warn">{warn}</p>}
+                        {warn && !(!o.closeDate && !o.closedAt) && <p className="op-warn">{warn}</p>}
+                        {!o.closeDate && !o.closedAt && (
+                          <ActionForm action={setDealDetailsAction.bind(null, o.id)} className="op-setdate">
+                            <input type="date" name="closeDate" className="glass-input" aria-label={`Close date for ${o.name}`} required />
+                            <SubmitButton className="btn btn-secondary btn-sm">Set close date</SubmitButton>
+                          </ActionForm>
+                        )}
                         {o.lostReason && <p className="op-lost">{o.lostReason}</p>}
                         {!["won", "lost"].includes(o.stage) && <OppMover id={o.id} stage={o.stage} />}
                       </article>

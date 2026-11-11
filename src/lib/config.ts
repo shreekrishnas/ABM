@@ -214,19 +214,19 @@ export const CONFIG = {
 export type Config = typeof CONFIG;
 
 export const STAGES = [
-  { n: 1, id: "data_input", name: "Data Input", cat: "data" },
-  { n: 2, id: "clean_normalize", name: "Clean & Normalize", cat: "data" },
-  { n: 3, id: "fit_tier", name: "Fit, Tier & Exclusions", cat: "data" },
-  { n: 4, id: "identity", name: "Identity Verification", cat: "data" },
-  { n: 5, id: "research_plan", name: "Research Plan", cat: "research" },
-  { n: 6, id: "account_research", name: "Account Research", cat: "research" },
-  { n: 7, id: "account_twin", name: "Evidence & Account Twin", cat: "research" },
-  { n: 8, id: "buying_group", name: "Buying Group", cat: "people" },
-  { n: 9, id: "enrichment", name: "Contact Enrichment", cat: "people" },
-  { n: 10, id: "readiness", name: "Readiness Gate", cat: "outreach" },
-  { n: 11, id: "draft_review", name: "Draft & Review", cat: "outreach" },
-  { n: 12, id: "sequence_send", name: "Sequence, Send & Measure", cat: "engagement" },
-  { n: 13, id: "handoff", name: "Sales Handoff & Recycle", cat: "engagement" },
+  { n: 1, id: "data_input", name: "Import", cat: "data" },
+  { n: 2, id: "clean_normalize", name: "Tidy the data", cat: "data" },
+  { n: 3, id: "fit_tier", name: "Fit and priority", cat: "data" },
+  { n: 4, id: "identity", name: "Check who's who", cat: "data" },
+  { n: 5, id: "research_plan", name: "Plan the research", cat: "research" },
+  { n: 6, id: "account_research", name: "Research", cat: "research" },
+  { n: 7, id: "account_twin", name: "Check the facts", cat: "research" },
+  { n: 8, id: "buying_group", name: "Find the buyers", cat: "people" },
+  { n: 9, id: "enrichment", name: "Find contact details", cat: "people" },
+  { n: 10, id: "readiness", name: "Ready to email?", cat: "outreach" },
+  { n: 11, id: "draft_review", name: "Write and approve", cat: "outreach" },
+  { n: 12, id: "sequence_send", name: "Send and track", cat: "engagement" },
+  { n: 13, id: "handoff", name: "Hand to sales", cat: "engagement" },
 ] as const;
 
 export type StageCat = (typeof STAGES)[number]["cat"];

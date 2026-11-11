@@ -278,6 +278,20 @@ export async function createOpportunityAction(_: ActionState, fd: FormData): Pro
   return { ok: true, message: "Opportunity created; automated outreach paused" };
 }
 
+/** Set or change a deal's expected close date (and owner) from the board. */
+export async function setDealDetailsAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("deal.update", { opportunityId: id });
+  const close = str(fd, "closeDate");
+  const owner = str(fd, "ownerId");
+  const data: { closeDate?: Date | null; ownerId?: string | null } = {};
+  if (close !== undefined) data.closeDate = close ? new Date(close) : null;
+  if (owner !== undefined) data.ownerId = owner || null;
+  if (data.closeDate && Number.isNaN(data.closeDate.getTime())) return { ok: false, message: "Pick a valid date" };
+  await db.opportunity.update({ where: { id }, data });
+  refresh("/crm/opportunities");
+  return { ok: true, message: "Deal updated" };
+}
+
 export async function moveOpportunityAction(id: string, stage: "discovery" | "qualification" | "proposal" | "negotiation" | "won" | "lost", lostReason?: string): Promise<ActionState> {
   await logAction("deal.move", { opportunityId: id, detail: stage });
   if (stage === "won" || stage === "lost") await recordOutcome(id, stage, lostReason);
@@ -316,6 +330,16 @@ export async function setTaskStatusAction(id: string, status: "todo" | "in_progr
   await db.task.update({ where: { id }, data: { status, completedAt: status === "done" ? new Date() : null } });
   refresh("/crm/tasks", "/work/today");
   return { ok: true, message: "Updated" };
+}
+
+/** Mark every ticked task done at once. */
+export async function completeTasksAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await logAction("task.complete_many", {});
+  const ids = fd.getAll("ids").filter((v): v is string => typeof v === "string").slice(0, 500);
+  if (!ids.length) return { ok: false, message: "Tick the tasks to mark done first" };
+  const r = await db.task.updateMany({ where: { id: { in: ids }, status: { not: "done" } }, data: { status: "done", completedAt: new Date() } });
+  refresh("/crm/tasks", "/work/today");
+  return { ok: true, message: `${r.count} task${r.count === 1 ? "" : "s"} marked done` };
 }
 
 export async function addNoteAction(_: ActionState, fd: FormData): Promise<ActionState> {
