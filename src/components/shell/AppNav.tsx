@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
+import { SuperAdminSwitch } from "./SuperAdminSwitch";
 import { locate, sectionHref, shown, type Counts } from "@/lib/nav";
 import { NotificationBell } from "./NotificationBell";
 
@@ -12,7 +13,7 @@ import { NotificationBell } from "./NotificationBell";
  * theme and notifications. The modules themselves are in the sidebar.
  * Everything opens in this tab; only the URL changes.
  */
-export function AppNav({ counts, discover, sellerName, account, extras = true }: { counts: Counts; discover: number; sellerName: string; extras?: boolean; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
+export function AppNav({ counts, discover, sellerName, account, extras = true, superAdmin }: { counts: Counts; discover: number; sellerName: string; extras?: boolean; superAdmin?: { can: boolean; on: boolean }; account?: { name: string; many: boolean; choices: { id: string; name: string }[]; picked: string | null; everyClient: boolean } | null }) {
   const path = usePathname();
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(document.documentElement.dataset.theme === "dark"), []);
@@ -58,6 +59,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true }:
         </nav>
 
         <div className="nav-tools">
+          {superAdmin?.can && <SuperAdminSwitch on={superAdmin.on} />}
           <button type="button" className="nav-search" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
             <Search size={15} strokeWidth={1.75} />
             <span className="hide-sm">Search</span>

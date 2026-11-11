@@ -30,7 +30,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   const path = usePathname();
   if (path.startsWith("/login")) return <main id="main">{children}</main>;
   if (access?.state === "removed") return <Gate title="Your access has been removed" text="Ask ShreeKrishna if you think this is a mistake." />;
-  if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text="You're on the team, but no client is assigned to you yet. ShreeKrishna will assign one; this page opens up as soon as he does." />;
+  if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text={access.canSuperAdmin ? "No client is assigned to you in User mode. Switch Super Admin on to see every client." : "You're on the team, but no client is assigned to you yet. This page opens up as soon as an admin assigns one."} superAdminSwitch={access.canSuperAdmin} />;
   const at = locate(path);
   const active = isOn(path, "/clients") ? "clients" : at.area === "home" ? "home" : (at.section?.key ?? "");
   const sup = Boolean(access?.superAdmin);
@@ -60,13 +60,6 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
           <MoreSheet active={active} sup={sup} counts={counts} />
         </nav>
         <div className="sh-body" id="sh-scroll">
-          {sup && (
-            <div className="sh-super" role="status">
-              <ShieldCheck size={16} /> <b>Super Admin mode</b> <span className="hide-sm">You can see and open every account, and change team and access. Every action is logged.</span>
-              <Link href="/team" className="sh-super-link">Team & Access</Link>
-              <Toggle on label="Super Admin" showLabel size="sm" onChange={() => switchModeAction("user")} />
-            </div>
-          )}
           {children}
         </div>
       </div>
@@ -136,13 +129,14 @@ function MoreSheet({ active, sup, counts }: { active: string; sup: boolean; coun
   );
 }
 
-function Gate({ title, text }: { title: string; text: string }) {
+function Gate({ title, text, superAdminSwitch }: { title: string; text: string; superAdminSwitch?: boolean }) {
   return (
     <div className="sh-gate">
       <div className="sh-gate-card">
         <LogoMark size={48} />
         <h1>{title}</h1>
         <p>{text}</p>
+        {superAdminSwitch && <Toggle on={false} label="Super Admin" showLabel onChange={() => switchModeAction("super")} />}
         <form action={signOutAction}><button type="submit" className="btn btn-secondary">Sign out</button></form>
       </div>
     </div>

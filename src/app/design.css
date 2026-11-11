@@ -1490,7 +1490,6 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .tg.sm .tg-sw { width: 34px; height: 19px; }
 .tg.sm .tg-sw i { width: 13px; height: 13px; }
 .tg.sm .tg-sw.on i { transform: translateX(15px); }
-.sh-super .tg-sw.on { background: var(--warning); }
 .sh-menu-toggle { display: flex; align-items: center; gap: var(--sp-2); }
 
 /* ── Integration keys ── */
@@ -1508,3 +1507,8 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .ig-field small { font-weight: 400; color: var(--muted); }
 .ig-state.info i { background: var(--info); }
 .ig-keys li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Super Admin switch in the top bar */
+.nav-tools .tg, .hm-tools .tg { padding: 0 var(--sp-2); }
+.nav-tools .tg-sw.on, .hm-tools .tg-sw.on { background: var(--warning); }
+@media (max-width: 640px) { .nav-tools .tg-l, .hm-tools .tg-l { display: none; } }

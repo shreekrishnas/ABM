@@ -69,7 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
-          <AppNav extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
+          <AppNav superAdmin={me ? { can: me.canSuperAdmin, on: me.superAdmin } : undefined} extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
           <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>by an admin. Research and sending are stopped for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />

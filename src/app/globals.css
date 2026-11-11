@@ -1431,14 +1431,8 @@ table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 
 /* ── Team & Access ── */
 .sh-mode.on { background: #F59E0B !important; color: #fff !important; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important; }
-.sh-super { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.55rem 2rem; background: #FFFBEB; border-bottom: 1px solid #FCD34D; color: #92400E; font-size: 0.82rem; }
-:root[data-theme="dark"] .sh-super { background: rgba(245, 158, 11, 0.14); border-color: rgba(245, 158, 11, 0.35); color: #FCD34D; }
-.sh-super .sh-super-link { margin-left: auto; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-.sh-super-btn { padding: 4px 12px; border-radius: 9999px; background: #F59E0B; color: #fff; font-weight: 700; font-size: 0.78rem; }
-.sh-super ~ .nav { top: 38px; }
 /* Client switcher */
 .sh-clients { position: sticky; top: 0; z-index: 39; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0.5rem 2rem; background: color-mix(in srgb, var(--surface-card-elevated, #fff) 72%, transparent); backdrop-filter: blur(var(--l1-blur, 16px)) saturate(1.4); -webkit-backdrop-filter: blur(var(--l1-blur, 16px)) saturate(1.4); border-bottom: 1px solid var(--border-subtle, rgba(99, 102, 241, 0.12)); font-size: 0.8rem; }
-.sh-super + .sh-clients { top: 38px; }
 .sh-clients-k { font-size: 0.66rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; }
 .sh-client { padding: 4px 12px; border-radius: 999px; font-weight: 650; color: var(--text-secondary); background: transparent; transition: background 200ms, color 200ms, box-shadow 200ms; }
 .sh-client:hover { background: var(--well); color: var(--text-primary); }

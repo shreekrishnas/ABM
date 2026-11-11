@@ -4,6 +4,7 @@ import { ArrowRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
+import { SuperAdminSwitch } from "@/components/shell/SuperAdminSwitch";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
@@ -110,6 +111,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <p className="hm-brief">{waiting ? <><b>{waiting} item{waiting === 1 ? "" : "s"}</b> waiting for you on <Link href="/review">Approvals</Link></> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
           </div>
           <div className="hm-tools">
+            {me?.canSuperAdmin && <SuperAdminSwitch on={me.superAdmin} />}
             <SearchPill />
             <ThemePill />
             <NotificationBell />
