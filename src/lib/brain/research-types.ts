@@ -87,6 +87,8 @@ export const investigateSchema = z.object({
     query: z.string().min(4).max(240),
     purpose: z.enum(PURPOSES),
     hypothesisRef: z.string().nullable().optional(),
+    /** The research question this answers, when it is one of the seller's; its facts then count toward readiness. */
+    topic: z.string().nullable().optional(),
     value: z.number().min(1).max(5),
     why: z.string().max(300),
   })).max(8),

@@ -4,6 +4,7 @@
 import { db } from "@/lib/db";
 import { logEvent, newContext } from "@/lib/pipeline/context";
 import type { Claim } from "@/lib/pipeline/gates";
+import { canonicalUrl } from "@/lib/research/precision";
 
 export async function flagFact(evidenceId: string, reason: string) {
   const e = await db.evidence.update({ where: { id: evidenceId }, data: { flagged: true, flagReason: reason.slice(0, 300), status: "invalid" } });
@@ -33,8 +34,10 @@ export async function correctFact(evidenceId: string, input: { claim: string; so
   const fresh = await db.evidence.create({
     data: {
       accountId: old.accountId, key: old.key, claim: input.claim.slice(0, 500), value: null,
-      sourceUrl: input.sourceUrl || "https://team.correction/", sourceType: input.sourceUrl ? "official" : "team",
-      publishedAt: new Date(), status: "verified", pass: "refresh", engine: "person", quote: null,
+      // A person's correction is the team's word, not the company's: marked as such, and it keeps
+      // the original fact's date so a correction doesn't make old news look fresh.
+      sourceUrl: input.sourceUrl || "https://team.correction/", sourceType: "team", canonicalUrl: input.sourceUrl ? canonicalUrl(input.sourceUrl) : null,
+      publishedAt: old.publishedAt, eventDate: old.eventDate, pageDate: old.pageDate, status: "verified", confidence: 95, pass: "refresh", engine: "person", quote: null, publisher: input.by,
       isNegative: old.isNegative, negativeKind: old.negativeKind, sellerId: old.sellerId, sellerPackVersion: old.sellerPackVersion,
     },
   });

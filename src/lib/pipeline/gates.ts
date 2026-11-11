@@ -289,7 +289,8 @@ export interface EvidenceLike {
   fingerprint?: string | null;
 }
 
-const OFFICIAL = new Set(["official", "provider"]);
+/** Sources that settle a fact on their own: the company speaking officially, a data provider, or a person on the team. Blogs and careers pages do not. */
+const OFFICIAL = new Set(["official", "provider", "team"]);
 
 function hostOf(url: string): string {
   try {

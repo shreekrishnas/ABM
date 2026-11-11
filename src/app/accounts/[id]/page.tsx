@@ -16,6 +16,7 @@ import { FamilyChip, NextAction, type IntentLevel } from "@/components/v2";
 const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" } as const;
 import { IntakeTab } from "./intake-tab";
 import { ResearchTrace } from "./research-trace";
+import { ResearchSummary } from "./research-summary";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Imported data", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
@@ -192,47 +193,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       {tab === "overview" && (
         <div className="grid items-start gap-5 xl:grid-cols-3">
           <div className="grid content-start gap-5 xl:col-span-2">
-            <Card title="Facts" sub={twin ? `Researched ${date(a.twins[0].createdAt)} · version ${a.twins[0].version} · every fact has a status and a source` : undefined}>
-              {!twin || twin.facts.length === 0 ? <Empty icon={<FileText size={20} />} title="No evidence yet" sub="Run the pipeline to research this account." /> : (
-                <ul className="grid gap-2.5">
-                  {twin.facts.filter((f) => !flaggedIds.has(f.id)).map((f) => (
-                    <li key={f.id} className={`ev ev-${f.status}`}>
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="min-w-[12rem] flex-1 text-sm" style={{ color: "var(--text-primary)" }}>{f.claim}</span>
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          <FieldBadge status={f.status as FieldStatus} />
-                          <Modal trigger={<Pencil size={13} />} triggerClass="btn btn-ghost btn-sm" title="Correct this fact" eyebrow="Edit fact">
-                            <ActionForm action={correctFactAction} className="grid gap-3">
-                              <input type="hidden" name="evidenceId" value={f.id} />
-                              <p className="muted text-xs">Now: &ldquo;{f.claim}&rdquo;</p>
-                              <textarea name="claim" className="glass-textarea" defaultValue={f.claim} required aria-label="Corrected fact" />
-                              <input name="sourceUrl" className="glass-input" placeholder="Source link (optional), e.g. https://company.com/news/…" aria-label="Source link" />
-                              <p className="muted text-xs">The corrected fact is marked verified and used from now on. Unsent drafts that cited the old version are withdrawn.</p>
-                              <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Save correction</SubmitButton></div>
-                            </ActionForm>
-                          </Modal>
-                          <Modal trigger={<Flag size={13} />} triggerClass="btn btn-ghost btn-sm" title="Mark this fact as wrong" eyebrow="Feedback">
-                            <ActionForm action={flagFactAction} className="grid gap-3">
-                              <input type="hidden" name="evidenceId" value={f.id} />
-                              <p className="secondary text-sm">&ldquo;{f.claim}&rdquo;</p>
-                              <p className="muted text-xs">It stops being used at once, unsent drafts that cite it are withdrawn, and it counts against the engine that found it.</p>
-                              <textarea name="reason" className="glass-textarea" placeholder="What is wrong? e.g. different company with a similar name, outdated, misread" required />
-                              <div className="flex justify-end"><SubmitButton className="btn btn-primary btn-sm">Mark wrong</SubmitButton></div>
-                            </ActionForm>
-                          </Modal>
-                        </span>
-                      </div>
-                      <div className="ev-meta">
-                        <span className="ev-key">{label(f.key)}</span>
-                        {f.sourceType === "team" ? <span>Corrected by the team</span> : <a href={f.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.sourceType} · {new URL(f.sourceUrl).hostname}</a>}
-                        <span>{date(f.publishedAt)}</span>
-                        {engineOf.get(f.id) && engineOf.get(f.id) !== "mock" && <span>found with {engineOf.get(f.id)}</span>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+            <ResearchSummary account={a} sp={sp} unknowns={twin?.unknowns ?? []} usedInEmail={new Set(drafts.filter((d) => d.status !== "rejected").flatMap((d) => ((d.claims ?? []) as { factIds?: string[] }[]).flatMap((c) => c.factIds ?? [])))} />
             {flagged.length > 0 && (
               <Card title="Marked wrong" sub="Never used in drafts; kept so the same source isn't picked up again">
                 <ul className="grid gap-2">
@@ -283,19 +244,11 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               )}
               {a.useCase && <p className="secondary mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--surface-card-header)" }}>{sp.useCases.find((u) => u.key === a.useCase)?.pains}</p>}
             </Card>
-            <Card title="Unknowns & risks">
+            <Card title="Negative news & changes">
               <div className="grid gap-3 text-sm">
-                <div>
-                  <div className="micro mb-1.5">Still unknown</div>
-                  {twin?.unknowns.length ? <div className="flex flex-wrap gap-1.5">{twin.unknowns.map((u) => <Badge key={u} color="#64748B">{label(u)}</Badge>)}</div> : <span className="muted text-xs">Nothing open</span>}
-                </div>
                 <div>
                   <div className="micro mb-1.5">Negative evidence</div>
                   {twin?.negatives.length ? twin.negatives.map((n) => <div key={n.id} className="flex items-center gap-2 text-xs" style={{ color: "#B45309" }}><ShieldAlert size={14} />{n.claim} · {date(n.publishedAt)}</div>) : <span className="muted text-xs">{twin?.noNegativeNews ? "Checked — no negative news (counts as an answer)" : "Not checked yet"}</span>}
-                </div>
-                <div>
-                  <div className="micro mb-1.5">Contradictions</div>
-                  {twin?.contradictions.length ? twin.contradictions.map((c) => <div key={c.key} className="text-xs secondary"><b style={{ color: "var(--text-primary)" }}>{label(c.key)}</b>: {c.values.join(" vs ")} — {c.resolution}</div>) : <span className="muted text-xs">None</span>}
                 </div>
                 {twin?.changed.length ? (
                   <div>

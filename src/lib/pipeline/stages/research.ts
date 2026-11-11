@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import type { ResearchPage, ResearchPass } from "@/lib/adapters/types";
 import { queryFor } from "@/lib/adapters/live/research";
-import { claimFidelity, companyMarks, entityGate, evidenceGate, passageAround, quoteGate, factStatus, findContradictions, isStale, reportFingerprint, resolveContradiction, type FreshnessKind } from "../gates";
+import { claimFidelity, companyMarks, entityGate, evidenceGate, independentReports, passageAround, quoteGate, factStatus, findContradictions, isStale, reportFingerprint, resolveContradiction, type FreshnessKind } from "../gates";
 
 const hostname = (u: string) => {
   try {
@@ -25,6 +25,8 @@ import { directResearch, type DirectedQuestion } from "@/lib/brain/plan";
 import { buildBrief } from "@/lib/brain/strategist";
 import { importContext, researchDepth } from "@/lib/research/intake";
 import { investigateAccount } from "@/lib/brain/investigate";
+import { canonicalUrl, eventDateFrom, factConfidence, hostOf, namesCompany, SAME_REPORT, similarity, sizesDisagree, statedEmployees } from "@/lib/research/precision";
+import { quoteMatch } from "../gates";
 
 /** A research question, as directed by the brain (query and engine are optional). */
 export type PlannedQuestion = DirectedQuestion;
@@ -196,23 +198,41 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
     for (const e of extracted) {
       const page = pages.find((p) => p.url === e.sourceUrl);
       const gq = quoteGate(e.quote, page, strict);
-      const ge = strict === "live" ? entityGate(account.name, account.domain, page) : gq;
+      // Right company: a distinctive word is not enough; the page must carry the brand or the domain.
+      const ge0 = strict === "live" ? entityGate(account.name, account.domain, page) : gq;
+      const ge = ge0.pass && strict === "live" && page ? namesCompany(account.name, account.domain, page) : ge0;
       const passage = page && e.quote ? passageAround(page.text, e.quote) : null;
       // The claim must say what the quote says, about this company (live research only; sample data has no real quotes).
       const gf = strict === "live" && e.quote ? claimFidelity(e.claim, e.quote, marks, passage) : gq;
-      const g = !gq.pass ? gq : !ge.pass ? ge : !gf.pass ? gf : evidenceGate(e, strict);
+      // An undated page can't tell us something is recent.
+      const gd = page?.undated && isTriggerKey(q.key) ? { pass: false, reason: "Page has no date, so it can't show a recent event" } : gq;
+      const g = !gq.pass ? gq : !ge.pass ? ge : !gf.pass ? gf : !gd.pass ? gd : evidenceGate(e, strict);
       if (!g.pass) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.evidence_gate", outcome: "block", reason: `Dropped "${e.claim.slice(0, 60)}": ${g.reason}` });
         continue;
       }
-      // Idempotent: the same source URL for the same question is stored once.
-      const dupe = await db.evidence.findFirst({ where: { accountId: account.id, key: e.key, sourceUrl: e.sourceUrl } });
+      // Idempotent: the same article (tracking links, AMP and www aside) for the same question is stored once.
+      const canonical = canonicalUrl(e.sourceUrl);
+      const dupe = await db.evidence.findFirst({ where: { accountId: account.id, key: e.key, OR: [{ sourceUrl: e.sourceUrl }, { canonicalUrl: canonical }] } });
       if (dupe) {
         if (!dupe.flagged) answered.add(q.key);
         continue;
       }
       const same = e.sameAsFactId ? held.find((h) => h.id === e.sameAsFactId) : undefined;
       const engine = pages.find((p) => p.url === e.sourceUrl)?.engine ?? null;
+      // A reworded copy of a story we hold (same sentence, another site) is the same report, not a second source.
+      let fingerprint = reportFingerprint(e.quote);
+      if (e.quote) {
+        const copy = held.find((h) => h.quote && similarity(h.quote, e.quote!) >= SAME_REPORT);
+        if (copy?.fingerprint) {
+          fingerprint = copy.fingerprint;
+          if (hostOf(copy.sourceUrl) !== hostOf(e.sourceUrl)) await logEvent(ctx, { accountId: account.id, stage: S, step: "account_research.same_report", outcome: "info", reason: `${hostOf(e.sourceUrl)} repeats the story from ${hostOf(copy.sourceUrl)}: counted once` });
+        }
+      }
+      // When the sentence dates the event, freshness follows the event, not the page.
+      const pageDate = e.publishedAt;
+      const event = eventDateFrom(e.quote, pageDate);
+      const when = event && event.getTime() < pageDate.getTime() ? event : pageDate;
       await db.evidence.create({
         data: {
           sellerId: sellerContext().pack.id, sellerPackVersion: sellerContext().version,
@@ -220,10 +240,11 @@ async function researchKeys(account: Account, ctx: RunContext, keys: PlannedQues
           // A confirmation of a fact we hold takes that fact's wording and value, so the
           // two sources group together and corroborate.
           claim: same ? same.claim : e.claim, value: same ? same.value : e.value,
-          sourceUrl: e.sourceUrl, sourceType: e.sourceType, publishedAt: e.publishedAt, isNegative: e.isNegative, negativeKind: e.negativeKind,
+          sourceUrl: e.sourceUrl, sourceType: e.sourceType, publishedAt: when, eventDate: event, pageDate: page?.undated ? null : pageDate, undated: Boolean(page?.undated && !event), canonicalUrl: canonical,
+          isNegative: e.isNegative, negativeKind: e.negativeKind,
           status: "probable", pass, engine, quote: e.quote?.slice(0, 400) ?? null,
           passage: passage?.slice(0, 1200) ?? null, publisher: page?.publisher ?? hostname(e.sourceUrl), retrievedAt: page?.retrievedAt ?? ctx.now,
-          fingerprint: reportFingerprint(e.quote), fullText: Boolean(page?.full),
+          fingerprint, fullText: Boolean(page?.full),
         },
       });
       if (same) await logEvent(ctx, { accountId: account.id, stage: S, step: "brain.corroborate", outcome: "pass", reason: `Second source for "${same.claim.slice(0, 80)}": ${e.sourceUrl}` });
@@ -249,7 +270,7 @@ export async function s06AccountResearch(account: Account, ctx: RunContext, opts
   // One targeted follow-up for unanswered high-importance questions only.
   if (pass === "main") {
     // Broaden the wording: every engine already came back empty for the precise query.
-    const unanswered = keys.filter((q) => q.importance === "high" && !answered.has(q.key)).map((q) => ({ ...q, query: `${account.name} ${q.key.replace(/_/g, " ")} ${q.key === "trigger" ? "news 2026" : ""}`.trim(), why: `Broadened follow-up: ${q.why ?? q.question}` }));
+    const unanswered = keys.filter((q) => q.importance === "high" && !answered.has(q.key)).map((q) => ({ ...q, query: `${account.name} ${q.key.replace(/_/g, " ")} ${q.key === "trigger" ? `news ${ctx.now.getUTCFullYear()}` : ""}`.trim(), why: `Broadened follow-up: ${q.why ?? q.question}` }));
     if (unanswered.length && !account.followupUsed) {
       account = await db.account.update({ where: { id: account.id }, data: { followupUsed: true } });
       const more = await researchKeys(account, ctx, unanswered, "followup");
@@ -285,6 +306,25 @@ async function corroborationQuestions(account: Account, keys: PlannedQuestion[],
 
 // ───────────────────────── Stage 7 ─────────────────────────
 
+/**
+ * The size we target on (from the import or gap fill) against the size research found. When a
+ * fresh, sourced headcount is more than twice or less than half the one on record, a person
+ * decides: the targeting rule and the priority both rest on it.
+ */
+async function checkSize(account: Account, evidence: Evidence[], ctx: RunContext) {
+  if (account.employees == null) return;
+  const found = evidence
+    .filter((e) => !e.isNegative && !e.flagged && e.status !== "stale")
+    .map((e) => ({ e, n: statedEmployees(e.quote ?? e.claim) }))
+    .filter((x): x is { e: Evidence; n: number } => x.n != null);
+  const off = found.find((x) => sizesDisagree(x.n, account.employees!));
+  if (!off) return;
+  const reason = `Size disagrees: we hold ${account.employees.toLocaleString()} employees, ${off.e.publisher ?? hostOf(off.e.sourceUrl)} says ${off.n.toLocaleString()}`;
+  const open = await db.reviewItem.findFirst({ where: { accountId: account.id, type: "contradiction", status: "open", reason: { startsWith: "Size disagrees" } } });
+  if (!open) await openReview({ type: "contradiction", stage: 7, accountId: account.id, reason, payload: { evidenceIds: [off.e.id], employees: account.employees, found: off.n } });
+  await logEvent(ctx, { accountId: account.id, stage: 7, step: "account_twin.size_check", outcome: "info", reason });
+}
+
 // Keys whose evidence describes one value; differing values are a contradiction.
 const SINGLE_VALUE_KEYS = ["partner_network", "owner_function"];
 
@@ -299,7 +339,7 @@ export interface TwinSnapshot {
 }
 
 /** Fact statuses per (key, value) group, so independent reports of the same fact corroborate. */
-async function refreshStatuses(accountId: string, now: Date) {
+export async function refreshStatuses(accountId: string, now: Date) {
   const evidence = await liveEvidence(accountId);
   const groups = new Map<string, Evidence[]>();
   for (const e of evidence) {
@@ -308,9 +348,30 @@ async function refreshStatuses(accountId: string, now: Date) {
     groups.set(g, [...(groups.get(g) ?? []), e]);
   }
   for (const items of groups.values()) {
-    const status = factStatus(items, freshnessKindFor(items[0].key), now);
+    const kind = freshnessKindFor(items[0].key);
+    // A person said it looks right: verified, whatever the sources alone would give.
+    const status = items.some((i) => i.checkedAt) ? "verified" : factStatus(items, kind, now);
     await db.evidence.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { status } });
+    const reports = independentReports(items);
+    for (const i of items) {
+      const confidence = i.checkedAt ? Math.max(90, confidenceFor({ ...i, status }, reports, now)) : confidenceFor({ ...i, status }, reports, now);
+      if (confidence !== i.confidence) await db.evidence.update({ where: { id: i.id }, data: { confidence } });
+    }
   }
+  // Facts outside a group (conflicting) still get a number.
+  for (const e of evidence.filter((x) => x.status === "conflicting")) {
+    const confidence = confidenceFor(e, 1, now);
+    if (confidence !== e.confidence) await db.evidence.update({ where: { id: e.id }, data: { confidence } });
+  }
+}
+
+/** Confidence for one stored fact, given how many independent reports back its value. */
+export function confidenceFor(e: Pick<Evidence, "sourceType" | "status" | "fullText" | "publishedAt" | "undated" | "quote" | "passage" | "key">, reports: number, now: Date): number {
+  const kind = freshnessKindFor(e.key);
+  return factConfidence({
+    sourceType: e.sourceType, status: e.status, fullText: e.fullText, publishedAt: e.publishedAt, undated: e.undated, reports,
+    freshDays: CONFIG.freshnessDays[kind], hasQuote: Boolean(e.quote), quoteExact: Boolean(e.quote && e.passage && quoteMatch(e.quote, e.passage) === 1),
+  }, now);
 }
 
 export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { allowReopen?: boolean; investigate?: boolean } = {}): Promise<Account> {
@@ -342,6 +403,7 @@ export async function s07AccountTwin(account: Account, ctx: RunContext, opts: { 
   }
   // Statuses: per (key, value) group so independent sources for the same fact corroborate.
   await refreshStatuses(account.id, ctx.now);
+  await checkSize(account, evidence, ctx);
 
   // The investigation: hypotheses, follow-up questions, connections, completeness, validation.
   if (opts.investigate ?? true) {

@@ -5,7 +5,9 @@ import type { ResearchPage, ResearchPass, ResearchSource, SearchHint } from "../
 import { fetchJson, parseLooseDate } from "./http";
 import { seller } from "@/lib/seller";
 import { readPage } from "./reader";
+import { companyMarks } from "@/lib/pipeline/gates";
 import { cachedPages, searchKey, storePages } from "@/lib/research/search-cache";
+import { ownSiteTier } from "@/lib/research/precision";
 
 const DAY = 86_400_000;
 
@@ -34,7 +36,15 @@ export function queryFor(key: string, company: string): { q: string; days: numbe
 /** Profile-style lookups (a company's own site, what it does) need no date; news and intent do. */
 const undatedAllowed = (key: string) => key === "website" || key === "firmographics" || key === "profile:board" || key === "profile:tech_stack" || key === "profile:financials" || key === "discover_brief" || (key.startsWith("lookalike") && key !== "lookalike_intent");
 
-export function classifySource(url: string, domain: string): ResearchPage["sourceType"] {
+const NEWS_HOST = /(news|times|express|standard|mint|hindu|reuters|bloomberg|moneycontrol|businessworld|business-?today|forbes|techcrunch|financial|journal|herald|tribune|post|today|ndtv|cnbc|yourstory|inc42|entrackr|vccircle|medianama|thehindubusinessline|zeebiz|outlook|fortune|wsj|ft\.com|bbc|cnn|apnews|dealstreet|thearcweb|etauto|etcio|ethealthworld|expresspharma|pharmabiz|autocar)/;
+
+/**
+ * How strong a source is. On the company's own site, press, investor and about pages are
+ * official; blogs and product pages are the company site; careers pages are careers.
+ * Elsewhere: wire services are press, recognised publishers or news results are news,
+ * everything else is a web page (weakest).
+ */
+export function classifySource(url: string, domain: string, newsResult = false): ResearchPage["sourceType"] {
   let host = "";
   let path = "";
   try {
@@ -42,14 +52,18 @@ export function classifySource(url: string, domain: string): ResearchPage["sourc
     host = u.hostname.replace(/^www\./, "");
     path = u.pathname.toLowerCase();
   } catch {
-    return "news";
+    return "web";
   }
-  if (domain && (host === domain || host.endsWith(`.${domain}`))) return /career|jobs/.test(path) ? "careers" : "official";
+  if (domain && (host === domain || host.endsWith(`.${domain}`))) return ownSiteTier(path);
   if (/linkedin\.com\/jobs|naukri|indeed|glassdoor|foundit/.test(host + path)) return "careers";
-  if (/prnewswire|businesswire|globenewswire|newswire|pressrelease|press/.test(host + path)) return "press";
+  if (/prnewswire|businesswire|globenewswire|newswire|pressrelease|einpresswire|pr\.com/.test(host)) return "press";
   if (/g2\.com|capterra|stackshare|getapp|trustradius/.test(host)) return "review_site";
-  return "news";
+  if (newsResult || NEWS_HOST.test(host) || /\/(news|article|articles|story|stories)\//.test(path)) return "news";
+  return "web";
 }
+
+/** Google's recency filter for a window in days (SerpAPI "tbs"). */
+const serpWindow = (days: number | null) => (!days ? null : days <= 1 ? "qdr:d" : days <= 7 ? "qdr:w" : days <= 31 ? "qdr:m" : days <= 366 ? "qdr:y" : null);
 
 interface ExaResult { url: string; title?: string; publishedDate?: string; published_date?: string; text?: string }
 interface TavilyResult { url: string; title?: string; content?: string; published_date?: string }
@@ -79,9 +93,10 @@ export class WebResearch implements ResearchSource {
       body: JSON.stringify(body),
     });
     return (res.results ?? []).flatMap((r) => {
-      const published = parseLooseDate(r.publishedDate ?? r.published_date) ?? (undatedOk ? new Date() : null);
+      const dated = parseLooseDate(r.publishedDate ?? r.published_date);
+      const published = dated ?? (undatedOk ? new Date() : null);
       if (!published) return [];
-      return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, text: (r.text ?? r.title ?? "").slice(0, 2500), sourceType: classifySource(r.url, domain) }];
+      return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, undated: !dated, text: (r.text ?? r.title ?? "").slice(0, 2500), sourceType: classifySource(r.url, domain) }];
     });
   }
 
@@ -98,30 +113,34 @@ export class WebResearch implements ResearchSource {
       body: JSON.stringify(body),
     });
     return (res.results ?? []).flatMap((r) => {
-      const published = parseLooseDate(r.published_date) ?? (undatedOk ? new Date() : null);
+      const dated = parseLooseDate(r.published_date);
+      const published = dated ?? (undatedOk ? new Date() : null);
       if (!published) return [];
-      return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, text: `${r.title ?? ""}. ${r.content ?? ""}`.slice(0, 2000), sourceType: classifySource(r.url, domain) }];
+      return [{ url: r.url, title: r.title ?? r.url, publishedAt: published, undated: !dated, text: `${r.title ?? ""}. ${r.content ?? ""}`.slice(0, 2000), sourceType: classifySource(r.url, domain, body.topic === "news") }];
     });
   }
 
-  private async serp(q: string, news: boolean, domain: string, undatedOk = false): Promise<ResearchPage[]> {
+  private async serp(q: string, days: number | null, news: boolean, domain: string, undatedOk = false): Promise<ResearchPage[]> {
     const params = new URLSearchParams({ engine: "google", q, api_key: this.keys.serp!, num: "8", hl: "en" });
     if (news) params.set("tbm", "nws");
+    const window = undatedOk ? null : serpWindow(days);
+    if (window) params.set("tbs", window);
     const res = await fetchJson<{ news_results?: { link: string; title: string; snippet?: string; date?: string; source?: string }[]; organic_results?: { link: string; title: string; snippet?: string; date?: string }[] }>(
       "SerpAPI", `https://serpapi.com/search.json?${params}`,
     );
     const items = news ? res.news_results ?? [] : res.organic_results ?? [];
     return items.flatMap((r) => {
-      const published = parseLooseDate(r.date) ?? (undatedOk ? new Date() : null);
+      const dated = parseLooseDate(r.date);
+      const published = dated ?? (undatedOk ? new Date() : null);
       if (!published) return []; // undated results can't pass the evidence gate
-      return [{ url: r.link, title: r.title, publishedAt: published, text: `${r.title}. ${r.snippet ?? ""}`.slice(0, 1500), sourceType: classifySource(r.link, domain) }];
+      return [{ url: r.link, title: r.title, publishedAt: published, undated: !dated, text: `${r.title}. ${r.snippet ?? ""}`.slice(0, 1500), sourceType: classifySource(r.link, domain, news) }];
     });
   }
 
   private run(engine: Engine, q: string, days: number | null, news: boolean, domain: string, undatedOk: boolean) {
     if (engine === "exa") return this.exa(q, days, domain, undatedOk);
     if (engine === "tavily") return this.tavily(q, days, news, domain, undatedOk);
-    return this.serp(q, news, domain, undatedOk);
+    return this.serp(q, days, news, domain, undatedOk);
   }
 
   /** Exa's "find similar": pages of companies whose sites resemble this one (lookalike discovery). */
@@ -164,7 +183,9 @@ export class WebResearch implements ResearchSource {
     const preferred: Engine[] = pass === "main" || pass === "refresh" ? ["exa", "tavily", "serp"] : ["serp", "tavily", "exa"];
     const chosen = (["exa", "tavily", "serp"] as Engine[]).find((e) => e === hint.engine);
     const order = (chosen ? [chosen, ...preferred.filter((e) => e !== chosen)] : preferred).filter((e) => this.keys[e]);
-    const name = companyName.toLowerCase().split(/\s+/)[0];
+    // A page is kept when it names the company's brand (its first two distinctive words) or its domain.
+    const brand = companyMarks(companyName, null).slice(0, 2);
+    const names = (t: string) => (brand.length ? brand.every((w) => new RegExp(`(^|[^a-z0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(t)) : t.includes(companyName.toLowerCase().split(/\s+/)[0]));
     const all = hint.breadth === "all";
     let lastError: unknown = null;
     const found: ResearchPage[] = [];
@@ -178,7 +199,7 @@ export class WebResearch implements ResearchSource {
         continue;
       }
       // Keep only pages that actually mention the company.
-      const relevant = pages.filter((p) => `${p.title} ${p.text}`.toLowerCase().includes(name) || (domain && p.url.includes(domain)));
+      const relevant = pages.filter((p) => names(`${p.title} ${p.text}`.toLowerCase()) || (domain && p.url.includes(domain)));
       hint.onAttempt?.({ engine, results: relevant.length });
       for (const p of relevant) if (!found.some((f) => f.url === p.url)) found.push({ ...p, engine });
       // Usually stop at the first engine with results; "all" asks every engine (high-value or disconfirming questions).

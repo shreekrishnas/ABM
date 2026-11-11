@@ -15,7 +15,7 @@ export const ACTION_WORD: Record<string, string> = {
   "email.send_approved": "sent approved emails", "email.review": "reviewed an email", "decision.resolve": "resolved a decision", "person.identity": "decided a person's identity",
   "handoff.decide": "decided a hand-off", "handoff.manual": "handed off a company", "deal.create": "created a deal", "deal.move": "moved a deal",
   "person.erase": "erased a person (GDPR)", "person.delete": "deleted a person", "people.bulk_update": "bulk-updated people",
-  "fact.flag": "marked a fact wrong", "fact.correct": "corrected a fact",
+  "fact.flag": "marked a fact wrong", "fact.correct": "corrected a fact", "fact.keep": "settled two disagreeing sources", "fact.check": "confirmed a fact looks right", "research.question": "researched one open question again",
   "suggestion.approve": "approved a company", "suggestion.approve_many": "approved companies", "suggestion.dismiss": "dismissed a company",
   "lookalike.search": "searched lookalikes", "lookalike.reject": "rejected a lookalike", "lookalike.research_more": "asked for more lookalike research",
   "assignment.role": "changed a role", "user.sign_out_everywhere": "signed a person out everywhere", "security.sign_out_all": "signed everyone out",

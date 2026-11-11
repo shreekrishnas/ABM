@@ -10,6 +10,8 @@ import { setAccountField } from "@/lib/pipeline/fields";
 import { BudgetExceeded, charge, logEvent, openReview, type RunContext } from "@/lib/pipeline/context";
 import { STAGE_INFO } from "@/lib/journey/stages";
 import type { ResearchPage } from "@/lib/adapters/types";
+import { namesCompany, statedEmployees } from "@/lib/research/precision";
+import { readPage } from "@/lib/adapters/live/reader";
 
 // ── What the import told us ──
 
@@ -89,6 +91,59 @@ export async function intakeMap(account: Account): Promise<IntakeField[]> {
 
 // ── Gap fill: research what the import left out, before fit and identity run ──
 
+const TLD_COUNTRY: [RegExp, string][] = [[/\.(co\.)?in$/, "IN"], [/\.ae$/, "AE"], [/\.sg$/, "SG"], [/\.(co\.)?uk$/, "GB"], [/\.com\.au$/, "AU"], [/\.de$/, "DE"], [/\.fr$/, "FR"], [/\.nl$/, "NL"], [/\.sa$/, "SA"], [/\.qa$/, "QA"], [/\.my$/, "MY"], [/\.id$/, "ID"], [/\.jp$/, "JP"], [/\.ca$/, "CA"]];
+const COUNTRY_WORDS = "india|united states|usa|united kingdom|uk|germany|france|netherlands|canada|australia|singapore|ireland|spain|italy|sweden|united arab emirates|uae|saudi arabia|qatar|oman|kuwait|bahrain|indonesia|malaysia|philippines|thailand|vietnam|japan|china|hong kong|south korea|new zealand|south africa|brazil|mexico|switzerland|belgium";
+const INDIAN_CITIES = "mumbai|navi mumbai|thane|delhi|new delhi|bengaluru|bangalore|chennai|hyderabad|pune|kolkata|ahmedabad|gurugram|gurgaon|noida|vadodara|jaipur|chandigarh|kochi|coimbatore|indore|lucknow|nagpur|surat|mysuru|mysore|visakhapatnam|bhubaneswar";
+
+/**
+ * Size and country read by code, no AI: a stated headcount ("5,200 employees", "1,001-5,000
+ * employees" counts as 1,001) on a page that names the company, and the country from
+ * "headquartered in …", an Indian city, or the website's country ending (.in, .ae …).
+ * Used when the AI reader is unavailable or found nothing.
+ */
+export function firmographicsByCode(pages: ResearchPage[], name: string, domain: string | null): { employees: number | null; country: string | null; url: string | null } {
+  const about = pages.filter((p) => namesCompany(name, domain, p).pass);
+  // The company's own pages first, then the rest.
+  about.sort((a, b) => Number(Boolean(domain && b.url.includes(domain))) - Number(Boolean(domain && a.url.includes(domain))));
+  let employees: number | null = null;
+  let country: string | null = null;
+  let url: string | null = null;
+  for (const p of about) {
+    const text = `${p.title}. ${p.text}`;
+    if (employees == null) {
+      const n = statedEmployees(text);
+      if (n) {
+        employees = n;
+        url ??= p.url;
+      }
+    }
+    if (!country) {
+      const t = text.toLowerCase();
+      const hq = t.match(new RegExp(`(?:headquartered|headquarters|head office|registered office|based|located)\\s+(?:is\\s+)?(?:in|at)\\s+(?:[a-z .,-]{0,40}?)\\b(${COUNTRY_WORDS}|${INDIAN_CITIES})\\b`));
+      if (hq) {
+        country = new RegExp(`^(${INDIAN_CITIES})$`).test(hq[1]) ? "IN" : normalizeCountry(hq[1]);
+        if (country) url ??= p.url;
+      }
+    }
+    if (employees != null && country) break;
+  }
+  if (!country && domain) {
+    const hit = TLD_COUNTRY.find(([re]) => re.test(domain));
+    if (hit) country = hit[1];
+  }
+  return { employees, country, url };
+}
+
+/** The company's own "about" page, read directly when the search didn't return one. */
+async function aboutPage(domain: string): Promise<ResearchPage | null> {
+  for (const path of ["/about-us", "/about"]) {
+    const url = `https://${domain}${path}`;
+    const text = await readPage(url).catch(() => null);
+    if (text && text.length > 200) return { url, title: `About ${domain}`, text, publishedAt: new Date(), undated: true, sourceType: "official", full: true, publisher: domain, retrievedAt: new Date() };
+  }
+  return null;
+}
+
 const DIRECTORY = /(linkedin|facebook|twitter|x\.com|instagram|youtube|wikipedia|crunchbase|zaubacorp|tofler|indiamart|justdial|glassdoor|naukri|ambitionbox|bloomberg|zoominfo|apollo\.io|rocketreach|dnb\.com|economictimes|moneycontrol|google\.)/i;
 
 /** The official site among search results: a non-directory host whose page names the company. */
@@ -155,23 +210,40 @@ export async function fillGaps(account: Account, ctx: RunContext, search: Search
     const missing = [!account.industry && "industry", account.employees == null && "employees", !account.country && "country"].filter(Boolean) as string[];
     if (missing.length) {
       const pages = await search(account, ctx, "firmographics", `"${name}" ${account.domain ?? ""} company profile employees industry headquarters`.trim(), `Fill ${missing.join(", ")} for the fit score`);
+      // The company's own about page, when the search didn't bring one.
+      if (account.domain && ctx.adapters.research.live && !pages.some((p) => p.url.includes(account.domain!))) {
+        const own = await aboutPage(account.domain);
+        if (own) pages.unshift(own);
+      }
+      const apply = async (found: { industry?: string | null; employees?: number | null; country?: string | null }, url: string, how: string) => {
+        const data: Partial<Pick<Account, "industry" | "employees" | "country">> = {};
+        if (!account.industry && found.industry) data.industry = found.industry.toLowerCase().slice(0, 80);
+        if (account.employees == null && found.employees && found.employees > 0 && found.employees < 5_000_000) data.employees = Math.round(found.employees);
+        const country = found.country ? normalizeCountry(found.country) : null;
+        if (!account.country && country) data.country = country;
+        if (!Object.keys(data).length) return;
+        account = await db.account.update({ where: { id: account.id }, data });
+        for (const [k, v] of Object.entries(data)) await setAccountField(account.id, k, { value: String(v), status: "probable", source: `research: ${url}` });
+        filled.push(...Object.entries(data).map(([k, v]) => `${k} ${v}`));
+        await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.firmographics", outcome: "pass", reason: `Filled ${Object.entries(data).map(([k, v]) => `${k} = ${v}`).join(", ")} from ${url}${how}` });
+      };
       if (pages.length) {
-        await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, "Extract firmographics", S);
-        const f = await ctx.adapters.llm.extractFirmographics(pages, name);
-        const page = f ? pages[f.page] : undefined;
-        if (f && page) {
-          const data: Partial<Pick<Account, "industry" | "employees" | "country">> = {};
-          if (!account.industry && f.industry) data.industry = f.industry.toLowerCase().slice(0, 80);
-          if (account.employees == null && f.employees && f.employees > 0 && f.employees < 5_000_000) data.employees = Math.round(f.employees);
-          const country = f.country ? normalizeCountry(f.country) : null;
-          if (!account.country && country) data.country = country;
-          if (Object.keys(data).length) {
-            account = await db.account.update({ where: { id: account.id }, data });
-            for (const [k, v] of Object.entries(data)) await setAccountField(account.id, k, { value: String(v), status: "probable", source: `research: ${page.url}` });
-            filled.push(...Object.entries(data).map(([k, v]) => `${k} ${v}`));
-            await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.firmographics", outcome: "pass", reason: `Filled ${Object.entries(data).map(([k, v]) => `${k} = ${v}`).join(", ")} from ${page.url}` });
-          }
+        // The AI reader first; if it is unavailable (paused, out of credits) the pages are read by code.
+        let aiDown: string | null = null;
+        try {
+          await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmCheap, "Extract firmographics", S);
+          const f = await ctx.adapters.llm.extractFirmographics(pages, name);
+          const page = f ? pages[f.page] : undefined;
+          if (f && page) await apply(f, page.url, "");
+        } catch (e) {
+          if (e instanceof BudgetExceeded) throw e;
+          aiDown = e instanceof Error ? e.message.slice(0, 120) : String(e);
         }
+        if (account.employees == null || !account.country) {
+          const c = firmographicsByCode(pages, name, account.domain);
+          if (c.employees != null || c.country) await apply({ employees: c.employees, country: c.country }, c.url ?? account.domain ?? "page text", aiDown ? " (read by code: the AI reader is unavailable)" : " (read by code)");
+        }
+        if (aiDown) await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.gap_fill", outcome: "info", reason: `AI reader unavailable (${aiDown}); size and country read by code where the pages state them` });
       }
       if (!filled.some((x) => missing.some((m) => x.startsWith(m)))) await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.firmographics", outcome: "info", reason: `Could not find ${missing.join(", ")} — fit is scored on known fields only` });
     }

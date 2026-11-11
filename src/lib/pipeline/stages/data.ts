@@ -175,8 +175,12 @@ export async function s03FitTier(account: Account, ctx: RunContext): Promise<Acc
   await logEvent(ctx, { accountId: account.id, stage: S, step: "fit_tier.targeting_rules", outcome: must.pass ? "pass" : "block", reason: must.reason });
   if (!must.pass) {
     if (must.unknown) {
-      await db.account.update({ where: { id: account.id }, data: { disqualifyReason: must.reason } });
-      throw new StopRun(must.reason);
+      // Say whether research could not run (AI or search down) or ran and found nothing: only the second needs new data.
+      const blocked = await db.pipelineEvent.findFirst({ where: { accountId: account.id, step: { in: ["intake.gap_fill", "intake.website"] }, outcome: { in: ["error", "info"] }, reason: { contains: "unavailable" }, createdAt: { gte: ctx.now } } })
+        ?? await db.pipelineEvent.findFirst({ where: { accountId: account.id, step: "intake.gap_fill", outcome: "error", createdAt: { gte: ctx.now } } });
+      const reason = blocked ? must.reason.replace(/ — add it to the next upload$/, " yet — research couldn't run (AI or search unavailable); it retries on the next run") : must.reason;
+      await db.account.update({ where: { id: account.id }, data: { disqualifyReason: reason } });
+      throw new StopRun(reason);
     }
     await proposeRejection(account, ctx, "targeting", must.reason, S, { country: account.country, employees: account.employees });
   }

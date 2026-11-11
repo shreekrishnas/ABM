@@ -301,7 +301,7 @@ async function saveFunding(account: Account, pages: ResearchPage[], items: Fundi
 
 // ── Technologies ──
 
-const SOURCE_OF: Record<ResearchPage["sourceType"], string> = { careers: "job_post", official: "case_study", press: "press", news: "press", provider: "provider", review_site: "press", mock: "press" };
+const SOURCE_OF: Record<ResearchPage["sourceType"], string> = { careers: "job_post", official: "case_study", company_site: "case_study", web: "press", press: "press", news: "press", provider: "provider", review_site: "press", mock: "press" };
 
 export async function upsertTech(accountId: string, t: { name: string; vendor?: string | null; category: TechCategory | string; source: string; url?: string | null; detail?: string | null }, now = new Date()) {
   const cur = await db.techUse.findUnique({ where: { accountId_name: { accountId, name: t.name } } });

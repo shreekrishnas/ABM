@@ -139,9 +139,23 @@ export async function emailPlayFor(contactId: string, stepOrder: number): Promis
   return playFor("email", stepOrder, { firstOfChannel: emails.length === 0 || stepOrder <= emails[0], lastOfChannel: emails.length > 1 && stepOrder === emails[emails.length - 1] }).key;
 }
 
+/** Below this, a single-source ("probable") fact is not used in an email. */
+export const EMAIL_MIN_CONFIDENCE = 60;
+
+/**
+ * Facts an email may cite: verified ones, and probable ones only when strong enough — confidence
+ * 60+ and the page read in full (not a search snippet). Weak facts stay on the company page.
+ */
+export function strongEnoughForEmail(e: { status: string; confidence: number | null; fullText: boolean; engine: string | null; sourceType: string }): boolean {
+  if (e.status === "verified") return true;
+  if (e.status !== "probable") return false;
+  if (e.confidence == null) return true; // scored on the next research run
+  return e.confidence >= EMAIL_MIN_CONFIDENCE && (e.fullText || e.engine === "mock" || e.sourceType === "team");
+}
+
 export async function usableFacts(accountId: string, now: Date) {
   const ev = await liveEvidence(accountId);
-  return ev.filter((e) => !e.isNegative && (e.status === "verified" || e.status === "probable") && e.publishedAt.getTime() <= now.getTime());
+  return ev.filter((e) => !e.isNegative && strongEnoughForEmail(e) && e.publishedAt.getTime() <= now.getTime());
 }
 
 /**
@@ -214,7 +228,8 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   input.channel = "email";
   input.writing = writing;
   // The claim checker sees each fact with the exact quote from its source page.
-  const factText = new Map(facts.map((f) => [f.id, f.quote ? `${f.claim} (source says: "${f.quote}")` : f.claim]));
+  // With the paragraph around it, so a claim that stretches the quote past its context is caught.
+  const factText = new Map(facts.map((f) => [f.id, f.quote ? `${f.claim} (source says: "${f.quote}"${f.passage ? `; in context: "${f.passage.slice(0, 500)}"` : ""})` : f.claim]));
   const usable = facts.map((f) => ({ id: f.id, status: f.status, publishedAt: f.publishedAt, key: f.key }));
 
   // Writer → critic panel → rewriter. The brain revises its own email until every

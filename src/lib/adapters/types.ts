@@ -44,8 +44,10 @@ export interface MailboxVerifier {
 
 export interface ResearchPage {
   url: string;
-  sourceType: "official" | "press" | "news" | "careers" | "provider" | "review_site" | "mock";
+  sourceType: "official" | "company_site" | "press" | "news" | "careers" | "provider" | "review_site" | "web" | "mock";
   publishedAt: Date;
+  /** The page carried no date: publishedAt is when it was found. Never a trigger. */
+  undated?: boolean;
   title: string;
   text: string;
   /** Engine that returned the page (exa | tavily | serp | mock). */

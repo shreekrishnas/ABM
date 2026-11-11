@@ -316,6 +316,14 @@ async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number;
   const { aiPause } = await import("@/lib/admin/ai-pause");
   if (await aiPause()) return { processed: 0, results: [] as RunResult[], remaining: await db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }), paused: true };
   await recoverStuckRuns(ctx);
+  // Companies stopped only because research couldn't run (AI or search down) go back in the queue once a day.
+  if (!opts.batchId) {
+    const waiting = await db.account.findMany({
+      where: { mergedIntoId: null, pipelineStatus: { notIn: ["queued", "running"] }, disqualifyReason: { contains: "research couldn't run" }, updatedAt: { lte: new Date(ctx.now.getTime() - 86_400_000) } },
+      select: { id: true }, take: 50, orderBy: { updatedAt: "asc" },
+    });
+    if (waiting.length) await db.account.updateMany({ where: { id: { in: waiting.map((w) => w.id) } }, data: { pipelineStatus: "queued", queuedFromStage: 2, nextRetryAt: null, retryCount: 0 } });
+  }
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
   // Companies waiting out a retry delay are skipped until their time comes.
   // Companies of a paused or archived client stay queued until it is active again.

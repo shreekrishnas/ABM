@@ -109,7 +109,7 @@ export class OpenRouterLLM implements LLM {
     const guide: Record<string, string> = { [key]: fixed[key] ?? q?.extract ?? guideIn?.question ?? q?.question ?? key };
     // Long pages: read the paragraphs that name the company (with context), not just the first screen.
     const marks = guideIn ? companyMarks(guideIn.company, guideIn.domain) : [];
-    const body = (p: ResearchPage) => plainText(relevantText(p.text, marks, p.full ? 5_000 : 2_500)).slice(0, p.full ? 5_000 : 2_500);
+    const body = (p: ResearchPage) => plainText(relevantText(p.text, marks, p.full ? 9_000 : 2_500)).slice(0, p.full ? 9_000 : 2_500);
     if (key === "owner_function") guide[key] += ` value must be one of: ${FUNCTIONS.join(", ")}.`;
     const schema = z.object({
       // Lengths are trimmed afterwards, never a reason to fail the whole answer.
@@ -270,7 +270,8 @@ ${input.facts.map(factLine).join("\n") || "none yet"}`,
 ${input.hypotheses.map((h) => `${h.id} [${h.classification}/${h.status}] ${h.text} (support: ${h.supportIds.join(",") || "none"}; counter: ${h.counterIds.join(",") || "none"})`).join("\n") || "none"}`,
         `QUERIES ALREADY ASKED (do not repeat): ${input.asked.join(" | ") || "none"}`,
         `Round ${input.round}. Propose up to ${input.maxQuestions + 2} questions; value 5 = the answer could flip the conclusion, 1 = nice to know.`,
-        `Return {"hypotheses":[{"ref":"<existing id or new>","text":"...","useCase":"<use case key or null>","assumptions":["..."],"supportIds":["<fact id>"],"counterIds":["<fact id>"]}],"questions":[{"question":"...","query":"...","purpose":"baseline|confirm|disconfirm|connect|discover","hypothesisRef":"<id or null>","value":1-5,"why":"what the answer decides"}],"done":false,"doneWhy":"..."}`,
+        `TOPICS (set "topic" to the key a question answers, or null): ${seller().researchQuestions.map((q) => `${q.key} = ${q.label}`).join("; ")}`,
+        `Return {"hypotheses":[{"ref":"<existing id or new>","text":"...","useCase":"<use case key or null>","assumptions":["..."],"supportIds":["<fact id>"],"counterIds":["<fact id>"]}],"questions":[{"question":"...","query":"...","purpose":"baseline|confirm|disconfirm|connect|discover","hypothesisRef":"<id or null>","topic":"<topic key or null>","value":1-5,"why":"what the answer decides"}],"done":false,"doneWhy":"..."}`,
       ].join("\n\n"),
       1400,
     );

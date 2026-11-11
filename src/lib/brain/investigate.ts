@@ -18,6 +18,9 @@ import { CLASS_RANK, CLASSIFICATIONS, type Classification, type ConnectOutput, t
 
 export const INVESTIGATION_KEY = "investigation";
 
+/** A question that answers one of the seller's research questions files its facts there (they count toward readiness and emails); others stay "investigation". */
+const topicKey = (q: { topic?: string | null }) => (q.topic && seller().researchQuestions.some((r) => r.key === q.topic) ? q.topic : INVESTIGATION_KEY);
+
 export interface TraceQuestion {
   question: string;
   query: string;
@@ -137,7 +140,7 @@ export async function investigateAccount(account: Account, ctx: RunContext, ask:
       if (p) p.asked = true;
       let res = { found: 0, kept: [] as string[] };
       try {
-        res = await ask(account, ctx, { key: INVESTIGATION_KEY, question: q.question, query: query.slice(0, 240), why: q.why, breadth: q.purpose === "disconfirm" || q.value >= 5 ? "all" : "first", pass: "investigate" });
+        res = await ask(account, ctx, { key: topicKey(q), question: q.question, query: query.slice(0, 240), why: q.why, breadth: q.purpose === "disconfirm" || q.value >= 5 ? "all" : "first", pass: "investigate" });
       } catch (e) {
         if (e instanceof BudgetExceeded) {
           budgetHit = true;

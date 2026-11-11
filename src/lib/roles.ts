@@ -18,7 +18,7 @@ export const atLeast = (role: Role, min: Role) => RANK[role] >= RANK[min];
 export const isRole = (v: unknown): v is Role => typeof v === "string" && (ROLES as readonly string[]).includes(v);
 
 /** The least role an action needs (by the name it is logged under). Unknown actions need Manager. */
-const REP_ACTIONS = ["email.", "linkedin.", "decision.", "handoff.decide", "deal.", "fact.flag", "fact.correct", "person.identity", "suggestion.dismiss", "lookalike.reject", "task.", "note."];
+const REP_ACTIONS = ["email.", "linkedin.", "decision.", "handoff.decide", "deal.", "fact.flag", "fact.correct", "fact.keep", "fact.check", "research.question", "person.identity", "suggestion.dismiss", "lookalike.reject", "task.", "note."];
 const VIEWER_ACTIONS = ["assistant.", "visitors.check_apollo"];
 export function minRoleFor(action: string): Role {
   if (VIEWER_ACTIONS.some((p) => action.startsWith(p))) return "viewer";

@@ -518,6 +518,19 @@ model Evidence {
   fingerprint       String?
   /// True when the page was read in full, false when only a search snippet was available.
   fullText          Boolean     @default(false)
+  /// When the event happened, if the sentence says so. publishedAt then holds the earlier of the two, so freshness follows the event.
+  eventDate         DateTime?
+  /// The page's own publish date, as the search engine gave it.
+  pageDate          DateTime?
+  /// The page had no date: publishedAt is when we read it, and the fact can't be a trigger.
+  undated           Boolean     @default(false)
+  /// The source URL without tracking parameters, AMP or www: one article, one source.
+  canonicalUrl      String?
+  /// 0–100, computed by code from source strength, independent reports, page read in full, quote match and age.
+  confidence        Int?
+  /// A person confirmed the fact looks right ("Looks right" on the company page). With "marked wrong", this is the reviewed set accuracy is measured on.
+  checkedBy         String?
+  checkedAt         DateTime?
   sellerId          String?
   sellerPackVersion String?
   createdAt         DateTime    @default(now())
