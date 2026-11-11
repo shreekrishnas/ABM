@@ -17,6 +17,7 @@ const Visit = z.object({
 const Body = z.union([Visit, z.object({ visits: z.array(Visit).min(1).max(500) })]);
 
 export async function POST(req: Request) {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const denied = authorize(req);
   if (denied) return denied;
   const b = await parseBody(req, Body);

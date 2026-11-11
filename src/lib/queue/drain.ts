@@ -53,6 +53,7 @@ export interface DrainResult {
 
 /** One slice of queue work under the lease. "busy" means another worker holds it. */
 export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {}): Promise<DrainResult> {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const [accounts, lookalikes] = await Promise.all([
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
     db.prospectSuggestion.count({ where: { origin: { in: INVESTIGATED_ORIGINS }, researchStatus: "queued" } }),

@@ -88,7 +88,7 @@ export async function researchMoreAction(id: string, _: ActionState, fd: FormDat
 export async function fetchApolloVisitorsAction(): Promise<ActionState> {
   const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
   const r = await syncApolloVisitors(newContext(), { force: true });
-  if (!r) return { ok: false, message: "Apollo isn't connected — set APOLLO_API_KEY in Vercel" };
+  if (!r) return { ok: false, message: "Apollo isn't on — add its key in Admin → Integrations" };
   refresh("/discover", "/accounts", "/import/apollo", "/import");
   if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — press Check Apollo connection to see why" };
   // Stay on the page (and its date range); the list refreshes in place.

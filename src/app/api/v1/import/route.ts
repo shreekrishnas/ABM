@@ -4,6 +4,7 @@ import { authorize, json } from "@/lib/api";
 
 // POST text/csv. Same rules as the UI import.
 export async function POST(req: Request) {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const denied = authorize(req);
   if (denied) return denied;
   const text = await req.text();

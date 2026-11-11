@@ -12,6 +12,7 @@ const safeNext = (n: FormDataEntryValue | null) => (typeof n === "string" && n.s
 
 /** Sign in with a work email: only addresses on the allowed domain get in. */
 export async function loginAction(_: LoginState, fd: FormData): Promise<LoginState> {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const secret = authSecret();
   if (!secret) return { error: "Sign-in isn't set up yet: add AUTH_SECRET in Vercel." };
   const email = normalizeEmail(String(fd.get("email") ?? ""));

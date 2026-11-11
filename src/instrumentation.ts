@@ -1,3 +1,10 @@
+// Load keys saved in the app (Admin → Integrations) as the server starts.
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { syncIntegrationEnv } = await import("@/lib/integration-keys");
+  await syncIntegrationEnv(true).catch(() => undefined);
+}
+
 // Server errors from pages, server actions and API routes go to the error log (System health).
 import type { Instrumentation } from "next";
 

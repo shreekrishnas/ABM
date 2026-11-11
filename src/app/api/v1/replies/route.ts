@@ -7,6 +7,7 @@ import { authorize, json, parseBody } from "@/lib/api";
 const Body = z.object({ fromEmail: z.string().email(), body: z.string().min(1).max(20000) });
 
 export async function POST(req: Request) {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const denied = authorize(req);
   if (denied) return denied;
   const b = await parseBody(req, Body);

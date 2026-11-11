@@ -298,7 +298,7 @@ export async function sendTestEmailAction(): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
     const url = process.env.SMTP_URL?.trim();
-    if (!url) return { ok: false, message: "Email sending is not connected yet: add SMTP_URL (and SMTP_FROM) in Vercel, then redeploy" };
+    if (!url) return { ok: false, message: "Email sending is not on yet: add its key in Admin → Integrations" };
     const { SmtpSender } = await import("@/lib/adapters/live/email");
     const from = process.env.SMTP_FROM?.trim() || me.email;
     await new SmtpSender(url, from).send({ from, to: me.email, subject: "ABM test email", body: "This is a test from your ABM workspace. If you can read it, email sending works.", idempotencyKey: `test-${Date.now()}` });

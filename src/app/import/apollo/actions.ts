@@ -17,7 +17,7 @@ export async function enrichVisitorsAction(keys: string[], range: Range, force =
   const companies = (await listVisitorCompanies(from, to)).filter((c) => want.has(c.key));
   const r = await enrichCompanies(companies, await decider(), { force });
   refresh("/import/apollo");
-  if (r.not_connected) return { ok: false, message: "Apollo isn't connected — add APOLLO_API_KEY in Vercel" };
+  if (r.not_connected) return { ok: false, message: "Apollo isn't on — add its key in Admin → Integrations" };
   const parts = [
     r.found && `${r.found} with prospects`,
     r.no_prospects && `${r.no_prospects} with nobody in the target roles`,
@@ -55,7 +55,7 @@ export async function importVisitorsAction(keys: string[], range: Range, exclude
 /** Check the Apollo key and find the website-visitor list (no prospects looked up, no credits). */
 export async function checkApolloAction(): Promise<ActionState> {
   const key = process.env.APOLLO_API_KEY?.trim();
-  if (!key) return { ok: false, message: "APOLLO_API_KEY isn't set in Vercel" };
+  if (!key) return { ok: false, message: "Apollo has no key yet — add it in Admin → Integrations" };
   await logAction("visitors.check_apollo");
   const { apolloHealth } = await import("@/lib/adapters/live/apollo");
   const h = await apolloHealth(key, { id: process.env.APOLLO_VISITOR_LABEL_ID?.trim() || undefined, name: process.env.APOLLO_VISITOR_LIST?.trim() || undefined });

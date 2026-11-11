@@ -55,6 +55,7 @@ export interface ActionRef {
  * must not fail because its log entry couldn't be written.
  */
 export async function logAction(action: string, ref: ActionRef = {}): Promise<void> {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   let denied: string | null = null;
   try {
     const [{ getMe, audit }, { baseDb }] = await Promise.all([import("@/lib/me"), import("@/lib/db-base")]);

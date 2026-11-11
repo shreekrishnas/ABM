@@ -9,6 +9,7 @@ import { authorize, json } from "@/lib/api";
 // either method. In production, with neither secret set, the route refuses to run:
 // every tick spends search and LLM credits.
 async function run(req: Request) {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const ctx = newContext();
   const startedAt = new Date();
   const { recordRun } = await import("@/lib/admin/ops");

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { BarChart3, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Plug, Search, Send, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
+import { Toggle } from "@/components/toggle";
 import { AccountLogo } from "@/components/account-logo";
 import { isOn, locate, type Counts } from "@/lib/nav";
 
@@ -63,7 +64,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             <div className="sh-super" role="status">
               <ShieldCheck size={16} /> <b>Super Admin mode</b> <span className="hide-sm">You can see and open every account, and change team and access. Every action is logged.</span>
               <Link href="/team" className="sh-super-link">Team & Access</Link>
-              <form action={switchModeAction.bind(null, "user")}><button type="submit" className="sh-super-btn">Switch to User</button></form>
+              <Toggle on label="Super Admin" showLabel size="sm" onChange={() => switchModeAction("user")} />
             </div>
           )}
           {children}
@@ -94,9 +95,7 @@ function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolea
         <div className="sh-menu" role="menu">
           <div className="sh-menu-who"><b>{access.name}</b><span>{access.email}</span>{access.clients.length > 0 && <span>{access.clients.join(", ")}</span>}{sup && <span className="sh-menu-sup"><ShieldCheck size={12} /> Super Admin on</span>}</div>
           {access.canSuperAdmin && (
-            <form action={switchModeAction.bind(null, sup ? "user" : "super")}>
-              <button type="submit" role="menuitem" className="sh-menu-i"><ShieldCheck size={15} /> {sup ? "Switch to User" : "Switch to Super Admin"}</button>
-            </form>
+            <div className="sh-menu-i sh-menu-toggle" role="menuitem"><ShieldCheck size={15} /> <span className="flex-1">Super Admin mode</span><Toggle on={sup} label="Super Admin mode" size="sm" onChange={(next) => switchModeAction(next ? "super" : "user")} /></div>
           )}
           <Link href="/settings" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Settings2 size={15} /> Profile &amp; settings</Link>
           <Link href="/admin/integrations" role="menuitem" className="sh-menu-i" onClick={() => setOpen(false)}><Plug size={15} /> Integrations</Link>

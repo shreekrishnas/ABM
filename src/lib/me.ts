@@ -43,6 +43,7 @@ export const getMe = cache(async (): Promise<Me | null> => {
 
 /** For Super Admin actions: the actor, or an error to return. */
 export async function requireSuperAdmin(): Promise<Me> {
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const me = await getMe();
   if (!me?.superAdmin) throw new Error("Super Admin only: switch to Super Admin first");
   return me;

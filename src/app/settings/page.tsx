@@ -67,7 +67,7 @@ export default async function SettingsPage() {
           </ActionForm>
         </Card>
 
-        <Card id="integrations" title="Integrations" sub="Each service goes live once its API key is set in Vercel">
+        <Card id="integrations" title="Integrations" sub="Switch each service on and add its key in Admin → Integrations">
           {services.map((x) => (
             <Row key={x.key} k={<span>{x.label}<span className="muted block text-xs font-normal">{x.via}</span></span>} v={<Badge color={x.mode === "live" ? "#059669" : x.mode === "off" ? "#B45309" : "#64748B"}>{SERVICE_MODE_LABEL[x.mode]}</Badge>} />
           ))}

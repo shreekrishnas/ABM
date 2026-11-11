@@ -270,7 +270,7 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
         )}
       </Card>
       <Card title="Alerts" sub="Email the Super Admins when the queue stops, a run fails or a client nears its spending cap.">
-        <p className="muted text-sm">{process.env.SMTP_URL?.trim() ? "Coming next: switch alerts on here." : "Available once email sending is connected (add SMTP_URL and SMTP_FROM in Vercel)."}</p>
+        <p className="muted text-sm">{process.env.SMTP_URL?.trim() ? "Coming next: switch alerts on here." : "Available once email sending is switched on in Admin → Integrations."}</p>
       </Card>
       <Card title="Services" pad={false}>
         <table className="data compact">
@@ -395,9 +395,9 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
   const live = (k: string) => svc.get(k as never)?.mode === "live";
   const noCap = rows.filter((r) => r.cap == null).map((r) => r.name);
   const checks = [
-    { ok: live("llm"), t: "AI connected", d: live("llm") ? "The AI key is set" : "Add OPENROUTER_API_KEY in Vercel" },
-    { ok: live("research"), t: "Web search connected", d: live("research") ? "Search is set" : "Add a search key (Exa, Tavily or SerpAPI) in Vercel" },
-    { ok: live("email"), t: "Email sending connected", d: live("email") ? "A mailbox is set. Send a test to prove it." : "Add SMTP_URL and SMTP_FROM in Vercel. Until then approved emails are held." },
+    { ok: live("llm"), t: "AI connected", d: live("llm") ? "The AI key is set" : "Add the OpenRouter key in Admin → Integrations" },
+    { ok: live("research"), t: "Web search connected", d: live("research") ? "Search is set" : "Add a search key (Exa, Tavily or SerpAPI) in Admin → Integrations" },
+    { ok: live("email"), t: "Email sending connected", d: live("email") ? "A mailbox is set. Send a test to prove it." : "Add the mailbox in Admin → Integrations. Until then approved emails are held." },
     { ok: noCap.length === 0 && rows.length > 0, t: "Monthly cap on every client", d: noCap.length ? `No cap: ${noCap.join(", ")}. Set it under Clients.` : "Every client has a spending ceiling" },
     { ok: !paused, t: "AI running", d: paused ? "Paused. Resume it under System once the rows above are green." : "Research and drafting are running" },
   ];
@@ -490,7 +490,7 @@ async function SecurityTab({ me, result }: { me: string; result?: string }) {
         <KpiTile tint={3} label="Sign-in method" value={byLink ? "Email link" : "Email only"} note={byLink ? "proves the person owns the inbox" : "add SMTP_URL to switch to email links"} />
       </KpiRow>
 
-      {!byLink && <p className="tm-warn">Anyone who types an allowed team email can sign in, because nothing checks they own that inbox. Once email sending is connected (SMTP_URL in Vercel), sign-in switches to a one-time emailed link automatically.</p>}
+      {!byLink && <p className="tm-warn">Anyone who types an allowed team email can sign in, because nothing checks they own that inbox. Once email sending is switched on in Admin → Integrations, sign-in switches to a one-time emailed link automatically.</p>}
 
       <div className="grid gap-5 xl:grid-cols-2 items-start">
         <Card title="Failed attempts by email" sub="Last 7 days. Many failures for one address can mean someone guessing." pad={false}>

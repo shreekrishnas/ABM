@@ -50,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       await watchQueue(origin);
     });
   }
+  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const scope = await resolveScope();
   const extras = await (await import("@/lib/extras")).showExtras();
   const activeClient = scope?.active ? await db.client.findUnique({ where: { id: scope.active }, select: { name: true, status: true } }).catch(() => null) : null;
