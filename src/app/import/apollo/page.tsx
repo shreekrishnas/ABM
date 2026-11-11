@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { ActionButton } from "@/components/client";
+import { NeedsStrip } from "@/components/needs-strip";
+import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
@@ -18,10 +21,9 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   const sp = await searchParams;
   // Without a chosen range, show every visitor company Apollo has dated (its visit dates can be months back).
   const { from, to } = parseRange(sp.from, sp.to, new Date(), sp.from ? null : await earliestVisit());
-  const apollo = Boolean(process.env.APOLLO_API_KEY?.trim());
-  const list = Boolean(process.env.APOLLO_VISITOR_LIST?.trim() || process.env.APOLLO_VISITOR_LABEL_ID?.trim());
+  const need = await needs(["apollo"]);
   // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
-  const ready = apollo;
+  const ready = need.ok;
   const companies = await listVisitorCompanies(from, to);
   const rows: VisitorRow[] = await Promise.all(
     companies.map(async (c) => {
@@ -44,12 +46,11 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         sub="Pick companies, find the right people at them with Apollo, then download them as Excel or add them to the ABM pipeline. Nothing is added until you choose."
         actions={ready ? <div className="flex flex-wrap gap-2"><ActionButton action={checkApolloAction} className="btn btn-secondary">Check Apollo connection</ActionButton><ActionButton action={fetchApolloVisitorsAction} className="btn btn-primary">Fetch visitors from Apollo now</ActionButton></div> : undefined}
       />
+      <NeedsStrip list={need.list} />
       {!ready && (
-        <Card title="Connect Apollo" className="mb-5">
-          <ol className="secondary grid list-decimal gap-1.5 pl-5 text-sm">
-            <li>In Vercel, add <code>APOLLO_API_KEY</code> (a master API key) and redeploy.</li>
-            <li>In Apollo, save website visitors to an account list with &quot;visitor&quot; in its name (found automatically{list ? "; yours is set by name" : ""}).</li>
-          </ol>
+        <Card title="Turn on Apollo" className="mb-5">
+          <p className="secondary text-sm">Add your Apollo key and switch Apollo on. Then, in Apollo, save website visitors to an account list with &quot;visitor&quot; in its name; it is found automatically.</p>
+          <Link href="/admin/integrations" className="btn btn-primary btn-sm mt-3">Turn on Apollo</Link>
         </Card>
       )}
       <Card className="mb-5">
@@ -65,7 +66,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         )}
       </Card>
       <h2 className="mb-2 text-base font-semibold">Waiting for approval</h2>
-      <SuggestionReview origin="website_visitor" emptyText={ready ? "No visitor companies waiting for approval." : "Visitor companies appear here once Apollo is connected."} />
+      <SuggestionReview origin="website_visitor" emptyText={ready ? "No visitor companies waiting for approval." : "Visitor companies appear here once Apollo is on."} />
     </div>
   );
 }

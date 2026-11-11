@@ -6,7 +6,7 @@ import type { Icon } from "@/lib/nav";
 
 export type HubCard = { href: string; icon: Icon; title: string; text: string; meta?: string; alert?: boolean };
 
-export function Hub({ eyebrow, title, sub, cards, size = "md" }: { eyebrow: string; title: string; sub?: string; cards: HubCard[]; size?: "lg" | "md" }) {
+export function Hub({ eyebrow, title, sub, cards, size = "md", children }: { eyebrow: string; title: string; sub?: string; cards: HubCard[]; size?: "lg" | "md"; children?: React.ReactNode }) {
   return (
     <div className={`page-enter hub hub-${size}`}>
       <header className="hub-head">
@@ -27,6 +27,7 @@ export function Hub({ eyebrow, title, sub, cards, size = "md" }: { eyebrow: stri
           </Link>
         ))}
       </div>
+      {children}
     </div>
   );
 }

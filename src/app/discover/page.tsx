@@ -8,6 +8,8 @@ import { DEFAULT_SCAN_DAYS, MIN_INDEPENDENT_EVENTS, NO_PROSPECTS_MESSAGE, bucket
 import { sellerFit } from "@/lib/seller/fit";
 import { History, RefreshCw } from "lucide-react";
 import { ActionButton, ActionForm, SelectAll, SubmitButton } from "@/components/client";
+import { NeedsStrip } from "@/components/needs-strip";
+import { needs } from "@/lib/admin/needs";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
 import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction, scanMarketAction } from "@/app/discover/actions";
@@ -38,6 +40,7 @@ export const maxDuration = 300;
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ status?: string; industry?: string; origin?: string; seed?: string }> }) {
   await ensureSellerPacks();
   const sp = await searchParams;
+  const need = await needs(["ai", "search"]);
   const status = (STATUS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "new";
   const p = await activeSeller();
   const origin = (ORIGINS as readonly string[]).includes(sp.origin ?? "") ? sp.origin! : undefined;
@@ -60,16 +63,20 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <PageHeader
         eyebrow="Discover"
         title="AI suggested prospects"
-        sub={<>The AI scans the whole market for buying events that match your Account Brain and suggests companies you don&apos;t hold yet. A company is suggested only if it passes your targeting rule and has at least {MIN_INDEPENDENT_EVENTS} independent signals; many reports of one announcement count once. {lastScan ? `Last scan ${ago(lastScan.createdAt)}.` : "No scan yet."} Runs every {p.discovery?.everyDays ?? DEFAULT_SCAN_DAYS} days. Approving starts research only; emails still need your approval.</>}
-        actions={<ActionButton action={scanMarketAction} className="btn btn-primary"><Globe size={16} /> Scan the market now</ActionButton>}
+        sub={<>The AI watches the market for buying events that fit your Account Brain and suggests companies you don&apos;t have yet. {lastScan ? `Last scan ${ago(lastScan.createdAt)}.` : "No scan yet."} Approving starts research only; emails still need your approval.</>}
+        actions={<ActionButton action={scanMarketAction} className="btn btn-primary" disabled={!need.ok} title={need.blocker ?? undefined}><Globe size={16} /> Scan the market now</ActionButton>}
       />
+      <NeedsStrip list={need.list} />
+      <details className="lk-more"><summary>How suggestions are chosen</summary>
+        <p className="muted mt-2 text-sm">A company is suggested only if it matches who you target in the Account Brain and has at least {MIN_INDEPENDENT_EVENTS} independent signals; many reports of the same announcement count once. The scan runs every {p.discovery?.everyDays ?? DEFAULT_SCAN_DAYS} days.</p>
+      </details>
 
       <StatStrip
         items={[
-          { label: "Suggested companies", value: count("new") },
-          { label: "Rising industries", value: rising.length, meta: rising.slice(0, 2).map((t) => t.label.split(/[ ,&/]/)[0]).join(", ") || undefined },
-          { label: "Under-covered", value: under.length, meta: under.length ? "rising, few companies held" : undefined },
-          { label: "Added from Discover", value: count("added") },
+          { label: "Suggested companies", value: count("new"), meta: count("new") ? undefined : lastScan ? "none waiting" : "scan the market to fill this" },
+          { label: "Rising industries", value: rising.length, meta: rising.slice(0, 2).map((t) => t.label.split(/[ ,&/]/)[0]).join(", ") || (lastScan ? "none rising this month" : "appears after a scan") },
+          { label: "Under-covered", value: under.length, meta: under.length ? "rising, few companies held" : "rising industries where you hold few companies" },
+          { label: "Added from here", value: count("added"), meta: count("added") ? undefined : "approved suggestions land here" },
         ]}
       />
 

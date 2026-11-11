@@ -2,6 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
 import { ActionForm, SubmitButton } from "@/components/client";
+import { NeedsStrip } from "@/components/needs-strip";
+import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader, ago } from "@/components/ui";
 import type { DiscoveryCriteria } from "@/lib/discover/describe";
 import { LookalikeReview } from "../lookalikes/review";
@@ -29,6 +31,7 @@ function Field({ label, name, value, hint, wide, area }: { label: string; name: 
 export default async function DescribePage({ searchParams }: { searchParams: Promise<{ search?: string; view?: string }> }) {
   await ensureSellerPacks();
   const { search: id, view } = await searchParams;
+  const need = await needs(["ai", "search"]);
   const [current, recent] = await Promise.all([
     id ? db.discoverySearch.findUnique({ where: { id } }) : Promise.resolve(null),
     db.discoverySearch.findMany({ orderBy: { createdAt: "desc" }, take: 8 }),
@@ -41,15 +44,16 @@ export default async function DescribePage({ searchParams }: { searchParams: Pro
       <PageHeader
         eyebrow="Import data · Describe companies"
         title="Find companies from a description"
-        sub="Say what you're looking for in plain words. The AI drafts precise criteria for you to check and edit, searches the web (Exa and Tavily), keeps only companies the sources actually name, researches each one against your criteria and lists them for approval. Contacts are looked up only after you approve a company."
+        sub="Say what you want in plain words. The AI drafts criteria for you to check, searches the web, and lists the companies it finds for your approval. Nothing is researched until you approve."
       />
 
+      <NeedsStrip list={need.list} />
       <Card className="mb-5">
         <ActionForm action={draftDiscoveryAction} className="grid gap-2">
           <textarea name="brief" className="glass-textarea" rows={3} placeholder={EXAMPLES[0]} aria-label="Describe the companies you want" defaultValue={current?.brief ?? ""} required minLength={15} maxLength={1000} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="muted text-xs">Include what matters: industry, country, size, business model, systems they use, funding, what they must be doing now.</span>
-            <SubmitButton className="btn btn-primary">Draft criteria</SubmitButton>
+            <span className="flex items-center gap-2">{!need.ok && <span className="nd-blocked">{need.blocker}</span>}<SubmitButton className="btn btn-primary" disabled={!need.ok} title={need.blocker ?? undefined}>Draft criteria</SubmitButton></span>
           </div>
         </ActionForm>
         {!current && (
@@ -84,13 +88,13 @@ export default async function DescribePage({ searchParams }: { searchParams: Pro
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="muted text-xs">Countries and size are checked by code before research; must-haves, technologies, funding and signals are checked by the AI investigation with quoted sources.</span>
-              <SubmitButton className="btn btn-brand">{current.status === "draft" ? "Search with these criteria" : "Search again"}</SubmitButton>
+              <SubmitButton className="btn btn-brand" disabled={!need.ok} title={need.blocker ?? undefined}>{current.status === "draft" ? "Search with these criteria" : "Search again"}</SubmitButton>
             </div>
           </ActionForm>
           {current.status === "failed" && <p className="mt-3 text-xs" style={{ color: "var(--danger-strong)" }}>The last search failed: {current.error}</p>}
           {run?.runs?.length ? (
             <details className="lk-more mt-4">
-              <summary>How it searched: {run.runs.length} search{run.runs.length === 1 ? "" : "es"}, {run.found ?? 0} companies found, {current.candidates} researched{run.excluded ? `, ${run.excluded} outside the targeting rule` : ""}</summary>
+              <summary>How it searched: {run.runs.length} search{run.runs.length === 1 ? "" : "es"}, {run.found ?? 0} companies found, {current.candidates} researched{run.excluded ? `, ${run.excluded} outside who you target` : ""}</summary>
               <ul className="mt-2 grid gap-1 text-xs">
                 {run.runs.map((q) => <li key={q.query}><span className="mono">{q.query}</span> <span className="muted">({q.engine}: {q.error ? `failed: ${q.error}` : `${q.pages} page${q.pages === 1 ? "" : "s"}, ${q.companies} compan${q.companies === 1 ? "y" : "ies"}`})</span></li>)}
               </ul>

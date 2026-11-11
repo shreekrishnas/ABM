@@ -103,11 +103,11 @@ export function ActionForm({ action, children, className, resetOnSuccess = true 
   );
 }
 
-export function SubmitButton({ children, className = "btn btn-primary", name, value }: { children: ReactNode; className?: string; name?: string; value?: string }) {
+export function SubmitButton({ children, className = "btn btn-primary", name, value, disabled, title }: { children: ReactNode; className?: string; name?: string; value?: string; disabled?: boolean; title?: string }) {
   return (
     <PendingAware>
       {(pending) => (
-        <button type="submit" className={className} disabled={pending} name={name} value={value}>
+        <button type="submit" className={className} disabled={pending || disabled} name={name} value={value} title={title}>
           {pending && <Loader2 size={15} className="spin" />}
           {children}
         </button>

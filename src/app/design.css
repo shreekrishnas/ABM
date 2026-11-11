@@ -1512,3 +1512,27 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 .nav-tools .tg, .hm-tools .tg { padding: 0 var(--sp-2); }
 .nav-tools .tg-sw.on, .hm-tools .tg-sw.on { background: var(--warning); }
 @media (max-width: 640px) { .nav-tools .tg-l, .hm-tools .tg-l { display: none; } }
+
+/* ── "What this needs" strip ── */
+.nd-strip { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4); padding: var(--sp-2) var(--sp-3); margin: 0 0 var(--sp-5); border-radius: var(--r-md); background: var(--warning-bg); font-size: var(--fs-xs); }
+.nd-strip.ok { background: var(--subtle); }
+.nd-l { font-weight: 600; color: var(--text-2); }
+.nd-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--text); }
+.nd-item i { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--muted); }
+.nd-item.on i { background: var(--success); }
+.nd-item.waiting i { background: var(--warning); }
+.nd-item small { color: var(--muted); font-size: var(--fs-xs); }
+.nd-link { margin-left: auto; color: var(--pill); font-weight: 600; text-decoration: none; }
+.nd-link:hover { text-decoration: underline; }
+.nd-blocked { font-size: var(--fs-xs); color: var(--warning); }
+
+/* ── Import hub: recent imports and waiting ── */
+.ih-grid { display: grid; gap: var(--sp-5); grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); margin-top: var(--sp-6); }
+.ih-list { list-style: none; margin: 0; padding: 0; }
+.ih-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.ih-list li b { display: block; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ih-list li small { color: var(--muted); font-size: var(--fs-xs); }
+.ih-list a { text-decoration: none; color: inherit; }
+.ih-st { font-size: var(--fs-xs); font-weight: 600; padding: 1px var(--sp-2); border-radius: var(--r-full); background: var(--success-bg); color: var(--success); }
+.ih-st.failed { background: var(--danger-bg); color: var(--danger); }
+.ih-st.processing, .ih-st.uploading { background: var(--warning-bg); color: var(--warning); }
