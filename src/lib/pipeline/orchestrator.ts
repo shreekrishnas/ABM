@@ -318,7 +318,10 @@ async function processQueueUnscoped(opts: { batchId?: string; budgetMs?: number;
   await recoverStuckRuns(ctx);
   const deadline = Date.now() + (opts.budgetMs ?? 40_000);
   // Companies waiting out a retry delay are skipped until their time comes.
-  const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
+  // Companies of a paused or archived client stay queued until it is active again.
+  const { stoppedClientIds } = await import("@/lib/admin/client-status");
+  const stopped = await stoppedClientIds();
+  const where = { pipelineStatus: "queued", mergedIntoId: null, OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: ctx.now } }], ...(stopped.length ? { sellerId: { notIn: stopped } } : {}), ...(opts.batchId ? { lastImportBatchId: opts.batchId } : {}) };
   const results: RunResult[] = [];
   while (Date.now() < deadline && results.length < (opts.max ?? 500)) {
     const next = await db.account.findFirst({ where, orderBy: { updatedAt: "asc" } });

@@ -1429,3 +1429,25 @@ table.data td .btn-secondary.btn-sm:hover, .hm-table td .btn-secondary.btn-sm:ho
 
 /* Phones: the assistant button sits above the bottom bar instead of covering "More" */
 @media (max-width: 767px) { .assistant-fab { bottom: calc(64px + var(--sp-3)); width: 46px; height: 46px; } }
+
+/* ── Client settings ── */
+.cs-head { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+.cs-head > .min-w-0 { flex: 1; }
+.cs-logo { width: 48px; height: 48px; border-radius: var(--r-md); flex: none; }
+.cs-status { display: inline-flex; align-items: center; font-size: var(--fs-xs); font-weight: 600; padding: 2px var(--sp-2); border-radius: var(--r-full); background: var(--success-bg); color: var(--success); }
+.cs-status.paused { background: var(--warning-bg); color: var(--warning); }
+.cs-status.archived { background: var(--subtle); color: var(--muted); }
+.cs-steps { list-style: none; margin: 0; padding: 0; }
+.cs-steps li { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); color: var(--warning); }
+.cs-steps li.done { color: var(--success); }
+.cs-steps li > span { flex: 1; display: grid; gap: 2px; }
+.cs-steps b { color: var(--text); font-weight: 600; font-size: var(--fs-sm); }
+.cs-steps small { color: var(--muted); font-size: var(--fs-xs); }
+.cs-grid { display: grid; gap: var(--sp-3); }
+.cs-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; }
+.cs-row > label, .cs-row > span:first-child { font-size: var(--fs-sm); font-weight: 500; color: var(--text-2); }
+@media (max-width: 640px) { .cs-row { grid-template-columns: 1fr; } }
+.cs-banner { margin: 0 0 var(--sp-4); }
+.cs-logo, .tm-logo { display: inline-grid; place-items: center; background: var(--pill-subtle); color: var(--pill); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); overflow: hidden; }
+.tm-logo { width: 26px; height: 26px; flex: none; }
+.cs-logo { font-size: var(--fs-sm); }

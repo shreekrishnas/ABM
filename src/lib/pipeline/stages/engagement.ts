@@ -52,15 +52,23 @@ async function pickMailbox(now: Date) {
 export async function sendApproved(ctx: RunContext = newContext()) {
   const S = 12;
   const breaker = await breakerState(ctx.now);
-  const drafts = await db.draft.findMany({ where: { status: "approved", message: null }, include: { contact: { include: { account: true } } }, orderBy: { createdAt: "asc" } });
+  const all = await db.draft.findMany({ where: { status: "approved", message: null }, include: { contact: { include: { account: true } } }, orderBy: { createdAt: "asc" } });
   const result = { sent: 0, held: 0, reasons: [] as string[] };
+  // A paused or archived client's approved emails wait until it is active again.
+  const { stoppedClientIds } = await import("@/lib/admin/client-status");
+  const stopped = new Set(await stoppedClientIds());
+  const drafts = all.filter((d) => !stopped.has(d.contact.account.sellerId));
+  if (drafts.length < all.length) {
+    result.held += all.length - drafts.length;
+    result.reasons.push("Client paused");
+  }
   if (!breaker.pass && drafts.length) {
     await openReview({ type: "bounce_breaker", stage: S, reason: breaker.reason });
   }
   // Fence: with no real mailbox connected, approved emails wait — the brain never pretends to send.
   if (drafts.length && ctx.adapters.email.connected === false) {
     for (const d of drafts) await logEvent(ctx, { accountId: d.contact.accountId, contactId: d.contactId, stage: S, step: "sequence_send.channel", outcome: "block", reason: "Approved, waiting: no mailbox connected (set SMTP_URL)" });
-    return { sent: 0, held: drafts.length, reasons: ["No mailbox connected"] };
+    return { sent: 0, held: result.held + drafts.length, reasons: [...result.reasons, "No mailbox connected"] };
   }
   for (const d of drafts) {
     const c = d.contact;

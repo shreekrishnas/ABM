@@ -1281,6 +1281,8 @@ model Client {
   monthlyBudgetUsd Int?
   /// Show the extra pages (Coverage, Signals, Lookalikes, Market signals, Analytics, Behind the scenes) in the menu.
   showExtras       Boolean      @default(false)
+  /// active | paused (research and sending stop) | archived (also hidden from team members' menus)
+  status           String       @default("active")
   createdAt        DateTime     @default(now())
   users            UserClient[]
 }

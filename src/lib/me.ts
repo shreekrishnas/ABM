@@ -34,7 +34,8 @@ export const getMe = cache(async (): Promise<Me | null> => {
     id: user.id,
     name: user.name,
     email: user.email,
-    clients: user.clients.map((c) => ({ id: c.client.id, name: c.client.name, role: (["owner", "manager", "rep", "viewer"].includes(c.role) ? c.role : "manager") as import("@/lib/roles").Role })),
+    // Archived clients leave team members' menus (a Super Admin still reaches them).
+    clients: user.clients.filter((c) => user.superAdmin || c.client.status !== "archived").map((c) => ({ id: c.client.id, name: c.client.name, role: (["owner", "manager", "rep", "viewer"].includes(c.role) ? c.role : "manager") as import("@/lib/roles").Role })),
     canSuperAdmin: user.superAdmin,
     superAdmin: user.superAdmin && jar.get(MODE_COOKIE)?.value === "super",
   };

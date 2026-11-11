@@ -75,8 +75,8 @@ export async function scopeFor(email: string | null, superMode: boolean, picked:
   const all = user.superAdmin && superMode;
   // In Super Admin mode every account can be opened; in User mode (and for everyone else) only assigned ones.
   const choices = all
-    ? await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true } })
-    : user.clients.map((c) => ({ id: c.client.id, name: c.client.name, logoUrl: c.client.logoUrl })).sort((a, b) => a.name.localeCompare(b.name));
+    ? (await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true, status: true } })).map((c) => ({ id: c.id, name: c.status === "archived" ? `${c.name} (archived)` : c.name, logoUrl: c.logoUrl }))
+    : user.clients.filter((c) => c.client.status !== "archived").map((c) => ({ id: c.client.id, name: c.client.name, logoUrl: c.client.logoUrl })).sort((a, b) => a.name.localeCompare(b.name));
   const pick = choices.find((c) => c.id === picked)?.id ?? null;
   // With no account picked: Super Admin mode sees everything; otherwise the person's own accounts.
   const ids = pick ? [pick] : all ? null : choices.map((c) => c.id);

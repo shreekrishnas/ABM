@@ -20,6 +20,8 @@ import { monthlyStatus } from "@/lib/budget";
 import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
 import { sampleState } from "@/lib/sample";
+import { setupSteps } from "@/lib/admin/client-setup";
+import { CLIENT_STATUS_LABEL, isClientStatus } from "@/lib/admin/client-status";
 import { runHistory, stoppedGroups } from "@/lib/admin/ops";
 import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
@@ -139,39 +141,45 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
 
 async function AccountsTab({ clients }: { clients: Clients }) {
   const users = await db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
-  const spend = await spendByAccount();
+  const [month, setup, byClient] = await Promise.all([
+    monthlyStatus(),
+    Promise.all(clients.map((c) => setupSteps(c.id))),
+    db.account.groupBy({ by: ["sellerId"], where: { mergedIntoId: null }, _count: true }),
+  ]);
+  const counts = new Map(byClient.map((r) => [r.sellerId, r._count]));
   return (
     <>
-      <Card title="Accounts" sub="Each account is its own workspace with its own brain. Paste a logo link or the website to show its logo." pad={false}>
-        <ul className="tm-accts">
-          {clients.map((c) => {
-            const s = spend.get(c.id);
-            return (
-              <li key={c.id} className="tm-acct">
-                <AccountLogo name={c.name} url={c.logoUrl} className="tm-acct-av" />
-                <span className="min-w-0"><span className="font-semibold">{c.name}</span> <span className="muted text-xs"><Link href={`/brain?client=${c.id}`} className="underline">Brain</Link> · {c._count.users} {c._count.users === 1 ? "person" : "people"} · {s ? `${usd(s.month)} last 30 days` : "no spend yet"}</span></span>
-                <ActionForm action={setClientLogoAction.bind(null, c.id)} className="tm-acct-logo">
-                  <input name="logo" className="glass-input" defaultValue={c.logoUrl ?? ""} placeholder="Logo link or website" aria-label={`${c.name} logo link or website`} />
-                  <SubmitButton className="btn btn-secondary btn-sm">Save</SubmitButton>
-                </ActionForm>
-                <ActionForm action={setMonthlyBudgetAction.bind(null, c.id)} className="tm-acct-logo" resetOnSuccess={false}>
-                  <input name="budget" className="glass-input" inputMode="numeric" defaultValue={c.monthlyBudgetUsd ?? ""} placeholder="Monthly cap in $ (empty = no cap)" aria-label={`${c.name} monthly spending cap in dollars`} />
-                  <SubmitButton className="btn btn-secondary btn-sm">Set cap</SubmitButton>
-                </ActionForm>
-                <ActionButton action={setShowExtrasAction.bind(null, c.id, !c.showExtras)} className="btn btn-ghost btn-sm" title="Extra pages: Coverage, Signals, Lookalikes, Market signals, Analytics, Behind the scenes">{c.showExtras ? "Extra pages: on" : "Extra pages: off"}</ActionButton>
-              </li>
-            );
-          })}
-        </ul>
+      <Card title="Clients" sub="Each client is its own workspace with its own brain, team and spending cap. Open Settings to set it up, pause or archive it, or export its data." pad={false}>
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Client</th><th>Status</th><th>Setup</th><th className="r">Companies</th><th className="r">People</th><th>Spend this month</th><th /></tr></thead>
+            <tbody>{clients.map((c, i) => {
+              const m = month.get(c.id);
+              const st = setup[i];
+              const ready = st.filter((x) => x.done).length;
+              return (
+                <tr key={c.id}>
+                  <td><span className="inline-flex items-center gap-2"><AccountLogo name={c.name} url={c.logoUrl} className="tm-logo" /><b>{c.name}</b></span></td>
+                  <td><span className={`cs-status ${c.status}`}>{CLIENT_STATUS_LABEL[isClientStatus(c.status) ? c.status : "active"]}</span></td>
+                  <td>{ready === st.length ? <span className="tm-ok">Ready</span> : <span className="muted">{ready} of {st.length}</span>}</td>
+                  <td className="r tnum">{counts.get(c.id) ?? 0}</td>
+                  <td className="r tnum">{c._count.users}</td>
+                  <td className="tnum">{usd(m?.spent ?? 0)}{c.monthlyBudgetUsd != null ? ` of $${c.monthlyBudgetUsd}` : <span className="muted"> · no cap</span>}</td>
+                  <td className="r"><Link href={`/team/client/${c.id}`} className="btn btn-secondary btn-sm">Settings</Link></td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        </div>
       </Card>
-      <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Add an account</span>}>
+      <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Add a client</span>} sub="You go straight to its settings page, with a checklist of what to set up next.">
         <ActionForm action={addClientAction} className="grid gap-3">
           <label className="grid gap-1.5"><span className="text-xs font-semibold">Account name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
           <label className="grid gap-1.5"><span className="text-xs font-semibold">Logo <span className="muted font-normal">(optional)</span></span><input name="logo" className="glass-input" placeholder="Logo image link, or the website (e.g. acme.com)" /></label>
           <fieldset className="grid gap-1.5"><legend className="mb-1 text-xs font-semibold">People on this account</legend>
             <div className="flex flex-wrap gap-2">{users.map((u) => <label key={u.id} className="tm-pick"><input type="checkbox" name="users" value={u.id} /> {u.name}</label>)}</div>
           </fieldset>
-          <SubmitButton className="btn btn-primary justify-self-start">Add account</SubmitButton>
+          <SubmitButton className="btn btn-primary justify-self-start">Add client</SubmitButton>
         </ActionForm>
       </Card>
     </>
@@ -363,6 +371,9 @@ async function AuditTab({ clients, who, what, account }: { clients: Clients; who
 /** Every client side by side, what needs a Super Admin's attention, and activity across clients. */
 async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof systemHealth>> }) {
   const rows = await clientOverview();
+  const [setups, statuses] = await Promise.all([Promise.all(rows.map((r) => setupSteps(r.id))), db.client.findMany({ select: { id: true, status: true } })]);
+  const setupLeft = new Map(rows.map((r, i) => { const d = setups[i].filter((x) => x.done).length; return [r.id, d < setups[i].length ? `${d} of ${setups[i].length}` : ""]; }));
+  const statusOf = new Map(statuses.map((c) => [c.id, c.status]));
   const paused = await aiPause();
   const sum = (k: keyof ClientRow) => rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
   const alerts: { tone: "bad" | "warn"; text: string; href: string }[] = [
@@ -428,7 +439,7 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td><span className="inline-flex items-center gap-2"><AccountLogo name={r.name} url={r.logoUrl} className="tm-logo" /><b>{r.name}</b></span><div className="muted text-xs">{r.people} {r.people === 1 ? "person" : "people"}</div></td>
-                  <td><span className={`so-health ${r.health}`} title={r.issues.join(" · ") || "All good"}><i />{r.health === "ok" ? "Healthy" : r.health === "warn" ? "Check" : "Problem"}</span></td>
+                  <td><span className={`so-health ${r.health}`} title={r.issues.join(" · ") || "All good"}><i />{r.health === "ok" ? "Healthy" : r.health === "warn" ? "Check" : "Problem"}</span>{statusOf.get(r.id) && statusOf.get(r.id) !== "active" ? <div><span className={`cs-status ${statusOf.get(r.id)}`}>{CLIENT_STATUS_LABEL[statusOf.get(r.id) as "paused" | "archived"]}</span></div> : setupLeft.get(r.id) ? <div className="muted text-xs"><Link href={`/team/client/${r.id}`}>Setup {setupLeft.get(r.id)}</Link></div> : null}</td>
                   <td className="r tnum">{r.companies}</td>
                   <td className="r tnum">{r.queued}</td>
                   <td className="r tnum">{r.blocked}</td>
@@ -437,7 +448,7 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
                   <td className="r tnum">{r.replies7}</td>
                   <td><div className="so-spend"><span className="tnum">{usd(r.spent)}{r.cap != null ? ` of $${r.cap}` : ""}</span>{r.cap != null && <span className={`so-bar ${r.capState}`}><i style={{ width: `${Math.min(100, (r.spent / Math.max(r.cap, 0.01)) * 100)}%` }} /></span>}</div></td>
                   <td className="muted">{r.lastActivity ? ago(r.lastActivity) : "never"}</td>
-                  <td className="r"><form action={switchClientAction.bind(null, r.id)}><button type="submit" className="btn btn-secondary btn-sm">Open</button></form></td>
+                  <td className="r"><span className="inline-flex gap-1"><Link href={`/team/client/${r.id}`} className="btn btn-ghost btn-sm">Settings</Link><form action={switchClientAction.bind(null, r.id)}><button type="submit" className="btn btn-secondary btn-sm">Open</button></form></span></td>
                 </tr>
               ))}
             </tbody>

@@ -52,6 +52,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
   const scope = await resolveScope();
   const extras = await (await import("@/lib/extras")).showExtras();
+  const activeClient = scope?.active ? await db.client.findUnique({ where: { id: scope.active }, select: { name: true, status: true } }).catch(() => null) : null;
   const sp = await activeSeller();
   const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);
   const access = me
@@ -68,7 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
           <AppNav extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
-          <main className="app-main" id="main"><UndoProvider>{children}</UndoProvider></main>
+          <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>by an admin. Research and sending are stopped for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
         {/* Super Admin only (re-checked on the server for every request it makes). */}

@@ -66,6 +66,7 @@ export async function setAssignmentAction(userId: string, clientId: string, assi
 }
 
 export async function addClientAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  let newId = "";
   try {
     const me = await requireSuperAdmin();
     const name = text(fd, "name");
@@ -83,10 +84,14 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
     await db.sellerPackRevision.create({ data: { sellerId: id, pack: pack as unknown as Prisma.InputJsonValue, version: hashPack(pack), changed: ["created"], note: `Created by ${me.email}` } });
     await audit(me.email, "client.add", { target: name, clientId: id, after: { id, name, assigned: people.map((u) => u.email) } });
     revalidatePath("/team");
-    return { ok: true, message: `${name} added${people.length ? ` with ${people.map((u) => u.name.split(" ")[0]).join(", ")}` : ""}. Fill in its brain next.` };
+    newId = id;
   } catch (e) {
     return fail(e);
   }
+  // Straight to the new client's settings page, where the setup checklist says what to do next.
+  const { redirect } = await import("next/navigation");
+  redirect(`/team/client/${newId}?new=1`);
+  return { ok: true, message: "" };
 }
 
 /** Super Admin: set or clear an account's logo (an image link or the website). */
@@ -378,6 +383,43 @@ export async function retryStoppedAction(clientId: string, key: string): Promise
     }
     revalidatePath("/team");
     return { ok: true, message: `${rows.length} compan${rows.length === 1 ? "y" : "ies"} queued again${paused ? ". AI is paused, so they wait until you resume it." : "."}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function renameClientAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const name = text(fd, "name");
+    if (!name || name.length > 80) return { ok: false, message: "Enter a name (up to 80 characters)" };
+    const before = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
+    if (!before) return { ok: false, message: "That client no longer exists" };
+    await baseDb.client.update({ where: { id: clientId }, data: { name } });
+    await audit(me.email, "client.rename", { target: name, clientId, before: { name: before.name }, after: { name } });
+    (await import("@/lib/scope")).clearScopeCache();
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Renamed to ${name}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Active, paused (research and sending stop) or archived (also hidden from team members' menus). Nothing is deleted. */
+export async function setClientStatusAction(clientId: string, status: "active" | "paused" | "archived"): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const { isClientStatus, forgetClientStatus } = await import("@/lib/admin/client-status");
+    if (!isClientStatus(status)) return { ok: false, message: "Unknown status" };
+    const before = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true, status: true } });
+    if (!before) return { ok: false, message: "That client no longer exists" };
+    await baseDb.client.update({ where: { id: clientId }, data: { status } });
+    forgetClientStatus();
+    (await import("@/lib/scope")).clearScopeCache();
+    await audit(me.email, `client.${status === "active" ? "resume" : status}`, { target: before.name, clientId, before: { status: before.status }, after: { status } });
+    revalidatePath("/", "layout");
+    const what = status === "active" ? "is active again: queued research and approved emails carry on" : status === "paused" ? "is paused: research and sending stop for it; everything stays readable" : "is archived: work stops and it leaves team members' client menus. Restore it any time";
+    return { ok: true, message: `${before.name} ${what}` };
   } catch (e) {
     return fail(e);
   }
