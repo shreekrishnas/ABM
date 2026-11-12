@@ -103,6 +103,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const userName = me?.name.split(/\s+/)[0] || process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
   const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
 
+  // Today's recommendations for the client in view (built by the morning run): a link in the brief, not a card.
+  const recommended = await (async () => {
+    const { activeSellerId } = await import("@/lib/scope");
+    const { istDate } = await import("@/lib/discover/recommend");
+    const row = await db.dailyRecommendation.findUnique({ where: { sellerId_date: { sellerId: await activeSellerId(), date: istDate(now) } }, select: { items: true } }).catch(() => null);
+    return ((row?.items ?? []) as { decided?: string }[]).filter((i) => !i.decided).length;
+  })();
+
   // First-time checklist: shown until every step is done, or dismissed.
   const getStarted = await (async () => {
     const { prefsFor } = await import("@/lib/prefs");
@@ -132,7 +140,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <div className="min-w-0">
             <div className="hm-date">{dateLine}</div>
             <h1 className="hm-title">{greeting(now)}{userName ? `, ${userName}` : ""}</h1>
-            <p className="hm-brief">{waiting ? <><b>{waiting} item{waiting === 1 ? "" : "s"}</b> waiting for you on <Link href="/review">Approvals</Link></> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}.</p>
+            <p className="hm-brief">{waiting ? <><b>{waiting} item{waiting === 1 ? "" : "s"}</b> waiting for you on <Link href="/review">Approvals</Link></> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}{recommended ? <> · <Link href="/discover#recommended"><b>{recommended}</b> recommended today</Link></> : null}.</p>
           </div>
           <div className="hm-tools">
             {me?.canSuperAdmin && <SuperAdminSwitch on={me.superAdmin} />}

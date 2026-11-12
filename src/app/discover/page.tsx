@@ -13,6 +13,7 @@ import { needs } from "@/lib/admin/needs";
 import { Card, Empty, PageHeader, ago, cx } from "@/components/ui";
 import { FamilyChip, IntentPill, SectionLabel, StatStrip, type IntentLevel } from "@/components/v2";
 import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction, scanMarketAction } from "@/app/discover/actions";
+import { RecommendedToday } from "./recommended";
 
 export const metadata = { title: "Discover" };
 
@@ -67,8 +68,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         actions={<ActionButton action={scanMarketAction} className="btn btn-primary" disabled={!need.ok} title={need.blocker ?? undefined}><Globe size={16} /> Scan the market now</ActionButton>}
       />
       <NeedsStrip list={need.list} />
+      <RecommendedToday p={p} live={p.id === "test" || (await (await import("@/lib/admin/research-clients")).researchAllowed(p.id))} />
       <details className="lk-more"><summary>How suggestions are chosen</summary>
-        <p className="muted mt-2 text-sm">A company is suggested only if it matches who you target in the Account Brain and has at least {MIN_INDEPENDENT_EVENTS} independent signals; many reports of the same announcement count once. The scan runs every {p.discovery?.everyDays ?? DEFAULT_SCAN_DAYS} days.</p>
+        <p className="muted mt-2 text-sm">A company is suggested only if it matches who you target in the Account Brain and has at least {MIN_INDEPENDENT_EVENTS} independent signals; many reports of the same announcement count once. Every weekday morning the daily run scans the news, reads careers job lists and re-checks your top accounts, then ranks the best into Recommended today (set the sources in the Account Brain → Daily prospecting).</p>
       </details>
 
       <StatStrip

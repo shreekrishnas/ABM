@@ -1124,6 +1124,10 @@ model ProspectSuggestion {
   decidedBy      String?
   /// Who started the search that found it (lookalike or discovery).
   requestedBy    String?
+  /// "Snooze" in Recommended today: hidden from the daily list until this date.
+  snoozedUntil   DateTime?
+  /// Why a person rejected it from the daily list (wrong_industry | too_small | weak_signal | not_now | other), so ranking learns.
+  rejectReasonKey String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -1643,4 +1647,41 @@ model SignInEvent {
 
   @@index([email, createdAt])
   @@index([createdAt])
+}
+
+/// A company's careers site: which job system it uses (Greenhouse, Lever, Ashby, Workable) and when its jobs were last read.
+/// "none" and "error" are kept too, so a site without a job feed isn't read again every day.
+model CareersFeed {
+  id            String    @id @default(cuid())
+  sellerId      String
+  accountId     String?
+  suggestionId  String?
+  domain        String
+  /// greenhouse | lever | ashby | workable
+  ats           String?
+  slug          String?
+  /// found | none | error
+  status        String
+  note          String?
+  lastCheckedAt DateTime  @default(now())
+  /// [{ title, url, location, postedAt, matched }]
+  lastJobs      Json?
+  createdAt     DateTime  @default(now())
+
+  @@unique([sellerId, domain])
+  @@index([sellerId, lastCheckedAt])
+}
+
+/// The day's "Recommended today" list for one client, kept so the list is stable during the day and past days can be read.
+model DailyRecommendation {
+  id        String   @id @default(cuid())
+  sellerId  String
+  /// YYYY-MM-DD (India time)
+  date      String
+  items     Json
+  /// What the run did: sources, counts, spend, stop reason.
+  summary   Json?
+  createdAt DateTime @default(now())
+
+  @@unique([sellerId, date])
 }

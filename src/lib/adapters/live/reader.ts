@@ -98,3 +98,22 @@ export function relevantText(text: string, marks: string[], max = 6_000): string
   }
   return out.trim() || text.slice(0, max);
 }
+
+/** The raw HTML of a page (robots.txt honoured), for finding links such as a careers system. Null when not allowed or not HTML. */
+export async function readHtml(rawUrl: string, timeoutMs = 10_000): Promise<{ html: string; finalUrl: string } | null> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(url.protocol)) return null;
+  if (!(await allowed(url, Math.min(timeoutMs, 5_000)))) return null;
+  try {
+    const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok || !/html/.test(res.headers.get("content-type") ?? "")) return null;
+    return { html: (await res.text()).slice(0, MAX_BYTES), finalUrl: res.url || url.toString() };
+  } catch {
+    return null;
+  }
+}

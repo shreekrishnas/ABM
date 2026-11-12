@@ -1,7 +1,6 @@
 // Runs accounts through stages 2–11. Stages 12–13 are event-driven (sends,
 // signals, replies). Every outcome — pass, stop, budget, crash — is recorded.
 
-import { maybeScanMarket } from "@/lib/discover/scan";
 import { syncApolloVisitors } from "@/lib/web/apollo-sync";
 import type { Account } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -384,7 +383,9 @@ async function tickUnscoped(ctx: RunContext) {
   const watch = paused ? [] : await processWatchlist(ctx);
   const escalated = await escalateOverdue(ctx);
   const insights = paused ? false : await maybeGenerateInsights(ctx);
-  const market = paused ? false : await maybeScanMarket(ctx).catch(() => false);
+  // Daily prospecting for every client with live research on (news scan, careers job lists,
+  // re-checks), ranked into "Recommended today". Replaces the scan that only ran for the default client.
+  const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
   const visitors = await syncApolloVisitors(ctx).catch(() => null);
   return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }

@@ -120,6 +120,8 @@ export interface SellerProfile {
   autonomy: "review_all" | "auto_t3" | "auto_all";
   /** AI prospect discovery: how often the market scan runs for this client (days). Default 3. */
   discovery?: { everyDays: number };
+  /** Daily "Recommended today": which sources run each day and the daily limits (all optional; defaults in lib/discover/daily). */
+  daily?: DailySettings;
   /** LinkedIn messaging: follow-up timing and limits (people send every message by hand). */
   linkedin?: { followUpDays?: number; maxUnansweredFollowUps?: number };
   /** Lookalikes: what "similar" means for this client and how deep the AI digs (all optional). */
@@ -128,6 +130,25 @@ export interface SellerProfile {
   ruleHints: { techHypothesis: string; toolingPain: string };
   /** Writing knowledge base: personas, market norms, objections, examples. */
   writing?: WritingKnowledge;
+}
+
+export interface DailySettings {
+  /** News scan for the client's buying triggers (new companies). */
+  news?: boolean;
+  /** Job lists from the careers sites of held accounts and suggestions (free). */
+  jobs?: boolean;
+  /** Cheap re-check of top accounts for anything new. */
+  recheck?: boolean;
+  /** Companies like a won or engaged account (one reference company a day). */
+  lookalikes?: boolean;
+  /** At most this many accounts in the daily list. */
+  maxNew?: number;
+  /** Accounts re-checked per day. */
+  recheckPerDay?: number;
+  /** Accounts whose careers site is read per day. */
+  jobAccountsPerDay?: number;
+  /** Stop the day's run once it has spent this much (USD). */
+  maxUsd?: number;
 }
 
 export interface LookalikeCriteria {

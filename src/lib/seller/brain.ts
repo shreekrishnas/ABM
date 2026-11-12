@@ -59,6 +59,20 @@ export const BRAIN_SECTIONS: BrainSection[] = [
     ],
   },
   {
+    key: "daily", label: "Daily prospecting", single: true, help: "What runs every weekday morning to build \"Recommended today\" on Market signals. Runs only while live research is on for this client. Empty = the default shown.",
+    aiAsk: "nothing (these are operating settings, set by a person)",
+    fields: [
+      { key: "news", label: "Scan the news for buying events", kind: "bool", hint: "Finds new companies. About 10–15 searches a day. Default on" },
+      { key: "jobs", label: "Read job lists on careers sites", kind: "bool", hint: "Free. Greenhouse, Lever, Ashby and Workable sites. Default on" },
+      { key: "recheck", label: "Re-check top accounts for news", kind: "bool", hint: "One search per account. Default on" },
+      { key: "lookalikes", label: "Find companies like a won or engaged account", kind: "bool", hint: "One reference company a day. Default off" },
+      { key: "maxNew", label: "Accounts in the daily list", kind: "number", hint: "1–50. Empty = 10" },
+      { key: "recheckPerDay", label: "Accounts re-checked per day", kind: "number", hint: "0–50. Empty = 10" },
+      { key: "jobAccountsPerDay", label: "Careers sites read per day", kind: "number", hint: "0–200. Empty = 40" },
+      { key: "maxUsd", label: "Daily spending limit ($)", kind: "number", hint: "The day's run stops here. Empty = $2" },
+    ],
+  },
+  {
     key: "lookalikes", label: "Lookalikes", single: true, help: "What \"similar\" means for this account when the AI looks for companies like a customer, and how deep it researches each one.",
     aiAsk: "what the companies that buy from this company have in common (business model, operations, scale) and what kinds of companies are a poor fit",
     fields: [
@@ -161,6 +175,7 @@ export function readSection(p: SellerProfile, key: string): BrainItem[] {
   switch (key) {
     case "overview": return [{ name: p.name, website: p.website, hq: p.hq, summary: p.summary, positioning: p.positioning, tone: p.tone, cta: p.messaging.cta, defaultMessage: p.messaging.default }];
     case "targeting": return [{ countries: p.icp.geos.primary, secondaryCountries: p.icp.geos.secondary, minEmployees: p.icp.mustHave?.minEmployees ?? p.icp.employees.min, midEmployees: p.icp.employees.mid, sweetSpot: p.icp.employees.sweetSpot, discoveryDays: p.discovery?.everyDays ?? null }];
+    case "daily": return [{ news: p.daily?.news ?? true, jobs: p.daily?.jobs ?? true, recheck: p.daily?.recheck ?? true, lookalikes: p.daily?.lookalikes ?? false, maxNew: p.daily?.maxNew ?? null, recheckPerDay: p.daily?.recheckPerDay ?? null, jobAccountsPerDay: p.daily?.jobAccountsPerDay ?? null, maxUsd: p.daily?.maxUsd ?? null }];
     case "lookalikes": return [{ focus: p.lookalike?.focus ?? [], avoid: p.lookalike?.avoid ?? [], minFit: p.lookalike?.minFit ?? null, candidates: p.lookalike?.candidates ?? null, rounds: p.lookalike?.rounds ?? null }];
     case "industries": return p.icp.industries.map((i) => ({ _key: i.key, label: i.label, tier: i.tier, match: i.match, useCases: i.useCases.map((k) => ucName.get(k) ?? k) }));
     case "products": return p.products.map((x) => ({ name: x.name, what: x.what, useCases: (x.useCases ?? []).map((k) => ucName.get(k) ?? k) }));
@@ -207,6 +222,13 @@ export function writeSection(p: SellerProfile, key: string, items: BrainItem[]):
       // The hard gate reads mustHave: keep it in step with what people edit here.
       next.icp.mustHave = targetingRule(next.icp.geos, one.minEmployees == null || one.minEmployees === "" ? undefined : next.icp.employees.min);
       break;
+    case "daily": {
+      const num = (v: unknown, lo: number, hi: number, int = true) => { const x = Number(v); return v != null && v !== "" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, int ? Math.round(x) : Math.round(x * 100) / 100)) : undefined; };
+      const b = (v: unknown) => (v === true || v === "true" || v === "on" ? true : v === false || v === "false" || v === "" || v == null ? false : Boolean(v));
+      const d = { news: b(one.news), jobs: b(one.jobs), recheck: b(one.recheck), lookalikes: b(one.lookalikes), maxNew: num(one.maxNew, 1, 50), recheckPerDay: num(one.recheckPerDay, 0, 50), jobAccountsPerDay: num(one.jobAccountsPerDay, 0, 200), maxUsd: num(one.maxUsd, 0, 100, false) };
+      next.daily = Object.fromEntries(Object.entries(d).filter(([, v]) => v != null)) as SellerProfile["daily"];
+      break;
+    }
     case "lookalikes": {
       const num = (v: unknown, lo: number, hi: number) => { const x = Number(v); return v != null && v !== "" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : undefined; };
       const l = { focus: strs(one.focus, /\n/), avoid: strs(one.avoid, /\n/), minFit: num(one.minFit, 0, 100), candidates: num(one.candidates, 1, 25), rounds: num(one.rounds, 1, 6) };

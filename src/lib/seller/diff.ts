@@ -21,6 +21,7 @@ const SECTION_LABEL: Record<string, string> = {
   ruleHints: "fallback wording",
   summary: "summary",
   positioning: "positioning",
+  daily: "daily prospecting",
 };
 
 /** JSON with object keys sorted, so the same content always gives the same string
