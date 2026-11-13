@@ -130,6 +130,8 @@ export interface DraftInput {
   channel?: "email" | "linkedin";
   /** Writing knowledge for this message: play, persona profile, examples, market norms and facts. */
   writing?: WritingContext;
+  /** Why this person, why now, why us, and the ask: the spine of the email (lib/outreach/brief). */
+  brief?: import("@/lib/outreach/brief").DraftBrief | null;
 }
 
 export interface CritiqueInput {
@@ -296,6 +298,8 @@ export interface Adapters {
   notifier: Notifier;
   embedder: Embedder;
   validator: Validator;
+  /** The model that writes emails (WRITER_MODEL, default Claude Sonnet). Without it, the main AI writes. */
+  writer?: Pick<LLM, "draft">;
 }
 
 export interface BrainSuggestInput {

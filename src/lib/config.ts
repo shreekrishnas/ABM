@@ -109,6 +109,8 @@ export const CONFIG = {
     // GPT-4o mini through OpenRouter: about $0.15 per million tokens in, $0.60 out.
     llmCheap: 0.003,
     llmStrong: 0.005,
+    /** One email written by the writer model (Claude Sonnet): a few thousand tokens in, a few hundred out. */
+    llmWriter: 0.03,
     /** Brain synthesis (account brief, research plan) — a few thousand tokens on GPT-4o mini. */
     llmBrain: 0.005,
     /** Approximate cost of one web search per engine (paid tiers). */

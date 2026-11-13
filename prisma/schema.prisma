@@ -728,6 +728,8 @@ model Draft {
 
   @@index([status])
   @@index([contactId])
+  /// Why this person, why now, why us and the ask: the brief the email was written from (lib/outreach/brief).
+  brief             Json?
 }
 
 model Message {

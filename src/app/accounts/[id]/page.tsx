@@ -18,6 +18,8 @@ import { IntakeTab } from "./intake-tab";
 import { ResearchTrace } from "./research-trace";
 import { ResearchSummary } from "./research-summary";
 import { JobNote } from "@/components/job-note";
+import { WhyThisEmail } from "@/components/why-this-email";
+import type { DraftBrief } from "@/lib/outreach/brief";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Imported data", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
@@ -340,7 +342,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         <div className="grid gap-4">
           {drafts.length === 0 ? <Card><Empty icon={<FileText size={20} />} title="No drafts yet" sub="Drafts appear once a person passes the readiness gate." /></Card> : drafts.map((d) => (
             <Card key={d.id} title={d.subject} sub={`${d.contact.fullName} · step ${d.stepOrder} · ${ago(d.createdAt)}`} action={<Badge color={d.status === "sent" ? "#059669" : d.status === "approved" ? "#0EA5E9" : d.status === "pending_review" ? "#8B5CF6" : "#DC2626"}>{d.status.replace("_", " ")}</Badge>}>
-              {(d.painPoint || d.useCase) && (
+              <WhyThisEmail brief={d.brief as unknown as DraftBrief | null} />
+              {!d.brief && (d.painPoint || d.useCase) && (
                 <div className="mb-3 rounded-xl px-3 py-2 text-xs secondary" style={{ background: "var(--surface-card-header)" }}>
                   <b style={{ color: "var(--text-primary)" }}>Angle:</b> {d.useCase ? (sp.useCases.find((u) => u.key === d.useCase)?.name ?? d.useCase) : "—"}{d.painPoint ? ` · ${d.painPoint}` : ""}
                 </div>

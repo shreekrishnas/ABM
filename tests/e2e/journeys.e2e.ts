@@ -98,6 +98,15 @@ describe("3. Long tasks don't hold up the app", () => {
   });
 });
 
+describe("5. Approving an email", () => {
+  it("Approvals shows why the email says what it says", async () => {
+    const p = await open("/review");
+    expect(await p.locator(".wte").count()).toBeGreaterThan(0);
+    expect(await p.locator(".wte").first().innerText()).toMatch(/Why now/);
+    await p.close();
+  });
+});
+
 describe("4. Daily work", () => {
   it("Home, Today, Approvals and Insights open", async () => {
     for (const path of ["/", "/work/today", "/review", "/pipeline", "/analytics"]) (await open(path)).close();

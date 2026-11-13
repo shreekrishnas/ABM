@@ -47,7 +47,8 @@ export function serviceStatus(): ServiceStatus[] {
   return [
     { key: "research", label: "Web research", mode: m(Boolean(engines && llmKey)), via: engines ? (llmKey ? engines : `${engines} — paused until OPENROUTER_API_KEY is set (the AI that reads the pages)`) : "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
     { key: "validator", label: "Research validator", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini"}${env("VALIDATOR_MODEL") ? "" : " (set VALIDATOR_MODEL for a different model)"}` : "Set OPENROUTER_API_KEY" },
-    { key: "llm", label: "LLM (extract, draft, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
+    { key: "writer", label: "Email writer", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("WRITER_MODEL") ?? DEFAULT_WRITER_MODEL}` : "Set OPENROUTER_API_KEY" },
+    { key: "llm", label: "LLM (extract, check, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
     { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
     { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
     { key: "mailbox", label: "Email verification", mode: m(true), via: "Free MX check (domain accepts email)" },
@@ -56,6 +57,9 @@ export function serviceStatus(): ServiceStatus[] {
     { key: "notifier", label: "Alerts", mode: "planned", via: "Slack / Teams webhook" },
   ];
 }
+
+/** The model that writes emails, unless WRITER_MODEL says otherwise. */
+export const DEFAULT_WRITER_MODEL = "anthropic/claude-sonnet-4.5";
 
 export function createAdapters(): Adapters {
   const a: Adapters = createMockAdapters();
@@ -72,6 +76,8 @@ export function createAdapters(): Adapters {
     a.embedder = new OpenRouterEmbedder(llmKey);
     // The validator is a separate role with its own instructions; VALIDATOR_MODEL can give it a different model too.
     a.validator = new OpenRouterLLM(llmKey, env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini");
+    // Emails are written by a stronger model; reading pages and the checks stay on the main one.
+    a.writer = new OpenRouterLLM(llmKey, env("WRITER_MODEL") ?? DEFAULT_WRITER_MODEL);
   }
   // Real data: never use sample people or a pretend mailbox on real companies.
   const apollo = env("APOLLO_API_KEY");

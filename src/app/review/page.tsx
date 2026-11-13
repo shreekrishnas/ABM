@@ -1,4 +1,6 @@
 import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
+import { WhyThisEmail } from "@/components/why-this-email";
+import type { DraftBrief } from "@/lib/outreach/brief";
 import Link from "next/link";
 import type { ReviewType } from "@prisma/client";
 import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
@@ -152,6 +154,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
               )}
 
               {r.type === "draft_approval" && draft && (
+                <>
+                <WhyThisEmail brief={draft.brief as unknown as DraftBrief | null} />
                 <div className="dz-body dz-draft">
                   <ActionForm action={reviewDraftAction} className="dz-form" resetOnSuccess={false}>
                     <input type="hidden" name="draftId" value={draft.id} />
@@ -182,6 +186,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     <p className="dz-meta">Guardrail passed on attempt {draft.guardrailAttempts}{draft.claimCheck == null ? " · claim checker unavailable: read each claim against its source" : ""}.</p>
                   </aside>
                 </div>
+                </>
               )}
 
               {r.type === "needs_human_reply" && (r.payload as { body?: string } | null)?.body && <blockquote className="dz-quote">“{(r.payload as { body: string }).body}”</blockquote>}

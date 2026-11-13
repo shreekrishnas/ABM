@@ -1,5 +1,6 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
+import { buildDraftBrief, fixInstruction, isSellerSentence } from "@/lib/outreach/brief";
 import { isPaused, planBuyingGroup, resumeCompany } from "../coordination";
 import { visitSummary } from "@/lib/web/visits";
 import type { Account, Contact, Prisma } from "@prisma/client";
@@ -227,6 +228,21 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   else await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.knowledge", outcome: "pass", reason: `Knowledge: ${writing.play.label}${writing.persona ? ` · ${writing.persona.name}` : ""} · ${rag.references.length} reference(s)${rag.references.length ? ` (${rag.references.map((r) => r.title).slice(0, 3).join("; ")})` : ""}${rag.examples.length ? ` · ${rag.examples.length} learned/uploaded example(s)` : ""}` });
   input.channel = "email";
   input.writing = writing;
+  // The brief: why this person, why now (the strongest fresh trigger), why us, and one ask.
+  const msgBrief = buildDraftBrief({
+    contact: { firstName: contact.firstName, title: contact.titleNormalized ?? contact.title, buyingRole: contact.buyingRole },
+    facts, sp, writing, useCase: useCase ?? null, angle: angle ? { pain: angle.pain, capability: angle.capability } : null,
+    proofPoint: proof?.text ?? null, pitch: input.seller.pitch,
+  });
+  if (msgBrief) {
+    input.brief = msgBrief;
+    // The lead trigger goes first, then the supporting facts, then the rest.
+    const order = [msgBrief.whyNow.factId, ...msgBrief.support.map((s) => s.factId)];
+    input.facts = [...input.facts].sort((a, b) => (order.indexOf(a.id) === -1 ? 99 : order.indexOf(a.id)) - (order.indexOf(b.id) === -1 ? 99 : order.indexOf(b.id)));
+    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.brief", outcome: "pass", reason: `Why now: ${msgBrief.whyNow.claim.slice(0, 140)} (confidence ${msgBrief.whyNow.confidence ?? "—"}) · ask: ${msgBrief.ask.slice(0, 80)}` });
+  }
+  const pitchTexts = [input.seller.pitch, proof?.text ?? "", angle?.capability ?? "", ...sp.proofPoints.map((p) => p.text)].filter(Boolean);
+  const writer = ctx.adapters.writer ?? ctx.adapters.llm;
   // The claim checker sees each fact with the exact quote from its source page.
   // With the paragraph around it, so a claim that stretches the quote past its context is caught.
   const factText = new Map(facts.map((f) => [f.id, f.quote ? `${f.claim} (source says: "${f.quote}"${f.passage ? `; in context: "${f.passage.slice(0, 500)}"` : ""})` : f.claim]));
@@ -243,16 +259,20 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   let issues: string[] = [];
   while (attempt < CONFIG.loops.maxDraftVersions) {
     attempt++;
-    await charge(account.id, account.tier, "llm", CONFIG.costsUsd.llmStrong, `Draft step ${stepOrder} for ${contact.fullName} (version ${attempt})`, S);
-    const revise = current && issues.length ? { subject: current.subject, body: current.body, issues } : null;
-    const raw = await ctx.adapters.llm.draft({ ...input, revise }, attempt);
+    await charge(account.id, account.tier, "llm", ctx.adapters.writer ? CONFIG.costsUsd.llmWriter : CONFIG.costsUsd.llmStrong, `Draft step ${stepOrder} for ${contact.fullName} (version ${attempt})`, S);
+    // A rewrite gets each problem as an instruction it can act on (which facts it may cite, what to do).
+    const revise = current && issues.length ? { subject: current.subject, body: current.body, issues: issues.map((i) => fixInstruction(i, facts.map((f) => ({ id: f.id, claim: f.claim })))) } : null;
+    const raw = await writer.draft({ ...input, revise }, attempt);
     // Claims are sentences about the PROSPECT, each tied to a research fact. A model sometimes also lists
     // the seller's own pitch and "cites" it ("approved pitch", "seller pitch", a knowledge-base entry):
     // those are not prospect claims, so they're set aside here (the whole-email audit still checks every
     // sentence about the prospect, and banned claims still apply to seller sentences).
     const known = new Set(usable.map((f) => f.id));
     const sellerClaim = (c: { factIds: string[] }) => c.factIds.length > 0 && c.factIds.every((id) => !known.has(id) && SELLER_REF.test(id));
-    const candidate = { ...raw, claims: raw.claims.filter((c) => !sellerClaim(c)) };
+    // A listed "claim" with no fact id that is about us (names the seller or repeats our pitch or proof point)
+    // is our own message, not a claim about the prospect: set aside too.
+    const ourSentence = (c: { text: string; factIds: string[] }) => c.factIds.length === 0 && isSellerSentence(c.text, [sp.name, sp.sender.company], pitchTexts);
+    const candidate = { ...raw, claims: raw.claims.filter((c) => !sellerClaim(c) && !ourSentence(c)) };
     if (revise) await publish(ctx, { type: "draft.rewritten", module: "rewriter", accountId: account.id, payload: { contactId: contact.id, version: attempt, fixing: issues } });
     current = candidate;
     panel = [];
@@ -336,7 +356,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   const critique = panel as unknown as Prisma.InputJsonValue;
   if (issues.length || !current) {
     const blocked = await db.draft.create({
-      data: { sellerId: sc.pack.id, sellerPackVersion: sc.version, contactId: contact.id, stepOrder, subject: current?.subject ?? "(blocked)", body: current?.body ?? "", claims: (current?.claims ?? []) as unknown as Prisma.InputJsonValue, status: "blocked", guardrailAttempts: attempt, rewrites: attempt - 1, critique, blockReason: issues[0] ?? "No draft", knowledge: knowledgeTrace(writing) },
+      data: { sellerId: sc.pack.id, sellerPackVersion: sc.version, contactId: contact.id, stepOrder, subject: current?.subject ?? "(blocked)", body: current?.body ?? "", claims: (current?.claims ?? []) as unknown as Prisma.InputJsonValue, status: "blocked", guardrailAttempts: attempt, rewrites: attempt - 1, critique, blockReason: issues[0] ?? "No draft", knowledge: knowledgeTrace(writing), brief: (msgBrief ?? undefined) as unknown as Prisma.InputJsonValue | undefined },
     });
     await decide(ctx, {
       module: "critic_panel", question: `Send step ${stepOrder} to ${contact.fullName}?`, choice: "Hold — a person decides",
@@ -358,7 +378,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
       contactId: contact.id, stepOrder, subject: out.subject, body: out.body, angle: trigger?.key ?? out.angle,
       painPoint: angle?.pain ?? null, useCase, claimCheck: (checks ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
       claims: out.claims as unknown as Prisma.InputJsonValue, leadEvidenceId: out.claims[0]?.factIds[0] ?? null,
-      guardrailAttempts: attempt, rewrites: attempt - 1, critique, knowledge: knowledgeTrace(writing),
+      guardrailAttempts: attempt, rewrites: attempt - 1, critique, knowledge: knowledgeTrace(writing), brief: (msgBrief ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
       // A replacement for a held draft always goes to a person: the old approval never carries over.
       status: human || replaces ? "pending_review" : "approved",
       reviewedAt: !human ? ctx.now : null,
