@@ -1,6 +1,8 @@
 // The fact buttons on the company page: Looks right, Keep this one, Correct.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// No web request in tests: an empty cookie jar (nobody signed in).
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined, getAll: () => [] }), headers: async () => new Headers() }));
 
 import { db } from "@/lib/db";
 import { baseDb } from "@/lib/db-base";
