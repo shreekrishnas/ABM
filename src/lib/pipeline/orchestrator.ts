@@ -387,9 +387,7 @@ async function tickUnscoped(ctx: RunContext) {
   // re-checks), ranked into "Recommended today". Replaces the scan that only ran for the default client.
   const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
   const visitors = await syncApolloVisitors(ctx).catch(() => null);
-  // Caches and machine logs past their useful life (never the audit trail, facts or CRM records).
-  const housekeeping = await (await import("@/lib/admin/housekeeping")).housekeepingTick(ctx.now);
-  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors, housekeeping };
+  return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }
 
 export async function budgetSummary(account: Account) {

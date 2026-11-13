@@ -30,8 +30,7 @@ CREATE INDEX IF NOT EXISTS "Evidence_accountId_canonicalUrl_idx" ON "Evidence"("
 CREATE INDEX IF NOT EXISTS "Evidence_accountId_createdAt_idx" ON "Evidence"("accountId", "createdAt");
 CREATE INDEX IF NOT EXISTS "Decision_contactId_createdAt_idx" ON "Decision"("contactId", "createdAt");
 CREATE INDEX IF NOT EXISTS "RateLimit_windowStart_idx" ON "RateLimit"("windowStart");
-DROP INDEX IF EXISTS "BrainSignal_type_createdAt_idx";
-DROP INDEX IF EXISTS "Decision_module_createdAt_idx";
+-- (two DROP INDEX lines were here; reverted by 20261113120000_restore_indexes)
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Evidence_confidence_range') THEN
     ALTER TABLE "Evidence" ADD CONSTRAINT "Evidence_confidence_range" CHECK ("confidence" IS NULL OR ("confidence" >= 0 AND "confidence" <= 100));

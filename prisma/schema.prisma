@@ -1028,6 +1028,7 @@ model BrainSignal {
 
   @@index([accountId, createdAt])
   @@index([runId])
+  @@index([type, createdAt])
 }
 
 /// A judgement with both sides: what was chosen, the case for and against, the evidence for each, and a confidence.
@@ -1052,6 +1053,7 @@ model Decision {
   createdAt       DateTime @default(now())
 
   @@index([accountId, createdAt])
+  @@index([module, createdAt])
   @@index([contactId, createdAt])
 }
 
