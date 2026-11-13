@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Lock, LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getMe } from "@/lib/me";
+import { coversClient, getMe, superAdminClientsOf, type Me } from "@/lib/me";
 import { allowedDomains } from "@/lib/auth";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
@@ -18,7 +18,7 @@ import { ACTION_WORD, isSensitive } from "@/lib/admin/audit";
 import { auditWhere } from "@/lib/admin/audit-where";
 import { clearEmailConflictsAction, clearErrorsAction, setMonthlyBudgetAction } from "./actions";
 import { monthlyStatus } from "@/lib/budget";
-import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, signOutAllAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction } from "./actions";
+import { addClientAction, addUserAction, clearAccountDataAction, clearWorkspaceDataAction, restartQueueAction, setAiPausedAction, setAssignmentAction, setClientLogoAction, removeSampleAction, resolveErrorAction, signOutAllAction, retryStoppedAction, sendTestEmailAction, setRoleAction, setShowExtrasAction, setUserStatusAction, signOutEverywhereAction, setSuperAdminAction } from "./actions";
 import { serviceStatus } from "@/lib/adapters";
 import { sampleState } from "@/lib/sample";
 import { setupSteps } from "@/lib/admin/client-setup";
@@ -43,6 +43,8 @@ const TABS = [
   { key: "audit", label: "Audit log", icon: History },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
+/** What a Super Admin over only some clients sees: their people and their clients. */
+const SCOPED_TABS: Tab[] = ["people", "accounts"];
 
 const usd = (n: number) => (n < 0.01 && n > 0 ? "<$0.01" : `$${n.toFixed(n >= 100 ? 0 : 2)}`);
 
@@ -51,26 +53,28 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const me = await getMe();
   if (!me?.superAdmin) notFound();
   const sp = await searchParams;
-  const tab: Tab = TABS.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : "overview";
-  const clients = await db.client.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } });
-  const [health, month] = await Promise.all([systemHealth(), monthlyStatus()]);
-  const problems = (health.tables?.length ? 1 : 0) + (health.queue.stuck ? 1 : 0) + [...month.values()].filter((m) => m.state !== "ok").length + (health.errors.length ? 1 : 0);
+  const full = me.fullSuperAdmin;
+  const tabs = full ? TABS : TABS.filter((t) => SCOPED_TABS.includes(t.key));
+  const tab: Tab = tabs.some((t) => t.key === sp.tab) ? (sp.tab as Tab) : tabs[0].key;
+  const clients = await db.client.findMany({ where: full ? {} : { id: { in: me.superAdminClients ?? [] } }, orderBy: { name: "asc" }, include: { _count: { select: { users: true } } } });
+  const [health, month] = full ? await Promise.all([systemHealth(), monthlyStatus()]) : [null, null];
+  const problems = health && month ? (health.tables?.length ? 1 : 0) + (health.queue.stuck ? 1 : 0) + [...month.values()].filter((m) => m.state !== "ok").length + (health.errors.length ? 1 : 0) : 0;
 
   return (
     <div className="page-enter space-y-5">
-      <PageHeader eyebrow="Super Admin" title="Super Admin" sub="Every client at a glance, who can sign in and to what, how the system is doing, and every Super Admin action." />
+      <PageHeader eyebrow="Super Admin" title="Super Admin" sub={full ? "Every client at a glance, who can sign in and to what, how the system is doing, and every Super Admin action." : `Super Admin for ${clients.map((c) => c.name).join(", ") || "no client yet"}: who works on them, their roles and their settings.`} />
       <nav className="k-seg tm-tabs" aria-label="Team & Access sections">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Link key={t.key} href={`/team?tab=${t.key}`} className={tab === t.key ? "on" : undefined} aria-current={tab === t.key ? "page" : undefined}>
             <t.icon size={15} aria-hidden /> {t.label}
             {t.key === "system" && problems > 0 && <span className="tm-alert" aria-label={`${problems} problem${problems === 1 ? "" : "s"}`}>{problems}</span>}
           </Link>
         ))}
       </nav>
-      {tab === "overview" && <OverviewTab health={health} />}
-      {tab === "people" && <PeopleTab me={me.email} clients={clients} />}
-      {tab === "accounts" && <AccountsTab clients={clients} />}
-      {tab === "system" && <SystemTab health={health} clients={clients} />}
+      {tab === "overview" && health && <OverviewTab health={health} />}
+      {tab === "people" && <PeopleTab me={me} clients={clients} />}
+      {tab === "accounts" && <AccountsTab clients={clients} canAdd={full} />}
+      {tab === "system" && health && <SystemTab health={health} clients={clients} />}
       {tab === "data" && <DataTab clients={clients} />}
       {tab === "audit" && <AuditTab clients={clients} who={sp.who} what={sp.what} account={sp.account} from={sp.from} to={sp.to} sensitive={sp.sensitive} />}
       {tab === "security" && <SecurityTab me={me.email} result={sp.result} />}
@@ -80,11 +84,20 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
 type Clients = Awaited<ReturnType<typeof db.client.findMany<{ include: { _count: { select: { users: true } } } }>>>;
 
-async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
+/** A Super Admin over some clients can act on a person only when everything that person reaches is theirs. */
+function inReach(me: Me, u: { superAdmin: boolean; superAdminClients: string[]; clients: { clientId: string }[] }): boolean {
+  if (me.fullSuperAdmin) return true;
+  const theirs = superAdminClientsOf(u);
+  return theirs !== null && theirs.every((c) => coversClient(me, c)) && u.clients.every((c) => coversClient(me, c.clientId));
+}
+
+async function PeopleTab({ me: actor, clients }: { me: Me; clients: Clients }) {
+  const me = actor.email;
+  const names = new Map((await db.client.findMany({ select: { id: true, name: true } })).map((c) => [c.id, c.name]));
   const users = await db.user.findMany({ where: { OR: allowedDomains().map((d) => ({ email: { endsWith: `@${d}` } })) }, orderBy: [{ status: "asc" }, { name: "asc" }], include: { clients: true } });
   return (
     <>
-      <Card title="People" sub={`${users.filter((u) => u.status === "active").length} active. Click an account to assign or unassign.`} pad={false}>
+      <Card title="People" sub={`${users.filter((u) => u.status === "active").length} active. Click an account to assign or unassign. Super Admin access can cover every client or only the ones you pick.`} pad={false}>
         <div className="table-wrap">
           <table className="data">
             <thead><tr><th>Name</th><th>Access</th><th>Clients and role</th><th>Last sign-in</th><th className="text-right">Sign-in</th></tr></thead>
@@ -93,10 +106,16 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
                 const assigned = new Set(u.clients.map((c) => c.clientId));
                 const roleOf = new Map(u.clients.map((c) => [c.clientId, c.role]));
                 const removed = u.status !== "active";
+                const reach = inReach(actor, u);
+                const covers = superAdminClientsOf(u);
                 return (
                   <tr key={u.id} style={removed ? { opacity: 0.55 } : undefined}>
                     <td className="strong">{u.name}<div className="muted mono text-xs font-normal">{u.email}</div></td>
-                    <td>{u.superAdmin ? <span className="tm-role super">Super Admin</span> : <span className="tm-role">User</span>}</td>
+                    <td>
+                      {u.superAdmin ? <span className="tm-role super">Super Admin</span> : <span className="tm-role">User</span>}
+                      {u.superAdmin && <div className="muted mt-1 text-xs">{covers === null ? "All clients" : covers.map((c) => names.get(c) ?? c).join(", ")}</div>}
+                      {u.email !== me && !removed && (reach || !u.superAdmin) && <SuperAdminControl user={u} covers={covers} clients={clients} full={actor.fullSuperAdmin} reach={reach} />}
+                    </td>
                     <td>
                       <div className="flex flex-wrap gap-1.5">
                         {clients.map((c) => assigned.has(c.id) ? (
@@ -118,9 +137,9 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
                         {assigned.size === 0 && <span className="muted text-xs">No account yet</span>}
                       </div>
                     </td>
-                    <td className="muted text-xs">{u.lastSignInAt ? ago(u.lastSignInAt) : "Never"}{!removed && u.email !== me && u.lastSignInAt && <div><ActionButton action={signOutEverywhereAction.bind(null, u.id)} className="tm-link" confirm={`Sign ${u.name} out on every device?`}>Sign out everywhere</ActionButton></div>}</td>
+                    <td className="muted text-xs">{u.lastSignInAt ? ago(u.lastSignInAt) : "Never"}{!removed && u.email !== me && u.lastSignInAt && reach && <div><ActionButton action={signOutEverywhereAction.bind(null, u.id)} className="tm-link" confirm={`Sign ${u.name} out on every device?`}>Sign out everywhere</ActionButton></div>}</td>
                     <td className="text-right">
-                      {u.email === me ? <span className="muted text-xs">You</span> : removed
+                      {u.email === me ? <span className="muted text-xs">You</span> : !reach ? null : removed
                         ? <ActionButton action={setUserStatusAction.bind(null, u.id, "active")} className="btn btn-secondary btn-sm">Restore</ActionButton>
                         : <ActionButton action={setUserStatusAction.bind(null, u.id, "removed")} className="btn btn-secondary btn-sm" confirm={`Remove ${u.name}? They won't be able to sign in. Their history is kept.`}>Remove</ActionButton>}
                     </td>
@@ -142,7 +161,36 @@ async function PeopleTab({ me, clients }: { me: string; clients: Clients }) {
   );
 }
 
-async function AccountsTab({ clients }: { clients: Clients }) {
+/**
+ * Make someone Super Admin for every client or only some, or take it away. The client list is the
+ * giver's own clients; "Every client" only for a Super Admin over all clients.
+ */
+function SuperAdminControl({ user, covers, clients, full, reach }: { user: { id: string; name: string; superAdmin: boolean }; covers: string[] | null; clients: Clients; full: boolean; reach: boolean }) {
+  const current = !user.superAdmin ? "none" : covers === null ? "all" : "some";
+  const picked = new Set(covers ?? []);
+  return (
+    <details className="tm-sa">
+      <summary className="tm-link">{user.superAdmin ? "Change Super Admin" : "Make Super Admin"}</summary>
+      <ActionForm action={setSuperAdminAction} className="tm-sa-form" resetOnSuccess={false}>
+        <input type="hidden" name="userId" value={user.id} />
+        <fieldset className="grid gap-1">
+          <legend className="mb-1 text-xs font-semibold">{user.name}&apos;s Super Admin access</legend>
+          {full && <label className="tm-sa-opt"><input type="radio" name="access" value="all" defaultChecked={current === "all"} /> Every client</label>}
+          <label className="tm-sa-opt"><input type="radio" name="access" value="some" defaultChecked={current === "some" || (!full && current === "none")} /> Only these clients:</label>
+          <div className="flex flex-wrap gap-1.5 pl-5">
+            {clients.map((c) => <label key={c.id} className="tm-pick"><input type="checkbox" name="clients" value={c.id} defaultChecked={picked.has(c.id)} /> {c.name}</label>)}
+            {!clients.length && <span className="muted text-xs">No client to give</span>}
+          </div>
+          {user.superAdmin && reach && <label className="tm-sa-opt"><input type="radio" name="access" value="none" /> Not a Super Admin</label>}
+        </fieldset>
+        <p className="muted text-xs">In Super Admin mode they can open these clients, manage who works on them and change their settings.{full ? " Only Super Admins over every client see the system, security and workspace settings." : ""}</p>
+        <SubmitButton className="btn btn-primary btn-sm justify-self-start">Save access</SubmitButton>
+      </ActionForm>
+    </details>
+  );
+}
+
+async function AccountsTab({ clients, canAdd }: { clients: Clients; canAdd: boolean }) {
   const users = await db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const [month, setup, byClient] = await Promise.all([
     monthlyStatus(),
@@ -175,7 +223,7 @@ async function AccountsTab({ clients }: { clients: Clients }) {
           </table>
         </div>
       </Card>
-      <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Add a client</span>} sub="You go straight to its settings page, with a checklist of what to set up next.">
+      {canAdd && <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Add a client</span>} sub="You go straight to its settings page, with a checklist of what to set up next.">
         <ActionForm action={addClientAction} className="grid gap-3">
           <label className="grid gap-1.5"><span className="text-xs font-semibold">Account name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
           <label className="grid gap-1.5"><span className="text-xs font-semibold">Logo <span className="muted font-normal">(optional)</span></span><input name="logo" className="glass-input" placeholder="Logo image link, or the website (e.g. acme.com)" /></label>
@@ -184,7 +232,7 @@ async function AccountsTab({ clients }: { clients: Clients }) {
           </fieldset>
           <SubmitButton className="btn btn-primary justify-self-start">Add client</SubmitButton>
         </ActionForm>
-      </Card>
+      </Card>}
     </>
   );
 }

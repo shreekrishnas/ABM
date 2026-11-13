@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { baseDb } from "@/lib/db-base"; // Start fresh clears every client, whichever one is picked
 import { allowedDomains, domainAllowed, normalizeEmail } from "@/lib/auth";
-import { audit, requireSuperAdmin } from "@/lib/me";
+import { audit, coversClient, requireClientAdmin, requireFullSuperAdmin, requireSuperAdmin, superAdminClientsOf, type Me } from "@/lib/me";
 import type { ActionState } from "../actions";
 import type { Prisma } from "@prisma/client";
 import { starterPack } from "@/lib/seller/brain";
@@ -15,6 +15,64 @@ import { hashPack } from "@/lib/seller";
 
 const fail = (e: unknown): ActionState => ({ ok: false, message: e instanceof Error ? e.message : "Something went wrong" });
 const text = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+
+/**
+ * A Super Admin who covers only some clients can act on a person only when everything that
+ * person can reach is inside their own clients. Returns the reason when not, else null.
+ */
+function outOfReach(me: Me, user: { name: string; superAdmin: boolean; superAdminClients: string[]; clients: { clientId: string }[] }): string | null {
+  if (me.fullSuperAdmin) return null;
+  const mine = new Set(me.superAdminClients ?? []);
+  const theirs = superAdminClientsOf(user);
+  if (theirs === null || theirs.some((c) => !mine.has(c))) return `Only a Super Admin over all clients can change ${user.name}: they're Super Admin for clients you don't cover`;
+  if (user.clients.some((c) => !mine.has(c.clientId))) return `${user.name} also works on clients you don't cover; ask a Super Admin over all clients`;
+  return null;
+}
+
+/**
+ * Make someone a Super Admin, change which clients they cover, or take it away.
+ * Form: userId, access = "all" | "some" | "none", clients = client ids (for "some").
+ * A Super Admin can hand out only what they hold themselves: "all" needs a Super Admin over all
+ * clients, and "some" only clients the giver covers. Nobody changes their own access.
+ */
+export async function setSuperAdminAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const me = await requireSuperAdmin();
+    const userId = text(fd, "userId");
+    const access = text(fd, "access");
+    if (!["all", "some", "none"].includes(access)) return { ok: false, message: "Pick the access to give" };
+    const picked = [...new Set(fd.getAll("clients").map(String).filter(Boolean))];
+    const user = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { clients: { select: { clientId: true } } } });
+    if (user.email === me.email) return { ok: false, message: "You can't change your own Super Admin access" };
+    if (user.status !== "active") return { ok: false, message: `${user.name} can't sign in; restore them first` };
+    if (!me.fullSuperAdmin) {
+      if (access === "all") return { ok: false, message: "Only a Super Admin over all clients can give access to every client" };
+      const theirs = superAdminClientsOf(user);
+      const mine = new Set(me.superAdminClients ?? []);
+      if (theirs === null || theirs.some((c) => !mine.has(c))) return { ok: false, message: `Only a Super Admin over all clients can change ${user.name}'s access` };
+      if (picked.some((c) => !mine.has(c))) return { ok: false, message: "You can only give Super Admin for clients you cover" };
+    }
+    let clientIds: string[] = [];
+    if (access === "some") {
+      const found = await db.client.findMany({ where: { id: { in: picked } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+      if (!found.length) return { ok: false, message: "Pick at least one client" };
+      clientIds = found.map((c) => c.id);
+    }
+    const before = { superAdmin: user.superAdmin, clients: superAdminClientsOf(user) ?? "all" };
+    const after = access === "none" ? { superAdmin: false, clients: [] as string[] | "all" } : { superAdmin: true, clients: access === "all" ? ("all" as const) : clientIds };
+    // The list is kept as given; access "none" clears it so a later grant starts clean.
+    await db.user.update({ where: { id: userId }, data: { superAdmin: access !== "none", superAdminClients: access === "some" ? clientIds : [] } });
+    (await import("@/lib/scope")).clearScopeCache();
+    await audit(me.email, "user.super_admin", { target: user.email, clientId: clientIds.length === 1 ? clientIds[0] : undefined, before, after });
+    revalidatePath("/team");
+    if (access === "none") return { ok: true, message: `${user.name} is no longer a Super Admin` };
+    if (access === "all") return { ok: true, message: `${user.name} is now Super Admin for every client` };
+    const names = (await db.client.findMany({ where: { id: { in: clientIds } }, select: { name: true }, orderBy: { name: "asc" } })).map((c) => c.name);
+    return { ok: true, message: `${user.name} is now Super Admin for ${names.join(", ")}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
 
 export async function addUserAction(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
@@ -39,8 +97,10 @@ export async function addUserAction(_: ActionState, fd: FormData): Promise<Actio
 export async function setUserStatusAction(userId: string, status: "active" | "removed"): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
-    const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
+    const user = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { clients: { select: { clientId: true } } } });
     if (user.email === me.email) return { ok: false, message: "You can't remove yourself" };
+    const blocked = outOfReach(me, user);
+    if (blocked) return { ok: false, message: blocked };
     await db.user.update({ where: { id: userId }, data: { status } });
     await audit(me.email, status === "removed" ? "user.remove" : "user.restore", { target: user.email, before: { status: user.status }, after: { status } });
     revalidatePath("/team");
@@ -53,7 +113,7 @@ export async function setUserStatusAction(userId: string, status: "active" | "re
 export async function setAssignmentAction(userId: string, clientId: string, assigned: boolean): Promise<ActionState> {
   (await import("@/lib/scope")).clearScopeCache();
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const [user, client] = await Promise.all([db.user.findUniqueOrThrow({ where: { id: userId } }), db.client.findUniqueOrThrow({ where: { id: clientId } })]);
     if (assigned) await db.userClient.upsert({ where: { userId_clientId: { userId, clientId } }, create: { userId, clientId, role: "rep" }, update: {} });
     else await db.userClient.deleteMany({ where: { userId, clientId } });
@@ -68,7 +128,7 @@ export async function setAssignmentAction(userId: string, clientId: string, assi
 export async function addClientAction(_: ActionState, fd: FormData): Promise<ActionState> {
   let newId = "";
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const name = text(fd, "name");
     if (!name || name.length > 80) return { ok: false, message: "Enter the account name" };
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -98,7 +158,7 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
 /** Super Admin: set or clear an account's logo (an image link or the website). */
 export async function setClientLogoAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const client = await db.client.findUnique({ where: { id: clientId } });
     if (!client) return { ok: false, message: "That account no longer exists" };
     const logo = logoFromInput(text(fd, "logo") ?? "");
@@ -121,7 +181,7 @@ export async function setClientLogoAction(clientId: string, _: ActionState, fd: 
  */
 export async function clearWorkspaceDataAction(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     if (text(fd, "confirm").toLowerCase() !== "delete everything") return { ok: false, message: 'Type "delete everything" to confirm' };
     const before = await baseDb.account.count();
     const [accounts] = await baseDb.$transaction([
@@ -153,7 +213,7 @@ export async function clearWorkspaceDataAction(_: ActionState, fd: FormData): Pr
  */
 export async function clearAccountDataAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const client = await baseDb.client.findUnique({ where: { id: clientId } });
     if (!client) return { ok: false, message: "That account no longer exists" };
     if (text(fd, "confirm").toLowerCase() !== client.name.toLowerCase()) return { ok: false, message: `Type the account name (${client.name}) to confirm` };
@@ -180,7 +240,7 @@ export async function clearAccountDataAction(clientId: string, _: ActionState, f
 /** Super Admin: restart the background queue (when it has stopped). */
 export async function restartQueueAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host");
     const origin = host ? `${h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https")}://${host}` : null;
@@ -196,7 +256,7 @@ export async function restartQueueAction(): Promise<ActionState> {
 /** Super Admin: set or clear an account's monthly spending cap (dollars). */
 export async function setMonthlyBudgetAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const client = await baseDb.client.findUnique({ where: { id: clientId } });
     if (!client) return { ok: false, message: "That account no longer exists" };
     const raw = text(fd, "budget").replace(/[$,\s]/g, "");
@@ -215,7 +275,7 @@ export async function setMonthlyBudgetAction(clientId: string, _: ActionState, f
 /** Super Admin: clear the error log after reviewing it. */
 export async function clearErrorsAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { clearErrors } = await import("@/lib/admin/errors");
     await clearErrors();
     await audit(me.email, "errors.clear");
@@ -229,7 +289,7 @@ export async function clearErrorsAction(): Promise<ActionState> {
 /** Super Admin: close identity items that were only about the email domain (older rule). */
 export async function clearEmailConflictsAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { clearEmailOnlyConflicts } = await import("@/lib/admin/cleanup");
     const r = await clearEmailOnlyConflicts();
     await audit(me.email, "data.email_conflicts", { after: r });
@@ -243,7 +303,7 @@ export async function clearEmailConflictsAction(): Promise<ActionState> {
 /** Pause or resume all AI (OpenRouter) spending. */
 export async function setAiPausedAction(paused: boolean): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { setAiPaused } = await import("@/lib/admin/ai-pause");
     if (!paused) {
       // Never resume spending without a ceiling on every client.
@@ -270,6 +330,7 @@ export async function setRoleAction(_: ActionState, fd: FormData): Promise<Actio
     const { isRole, ROLE_LABEL } = await import("@/lib/roles");
     const userId = String(fd.get("userId") ?? ""), clientId = String(fd.get("clientId") ?? ""), role = fd.get("role");
     if (!isRole(role)) return { ok: false, message: "Pick a role" };
+    if (!coversClient(me, clientId)) return { ok: false, message: "You're not Super Admin for this client" };
     const row = await db.userClient.findUnique({ where: { userId_clientId: { userId, clientId } }, include: { user: true, client: true } });
     if (!row) return { ok: false, message: "Assign them to this client first" };
     await db.userClient.update({ where: { userId_clientId: { userId, clientId } }, data: { role } });
@@ -285,6 +346,9 @@ export async function setRoleAction(_: ActionState, fd: FormData): Promise<Actio
 export async function signOutEverywhereAction(userId: string): Promise<ActionState> {
   try {
     const me = await requireSuperAdmin();
+    const target = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { clients: { select: { clientId: true } } } });
+    const blocked = outOfReach(me, target);
+    if (blocked) return { ok: false, message: blocked };
     const u = await db.user.update({ where: { id: userId }, data: { sessionVersion: { increment: 1 } } });
     await audit(me.email, "user.sign_out_everywhere", { target: u.email });
     revalidatePath("/team");
@@ -297,7 +361,7 @@ export async function signOutEverywhereAction(userId: string): Promise<ActionSta
 /** Sends one real email to the signed-in Super Admin, to prove sending works before any prospect is emailed. */
 export async function sendTestEmailAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const url = process.env.SMTP_URL?.trim();
     if (!url) return { ok: false, message: "Email sending is not on yet: add its key in Admin → Integrations" };
     const { SmtpSender } = await import("@/lib/adapters/live/email");
@@ -312,7 +376,7 @@ export async function sendTestEmailAction(): Promise<ActionState> {
 
 export async function setShowExtrasAction(clientId: string, on: boolean): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const c = await baseDb.client.update({ where: { id: clientId }, data: { showExtras: on } });
     await audit(me.email, "client.extras", { target: c.name, clientId, after: { showExtras: on } });
     revalidatePath("/", "layout");
@@ -325,7 +389,7 @@ export async function setShowExtrasAction(clientId: string, on: boolean): Promis
 /** Loads the Test client one short step at a time; the page keeps calling until done. */
 export async function sampleStepAction(): Promise<{ ok: boolean; done: boolean; message: string }> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { sampleStep } = await import("@/lib/sample");
     const r = await sampleStep(me.email);
     if (r.done) {
@@ -341,7 +405,7 @@ export async function sampleStepAction(): Promise<{ ok: boolean; done: boolean; 
 
 export async function removeSampleAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { removeSample } = await import("@/lib/sample");
     const n = await removeSample();
     await audit(me.email, "sample.remove", { target: "Test (sample data)", before: { companies: n } });
@@ -355,7 +419,7 @@ export async function removeSampleAction(): Promise<ActionState> {
 
 export async function resolveErrorAction(id: string): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const { resolveError } = await import("@/lib/admin/errors");
     await resolveError(id);
     await audit(me.email, "errors.resolve", { target: id });
@@ -369,7 +433,7 @@ export async function resolveErrorAction(id: string): Promise<ActionState> {
 /** Puts every stopped company in one group (same client, same reason) back in the queue, from the step it stopped at. */
 export async function retryStoppedAction(clientId: string, key: string): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const { stoppedIds } = await import("@/lib/admin/ops");
     const rows = await stoppedIds(clientId, key);
     if (!rows.length) return { ok: false, message: "Nothing to retry: these companies have moved on already" };
@@ -391,7 +455,7 @@ export async function retryStoppedAction(clientId: string, key: string): Promise
 
 export async function renameClientAction(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const name = text(fd, "name");
     if (!name || name.length > 80) return { ok: false, message: "Enter a name (up to 80 characters)" };
     const before = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
@@ -409,7 +473,7 @@ export async function renameClientAction(clientId: string, _: ActionState, fd: F
 /** Active, paused (research and sending stop) or archived (also hidden from team members' menus). Nothing is deleted. */
 export async function setClientStatusAction(clientId: string, status: "active" | "paused" | "archived"): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const { isClientStatus, forgetClientStatus } = await import("@/lib/admin/client-status");
     if (!isClientStatus(status)) return { ok: false, message: "Unknown status" };
     const before = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true, status: true } });
@@ -429,7 +493,7 @@ export async function setClientStatusAction(clientId: string, status: "active" |
 /** Emergency: every active person must sign in again on every device. */
 export async function signOutAllAction(): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const r = await baseDb.user.updateMany({ where: { status: "active" }, data: { sessionVersion: { increment: 1 } } });
     await audit(me.email, "security.sign_out_all", { after: { people: r.count } });
     const { redirect } = await import("next/navigation");
@@ -445,7 +509,7 @@ export async function signOutAllAction(): Promise<ActionState> {
 /** Live research (real web search) on or off for one client. Off: its companies stay queued and nothing is searched. */
 export async function setResearchClientAction(clientId: string, on: boolean): Promise<ActionState> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireClientAdmin(clientId);
     const client = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
     if (!client) return { ok: false, message: "That client no longer exists" };
     if (clientId === "test" && on) return { ok: false, message: "The Test client uses sample data only and never searches for real" };

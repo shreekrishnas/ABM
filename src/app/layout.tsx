@@ -74,7 +74,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </Shell>
         <ToastHost />
         {/* Super Admin only (re-checked on the server for every request it makes). */}
-        {me?.superAdmin && <AssistantBoundary><AdminAssistant /></AssistantBoundary>}
+        {me?.fullSuperAdmin && <AssistantBoundary><AdminAssistant /></AssistantBoundary>}
         <CommandPalette extras={extras} canAct={Boolean(access && access.state === "ok")} />
         <QuickTask users={team} />
       </body>

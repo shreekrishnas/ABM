@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, FileText, History, Trash2, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { authRequired } from "@/lib/auth";
-import { getMe } from "@/lib/me";
+import { coversClient, getMe } from "@/lib/me";
 import { DEFAULT_SELLER_ID, ensureSellerPacks } from "@/lib/seller";
 import { resolveScope } from "@/lib/scope";
 import { BRAIN_SECTIONS, loadBrain, readSection, readiness } from "@/lib/seller/brain";
@@ -19,7 +19,7 @@ export default async function BrainPage({ searchParams }: { searchParams: Promis
   await ensureSellerPacks();
   const me = await getMe();
   const all = await db.client.findMany({ orderBy: { name: "asc" } });
-  const mine = me ? (me.superAdmin ? all : all.filter((c) => me.clients.some((m) => m.id === c.id))) : all;
+  const mine = me ? (all.filter((c) => coversClient(me, c.id) || me.clients.some((m) => m.id === c.id))) : all;
   const choices = mine.length ? mine : authRequired() ? [] : [{ id: DEFAULT_SELLER_ID, name: DEFAULT_SELLER_ID }];
   const { client: wanted, s: picked } = await searchParams;
   const active = (await resolveScope())?.active;

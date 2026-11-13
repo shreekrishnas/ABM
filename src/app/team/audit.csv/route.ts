@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** Super Admin only: the audit log (with the page's filters) as a CSV file. */
 export async function GET(req: Request) {
   const me = await getMe();
-  if (!me?.superAdmin) return new Response("Not found", { status: 404 });
+  if (!me?.fullSuperAdmin) return new Response("Not found", { status: 404 });
   const p = new URL(req.url).searchParams;
   const where = auditWhere({ who: p.get("who"), what: p.get("what"), account: p.get("account"), from: p.get("from"), to: p.get("to"), sensitive: p.get("sensitive") });
   const [rows, clients] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { createdAt: "desc" }, take: 10_000 }), db.client.findMany({ select: { id: true, name: true } })]);

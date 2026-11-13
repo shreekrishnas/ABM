@@ -3,7 +3,7 @@
 import type { AuditEntry } from "@prisma/client";
 
 export const ACTION_WORD: Record<string, string> = {
-  "user.add": "added a person", "user.remove": "removed a person", "user.restore": "restored a person",
+  "user.add": "added a person", "user.super_admin": "changed Super Admin access", "user.remove": "removed a person", "user.restore": "restored a person",
   "assignment.add": "assigned", "assignment.remove": "unassigned", "client.add": "added an account", "client.logo": "changed a logo",
   "mode.super_admin": "switched to Super Admin", "mode.user": "switched to User",
   "data.clear": "cleared every account", "data.clear_account": "cleared one account", "queue.restart": "restarted the queue",
@@ -28,7 +28,7 @@ export const ACTION_WORD: Record<string, string> = {
 
 /** Changes a Super Admin should hear about: access, data removal, spending and client status. */
 export const SENSITIVE = new Set([
-  "user.add", "user.remove", "user.restore", "assignment.add", "assignment.remove", "assignment.role", "user.sign_out_everywhere", "security.sign_out_all",
+  "user.super_admin", "user.add", "user.remove", "user.restore", "assignment.add", "assignment.remove", "assignment.role", "user.sign_out_everywhere", "security.sign_out_all",
   "data.clear", "data.clear_account", "person.erase", "person.delete", "client.export", "client.archived", "client.paused", "client.budget", "ai.resume", "mode.super_admin",
 ]);
 export const isSensitive = (action: string) => SENSITIVE.has(action);

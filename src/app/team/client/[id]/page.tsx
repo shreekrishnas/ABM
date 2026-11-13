@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Circle, Download, ExternalLink } from "lucide-react";
 import { baseDb } from "@/lib/db-base";
-import { getMe } from "@/lib/me";
+import { coversClient, getMe } from "@/lib/me";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
 import { AccountLogo } from "@/components/account-logo";
@@ -22,8 +22,8 @@ const usd = (n: number) => `$${n.toFixed(2)}`;
 /** Super Admin: one client's setup, basics, people, status, export and danger zone. */
 export default async function ClientSettingsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ new?: string }> }) {
   const me = await getMe();
-  if (!me?.superAdmin) notFound();
   const { id } = await params;
+  if (!coversClient(me, id)) notFound();
   const sp = await searchParams;
   const client = await baseDb.client.findUnique({ where: { id }, include: { users: { include: { user: { select: { id: true, name: true, email: true, status: true, superAdmin: true, lastSignInAt: true } } } } } });
   if (!client) notFound();

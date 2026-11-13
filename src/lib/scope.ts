@@ -72,10 +72,12 @@ export async function scopeFor(email: string | null, superMode: boolean, picked:
   if (!email) return NOTHING;
   const user = await baseDb.user.findUnique({ where: { email }, include: { clients: { include: { client: true } } } });
   if (!user || user.status !== "active") return NOTHING;
-  const all = user.superAdmin && superMode;
-  // In Super Admin mode every account can be opened; in User mode (and for everyone else) only assigned ones.
-  const choices = all
-    ? (await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true, status: true } })).map((c) => ({ id: c.id, name: c.status === "archived" ? `${c.name} (archived)` : c.name, logoUrl: c.logoUrl }))
+  const sup = user.superAdmin && superMode;
+  // A Super Admin covers every client, or only the clients listed on them.
+  const all = sup && !user.superAdminClients.length;
+  // In Super Admin mode the clients covered can be opened (archived ones too); in User mode (and for everyone else) only assigned ones.
+  const choices = sup
+    ? (await baseDb.client.findMany({ where: all ? {} : { id: { in: user.superAdminClients } }, orderBy: { name: "asc" }, select: { id: true, name: true, logoUrl: true, status: true } })).map((c) => ({ id: c.id, name: c.status === "archived" ? `${c.name} (archived)` : c.name, logoUrl: c.logoUrl }))
     : user.clients.filter((c) => c.client.status !== "archived").map((c) => ({ id: c.client.id, name: c.client.name, logoUrl: c.client.logoUrl })).sort((a, b) => a.name.localeCompare(b.name));
   const pick = choices.find((c) => c.id === picked)?.id ?? null;
   // With no account picked: Super Admin mode sees everything; otherwise the person's own accounts.

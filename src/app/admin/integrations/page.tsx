@@ -23,7 +23,7 @@ const CARD_KEYS: Record<string, string> = { openrouter: "openrouter", search: "s
 /** Every connection in one place: a switch to turn it on or off, and its keys typed in place. */
 export default async function IntegrationsPage() {
   const [list, keys, paused, me] = await Promise.all([integrations(), integrationKeyStates(), aiPause(), getMe()]);
-  const canEdit = Boolean(me?.superAdmin);
+  const canEdit = Boolean(me?.fullSuperAdmin);
   const live = list.filter((i) => i.state === "connected").length;
   return (
     <div className="page-enter">

@@ -4,8 +4,8 @@ import { baseDb } from "@/lib/db-base";
 // A signed-in Super Admin, without cookies.
 vi.mock("@/lib/me", async (orig) => {
   const real = await orig<typeof import("@/lib/me")>();
-  const me = { id: "u1", name: "Admin", email: "admin@trilliantdigital.com", superAdmin: true, canSuperAdmin: true, clients: [] };
-  return { ...real, getMe: async () => me, requireSuperAdmin: async () => me };
+  const me = { id: "u1", name: "Admin", email: "admin@trilliantdigital.com", superAdmin: true, canSuperAdmin: true, clients: [], superAdminClients: null, fullSuperAdmin: true };
+  return { ...real, getMe: async () => me, requireSuperAdmin: async () => me, requireFullSuperAdmin: async () => me, requireClientAdmin: async () => me };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 

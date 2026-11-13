@@ -5,7 +5,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { audit, requireSuperAdmin } from "@/lib/me";
+import { audit, requireFullSuperAdmin } from "@/lib/me";
 import { hit } from "@/lib/rate-limit";
 import type { Answer, ToolCallRecord } from "@/lib/assistant/run";
 
@@ -21,7 +21,7 @@ export interface ChatMessage {
 
 async function me() {
   try {
-    return await requireSuperAdmin();
+    return await requireFullSuperAdmin();
   } catch {
     return null;
   }

@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { baseDb } from "@/lib/db-base";
-import { audit, getMe } from "@/lib/me";
+import { audit, coversClient, getMe } from "@/lib/me";
 
 // One client's data as a .zip of CSV files plus its Account Brain. Super Admin only; reads only
 // rows that belong to this client.
@@ -19,8 +19,8 @@ function csv(rows: Record<string, unknown>[]): string {
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe();
-  if (!me?.superAdmin) return new Response("Not found", { status: 404 });
   const { id } = await params;
+  if (!me || !coversClient(me, id)) return new Response("Not found", { status: 404 });
   const client = await baseDb.client.findUnique({ where: { id } });
   if (!client) return new Response("Not found", { status: 404 });
 

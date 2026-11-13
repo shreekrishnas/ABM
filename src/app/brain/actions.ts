@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { authRequired } from "@/lib/auth";
-import { getMe } from "@/lib/me";
+import { coversClient, getMe } from "@/lib/me";
 import { getAdapters } from "@/lib/adapters";
 import { addDocument, deleteDocument } from "@/lib/knowledge/rag/store";
 import { loadBrain, readSection, saveBrain, sectionByKey, writeSection, type BrainItem } from "@/lib/seller/brain";
@@ -17,7 +17,7 @@ async function editor(clientId: string): Promise<string> {
     if (authRequired()) throw new Error("Sign in first");
     return "local";
   }
-  if (!me.superAdmin) {
+  if (!coversClient(me, clientId)) {
     const c = me.clients.find((x) => x.id === clientId);
     if (!c) throw new Error("You are not assigned to this account");
     const { atLeast, ActionDenied, denyText } = await import("@/lib/roles");

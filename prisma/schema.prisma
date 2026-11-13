@@ -226,6 +226,8 @@ model User {
   status     String   @default("active")
   /// Entitled to switch into Super Admin (team, clients, access). Switching never removes it.
   superAdmin Boolean  @default(false)
+  /// Which clients that Super Admin covers. Empty = every client (the original, full Super Admin).
+  superAdminClients String[] @default([])
   createdAt  DateTime @default(now())
   /// Last successful sign-in.
   lastSignInAt DateTime?

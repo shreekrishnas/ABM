@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminHome() {
   const me = await getMe();
   const sup = Boolean(me?.superAdmin);
+  const full = Boolean(me?.fullSuperAdmin);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const [list, paused, users, clients, spend, queued] = await Promise.all([
     integrations(),
@@ -32,8 +33,8 @@ export default async function AdminHome() {
     { href: "/brain", icon: Brain, title: "Account Brain", text: "What the client sells, to whom, and how to talk about it", show: true },
     { href: "/settings", icon: SlidersHorizontal, title: "Settings", text: "Campaigns, senders, who you target, approval", show: true },
     { href: "/team", icon: Users, title: "Team & Access", text: `${users} people · ${clients} client${clients === 1 ? "" : "s"}`, show: sup },
-    { href: "/team?tab=system", icon: Activity, title: "System health", text: `${paused ? "AI paused" : "AI on"} · ${queued} compan${queued === 1 ? "y" : "ies"} in the queue`, show: sup },
-    { href: "/team?tab=system", icon: DollarSign, title: "Usage & spend", text: `$${usd.toFixed(2)} recorded this month`, show: sup },
+    { href: "/team?tab=system", icon: Activity, title: "System health", text: `${paused ? "AI paused" : "AI on"} · ${queued} compan${queued === 1 ? "y" : "ies"} in the queue`, show: full },
+    { href: "/team?tab=system", icon: DollarSign, title: "Usage & spend", text: `$${usd.toFixed(2)} recorded this month`, show: full },
   ].filter((t) => t.show);
   return (
     <div className="page-enter">

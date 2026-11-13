@@ -2070,3 +2070,10 @@ a.ch-c:hover .ch-v b { color: #6D28D9; }
 .dir-table td .badge { white-space: nowrap; }
 @media (max-width: 1100px) { .dir-wide { display: none; } }
 @media (max-width: 960px) { .dir-ftitle { display: none; } }
+
+/* Super Admin access control (Team → People) */
+.tm-sa { margin-top: 4px; }
+.tm-sa > summary { list-style: none; display: inline; }
+.tm-sa > summary::-webkit-details-marker { display: none; }
+.tm-sa-form { display: grid; gap: 0.6rem; margin-top: 0.5rem; padding: 0.75rem; min-width: 280px; max-width: 420px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.tm-sa-opt { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); }

@@ -33,8 +33,8 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
     db.task.count({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lt: now } } }),
     db.prospectSuggestion.count({ where: { origin: "website_visitor", status: "new" } }),
     aiPause(),
-    me?.superAdmin ? monthlyStatus(now) : Promise.resolve(null),
-    me?.superAdmin ? db.errorLog.findMany({ where: { lastSeen: { gte: new Date(now.getTime() - DAY) } }, orderBy: { lastSeen: "desc" }, take: 3, select: { id: true, source: true, message: true, count: true, lastSeen: true } }) : Promise.resolve([]),
+    me?.fullSuperAdmin ? monthlyStatus(now) : Promise.resolve(null),
+    me?.fullSuperAdmin ? db.errorLog.findMany({ where: { lastSeen: { gte: new Date(now.getTime() - DAY) } }, orderBy: { lastSeen: "desc" }, take: 3, select: { id: true, source: true, message: true, count: true, lastSeen: true } }) : Promise.resolve([]),
   ]);
   const out: Notice[] = [];
   for (const r of replies) out.push({ id: `r-${r.id}`, kind: "reply", tone: r.class === "positive" ? "ok" : r.class === "unsubscribe" ? "bad" : "info", title: `${r.contact.fullName}${r.contact.account ? ` (${r.contact.account.name})` : ""} ${REPLY_WORD[r.class] ?? "replied"}`, detail: "Email reply", href: `/people/${r.contactId}`, at: r.receivedAt.toISOString() });
@@ -48,7 +48,7 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
     const clients = await db.client.findMany({ select: { id: true, name: true } });
     for (const [id, m] of month) if (m.state !== "ok") out.push({ id: `s-${id}-${m.state}`, kind: "spend", tone: m.state === "over" ? "bad" : "warn", title: `${clients.find((c) => c.id === id)?.name ?? id}: ${m.state === "over" ? "monthly cap reached" : `${Math.round((m.share ?? 0) * 100)}% of monthly cap`}`, detail: `$${m.spent.toFixed(2)} of $${(m.cap ?? 0).toFixed(2)}`, href: "/team?tab=system", at: now.toISOString() });
   }
-  if (me?.superAdmin) {
+  if (me?.fullSuperAdmin) {
     const { SENSITIVE, ACTION_WORD } = await import("@/lib/admin/audit");
     const changes = await db.auditEntry.findMany({ where: { action: { in: [...SENSITIVE] }, actorEmail: { not: me.email }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 5 });
     for (const c of changes) out.push({ id: `x-${c.id}`, kind: "security", tone: "warn", title: `${c.actorEmail} ${ACTION_WORD[c.action] ?? c.action}`, detail: c.target ?? "Sensitive change", href: "/team?tab=security", at: c.createdAt.toISOString() });

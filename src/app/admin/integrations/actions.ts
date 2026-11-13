@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { baseDb } from "@/lib/db-base";
-import { audit, requireSuperAdmin } from "@/lib/me";
+import { audit, requireFullSuperAdmin } from "@/lib/me";
 import { INTEGRATION_KEYS, decryptKeys, encryptKeys, integrationKeyStates, syncIntegrationEnv } from "@/lib/integration-keys";
 
 export type KeyResult = { ok: boolean; message: string; needsKey?: boolean };
@@ -12,7 +12,7 @@ const specOf = (key: string) => INTEGRATION_KEYS.find((i) => i.key === key);
 /** Switch an integration on or off. Switching on without its required key asks for the key instead. */
 export async function setIntegrationEnabledAction(key: string, on: boolean): Promise<KeyResult> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const spec = specOf(key);
     if (!spec) return { ok: false, message: "Unknown integration" };
     const state = (await integrationKeyStates()).get(key);
@@ -37,7 +37,7 @@ export async function setIntegrationEnabledAction(key: string, on: boolean): Pro
 /** Save keys typed into the app (empty fields keep what is already saved), then switch the integration on. */
 export async function saveIntegrationKeysAction(key: string, _: KeyResult | null, fd: FormData): Promise<KeyResult> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const spec = specOf(key);
     if (!spec) return { ok: false, message: "Unknown integration" };
     const row = await baseDb.integrationSetting.findUnique({ where: { key } });
@@ -71,7 +71,7 @@ export async function saveIntegrationKeysAction(key: string, _: KeyResult | null
 /** Forget a key saved in the app (a key set in Vercel stays). */
 export async function removeIntegrationKeyAction(key: string, env: string): Promise<KeyResult> {
   try {
-    const me = await requireSuperAdmin();
+    const me = await requireFullSuperAdmin();
     const spec = specOf(key);
     if (!spec || !spec.fields.some((f) => f.env === env)) return { ok: false, message: "Unknown key" };
     const row = await baseDb.integrationSetting.findUnique({ where: { key } });
