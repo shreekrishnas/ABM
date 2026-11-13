@@ -16,14 +16,9 @@ export async function refreshProfileAction(accountId: string): Promise<ActionSta
   await logAction("profile.refresh", { accountId });
   const { researchAllowed } = await import("@/lib/admin/research-clients");
   if (!(await researchAllowed(account.sellerId))) return { ok: false, message: account.sellerId === "test" ? "The Test client uses sample data only: no live research" : "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
-  const { researchCompanyProfile } = await import("@/lib/profile/run");
-  const s = await unscoped(() => researchCompanyProfile(account, newContext(), { force: true }));
-  await rescore(accountId);
-  refresh(`/accounts/${accountId}`);
-  const found = [s.financials && `${s.financials} financial figure${s.financials === 1 ? "" : "s"}`, s.funding && `${s.funding} funding round${s.funding === 1 ? "" : "s"}`, s.technologies && `${s.technologies} technolog${s.technologies === 1 ? "y" : "ies"}`, s.board && `${s.board} board member${s.board === 1 ? "" : "s"}`].filter(Boolean);
-  const skipped = s.skipped.filter((x) => x.reason !== "Research not connected");
-  if (s.skipped.some((x) => x.reason === "Research not connected")) return { ok: false, message: "Web research isn't connected (search and AI keys); website technology detection still ran" };
-  return { ok: true, message: `${found.length ? `Found ${found.join(", ")}` : "Nothing new found"}${s.dropped ? `; ${s.dropped} value${s.dropped === 1 ? "" : "s"} dropped for not matching their source` : ""}${skipped.length ? `; ${skipped.map((x) => `${x.kind}: ${x.reason}`).join("; ")}` : ""}` };
+  const { startJob } = await import("@/lib/jobs");
+  const { decider } = await import("@/lib/action-utils");
+  return startJob("profile_refresh", { sellerId: account.sellerId, accountId, label: `Refresh profile: ${account.name}`, createdBy: await decider() });
 }
 
 /** Financial capacity is part of fit: re-score after the profile changes. */

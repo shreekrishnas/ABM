@@ -13,6 +13,7 @@ import { commandCenter, companyFlow } from "@/lib/command-center";
 import { FunnelTrack } from "@/components/viz/funnel-track";
 import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
 import { NotificationBell } from "@/components/shell/NotificationBell";
+import { JobsIndicator } from "@/components/shell/JobsIndicator";
 import { Donut, GroupedBars, SparkStat, change, dayLabels, daily } from "@/components/viz/cards";
 
 export const metadata = { title: "Home" };
@@ -146,6 +147,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             {me?.canSuperAdmin && <SuperAdminSwitch on={me.superAdmin} />}
             <SearchPill />
             <ThemePill />
+            <JobsIndicator />
             <NotificationBell />
             {session?.email && <span className="hm-who" title={me ? `${me.name} · ${session.email}` : session.email}><span className="hm-avatar">{(userName || session.email)[0].toUpperCase()}</span></span>}
           </div>

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { logAction, refresh, startBackgroundQueue } from "@/lib/action-utils";
+import { decider, logAction, refresh } from "@/lib/action-utils";
 import { newContext } from "@/lib/pipeline/context";
 import type { ActionState } from "@/app/actions";
 
@@ -12,18 +12,10 @@ export async function draftDiscoveryAction(_: ActionState, fd: FormData): Promis
   if (brief.length < 15) return { ok: false, message: "Describe the companies in a sentence or two (industry, country, size, what they must be doing)" };
   if (brief.length > 1000) return { ok: false, message: "Keep the description under 1,000 characters" };
   await logAction("discovery.start", { detail: brief.slice(0, 120) });
-  const { getMe } = await import("@/lib/me");
-  const me = await getMe();
-  const { draftDiscovery } = await import("@/lib/discover/describe");
-  const { MonthlyBudgetExceeded } = await import("@/lib/budget");
-  let id: string;
-  try {
-    id = (await draftDiscovery(brief, me?.email ?? null, newContext())).id;
-  } catch (e) {
-    if (e instanceof MonthlyBudgetExceeded) return { ok: false, message: e.message };
-    throw e;
-  }
-  redirect(`/import/describe?search=${id}`);
+  const { activeSellerId } = await import("@/lib/scope");
+  const sellerId = await activeSellerId();
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("discovery_draft", { sellerId, label: `Draft search criteria: ${brief.slice(0, 60)}${brief.length > 60 ? "…" : ""}`, params: { brief }, createdBy: await decider() });
 }
 
 const lines = (fd: FormData, k: string) => String(fd.get(k) ?? "").split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
@@ -46,16 +38,7 @@ export async function runDiscoveryAction(id: string, _: ActionState, fd: FormDat
   if (!criteria.industries.length && !criteria.mustHave.length && !criteria.technologies.length && !criteria.signals.length) return { ok: false, message: "Add at least an industry, a must-have, a technology or a signal so the search has something to look for" };
   await db.discoverySearch.update({ where: { id }, data: { criteria: criteria as never } });
   await logAction("discovery.run", { detail: criteria.summary.slice(0, 120) });
-  const { MonthlyBudgetExceeded } = await import("@/lib/budget");
-  let r;
-  try {
-    r = await runDiscovery(id, newContext());
-  } catch (e) {
-    if (e instanceof MonthlyBudgetExceeded) return { ok: false, message: e.message };
-    throw e;
-  }
-  if (r.queued) await startBackgroundQueue();
+  const { startJob } = await import("@/lib/jobs");
   refresh("/import/describe");
-  if (!r.found) return { ok: false, message: "No companies found for these criteria; broaden the industries or add search queries" };
-  return { ok: true, message: `${r.found} found, ${r.queued} being researched now${r.excluded ? `, ${r.excluded} outside your targeting rule` : ""}${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}. Results appear below as each one finishes.` };
+  return startJob("discovery_run", { sellerId: search.sellerId, label: `Company search: ${criteria.summary.slice(0, 60)}`, params: { searchId: id }, createdBy: await decider() });
 }

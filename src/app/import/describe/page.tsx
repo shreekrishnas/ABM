@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { NeedsStrip } from "@/components/needs-strip";
+import { JobNote } from "@/components/job-note";
 import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader, ago } from "@/components/ui";
 import type { DiscoveryCriteria } from "@/lib/discover/describe";
@@ -48,6 +49,7 @@ export default async function DescribePage({ searchParams }: { searchParams: Pro
       />
 
       <NeedsStrip list={need.list} />
+      <JobNote sellerId={await (await import("@/lib/scope")).activeSellerId()} kinds={["discovery_draft", "discovery_run"]} />
       <Card className="mb-5">
         <ActionForm action={draftDiscoveryAction} className="grid gap-2">
           <textarea name="brief" className="glass-textarea" rows={3} placeholder={EXAMPLES[0]} aria-label="Describe the companies you want" defaultValue={current?.brief ?? ""} required minLength={15} maxLength={1000} />

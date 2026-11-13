@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { NeedsStrip } from "@/components/needs-strip";
+import { JobNote } from "@/components/job-note";
 import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader } from "@/components/ui";
 import { LookalikeReview } from "./review";
@@ -24,6 +25,7 @@ export default async function LookalikesPage({ searchParams }: { searchParams: P
     <div className="page-enter">
       <PageHeader eyebrow="Import data · Lookalikes" title="Find companies like one website" sub="Enter a customer or a good-fit company. The AI finds companies like it, researches each one and lists them for your approval." />
       <NeedsStrip list={need.list} />
+      <JobNote sellerId={await (await import("@/lib/scope")).activeSellerId()} kinds={["lookalikes"]} />
       <Card className="mb-5">
         <ActionForm action={findLookalikesAction} className="flex flex-wrap gap-2">
           <input name="website" className="glass-input min-w-0 flex-1" placeholder="company.com" aria-label="Company website" defaultValue={seed ?? ""} required />

@@ -15,7 +15,7 @@ import { prepareReResearch, runAccount, tick, processIntent, processQueue } from
 import { newContext } from "@/lib/pipeline/context";
 import { acknowledgeHandoff, recordOutcome, recordReply, recordSignal, s13Handoff, sendApproved, stopAccountAutomation } from "@/lib/pipeline/stages/engagement";
 import { eraseContact } from "@/lib/pipeline/gdpr";
-import { refresh, requestOrigin, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
+import { decider, refresh, requestOrigin, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
 import { kickDrain, queueStatus, requeueCutOffRuns } from "@/lib/queue/drain";
 
 export type ActionState = { ok: boolean; message: string } | null;
@@ -29,11 +29,16 @@ async function whoAmI(): Promise<string | null> {
 
 // ── Pipeline ──
 
+/** Run the pipeline for one company in the background: the button answers at once, the top bar follows it. */
 export async function runAccountAction(accountId: string, fromStage?: number): Promise<ActionState> {
   await logAction("company.run", { accountId });
-  const r = await runAccount(accountId, { fromStage });
-  refresh("/accounts", `/accounts/${accountId}`, "/pipeline", "/review");
-  return { ok: r.status === "done", message: `${r.status === "done" ? "Done" : r.status === "blocked" ? "Stopped" : r.status === "skipped" ? "Skipped" : "Error"}: ${r.reason}` };
+  // The scoped read is the access check.
+  const a = await db.account.findUnique({ where: { id: accountId }, select: { name: true, sellerId: true } });
+  if (!a) return { ok: false, message: "Company not found" };
+  const { researchAllowed } = await import("@/lib/admin/research-clients");
+  if (a.sellerId !== "test" && !(await researchAllowed(a.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("run_account", { sellerId: a.sellerId, accountId, label: `Run pipeline: ${a.name}`, params: fromStage != null ? { fromStage } : {}, createdBy: await decider() });
 }
 
 /** Re-research one company, or every company, from scratch in the background. */

@@ -1715,3 +1715,30 @@ model DailyRecommendation {
 
   @@unique([sellerId, date])
 }
+
+/// A long task started from a button (research, scans, searches) that runs in the background, so
+/// people can keep using the app and switch clients while it works. Rows are kept.
+model BackgroundJob {
+  id         String    @id @default(cuid())
+  /// run_account | research_question | profile_refresh | scan_market | daily_run | lookalikes | discovery_draft | discovery_run | apollo_fetch | reindex
+  kind       String
+  /// The client it was started for; it keeps running for that client whatever the person switches to.
+  sellerId   String
+  accountId  String?
+  /// What the person sees in the top bar ("Research Mankind Pharma").
+  label      String
+  params     Json?
+  /// queued | running | done | failed
+  status     String    @default("queued")
+  message    String?
+  /// Where to see the result.
+  href       String?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  @@index([createdBy, createdAt])
+  @@index([status])
+  @@index([kind, sellerId, status])
+}

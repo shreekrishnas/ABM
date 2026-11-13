@@ -7,6 +7,7 @@ import { ChevronRight, Globe, Moon, Search, Sun } from "lucide-react";
 import { SuperAdminSwitch } from "./SuperAdminSwitch";
 import { locate, sectionHref, shown, type Counts } from "@/lib/nav";
 import { NotificationBell } from "./NotificationBell";
+import { JobsIndicator } from "./JobsIndicator";
 
 /**
  * Top bar: breadcrumb (module › page), the module's pages underneath, search, Discover,
@@ -72,6 +73,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
           <button type="button" className="nav-icon" onClick={toggle} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"}>
             {dark ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>
+          <JobsIndicator />
           <NotificationBell />
         </div>
       </div>

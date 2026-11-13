@@ -1672,3 +1672,7 @@ a.rt-name:hover { text-decoration: underline; }
 .rt-cost { font-weight: 400; opacity: 0.85; }
 .rt-decided { font-size: var(--fs-xs); font-weight: 600; color: var(--success-strong); }
 @media (max-width: 640px) { .rt-item { grid-template-columns: minmax(0, 1fr); } .rt-rank { display: none; } .rt-score, .rt-link { margin-left: 0; } }
+
+/* ── Background job note on a page ── */
+.job-note { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); margin: var(--sp-2) 0; border-radius: var(--r-md); background: var(--info-bg); color: var(--info-strong); font-size: var(--fs-sm); }
+.job-note svg { flex: none; }

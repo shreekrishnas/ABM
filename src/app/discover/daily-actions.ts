@@ -78,15 +78,13 @@ export async function rejectRecAction(_: ActionState, fd: FormData): Promise<Act
   return { ok: true, message: `Rejected: ${REJECT_REASONS[key].toLowerCase()}. Similar companies will rank lower.` };
 }
 
-/** Build today's list again now for the client in view (managers). Searches only if live research is on. */
+/** Build today's list again now for the client in view (managers), in the background. Searches only if live research is on. */
 export async function runDailyNowAction(): Promise<ActionState> {
   await logAction("daily.run");
   const { activeSellerId } = await import("@/lib/scope");
   const id = await activeSellerId();
-  const { dailyClients, runClientDaily } = await import("@/lib/discover/daily");
+  const { dailyClients } = await import("@/lib/discover/daily");
   if (!(await dailyClients()).includes(id)) return { ok: false, message: "Live research is off for this client, so the daily run doesn't search for it" };
-  const { unscoped } = await import("@/lib/scope");
-  const r = await unscoped(() => runClientDaily(id, newContext(), { force: true, budgetMs: 200_000 }));
-  refresh("/discover", "/");
-  return { ok: true, message: `Recommended today: ${r?.items ?? 0} accounts${r?.stopped ? ` (${r.stopped})` : ""}` };
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("daily_run", { sellerId: id, label: "Build Recommended today", createdBy: await decider() });
 }

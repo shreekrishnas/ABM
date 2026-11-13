@@ -46,17 +46,14 @@ export async function deleteDocumentAction(id: string): Promise<KbState> {
   }
 }
 
+/** Re-index the knowledge base in the background (it embeds every document; can take a while). */
 export async function reindexAction(): Promise<KbState> {
-  try {
-    await ensureSellerPacks();
-    forgetSync();
-    clearRetrievalCache();
-    const r = await syncBuiltIns((await activeSeller()));
-    revalidatePath("/settings/knowledge");
-    return { ok: true, message: `Up to date: ${r.docs} built-in documents, ${r.embedded} re-embedded${r.removed ? `, ${r.removed} removed` : ""}` };
-  } catch (e) {
-    return { ok: false, message: `Re-index failed: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}` };
-  }
+  await ensureSellerPacks();
+  const sp = await activeSeller();
+  const { startJob } = await import("@/lib/jobs");
+  const { decider } = await import("@/lib/action-utils");
+  const r = await startJob("reindex", { sellerId: sp.id, label: "Re-index the knowledge base", createdBy: await decider() });
+  return { ok: r.ok, message: r.message };
 }
 
 export type SearchHit = { title: string; kind: string; origin: string; approved: boolean; score: number; text: string; url: string | null };

@@ -9,11 +9,27 @@ import { newContext } from "@/lib/pipeline/context";
 import { decider, refresh, startBackgroundQueue, str, logAction } from "@/lib/action-utils";
 import type { ActionState } from "@/app/actions";
 
+
+/** The client in view (jobs are tied to it) and who started the job. */
+async function jobOwner() {
+  const { activeSellerId } = await import("@/lib/scope");
+  return { sellerId: await activeSellerId(), createdBy: await decider() };
+}
+
+async function liveOrSample(sellerId: string): Promise<string | null> {
+  if (sellerId === "test") return null;
+  const { researchAllowed } = await import("@/lib/admin/research-clients");
+  return (await researchAllowed(sellerId)) ? null : "Live research is off for this client. A Super Admin can switch it on in the client's settings.";
+}
+
+/** Scan the market in the background; the top bar says when it's done. */
 export async function scanMarketAction(): Promise<ActionState> {
-  const { scanMarket } = await import("@/lib/discover/scan");
-  const r = await scanMarket(newContext());
-  refresh("/discover");
-  return { ok: true, message: `Scanned ${r.searches} searches · ${r.events} buying events · ${r.suggestions} companies suggested · ${r.excluded} outside your targeting rule` };
+  await logAction("discover.scan");
+  const o = await jobOwner();
+  const off = await liveOrSample(o.sellerId);
+  if (off) return { ok: false, message: off };
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("scan_market", { ...o, label: "Scan the market" });
 }
 
 /** Approve one suggested company: it becomes a company, research starts now, and you land on its page. */
@@ -46,20 +62,11 @@ export async function findLookalikesAction(_: ActionState, fd: FormData): Promis
   await logAction("lookalike.search", { detail: str(fd, "website") });
   const site = str(fd, "website");
   if (!site || site.length > 200) return { ok: false, message: "Enter a company website, e.g. example.com" };
-  const { findLookalikes } = await import("@/lib/discover/lookalike");
-  const { MonthlyBudgetExceeded } = await import("@/lib/budget");
-  let r;
-  try {
-    const { getMe } = await import("@/lib/me");
-    r = await findLookalikes(site, newContext(), (await getMe())?.email ?? null);
-  } catch (e) {
-    if (e instanceof MonthlyBudgetExceeded) return { ok: false, message: e.message };
-    throw e;
-  }
-  if (r.suggested) await startBackgroundQueue();
-  refresh("/discover", "/import/lookalikes");
-  if (!r.found) return { ok: false, message: `No similar companies found for ${r.seed} — try its main website` };
-  redirect(`/import/lookalikes?seed=${encodeURIComponent(r.seed)}`);
+  const o = await jobOwner();
+  const off = await liveOrSample(o.sellerId);
+  if (off) return { ok: false, message: off };
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("lookalikes", { ...o, label: `Find companies like ${site}`, params: { website: site } });
 }
 
 /** Reject a recommended lookalike, with an optional reason. Nothing is looked up for it. */
@@ -86,13 +93,10 @@ export async function researchMoreAction(id: string, _: ActionState, fd: FormDat
 
 /** Pull website visitors from Apollo now (normally daily); new companies wait in Discover for approval. */
 export async function fetchApolloVisitorsAction(): Promise<ActionState> {
-  const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
-  const r = await syncApolloVisitors(newContext(), { force: true });
-  if (!r) return { ok: false, message: "Apollo isn't on — add its key in Admin → Integrations" };
-  refresh("/discover", "/accounts", "/import/apollo", "/import");
-  if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies — press Check Apollo connection to see why" };
-  // Stay on the page (and its date range); the list refreshes in place.
-  return { ok: true, message: `Fetched ${r.companies} visitor compan${r.companies === 1 ? "y" : "ies"} from Apollo · ${r.recorded} new visit${r.recorded === 1 ? "" : "s"}${r.suggested ? ` · ${r.suggested} new waiting for approval` : ""}` };
+  await logAction("visitors.fetch");
+  const o = await jobOwner();
+  const { startJob } = await import("@/lib/jobs");
+  return startJob("apollo_fetch", { ...o, label: "Fetch website visitors from Apollo" });
 }
 
 export async function dismissSuggestionAction(id: string): Promise<ActionState> {

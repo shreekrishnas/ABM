@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionButton } from "@/components/client";
 import { NeedsStrip } from "@/components/needs-strip";
+import { JobNote } from "@/components/job-note";
 import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
@@ -47,6 +48,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         actions={ready ? <div className="flex flex-wrap gap-2"><ActionButton action={checkApolloAction} className="btn btn-secondary">Check Apollo connection</ActionButton><ActionButton action={fetchApolloVisitorsAction} className="btn btn-primary">Fetch visitors from Apollo now</ActionButton></div> : undefined}
       />
       <NeedsStrip list={need.list} />
+      <JobNote sellerId={await (await import("@/lib/scope")).activeSellerId()} kinds={["apollo_fetch"]} />
       {!ready && (
         <Card title="Turn on Apollo" className="mb-5">
           <p className="secondary text-sm">Add your Apollo key and switch Apollo on. Then, in Apollo, save website visitors to an account list with &quot;visitor&quot; in its name; it is found automatically.</p>

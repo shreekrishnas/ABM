@@ -17,6 +17,7 @@ const VERDICT_COLOR = { strong: "#059669", moderate: "#B45309", weak: "#64748B" 
 import { IntakeTab } from "./intake-tab";
 import { ResearchTrace } from "./research-trace";
 import { ResearchSummary } from "./research-summary";
+import { JobNote } from "@/components/job-note";
 import { Crumbs } from "@/components/shell/Crumbs";
 import { FLOW_STEPS, accountStep } from "@/components/peek/stepper";
 const TAB_LABEL: Record<string, string> = { research: "Research trace", intake: "Imported data", people: "Buying group", outreach: "Drafts", activity: "Activity & notes", crm: "CRM", pipeline: "Audit trail" };
@@ -128,6 +129,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           </div>
         </div>
 
+        <JobNote sellerId={a.sellerId} accountId={a.id} kinds={["run_account", "research_question", "profile_refresh"]} />
         {blockers.length > 0 && (
           <div className="rec-blocker" role="alert">
             <ShieldAlert size={16} aria-hidden />

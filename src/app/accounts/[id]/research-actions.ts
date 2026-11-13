@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { logAction, refresh } from "@/lib/action-utils";
-import { newContext } from "@/lib/pipeline/context";
 import { unscoped } from "@/lib/scope";
 import type { ActionState } from "@/app/actions";
 
@@ -19,23 +18,10 @@ export async function researchQuestionAction(accountId: string, key: string): Pr
   const sample = account.sellerId === "test";
   const { researchAllowed } = await import("@/lib/admin/research-clients");
   if (!sample && !(await researchAllowed(account.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
-  const before = await db.evidence.count({ where: { accountId, key, flagged: false } });
-  try {
-    await unscoped(async () => {
-      const ctx = newContext();
-      if (sample) ctx.adapters = (await import("@/lib/adapters/mock")).createMockAdapters();
-      if (ctx.adapters.research.connected === false) throw new Error("Web research isn't switched on (search and AI keys in Admin → Integrations)");
-      const { s06AccountResearch, s07AccountTwin } = await import("@/lib/pipeline/stages/research");
-      const a = await s06AccountResearch(account, ctx, { pass: "refresh", keys: [key] });
-      await s07AccountTwin(a, ctx, { investigate: false, allowReopen: false });
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, message: /budget/i.test(msg) ? "This company's research budget is used up" : /403|credit|limit|paused/i.test(msg) ? "The AI reader is unavailable right now (paused or out of credits)" : msg.slice(0, 160) };
-  }
-  const after = await db.evidence.count({ where: { accountId, key, flagged: false } });
-  refresh(`/accounts/${accountId}`);
-  return { ok: true, message: after > before ? `Found ${after - before} new fact${after - before === 1 ? "" : "s"}` : "Searched again: nothing new that passes the checks" };
+  const { startJob } = await import("@/lib/jobs");
+  const { decider } = await import("@/lib/action-utils");
+  const { questionLabel } = await import("@/lib/research/keys");
+  return startJob("research_question", { sellerId: account.sellerId, accountId, label: `Research ${account.name}: ${questionLabel(key)}`, params: { key }, createdBy: await decider() });
 }
 
 /** Two sources disagree: a person keeps one. The others are retired (kept for the record, never used). */
