@@ -352,6 +352,8 @@ model Account {
   @@index([ownerId])
   @@index([mergedIntoId])
   @@index([pipelineStatus])
+  @@index([sellerId, pipelineStatus])
+  @@index([sellerId, stage])
 }
 
 model Contact {
@@ -431,6 +433,7 @@ model Opportunity {
 
   @@index([accountId])
   @@index([stage])
+  @@index([ownerId])
 }
 
 model Task {
@@ -452,6 +455,8 @@ model Task {
 
   @@index([status, dueAt])
   @@index([accountId])
+  @@index([assigneeId])
+  @@index([contactId])
 }
 
 model Note {
@@ -464,6 +469,9 @@ model Note {
   authorId  String?
   author    User?    @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
+  @@index([accountId])
+  @@index([contactId])
+  @@index([authorId])
 }
 
 // ───────────────────────────── Verification & evidence ─────────────────────────────
@@ -536,6 +544,8 @@ model Evidence {
   createdAt         DateTime    @default(now())
 
   @@index([accountId, key])
+  @@index([accountId, canonicalUrl])
+  @@index([accountId, createdAt])
 }
 
 model TwinVersion {
@@ -638,6 +648,7 @@ model Signal {
 
   @@index([accountId, occurredAt])
   @@index([occurredAt])
+  @@index([contactId])
 }
 
 model Sequence {
@@ -677,6 +688,7 @@ model Enrollment {
 
   @@unique([contactId, sequenceId])
   @@index([status, nextDueAt])
+  @@index([sequenceId])
 }
 
 model Draft {
@@ -715,6 +727,7 @@ model Draft {
   message Message?
 
   @@index([status])
+  @@index([contactId])
 }
 
 model Message {
@@ -733,6 +746,7 @@ model Message {
   replies Reply[]
 
   @@index([sentAt])
+  @@index([contactId])
 }
 
 model Reply {
@@ -745,6 +759,8 @@ model Reply {
   class      ReplyClass
   route      String
   receivedAt DateTime   @default(now())
+  @@index([messageId])
+  @@index([contactId])
 }
 
 model Suppression {
@@ -773,6 +789,7 @@ model PipelineEvent {
   @@index([accountId, createdAt])
   @@index([stage, outcome])
   @@index([runId])
+  @@index([step, createdAt])
 }
 
 model ReviewItem {
@@ -793,6 +810,8 @@ model ReviewItem {
   createdAt  DateTime     @default(now())
 
   @@index([status, type])
+  @@index([accountId])
+  @@index([contactId])
 }
 
 model WatchlistEntry {
@@ -805,6 +824,7 @@ model WatchlistEntry {
   createdAt DateTime    @default(now())
 
   @@index([status, recheckAt])
+  @@index([accountId])
 }
 
 model LedgerEntry {
@@ -847,6 +867,8 @@ model Handoff {
   createdAt      DateTime  @default(now())
 
   @@index([acknowledgedAt])
+  @@index([accountId])
+  @@index([ownerId])
 }
 
 model Mailbox {
@@ -887,6 +909,8 @@ model ImportBatch {
   finishedAt     DateTime?
 
   @@index([sellerId])
+  @@index([campaignId])
+  @@index([senderId])
 }
 
 // ───────────────────────────── People journeys ─────────────────────────────
@@ -968,6 +992,7 @@ model Journey {
   @@unique([contactId, campaignId, senderId])
   @@index([campaignId, senderId])
   @@index([stage])
+  @@index([senderId])
 }
 
 model JourneyEvent {
@@ -1003,7 +1028,6 @@ model BrainSignal {
 
   @@index([accountId, createdAt])
   @@index([runId])
-  @@index([type, createdAt])
 }
 
 /// A judgement with both sides: what was chosen, the case for and against, the evidence for each, and a confidence.
@@ -1028,7 +1052,7 @@ model Decision {
   createdAt       DateTime @default(now())
 
   @@index([accountId, createdAt])
-  @@index([module, createdAt])
+  @@index([contactId, createdAt])
 }
 
 /// Self-improver proposals. Never applied automatically: a person accepts, and a test must cover the change.
@@ -1351,6 +1375,7 @@ model UserClient {
   createdAt DateTime @default(now())
 
   @@id([userId, clientId])
+  @@index([clientId])
 }
 
 /// Every Super Admin action (and mode switch): who, what, before -> after. Never edited.
@@ -1419,6 +1444,7 @@ model Hypothesis {
   links EvidenceLink[]
 
   @@index([accountId, status])
+  @@index([researchRunId])
 }
 
 /// A typed link in the evidence graph: fact → fact, fact → capability, hypothesis → fact.
@@ -1441,6 +1467,7 @@ model EvidenceLink {
   createdAt    DateTime    @default(now())
 
   @@index([accountId])
+  @@index([hypothesisId])
 }
 
 /// Server errors, grouped by where and what, so a Super Admin sees them after Vercel's short log retention.
@@ -1479,6 +1506,7 @@ model RateLimit {
   key         String   @id
   windowStart DateTime
   count       Int      @default(0)
+  @@index([windowStart])
 }
 
 /// Recent web search results, reused for 48 hours so the same search isn't paid for twice.

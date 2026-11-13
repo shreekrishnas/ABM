@@ -60,7 +60,22 @@ const rejected = new Map<string, { revisionId: string; problems: string[] }>();
  * runs at the start of every pipeline run and page render. If the database is
  * unreachable, the last loaded state (or the built-in pack) stays in use.
  */
-export async function ensureSellerPacks(): Promise<void> {
+/** Packs change only when someone saves the Account Brain: reloaded at most every 15 s per server, or at once after a save. */
+const PACK_TTL_MS = 15_000;
+let packsLoadedAt = 0;
+let packsLoading: Promise<void> | null = null;
+
+export async function ensureSellerPacks(force = false): Promise<void> {
+  if (!force && Date.now() - packsLoadedAt < PACK_TTL_MS) return;
+  if (!force && packsLoading) return packsLoading;
+  const run = loadSellerPacks().finally(() => {
+    if (packsLoading === run) packsLoading = null;
+  });
+  packsLoading = run;
+  return run;
+}
+
+async function loadSellerPacks(): Promise<void> {
   let latest: { id: string; sellerId: string; pack: unknown; createdAt: Date }[];
   try {
     // Built-in packs plus every client workspace created in the app.
@@ -74,6 +89,7 @@ export async function ensureSellerPacks(): Promise<void> {
   } catch {
     return;
   }
+  packsLoadedAt = Date.now();
   overrides.clear();
   rejected.clear();
   // Newest first: the first complete revision per seller wins. A newer incomplete one (a brain

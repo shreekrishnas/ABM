@@ -321,6 +321,6 @@ export async function saveBrain(clientId: string, pack: SellerProfile, note: str
   await db.sellerPackRevision.create({
     data: { sellerId: clientId, pack: pack as unknown as Prisma.InputJsonValue, version: hashPack(pack), changed: changedSections(current, pack), note: note.slice(0, 500) },
   });
-  await ensureSellerPacks();
+  await ensureSellerPacks(true);
   return { ok: true, ready: readiness(pack).ready };
 }

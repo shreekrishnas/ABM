@@ -45,6 +45,7 @@ export async function sampleStep(by: string): Promise<{ done: boolean; message: 
     const pack = { ...base, id: SAMPLE_ID, name: "Test" };
     await baseDb.client.create({ data: { id: SAMPLE_ID, name: SAMPLE_NAME, monthlyBudgetUsd: 500, showExtras: true } });
     await baseDb.sellerPackRevision.create({ data: { sellerId: SAMPLE_ID, pack: pack as unknown as Prisma.InputJsonValue, version: hashPack(pack), changed: ["created"], note: `Sample data by ${by}` } });
+    await (await import("@/lib/seller")).ensureSellerPacks(true);
     return { done: false, message: "Created the Test client" };
   }
 

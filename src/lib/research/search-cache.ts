@@ -38,8 +38,7 @@ export async function storePages(key: string, pages: ResearchPage[]): Promise<vo
   try {
     const json = pages as unknown as Prisma.InputJsonValue;
     await baseDb.searchCache.upsert({ where: { key }, create: { key, pages: json }, update: { pages: json, createdAt: new Date() } });
-    // Keep the table small: drop entries past their time now and then.
-    if (Math.random() < 0.02) await baseDb.searchCache.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - SEARCH_CACHE_HOURS * 3_600_000) } } });
+    // Expired entries are removed by the daily housekeeping (lib/admin/housekeeping).
   } catch {
     // ignore
   }

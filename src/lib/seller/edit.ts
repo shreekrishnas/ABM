@@ -29,7 +29,7 @@ export async function saveSellerPack(sellerId: string, input: unknown, note?: st
   if (!changed.length) return { ok: false, problems: ["Nothing changed"] };
   const version = hashPack(pack);
   await db.sellerPackRevision.create({ data: { sellerId, pack: pack as unknown as Prisma.InputJsonValue, version, changed, note: note?.trim().slice(0, 500) || null } });
-  await ensureSellerPacks();
+  await ensureSellerPacks(true);
   return { ok: true, version, changed };
 }
 
@@ -51,7 +51,7 @@ export async function resetToBuiltIn(sellerId: string, note = "Reset to the buil
   if (!changed.length) return { ok: false, problems: ["Already using the built-in pack"] };
   const version = hashPack(builtIn);
   await db.sellerPackRevision.create({ data: { sellerId, pack: undefined, version, changed, note } });
-  await ensureSellerPacks();
+  await ensureSellerPacks(true);
   return { ok: true, version, changed };
 }
 

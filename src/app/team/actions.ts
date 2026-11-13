@@ -82,6 +82,7 @@ export async function addClientAction(_: ActionState, fd: FormData): Promise<Act
     // A blank brain to fill in; research waits until it is complete.
     const pack = starterPack(id, name);
     await db.sellerPackRevision.create({ data: { sellerId: id, pack: pack as unknown as Prisma.InputJsonValue, version: hashPack(pack), changed: ["created"], note: `Created by ${me.email}` } });
+    await (await import("@/lib/seller")).ensureSellerPacks(true);
     await audit(me.email, "client.add", { target: name, clientId: id, after: { id, name, assigned: people.map((u) => u.email) } });
     revalidatePath("/team");
     newId = id;
