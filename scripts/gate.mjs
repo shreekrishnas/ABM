@@ -10,10 +10,21 @@ if (process.env.GATE_SKIP === "true") {
   process.exit(0);
 }
 
+/**
+ * The checks run with a clean environment: only what node and npm need. The build machine has the
+ * real service keys and database address; the tests must never see or use them.
+ */
+const KEEP = /^(PATH|HOME|USER|SHELL|TMPDIR|TEMP|TMP|LANG|LC_.*|TZ|CI|NODE_OPTIONS|NODE_VERSION|npm_.*|NVM_.*|COREPACK_.*|HTTPS?_PROXY|NO_PROXY|https?_proxy|no_proxy|SSL_CERT_FILE|NODE_EXTRA_CA_CERTS)$/;
+const cleanEnv = () => ({
+  ...Object.fromEntries(Object.entries(process.env).filter(([k]) => KEEP.test(k))),
+  ADAPTER_MODE: "mock",
+  NODE_ENV: "test",
+});
+
 const run = (label, cmd, args) => {
   console.log(`Deploy gate: ${label}…`);
   try {
-    execFileSync(cmd, args, { stdio: "inherit", env: { ...process.env, ADAPTER_MODE: "mock" } });
+    execFileSync(cmd, args, { stdio: "inherit", env: cleanEnv() });
   } catch {
     console.error(`\nDeploy gate FAILED: ${label}. Nothing was deployed; the live site keeps its last good version.`);
     process.exit(1);
