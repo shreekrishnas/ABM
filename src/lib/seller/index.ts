@@ -60,19 +60,30 @@ const rejected = new Map<string, { revisionId: string; problems: string[] }>();
  * runs at the start of every pipeline run and page render. If the database is
  * unreachable, the last loaded state (or the built-in pack) stays in use.
  */
-/** Packs change only when someone saves the Account Brain: reloaded at most every 15 s per server, or at once after a save. */
-const PACK_TTL_MS = 15_000;
-let packsLoadedAt = 0;
-let packsLoading: Promise<void> | null = null;
+/**
+ * Packs change only when someone saves an Account Brain or adds a client. Each call reads a tiny
+ * signature (newest revision time, revision and client counts); the full packs are reloaded only
+ * when it changed, so a save on any server takes effect at once and an unchanged call costs one small query.
+ */
+let packsSignature: string | null = null;
+
+async function packsVersion(): Promise<string | null> {
+  try {
+    const [rev, clients] = await Promise.all([
+      db.sellerPackRevision.aggregate({ _max: { createdAt: true }, _count: true }),
+      db.client.count(),
+    ]);
+    return `${rev._max.createdAt?.getTime() ?? 0}|${rev._count}|${clients}`;
+  } catch {
+    return null;
+  }
+}
 
 export async function ensureSellerPacks(force = false): Promise<void> {
-  if (!force && Date.now() - packsLoadedAt < PACK_TTL_MS) return;
-  if (!force && packsLoading) return packsLoading;
-  const run = loadSellerPacks().finally(() => {
-    if (packsLoading === run) packsLoading = null;
-  });
-  packsLoading = run;
-  return run;
+  const sig = await packsVersion();
+  if (!force && sig && sig === packsSignature) return;
+  await loadSellerPacks();
+  packsSignature = sig;
 }
 
 async function loadSellerPacks(): Promise<void> {
@@ -89,7 +100,6 @@ async function loadSellerPacks(): Promise<void> {
   } catch {
     return;
   }
-  packsLoadedAt = Date.now();
   overrides.clear();
   rejected.clear();
   // Newest first: the first complete revision per seller wins. A newer incomplete one (a brain
@@ -167,6 +177,7 @@ export function sellerFor(id: string | null | undefined): SellerProfile {
 export function clearSellerOverrides() {
   overrides.clear();
   rejected.clear();
+  packsSignature = null;
 }
 
 export type { SellerProfile, ResearchQuestion } from "./types";

@@ -32,13 +32,21 @@ export async function startJob(kind: JobKind, o: { sellerId: string; accountId?:
     select: { id: true, createdAt: true },
   });
   if (running) return { ok: false, message: `Already running since ${running.createdAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}. Follow it in the top bar.` };
-  const { requestOrigin } = await import("@/lib/action-utils");
-  const origin = await requestOrigin();
+  let origin: string | null = null;
+  try {
+    origin = await (await import("@/lib/action-utils")).requestOrigin();
+  } catch {
+    origin = null; // outside a web request (scheduled work, tests)
+  }
   // The app's address travels with the job, so a job that queues companies can start the queue.
   const job = await baseDb.backgroundJob.create({
     data: { kind, sellerId: o.sellerId, accountId: o.accountId ?? null, label: o.label.slice(0, 160), params: { ...(o.params ?? {}), _origin: origin } as Prisma.InputJsonValue, createdBy: o.createdBy ?? null },
   });
-  after(() => kickJob(origin, job.id));
+  try {
+    after(() => kickJob(origin, job.id));
+  } catch {
+    void kickJob(origin, job.id); // outside a web request: start it now
+  }
   return { ok: true, message: `Started: ${o.label}. Keep working; it runs in the background and the top bar tells you when it's done.`, id: job.id };
 }
 

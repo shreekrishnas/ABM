@@ -38,6 +38,17 @@ describe("client separation", () => {
     expect(await db.account.count()).toBe(2);
   });
 
+  it("daily lists, careers feeds and background jobs only show the client in view", async () => {
+    await baseDb.dailyRecommendation.createMany({ data: [{ sellerId: "manch", date: "2026-11-13", items: [] }, { sellerId: "acme", date: "2026-11-13", items: [] }] });
+    await baseDb.careersFeed.createMany({ data: [{ sellerId: "manch", domain: "manchco.in", status: "none" }, { sellerId: "acme", domain: "acmetarget.com", status: "none" }] });
+    await baseDb.backgroundJob.createMany({ data: [{ sellerId: "manch", kind: "scan_market", label: "m" }, { sellerId: "acme", kind: "scan_market", label: "a" }] });
+    await withScope(only("acme"), async () => {
+      expect((await db.dailyRecommendation.findMany()).map((r) => r.sellerId)).toEqual(["acme"]);
+      expect((await db.careersFeed.findMany()).map((r) => r.sellerId)).toEqual(["acme"]);
+      expect((await db.backgroundJob.findMany()).map((r) => r.sellerId)).toEqual(["acme"]);
+    });
+  });
+
   it("works out the scope from the person's assignments and Super Admin mode", async () => {
     expect((await scopeFor("asha@trilliantdigital.com", false, null)).ids).toEqual(["acme"]);
     expect((await scopeFor("asha@trilliantdigital.com", false, "manch")).ids).toEqual(["acme"]); // can't pick a client they aren't on

@@ -1,3 +1,4 @@
+import { setResearchAllowed } from "@/lib/admin/research-clients";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { setAdapters, getAdapters } from "@/lib/adapters";
@@ -106,6 +107,8 @@ describe("Lookalikes: discovery and investigation", () => {
 
   it("each client's queued research runs under that client's own criteria", async () => {
     SELLERS.other = { ...MANCH, id: "other", name: "Other Co", lookalike: undefined };
+    // Live research is switched on per client; this client needs it on to be worked.
+    await setResearchAllowed("other", true, "test");
     try {
       MANCH.lookalike = { avoid: ["pharmaceuticals"] };
       await findLookalikes("https://www.kaverifoods.in", newContext());
@@ -118,14 +121,25 @@ describe("Lookalikes: discovery and investigation", () => {
       expect(await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Narmada Pharma", sellerId: "other" } })).toMatchObject({ status: "new", researchStatus: "done" });
     } finally {
       delete SELLERS.other;
+      await setResearchAllowed("other", false, "test");
     }
+  });
+
+  it("a client with live research off stays queued and untouched", async () => {
+    await findLookalikes("https://www.kaverifoods.in", newContext());
+    const one = await db.prospectSuggestion.findFirstOrThrow({ where: { researchStatus: "queued" } });
+    await db.prospectSuggestion.update({ where: { id: one.id }, data: { sellerId: "client-research-off" } });
+    await processLookalikeQueue({ budgetMs: 60_000 });
+    expect(await db.prospectSuggestion.findUniqueOrThrow({ where: { id: one.id } })).toMatchObject({ researchStatus: "queued" });
   });
 
   it("a client whose settings can't load is marked failed and the queue moves on", async () => {
     await findLookalikes("https://www.kaverifoods.in", newContext());
     const one = await db.prospectSuggestion.findFirstOrThrow({ where: { researchStatus: "queued" } });
     await db.prospectSuggestion.update({ where: { id: one.id }, data: { sellerId: "missing-client" } });
+    await setResearchAllowed("missing-client", true, "test");
     const r = await processLookalikeQueue({ budgetMs: 60_000 });
+    await setResearchAllowed("missing-client", false, "test");
     expect(r.remaining).toBe(0);
     expect(await db.prospectSuggestion.findUniqueOrThrow({ where: { id: one.id } })).toMatchObject({ researchStatus: "failed" });
   });

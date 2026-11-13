@@ -20,6 +20,7 @@ const defs = [
   { key: "open_opps", label: "Open opportunities", define: "Opportunities not yet won or lost. Value only where a person entered it", href: "/crm/opportunities" },
   { key: "at_risk", label: "At risk", define: "Companies with outreach paused (objection, not now) or research stopped on an error that retries didn't fix", href: "#attention" },
   { key: "emails_to_approve", label: "Emails to approve", define: "Drafts that passed every check and wait for a person", href: "/review" },
+  { key: "waiting_for_you", label: "Waiting for you", define: "Everything on the Approvals page: decisions (is this the right person, rule this company out, hand-offs) and email drafts to approve. Same number as the Engage badge.", href: "/review" },
   { key: "overdue", label: "Overdue", define: "Open tasks past their due date, and hand-offs past the response time", href: "/crm/tasks" },
   // Company flow steps (nested: each counts companies that also passed every step before it)
   { key: "flow_imported", label: "Imported", define: "Every company in the workspace", href: "/accounts" },

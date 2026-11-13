@@ -21,6 +21,6 @@ describe("design tokens (D12) and the metric registry (D9)", () => {
       expect(labels).toContain(k.label);
       expect(Object.values(METRICS).find((m) => m.label === k.label)?.define).toBe(k.define);
     }
-    expect(cc.kpis.map((k) => k.label)).toContain("Emails to approve");
+    expect(cc.kpis.map((k) => k.label)).toContain("Waiting for you");
   });
 });
