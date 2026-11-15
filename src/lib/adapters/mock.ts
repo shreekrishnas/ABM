@@ -637,30 +637,50 @@ class MockLLM implements LLM {
       return { subject: "", body, angle: lead?.key ?? null, claims };
     }
 
-    // Same shape as the real writer: their news first, one pain for this role as a question,
-    // what we do for it with one proof, then the ask. Never a list of pains.
-    const lines: string[] = [hi, ""];
+    // Built in the shape the brief chose (news, consequence, a peer's result, a question, their job
+    // opening or their deadline first), like the real writer. One pain, one proof, one ask.
     const rest = lead ? lead.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "").replace(/\.$/, "") : "";
-    if (lead) {
-      const text = `${input.company} ${rest}.`;
-      lines.push(text);
-      // First attempt sometimes forgets to cite, exercising the regenerate path.
-      claims.push({ text, factIds: attempt === 1 && input.stepOrder === 99 ? [] : [lead.id] });
-    }
     const pain = (input.brief?.whyUs.pain ?? input.angle?.pain ?? "").split(/;|—| - /)[0].trim().replace(/^./, (c) => c.toLowerCase());
-    const role = input.title ? `a ${input.title}` : "a team in that position";
-    // One pain for this role, said plainly (the ask is the only question).
-    const painLine = pain && input.stepOrder === 1 ? `For ${role}, that usually means ${pain}.` : null;
-    if (painLine) lines.push("", painLine);
-    // Approved seller collateral (about the seller, not the prospect): the focus use case, with one proof.
+    const role = input.title ?? "your team";
     const proofLine = input.brief?.whyUs.proofPoint ?? input.angle?.proofPoint ?? null;
     let pitch = input.brief?.focus ? `${input.brief.whyUs.capability ?? input.seller.pitch}${proofLine ? `. ${proofLine}` : ""}` : input.seller.pitch;
     const ask = (input.brief?.ask && (input.brief.ask.match(/\?/g) ?? []).length <= 1 ? input.brief.ask : null) ?? input.seller.cta;
-    const tail = () => (input.stepOrder === 1 ? `${pitch}\n\n${ask}` : `Following up on my last note: ${input.instruction.toLowerCase()}. ${pitch}`);
-    // Respect the play's length: drop the pain line, then shorten the pitch to its first sentence.
+    const shape = input.stepOrder === 1 ? input.brief?.shape?.key ?? "news" : "news";
+    const cite = (text: string, id: string | undefined) => {
+      if (id) claims.push({ text, factIds: attempt === 1 && input.stepOrder === 99 ? [] : [id] });
+      return text;
+    };
+    const news = lead ? cite(`${input.company} ${rest}.`, lead.id) : "";
+    const hiring = input.brief?.shape?.hiringFactId ? input.facts.find((f) => f.id === input.brief!.shape!.hiringFactId) : undefined;
+    let open: string[] = [];
+    let closeAsk = ask;
+    switch (shape) {
+      case "consequence":
+        open = [pain ? `For a ${role}, ${pain} is usually the first thing to hurt when systems change.` : `For a ${role}, bad master data is usually the first thing to hurt when systems change.`, lead ? cite(`That is the moment ${input.company} is in: ${rest}.`, lead.id) : ""];
+        break;
+      case "story":
+        open = [proofLine ?? pitch, lead ? cite(`${input.company} ${rest}, which is the same moment.`, lead.id) : ""];
+        pitch = input.brief?.whyUs.capability ?? input.seller.pitch;
+        break;
+      case "question":
+        open = [lead ? cite(`With ${input.company} having ${rest.replace(/^(announced|launched|plans to|is)\s+/i, "announced ")}, how is the ${role} team planning for ${pain || "the data that moves with it"}?`, lead.id) : ""];
+        closeAsk = "Happy to share how others handled it in a 20-minute call.";
+        break;
+      case "hiring":
+        open = [hiring ? cite(`${input.company} ${hiring.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "").replace(/\.$/, "")}.`, hiring.id) : news, pain ? `Whoever takes that role will likely inherit ${pain}.` : ""];
+        break;
+      case "deadline":
+        open = [lead ? cite(`${input.company} has a date to meet: ${rest}.`, lead.id) : "", pain ? `For a ${role}, that usually turns ${pain} into an urgent job.` : ""];
+        break;
+      default:
+        open = [news, pain && input.stepOrder === 1 ? `For a ${role}, that usually means ${pain}.` : ""];
+    }
+    const lines: string[] = [hi, "", ...open.filter(Boolean).flatMap((l, i) => (i ? ["", l] : [l]))];
+    const tail = () => (input.stepOrder === 1 ? `${pitch}\n\n${closeAsk}` : `Following up on my last note: ${input.instruction.toLowerCase()}. ${pitch}`);
+    // Respect the play's length: drop the second opening line, then shorten the pitch to its first sentence.
     const max = input.writing?.play.limits.maxWords;
     const count = () => [...lines, tail()].join(" ").split(/\s+/).filter(Boolean).length;
-    if (max && count() > max && painLine) lines.splice(lines.indexOf(painLine) - 1, 2);
+    if (max && count() > max && lines.length > 3 && !claims.some((c) => c.text === lines[lines.length - 1])) lines.splice(lines.length - 2, 2);
     if (max && count() > max) pitch = pitch.split(/(?<=\.)\s/)[0];
     lines.push("", tail());
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");

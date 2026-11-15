@@ -25,6 +25,8 @@ export interface DraftBrief {
   /** At most two more facts the email may use. */
   support: { factId: string; claim: string }[];
   whyUs: { useCase: string | null; pain: string | null; capability: string | null; proofPoint: string | null; pitch: string };
+  /** How this email is built (which part leads), chosen from the evidence. */
+  shape?: import("./shape").EmailShape | null;
   /** What the company's signals converge on (several pieces of evidence point at one use case). */
   focus?: { useCase: string; why: string[] } | null;
   ask: string;

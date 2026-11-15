@@ -4,6 +4,7 @@
 // cannot invent a source. Compliance lines are appended by code, not the model.
 
 import { z } from "zod";
+import { SHAPE_STEPS } from "@/lib/outreach/shape";
 import type { LookalikeFact, LookalikeJudgeInput, LookalikeJudgement, LookalikePlanInput, LookalikeProfile, LookalikeQuestion } from "../types";
 import type { InfluencerInput, InfluencerRole } from "../types";
 import type { DiscoveryCriteria } from "@/lib/discover/describe";
@@ -186,11 +187,9 @@ export class OpenRouterLLM implements LLM {
         linkedin ? "This is a LinkedIn message: no subject line, no signature, no email footer, no links." : "",
         input.bannedClaims?.length ? `Never claim: ${input.bannedClaims.join("; ")}.` : "",
         input.brief && !linkedin ? [
-          "Write from the BRIEF. Shape of the email, in this order:",
-          "  a) Open with WHY NOW in specific words (their programme, number, place, date as the fact states it), citing its fact id. The first sentence is about them, not about you: no greeting filler, and never start with 'I saw', 'I noticed', 'I came across' or 'Congratulations'.",
-          "  b) One sentence linking it to ONE likely pain for THIS person's role, in the persona's own words, asked as a question (it's a guess, never a fact). Never list several pains.",
-          "  c) FOCUS: if the BRIEF has a FOCUS, the email is about that use case: the company's signals point there. One or two sentences on what we do for it, with ONE concrete proof: an APPROVED item from REFERENCE KNOWLEDGE (a customer story, a result with its number) or the proof point. Name the kind of customer and the result; never a vague claim.",
-          "  d) THE ASK, once, as a soft question.",
+          `Write from the BRIEF. SHAPE: ${input.brief.shape ? `${input.brief.shape.label} (because ${input.brief.shape.why})` : "Their news first"}. Build the email in this order:`,
+          ...SHAPE_STEPS[input.brief.shape?.key ?? "news"].map((t, i) => `  ${"abcd"[i]}) ${t}`),
+          "Whatever the shape: never start with 'I saw', 'I noticed', 'I came across', 'Congratulations' or a greeting filler; ONE pain in the persona's own words, never a list; if the BRIEF has a FOCUS, the pitch is about that use case (their signals point there), with ONE concrete proof: an APPROVED item from REFERENCE KNOWLEDGE (customer story, result with its number) or the proof point.",
           "Plain words a busy executive reads in 20 seconds. Subject: 2–6 plain words tied to their trigger, no hype, no question marks, no 'quick', never just '<Company> + <Seller>'. Write like a person who studied this company, not a template: if a sentence could be sent unchanged to another company, rewrite it.",
           "Never use: 'It looks like', 'something your team is dealing with', 'I hope', 'reaching out', 'touch base', 'leverage', 'streamline', 'solutions', 'synergy'.",
         ].join("\n") : "",

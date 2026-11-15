@@ -70,3 +70,64 @@ describe("the Test client's stand-in writer", () => {
     expect(d.claims[0].factIds).toEqual(["f1"]);
   });
 });
+
+describe("the email's shape comes from what we know", async () => {
+  const { chooseShape } = await import("@/lib/outreach/shape");
+  const now = new Date("2026-11-15T00:00:00Z");
+  const base = {
+    lead: { id: "f1", claim: "Test Pharma announced its SAP S/4HANA migration across 14 plants", date: new Date("2026-11-10T00:00:00Z"), confidence: 85, verified: true },
+    facts: [{ id: "f1", key: "trigger", claim: "Test Pharma announced its SAP S/4HANA migration across 14 plants" }],
+    role: { buyingRole: "decision_maker", title: "Chief Information Officer" },
+    pain: "Vendor master duplicates", proof: null, triggerKey: "erp_migration", usedByColleagues: [] as import("@/lib/outreach/shape").ShapeKey[], now,
+  };
+  it("fresh, verified news leads with the news", () => expect(chooseShape(base).key).toBe("news"));
+  it("a CFO gets the consequence first", () => expect(chooseShape({ ...base, role: { buyingRole: "budget_owner", title: "CFO" } }).key).toBe("consequence"));
+  it("a job opening leads when there is one", () => {
+    const s = chooseShape({ ...base, facts: [...base.facts, { id: "f2", key: "hiring", claim: "Test Pharma is hiring a Vendor Master Data Lead" }] });
+    expect(s).toMatchObject({ key: "hiring", hiringFactId: "f2" });
+  });
+  it("a deadline leads when there is one", () => expect(chooseShape({ ...base, lead: { ...base.lead, claim: "Test Pharma must comply with e-invoicing rules by April 2027" }, triggerKey: "compliance_mandate" }).key).toBe("deadline"));
+  it("probable evidence leads with a question; a peer result with a number leads with the story", () => {
+    expect(chooseShape({ ...base, lead: { ...base.lead, verified: false, confidence: 45, date: new Date("2026-08-01") } }).key).toBe("question");
+    expect(chooseShape({ ...base, role: { buyingRole: "champion", title: "Head of Master Data" }, lead: { ...base.lead, date: new Date("2026-08-01") }, proof: "A large bottler cut onboarding from 7 days to 7 hours." }).key).toBe("story");
+  });
+  it("colleagues at the same company get different shapes", () => {
+    const first = chooseShape(base).key;
+    const second = chooseShape({ ...base, usedByColleagues: [first] }).key;
+    const third = chooseShape({ ...base, usedByColleagues: [first, second] }).key;
+    expect(new Set([first, second, third]).size).toBe(3);
+  });
+});
+
+describe("the stand-in writer follows each shape", () => {
+  it("every shape opens differently, cites its facts and passes the specificity check", async () => {
+    const m = createMockAdapters();
+    const facts = [
+      { id: "f1", key: "trigger", claim: "Test Pharma announced its SAP S/4HANA migration across 14 plants" },
+      { id: "f2", key: "hiring", claim: "Test Pharma is hiring a Vendor Master Data Lead" },
+    ];
+    const openings = new Set<string>();
+    for (const key of ["news", "consequence", "story", "question", "hiring", "deadline"] as const) {
+      const input = {
+        firstName: "Asha", title: "Head of Procurement", company: "Test Pharma", stepOrder: 1, instruction: "first email", facts,
+        sender: { name: "Team Test", company: "Test Co", address: "Bengaluru" },
+        seller: { name: "Test Co", pitch: "We verify vendor data at entry.", cta: "Open to a 20-minute call next week?", useCase: "vendor_onboarding" },
+        angle: null,
+        brief: {
+          whyPerson: { name: "Asha", title: "Head of Procurement", role: "Decision maker", cares: [] },
+          whyNow: { factId: "f1", claim: facts[0].claim, quote: null, url: null, publisher: null, date: "2026-11-10", confidence: 85, verified: true },
+          support: [], focus: null, shape: { key, label: key, why: "test", ...(key === "hiring" ? { hiringFactId: "f2" } : {}) },
+          whyUs: { useCase: "Vendor & supplier onboarding", pain: "vendor master duplicates; failed payments", capability: "Vendor data verified at entry", proofPoint: "A large bottler cut onboarding from 7 days to 7 hours.", pitch: "We verify vendor data at entry." },
+          ask: "Open to a 20-minute call next week?", never: [],
+        },
+      } as unknown as DraftInput;
+      const d = await m.llm.draft(input, 1);
+      const body = d.body.split("\n\nTeam Test")[0];
+      openings.add(body.split("\n").filter(Boolean)[1]);
+      expect(d.claims.length, key).toBeGreaterThan(0);
+      expect(specificityGate(body, "Test Pharma", d.claims.flatMap((c) => c.factIds).map((id) => facts.find((f) => f.id === id)!.claim)).pass, key).toBe(true);
+      expect((body.match(/\?/g) ?? []).length, key).toBeLessThanOrEqual(2);
+    }
+    expect(openings.size).toBe(6);
+  });
+});

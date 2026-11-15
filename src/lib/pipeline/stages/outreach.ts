@@ -1,6 +1,7 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
 import { signalFocus } from "@/lib/outreach/focus";
+import { chooseShape, type ShapeKey } from "@/lib/outreach/shape";
 import { buildDraftBrief, fixInstruction, isSellerSentence, pickLeadTrigger } from "@/lib/outreach/brief";
 import { isPaused, planBuyingGroup, resumeCompany } from "../coordination";
 import { visitSummary } from "@/lib/web/visits";
@@ -274,11 +275,25 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
     focus: focus?.strong ? { useCase: focus.name, why: focus.why } : null,
   });
   if (msgBrief) {
+    // How this email is built: from the evidence, the reader and the proof we have; colleagues get different shapes.
+    const others = await db.draft.findMany({ where: { contact: { accountId: account.id }, contactId: { not: contact.id }, status: { notIn: ["rejected", "needs_refresh"] } }, select: { brief: true } });
+    const lead = facts.find((f) => f.id === msgBrief.whyNow.factId)!;
+    const approvedStory = writing.references?.find((r) => r.approved && /case|customer|story|proof/i.test(`${r.kind} ${r.title}`))?.text.slice(0, 300) ?? null;
+    msgBrief.shape = chooseShape({
+      lead: { id: lead.id, claim: lead.claim, date: lead.eventDate ?? lead.publishedAt, confidence: lead.confidence ?? null, verified: lead.status === "verified" },
+      facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim })),
+      role: { buyingRole: contact.buyingRole, title: contact.titleNormalized ?? contact.title },
+      pain: msgBrief.whyUs.pain,
+      proof: msgBrief.whyUs.proofPoint ?? approvedStory,
+      triggerKey: trigger?.key ?? null,
+      usedByColleagues: others.map((o) => (o.brief as { shape?: { key?: ShapeKey } } | null)?.shape?.key).filter((k): k is ShapeKey => Boolean(k)),
+      now: ctx.now,
+    });
     input.brief = msgBrief;
     // The lead trigger goes first, then the supporting facts, then the rest.
     const order = [msgBrief.whyNow.factId, ...msgBrief.support.map((s) => s.factId)];
     input.facts = [...input.facts].sort((a, b) => (order.indexOf(a.id) === -1 ? 99 : order.indexOf(a.id)) - (order.indexOf(b.id) === -1 ? 99 : order.indexOf(b.id)));
-    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.brief", outcome: "pass", reason: `Why now: ${msgBrief.whyNow.claim.slice(0, 140)} (confidence ${msgBrief.whyNow.confidence ?? "—"}) · ask: ${msgBrief.ask.slice(0, 80)}` });
+    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.brief", outcome: "pass", reason: `Why now: ${msgBrief.whyNow.claim.slice(0, 140)} (confidence ${msgBrief.whyNow.confidence ?? "—"}) · shape: ${msgBrief.shape?.label ?? "—"} (${msgBrief.shape?.why ?? ""}) · ask: ${msgBrief.ask.slice(0, 80)}` });
   }
   const pitchTexts = [input.seller.pitch, proof?.text ?? "", angle?.capability ?? "", ...sp.proofPoints.map((p) => p.text)].filter(Boolean);
   const writer = ctx.adapters.writer ?? ctx.adapters.llm;
