@@ -25,6 +25,44 @@ export interface VisitInput {
   durationSec?: number | null;
   source: "tracking_script" | "reverse_ip" | "email_link" | "apollo";
   occurredAt?: Date;
+  /** The client whose website was visited. Found from the page's address when not given. */
+  sellerId?: string | null;
+}
+
+const siteHost = (url: string | null | undefined) => {
+  try {
+    return url ? new URL(url.includes("://") ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, "") : null;
+  } catch {
+    return null;
+  }
+};
+
+/** The client whose website this is (the website in its Account Brain), or null when no client or more than one matches. */
+export async function clientForSite(url: string | null | undefined): Promise<string | null> {
+  const host = siteHost(url);
+  if (!host) return null;
+  const { baseDb } = await import("@/lib/db-base");
+  const { ensureSellerPacks, sellerFor } = await import("@/lib/seller");
+  await ensureSellerPacks();
+  const clients = await baseDb.client.findMany({ where: { status: { not: "archived" } }, select: { id: true } });
+  const hits = clients.filter((c) => {
+    const site = siteHost(sellerFor(c.id).website);
+    return Boolean(site && (host === site || host.endsWith(`.${site}`)));
+  });
+  return hits.length === 1 ? hits[0].id : null;
+}
+
+/**
+ * The company a visit is from, within the client whose website was visited. With no known client,
+ * only a website or name that exactly one client holds counts (never a guess between clients).
+ */
+async function companyFor(sellerId: string | null, where: { domain?: string; nameKey?: string }): Promise<string | null> {
+  const rows = await db.account.findMany({ where: { ...where, ...(where.nameKey ? { mergedIntoId: null } : {}), ...(sellerId ? { sellerId } : {}) }, select: { id: true, sellerId: true, mergedIntoId: true }, orderBy: { createdAt: "asc" }, take: 5 });
+  if (!rows.length) return null;
+  if (!sellerId && new Set(rows.map((r) => r.sellerId)).size > 1) return null;
+  // A merged duplicate counts for the company it was merged into.
+  const live = rows.find((r) => !r.mergedIntoId) ?? rows[0];
+  return live.mergedIntoId ?? live.id;
 }
 
 // ── Tracked links: ?abm=<contactId>.<sig> identifies the person who clicked. ──
@@ -108,10 +146,12 @@ export async function recordVisit(input: VisitInput, ctx: RunContext = newContex
   const contact = contactId ? await db.contact.findUnique({ where: { id: contactId }, select: { id: true, accountId: true } }) : null;
   let accountId = contact?.accountId ?? null;
   const domain = normalizeDomain(input.companyDomain);
-  if (!accountId && domain) accountId = (await db.account.findUnique({ where: { domain }, select: { id: true, mergedIntoId: true } }).then((a) => a?.mergedIntoId ?? a?.id)) ?? null;
+  // The client whose website was visited: given, or from the page's address.
+  const visitedClient = input.sellerId ?? (input.source === "apollo" ? null : await clientForSite(input.url));
+  if (!accountId && domain) accountId = await companyFor(visitedClient, { domain });
   if (!accountId && input.companyName) {
     const key = companyNameKey(input.companyName);
-    if (key) accountId = (await db.account.findFirst({ where: { nameKey: key, mergedIntoId: null }, select: { id: true } }))?.id ?? null;
+    if (key) accountId = await companyFor(visitedClient, { nameKey: key });
   }
   if (!accountId && input.visitorId) {
     const prior = await db.webVisit.findFirst({ where: { visitorId: input.visitorId, accountId: { not: null } }, orderBy: { occurredAt: "desc" }, select: { accountId: true } });

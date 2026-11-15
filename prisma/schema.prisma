@@ -245,7 +245,7 @@ model User {
 model Account {
   id            String       @id @default(cuid())
   /// The seller this account is researched and contacted for (a seller pack id). A run never mixes sellers.
-  sellerId      String       @default("manch")
+  sellerId      String
   /// Latest multi-signal intent reading: score, level, converging families, signals with evidence, why now.
   intentReading Json?
   /// Combined priority (0–100): intent, fit, value and timing, weighted by the seller pack.
@@ -253,7 +253,8 @@ model Account {
   /// The four parts behind priorityScore and their weights, for the "why this order" view.
   priorityParts Json?
   name          String
-  domain        String?      @unique
+  /// The company's website. Unique per client (see @@unique below): two clients can each target the same company.
+  domain        String?
   industry      String?
   employees     Int?
   country       String? // ISO-3166 alpha-2
@@ -356,6 +357,7 @@ model Account {
   @@index([pipelineStatus])
   @@index([sellerId, pipelineStatus])
   @@index([sellerId, stage])
+  @@unique([sellerId, domain])
 }
 
 model Contact {
@@ -887,7 +889,7 @@ model Mailbox {
 model ImportBatch {
   id             String         @id @default(cuid())
   /// The client this import was for (companies created by it belong to that client).
-  sellerId       String         @default("manch")
+  sellerId       String
   filename       String
   source         String // csv | api | form | manual
   status         String         @default("done") // uploading | processing | done | failed

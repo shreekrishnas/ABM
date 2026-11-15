@@ -41,7 +41,8 @@ export async function s02CleanNormalize(account: Account, ctx: RunContext): Prom
   if (!account.domain) {
     const fromName = domainFromName(account.name);
     if (fromName) {
-      const holder = await db.account.findFirst({ where: { domain: fromName, id: { not: account.id }, mergedIntoId: null }, select: { id: true, name: true } });
+      // Only this client's own record of that website: another client's company is never merged into.
+      const holder = await db.account.findFirst({ where: { sellerId: account.sellerId, domain: fromName, id: { not: account.id }, mergedIntoId: null }, select: { id: true, name: true } });
       if (holder) {
         await db.$transaction([
           db.contact.updateMany({ where: { accountId: account.id }, data: { accountId: holder.id } }),

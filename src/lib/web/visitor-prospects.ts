@@ -11,7 +11,7 @@ import { UNKNOWN_DATE_TITLE } from "./visits";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { seller } from "@/lib/seller";
-import { activeSellerId } from "@/lib/scope";
+import { activeSellerId, requireClientId } from "@/lib/scope";
 import { companyNameKey, normalizeDomain } from "@/lib/pipeline/normalize";
 import { IMPORT_FIELDS, analyzeHeaders, rowKeys, validateRow, type FieldKey } from "@/lib/import/fields";
 import { findCompany, ingestRows } from "@/lib/pipeline/ingest";
@@ -293,7 +293,7 @@ export interface ImportPreviewItem {
 
 /** Customers: companies marked as customers, at the customer stage or with a won deal, and the seller's listed customers. */
 export async function customerCheck(name: string, domain: string | null): Promise<{ customer: boolean; inPipeline: boolean; why: string | null }> {
-  const acct = await findCompany({ domain, companyLinkedin: null, nameKey: companyNameKey(name) });
+  const acct = await findCompany({ domain, companyLinkedin: null, nameKey: companyNameKey(name) }, await activeSellerId());
   if (acct) {
     const won = await db.opportunity.count({ where: { accountId: acct.id, stage: "won" } });
     if (acct.relationship === "customer" || acct.stage === "CUSTOMER" || won) return { customer: true, inPipeline: true, why: acct.relationship === "customer" ? "Marked as a customer" : won ? "Has a won deal" : "At the customer stage" };
@@ -337,7 +337,7 @@ export async function importCompanies(keys: string[], from: Date, to: Date, opts
   const rows = exportRows(companies);
   let res;
   try {
-    res = await ingestRows(rows, { source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
+    res = await ingestRows(rows, { sellerId: await requireClientId(), source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
   } catch (e) {
     await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: "error", reason: `Import failed: ${e instanceof Error ? e.message.slice(0, 300) : "unknown error"}`, data: { companies: take.length } });
     await recordError("visitors.import", e, `run ${ctx.runId}`);
@@ -348,7 +348,7 @@ export async function importCompanies(keys: string[], from: Date, to: Date, opts
   await db.visitorEnrichment.updateMany({ where: { sellerId, companyKey: { in: take.map((t) => t.key) } }, data: { importedAt: new Date(), importBatchId: res.batchId, importedBy: opts.by } });
   // Earlier website visits by these companies now count for them.
   for (const c of companies) {
-    const acct = await findCompany({ domain: c.domain, companyLinkedin: null, nameKey: companyNameKey(c.name) });
+    const acct = await findCompany({ domain: c.domain, companyLinkedin: null, nameKey: companyNameKey(c.name) }, sellerId);
     if (acct) await db.webVisit.updateMany({ where: { accountId: null, OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] }, data: { accountId: acct.id } });
   }
   return { imported: take.length, skipped: skipped.length, prospects: rows.filter((r) => r[LABEL.firstName]).length, batchId: res.batchId, rejected: res.rejected, errors: res.errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.error}`) };

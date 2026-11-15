@@ -179,14 +179,16 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   await db.campaign.create({ data: { name: "Vendor Master Clean-up", description: "Procurement-led vendor onboarding" } });
   const sender1 = await db.senderProfile.create({ data: { name: "Sender 1 — Priya", linkedinUrl: "https://www.linkedin.com/in/priya-sample" } });
   const sender2 = await db.senderProfile.create({ data: { name: "Sender 2 — Karan", linkedinUrl: "https://www.linkedin.com/in/karan-sample" } });
-  const batch = await ingestRows(rows, { source: "csv", filename: "q4-target-accounts.csv", campaignId: campaign.id, senderId: sender1.id });
+  // The demo data belongs to the sample client created above: always named, never assumed.
+  const { DEFAULT_SELLER_ID: demoClient } = await import("@/lib/seller");
+  const batch = await ingestRows(rows, { sellerId: demoClient, source: "csv", filename: "q4-target-accounts.csv", campaignId: campaign.id, senderId: sender1.id });
   log(`  ${batch.accepted} rows accepted, ${batch.rejected} rejected`);
   // The same list for a second sender reuses every company and person.
-  await ingestRows(rows.slice(0, 18), { source: "csv", filename: "q4-sender2.csv", campaignId: campaign.id, senderId: sender2.id });
+  await ingestRows(rows.slice(0, 18), { sellerId: demoClient, source: "csv", filename: "q4-sender2.csv", campaignId: campaign.id, senderId: sender2.id });
   await seedJourneys(campaign.id, sender1.id, sender2.id);
 
   // CRM relationships that exclusions must respect.
-  const byDomain = async (d: string) => db.account.findUniqueOrThrow({ where: { domain: d } });
+  const byDomain = async (d: string) => db.account.findFirstOrThrow({ where: { domain: d } });
   const owners = [maya.id, arjun.id];
   const all = await db.account.findMany({ orderBy: { createdAt: "asc" } });
   for (const [i, a] of all.entries()) await db.account.update({ where: { id: a.id }, data: { ownerId: owners[i % 2] } });

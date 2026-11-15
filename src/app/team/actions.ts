@@ -527,3 +527,34 @@ export async function setResearchClientAction(clientId: string, on: boolean): Pr
     return fail(e);
   }
 }
+
+/** Create (or replace) this client's API key. The key is returned once and only its hash is kept. */
+export async function createClientApiKeyAction(clientId: string): Promise<{ ok: boolean; message: string; key?: string }> {
+  try {
+    const me = await requireClientAdmin(clientId);
+    const client = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
+    if (!client) return { ok: false, message: "That client no longer exists" };
+    const { createClientKey } = await import("@/lib/api-clients");
+    const key = await createClientKey(clientId, me.email);
+    await audit(me.email, "client.api_key_created", { target: client.name, clientId });
+    revalidatePath(`/team/client/${clientId}`);
+    return { ok: true, message: `New API key for ${client.name}: copy it now, it won't be shown again. Any earlier key stops working.`, key };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Something went wrong" };
+  }
+}
+
+/** Turn this client's API key off. */
+export async function revokeClientApiKeyAction(clientId: string): Promise<ActionState> {
+  try {
+    const me = await requireClientAdmin(clientId);
+    const client = await baseDb.client.findUnique({ where: { id: clientId }, select: { name: true } });
+    const { revokeClientKey } = await import("@/lib/api-clients");
+    const done = await revokeClientKey(clientId, me.email);
+    await audit(me.email, "client.api_key_revoked", { target: client?.name ?? clientId, clientId });
+    revalidatePath(`/team/client/${clientId}`);
+    return { ok: true, message: done ? "API key turned off: calls with it are refused from now on" : "This client had no API key" };
+  } catch (e) {
+    return fail(e);
+  }
+}

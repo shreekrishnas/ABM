@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { apolloVisitDates, apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
 import { seller } from "@/lib/seller";
 import { logEvent, type RunContext } from "@/lib/pipeline/context";
-import { recordVisit } from "./visits";
+import { clientForSite, recordVisit } from "./visits";
 import { suggestFromVisitors } from "@/lib/discover/visitors";
 
 const DAY = 86_400_000;
@@ -37,6 +37,8 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   }
   // The real visit date per company (the list only says when a company was saved to it).
   const site = env("APOLLO_VISITOR_SITE") ?? (seller().website || null);
+  // The client whose website Apollo tracks: visits count for that client's companies only.
+  const siteClient = await clientForSite(site);
   let realDates = 0, otherSite = 0, dateError: string | null = null;
   try {
     const dates = await apolloVisitDates(key, companies.map((c) => c.domain ?? "").filter(Boolean), site);
@@ -74,7 +76,7 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
       if (had) {
         if (had.title !== UNKNOWN_DATE_TITLE) await db.webVisit.update({ where: { id: had.id }, data: { title: UNKNOWN_DATE_TITLE } });
       } else {
-        await recordVisit({ url: "https://apollo.io/website-visitors", title: UNKNOWN_DATE_TITLE, companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined }, ctx);
+        await recordVisit({ url: "https://apollo.io/website-visitors", title: UNKNOWN_DATE_TITLE, companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined, sellerId: siteClient }, ctx);
         recorded++;
       }
       unknownDate++;
@@ -102,7 +104,7 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
         continue;
       }
     } else if (last && (await db.webVisit.count({ where: { ...where, occurredAt: { gte: since } } }))) continue;
-    await recordVisit({ url: "https://apollo.io/website-visitors", title: "Visited the website (seen by Apollo)", companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined }, ctx);
+    await recordVisit({ url: "https://apollo.io/website-visitors", title: "Visited the website (seen by Apollo)", companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined, sellerId: siteClient }, ctx);
     recorded++;
   }
   // Visitors not in the database become suggestions (checked against the targeting rule) for approval.

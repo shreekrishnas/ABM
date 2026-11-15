@@ -193,7 +193,8 @@ export async function fillGaps(account: Account, ctx: RunContext, search: Search
       if (!site) {
         await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.website", outcome: "block", reason: "No official website found — add Company Website to the next upload" });
       } else {
-        const owner = await db.account.findUnique({ where: { domain: site.domain } });
+        // Only this client's companies: another client's record of the same website is theirs, not a duplicate.
+        const owner = await db.account.findFirst({ where: { sellerId: account.sellerId, domain: site.domain } });
         if (owner && owner.id !== account.id) {
           await openReview({ type: "other", stage: S, accountId: account.id, reason: `Research found ${site.domain} for ${name}, but it belongs to ${owner.name} — same company? Merge or correct by hand.` });
           await logEvent(ctx, { accountId: account.id, stage: S, step: "intake.website", outcome: "block", reason: `${site.domain} already belongs to ${owner.name} — sent to review` });

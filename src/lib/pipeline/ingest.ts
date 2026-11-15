@@ -16,7 +16,7 @@
 import { z } from "zod";
 import type { Account, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { unscoped } from "@/lib/scope";
+import { requireClientId, unscoped } from "@/lib/scope";
 import { analyzeHeaders, validateRow, type ActivityRow, type CleanRow, type FieldKey } from "@/lib/import/fields";
 import { companyNameKey, inferFunction, inferSeniority, standardizeTitle } from "./normalize";
 import { setAccountField, setContactField } from "./fields";
@@ -45,6 +45,8 @@ export const emptyStats = (): BatchStats => ({ accountsCreated: 0, accountsUpdat
 const MAX_STORED_ERRORS = 500;
 
 export interface BatchOptions {
+  /** The client the import is for. Resolved with requireClientId when not given; never defaulted. */
+  sellerId?: string | null;
   filename: string;
   source: string;
   rows: number;
@@ -57,9 +59,11 @@ export interface BatchOptions {
 }
 
 export async function startBatch(opts: BatchOptions) {
+  const sellerId = await requireClientId(opts.sellerId);
   await backfillNameKeys();
   return db.importBatch.create({
     data: {
+      sellerId,
       filename: opts.filename, source: opts.source, status: "uploading", rows: opts.rows, accepted: 0, rejected: 0, errors: [], stats: emptyStats() as unknown as Prisma.InputJsonValue,
       ignoredColumns: opts.ignoredColumns ?? [], campaignId: opts.campaignId ?? null, senderId: opts.senderId ?? null, mapping: (opts.mapping ?? undefined) as Prisma.InputJsonValue | undefined,
       createdBy: opts.createdBy ?? null,
@@ -77,26 +81,31 @@ type AccountOutcome = "created" | "updated" | "unchanged";
 type ContactOutcome = "created" | "updated" | "unchanged" | "none" | "erased";
 type JourneyOutcome = "created" | "updated" | "unchanged" | "none";
 
-/** Website first, then company LinkedIn URL, then normalized name. */
-export async function findCompany(r: Pick<CleanRow, "domain" | "companyLinkedin" | "nameKey">): Promise<Account | null> {
-  let a: Account | null = r.domain ? await db.account.findUnique({ where: { domain: r.domain } }) : null;
-  if (!a && r.companyLinkedin) a = await db.account.findFirst({ where: { linkedinUrl: r.companyLinkedin, mergedIntoId: null } });
+/**
+ * The client's own record of this company: website first, then company LinkedIn URL, then
+ * normalized name. Only within that client: another client's record of the same company is a
+ * separate company for this one.
+ */
+export async function findCompany(r: Pick<CleanRow, "domain" | "companyLinkedin" | "nameKey">, sellerId: string): Promise<Account | null> {
+  let a: Account | null = r.domain ? await db.account.findFirst({ where: { sellerId, domain: r.domain } }) : null;
+  if (!a && r.companyLinkedin) a = await db.account.findFirst({ where: { sellerId, linkedinUrl: r.companyLinkedin, mergedIntoId: null } });
   if (!a && r.nameKey) {
     // Same name with a DIFFERENT website is a different company (e.g. a subsidiary).
-    a = await db.account.findFirst({ where: { nameKey: r.nameKey, mergedIntoId: null, ...(r.domain ? { OR: [{ domain: null }, { domain: r.domain }] } : {}) }, orderBy: { createdAt: "asc" } });
+    a = await db.account.findFirst({ where: { sellerId, nameKey: r.nameKey, mergedIntoId: null, ...(r.domain ? { OR: [{ domain: null }, { domain: r.domain }] } : {}) }, orderBy: { createdAt: "asc" } });
   }
-  if (a?.mergedIntoId) a = await db.account.findUnique({ where: { id: a.mergedIntoId } });
+  if (a?.mergedIntoId) a = await db.account.findFirst({ where: { id: a.mergedIntoId, sellerId } });
   return a;
 }
 
-/** LinkedIn URL first, then email, then full name within the company. */
-export async function findPerson(p: { linkedinUrl: string | null; email: string | null; fullName: string }, accountId: string | null) {
+/** LinkedIn URL first, then email, then full name within the company. Only among this client's people. */
+export async function findPerson(p: { linkedinUrl: string | null; email: string | null; fullName: string }, accountId: string | null, sellerId: string) {
+  const own = { account: { sellerId } };
   if (p.linkedinUrl) {
-    const c = await db.contact.findFirst({ where: { linkedinUrl: p.linkedinUrl, mergedIntoId: null } });
+    const c = await db.contact.findFirst({ where: { linkedinUrl: p.linkedinUrl, mergedIntoId: null, ...own } });
     if (c) return c;
   }
   if (p.email) {
-    const c = await db.contact.findFirst({ where: { email: { equals: p.email, mode: "insensitive" }, mergedIntoId: null } });
+    const c = await db.contact.findFirst({ where: { email: { equals: p.email, mode: "insensitive" }, mergedIntoId: null, ...own } });
     if (c) return c;
   }
   if (!accountId) return null;
@@ -127,9 +136,8 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
   const source = r.dataSource ?? ctx.source;
 
   // ── Company ──
-  // A company belongs to one client: one that another client already has is skipped, never shared.
-  let account = (await findCompany(r)) ?? (await unscoped(() => findCompany(r)));
-  if (account && account.sellerId !== ctx.sellerId) throw new Error(`${account.name} already belongs to another client, so this row was skipped`);
+  // Each client has its own record of a company: another client's record is never matched or shared.
+  let account = await unscoped(() => findCompany(r, ctx.sellerId));
   let accountOutcome: AccountOutcome = "unchanged";
   if (!account) {
     account = await db.account.create({
@@ -138,6 +146,11 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
         technologies: r.technologies ?? [], keywords: r.keywords ?? [], companyNotes: r.companyNotes, source, sellerId: ctx.sellerId,
         addedBy: ctx.addedBy, addedVia: ctx.addedVia, originDetail: ctx.originDetail, approvedBy: ctx.approvedBy,
       },
+    }).catch((e: unknown) => {
+      // Until the database allows one record per client (the old global website rule), another
+      // client's record of this website blocks a new one: say so plainly.
+      if ((e as { code?: string }).code === "P2002") throw new Error(`${r.company} (${r.domain}) already belongs to another client, so this row was skipped`);
+      throw e;
     });
     accountOutcome = "created";
     for (const [field, value] of [["domain", r.domain], ["industry", r.industry], ["employees", r.employees?.toString() ?? null], ["country", r.country]] as const) {
@@ -146,7 +159,7 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
   } else {
     const a = account;
     const data: Prisma.AccountUpdateInput = {};
-    if (r.domain && !a.domain && !(await unscoped(() => db.account.findUnique({ where: { domain: r.domain! } })))) data.domain = r.domain;
+    if (r.domain && !a.domain && !(await unscoped(() => db.account.findFirst({ where: { sellerId: ctx.sellerId, domain: r.domain! }, select: { id: true } })))) data.domain = r.domain;
     if (r.companyLinkedin && r.companyLinkedin !== a.linkedinUrl) data.linkedinUrl = r.companyLinkedin;
     if (r.industry && r.industry !== a.industry) data.industry = r.industry;
     if (r.employees != null && r.employees !== a.employees) data.employees = r.employees;
@@ -179,7 +192,7 @@ async function upsertRow(r: CleanRow, ctx: RowContext): Promise<{ accountId: str
       const erased = await db.suppression.findUnique({ where: { value: `sha256:${sha256(p.email)}` } });
       if (erased) return { accountId: account.id, account: accountOutcome, contact: "erased", journey: "none", changes };
     }
-    const existing = await findPerson(p, account.id);
+    const existing = await unscoped(() => findPerson(p, account.id, ctx.sellerId));
     const suppressed = p.email ? Boolean(await db.suppression.findUnique({ where: { value: p.email } })) : false;
     let contactId: string;
 
@@ -387,12 +400,13 @@ export interface IngestResult {
 }
 
 /** One-shot import (API, forms, seed, tests): start → one chunk → finish. */
-export async function ingestRows(rows: unknown[], opts: { source: string; filename?: string; campaignId?: string | null; senderId?: string | null; createdBy?: string | null; approvedBy?: string | null }): Promise<IngestResult> {
+export async function ingestRows(rows: unknown[], opts: { sellerId?: string | null; source: string; filename?: string; campaignId?: string | null; senderId?: string | null; createdBy?: string | null; approvedBy?: string | null }): Promise<IngestResult> {
   const objects = rows.map((r) => (r && typeof r === "object" ? (r as Record<string, unknown>) : {}));
   const headers = [...new Set(objects.flatMap((r) => Object.keys(r)))];
   const analysis = analyzeHeaders(headers);
   const batch = await startBatch({
-    filename: opts.filename ?? `${opts.source}-${new Date().toISOString().slice(0, 16)}`, source: opts.source, rows: rows.length, ignoredColumns: analysis.ignored,
+    sellerId: opts.sellerId,
+    filename: opts.filename ??`${opts.source}-${new Date().toISOString().slice(0, 16)}`, source: opts.source, rows: rows.length, ignoredColumns: analysis.ignored,
     campaignId: opts.campaignId, senderId: opts.senderId, mapping: analysis.mapping, createdBy: opts.createdBy ?? null,
   });
   const res = await importChunk(batch.id, objects, 0, analysis.mapping, { approvedBy: opts.approvedBy ?? null });

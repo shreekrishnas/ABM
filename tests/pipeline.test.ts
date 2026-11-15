@@ -178,8 +178,8 @@ describe("pipeline scenarios", () => {
   });
 
   it("duplicate accounts by domain are merged, never deleted", async () => {
-    const a1 = await db.account.create({ data: { name: "Mu Inc", domain: "strong-mu.com" } });
-    const a2 = await db.account.create({ data: { name: "Mu", domain: "https://www.strong-mu.com/" } });
+    const a1 = await db.account.create({ data: { sellerId: "manch", name: "Mu Inc", domain: "strong-mu.com" } });
+    const a2 = await db.account.create({ data: { sellerId: "manch", name: "Mu", domain: "https://www.strong-mu.com/" } });
     const r = await runAccount(a2.id);
     expect(r.status).toBe("blocked");
     expect((await db.account.findUniqueOrThrow({ where: { id: a2.id } })).mergedIntoId).toBe(a1.id);

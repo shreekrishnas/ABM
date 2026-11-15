@@ -20,7 +20,7 @@ export const ACTION_WORD: Record<string, string> = {
   "suggestion.approve": "approved a company", "suggestion.approve_many": "approved companies", "suggestion.dismiss": "dismissed a company",
   "lookalike.search": "searched lookalikes", "lookalike.reject": "rejected a lookalike", "lookalike.research_more": "asked for more lookalike research",
   "assignment.role": "changed a role", "user.sign_out_everywhere": "signed a person out everywhere", "security.sign_out_all": "signed everyone out",
-  "client.rename": "renamed a client", "client.paused": "paused a client", "client.archived": "archived a client", "client.resume": "reactivated a client", "client.research_on": "switched live research on for a client", "client.research_off": "switched live research off for a client",
+  "client.rename": "renamed a client", "client.paused": "paused a client", "client.archived": "archived a client", "client.resume": "reactivated a client", "client.research_on": "switched live research on for a client", "client.api_key_created": "created a client API key", "client.api_key_revoked": "turned off a client API key", "client.research_off": "switched live research off for a client",
   "client.export": "exported a client's data", "client.extras": "changed a client's pages", "ai.pause": "paused AI", "ai.resume": "resumed AI",
   "companies.retry_stopped": "retried stopped companies", "errors.resolve": "resolved an error", "email.test": "sent a test email",
   "sample.load": "loaded the Test client", "sample.remove": "removed the Test client",
@@ -28,7 +28,7 @@ export const ACTION_WORD: Record<string, string> = {
 
 /** Changes a Super Admin should hear about: access, data removal, spending and client status. */
 export const SENSITIVE = new Set([
-  "user.super_admin", "user.add", "user.remove", "user.restore", "assignment.add", "assignment.remove", "assignment.role", "user.sign_out_everywhere", "security.sign_out_all",
+  "client.api_key_created", "client.api_key_revoked", "user.super_admin", "user.add", "user.remove", "user.restore", "assignment.add", "assignment.remove", "assignment.role", "user.sign_out_everywhere", "security.sign_out_all",
   "data.clear", "data.clear_account", "person.erase", "person.delete", "client.export", "client.archived", "client.paused", "client.budget", "ai.resume", "mode.super_admin",
 ]);
 export const isSensitive = (action: string) => SENSITIVE.has(action);

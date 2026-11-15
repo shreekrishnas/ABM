@@ -244,6 +244,8 @@ export async function addSuggestion(id: string, decidedBy: string | null = null)
   const res = await ingestRows(
     [{ "Company Name": s.name, ...(s.domain ? { "Company Website": s.domain } : {}), ...(s.industry ? { Industry: s.industry } : {}), ...(s.employees != null ? { "Employee Size": String(s.employees) } : {}), ...(s.country ? { Country: s.country } : {}) }],
     {
+      // The suggestion's own client, whichever client is picked at the top.
+      sellerId: s.sellerId,
       source: s.origin === "lookalike" ? "lookalike" : s.origin === "discovery" ? "discovery" : s.origin === "website_visitor" ? "website-visitor" : "discover",
       // What it came from, as people read it: the reference company, the search, or the signal.
       filename: await originOf(s),

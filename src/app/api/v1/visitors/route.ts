@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { authorize, json, parseBody } from "@/lib/api";
+import { json, parseBody } from "@/lib/api";
+import { authorizeClient } from "@/lib/api-clients";
+import { withSeller } from "@/lib/seller";
 import { recordVisit } from "@/lib/web/visits";
 import { suggestFromVisitors } from "@/lib/discover/visitors";
 import { newContext } from "@/lib/pipeline/context";
@@ -18,13 +20,14 @@ const Body = z.union([Visit, z.object({ visits: z.array(Visit).min(1).max(500) }
 
 export async function POST(req: Request) {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
-  const denied = authorize(req);
-  if (denied) return denied;
   const b = await parseBody(req, Body);
   if ("error" in b) return b.error;
+  // The client whose website was visited: the key's client (or the one named with the workspace key).
+  const auth = await authorizeClient(req);
+  if ("response" in auth) return auth.response;
   const visits = "visits" in b.data ? b.data.visits : [b.data];
   let matched = 0;
-  for (const v of visits) if ((await recordVisit({ ...v, source: "reverse_ip" })).accountId) matched++;
-  const s = matched < visits.length ? await suggestFromVisitors(newContext()) : { suggested: 0, excluded: 0 };
+  for (const v of visits) if ((await recordVisit({ ...v, source: "reverse_ip", sellerId: auth.clientId })).accountId) matched++;
+  const s = matched < visits.length ? await withSeller(auth.clientId, () => suggestFromVisitors(newContext())) : { suggested: 0, excluded: 0 };
   return json({ received: visits.length, matched, unknown: visits.length - matched, ...s }, 202);
 }

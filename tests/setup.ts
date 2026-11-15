@@ -2,6 +2,9 @@
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgresql://abm:abm@localhost:5432/abm_test?schema=public";
 process.env.ADAPTER_MODE = "mock";
 process.env.ENFORCE_BUDGETS = "true"; // the budget mechanics stay tested even though production runs without caps
+// Older tests import without naming a client; the app itself never has a default client.
+// tests/tenant-identity.test.ts switches this off to prove imports without a client are refused.
+process.env.TEST_DEFAULT_CLIENT = "manch";
 
 // The general suites exercise pipeline mechanics with small, mixed-country sample companies.
 // Manch's real targeting rule (India, more than 5,000 employees) is covered in tests/targeting.test.ts.

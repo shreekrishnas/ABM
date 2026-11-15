@@ -234,10 +234,13 @@ export async function recordSignal(input: { accountId: string; contactId?: strin
 
 // ───────────────────────── Replies & bounces ─────────────────────────
 
-export async function recordReply(contactId: string, body: string, ctx: RunContext = newContext()) {
+export async function recordReply(contactId: string, body: string, ctx: RunContext = newContext(), opts: { messageId?: string | null } = {}) {
   const S = 12;
   const contact = await db.contact.findUniqueOrThrow({ where: { id: contactId }, include: { account: true } });
-  const lastMsg = await db.message.findFirst({ where: { contactId, status: "delivered" }, orderBy: { sentAt: "desc" } });
+  // The email being answered: the one the reply's thread points to, else this person's latest delivered email.
+  const lastMsg = opts.messageId
+    ? await db.message.findFirst({ where: { id: opts.messageId, contactId } })
+    : await db.message.findFirst({ where: { contactId, status: "delivered" }, orderBy: { sentAt: "desc" } });
   await charge(contact.accountId, contact.account.tier, "llm", CONFIG.costsUsd.llmCheap, "Classify reply", S).catch(() => undefined);
   const cls = (await ctx.adapters.llm.classifyReply(body)) as ReplyClass;
   await db.reply.create({ data: { contactId, messageId: lastMsg?.id ?? null, body, class: cls, route: REPLY_ROUTES[cls] } });

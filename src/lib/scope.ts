@@ -152,6 +152,23 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
   }
 }
 
+/**
+ * The client new records belong to, for anything that creates data (imports, API calls). Never
+ * guessed: an explicit client, else the client of the run in progress (jobs, the pipeline), else
+ * the client picked by the signed-in person. With none of these it refuses.
+ */
+export async function requireClientId(explicit?: string | null): Promise<string> {
+  if (explicit) return explicit;
+  const { runSellerId } = await import("@/lib/seller");
+  const run = runSellerId();
+  if (run) return run;
+  const s = await resolveScope();
+  if (s?.active) return s.active;
+  // Tests only: older test files import without naming a client (and without any scope). Never set outside the test runner.
+  if (!s && process.env.VITEST && process.env.TEST_DEFAULT_CLIENT) return process.env.TEST_DEFAULT_CLIENT;
+  throw new Error(NO_CLIENT_MESSAGE);
+}
+
 /** The client pages show and add to: the picked one, else the first in view, else the default. */
 export async function activeSellerId(): Promise<string> {
   const { DEFAULT_SELLER_ID } = await import("@/lib/seller");

@@ -26,7 +26,7 @@ describe("client separation", () => {
       expect((await db.account.findMany()).map((x) => x.name)).toEqual(["Acme Target"]);
       expect(await db.contact.count()).toBe(1);
       expect(await db.task.count()).toBe(0);
-      const other = await baseDb.account.findUnique({ where: { domain: "manchco.in" } });
+      const other = await baseDb.account.findUnique({ where: { sellerId_domain: { sellerId: "manch", domain: "manchco.in" } } });
       expect(await db.account.findUnique({ where: { id: other!.id } })).toBeNull();
       // Writes can't reach another client's company either.
       expect((await db.account.updateMany({ where: { id: other!.id }, data: { name: "x" } })).count).toBe(0);
@@ -64,14 +64,19 @@ describe("client separation", () => {
     expect((await scopeFor("nobody@trilliantdigital.com", false, null)).ids).toEqual([]);
   });
 
-  it("imports go to the picked client; a company another client has is skipped, not shared", async () => {
+  it("imports go to the picked client; a company another client has becomes this client's own record, never shared", async () => {
+    const manchCo = await baseDb.account.findFirstOrThrow({ where: { sellerId: "manch", domain: "manchco.in" } });
     await withScope(only("acme"), async () => {
       const r = await ingestRows([{ company: "New Acme Prospect", domain: "newprospect.com" }, { company: "Manch Co", domain: "manchco.in" }], { source: "manual" });
-      expect(r.accepted).toBe(1);
-      expect(r.errors[0].error).toMatch(/already belongs to another client/);
+      expect(r.accepted).toBe(2);
+      expect(r.errors).toEqual([]);
     });
-    expect((await baseDb.account.findUnique({ where: { domain: "newprospect.com" } }))!.sellerId).toBe("acme");
+    expect((await baseDb.account.findFirst({ where: { domain: "newprospect.com" } }))!.sellerId).toBe("acme");
     expect((await baseDb.importBatch.findFirst())!.sellerId).toBe("acme");
+    // Two separate records of manchco.in; Manch's is untouched.
+    const both = await baseDb.account.findMany({ where: { domain: "manchco.in" }, orderBy: { createdAt: "asc" } });
+    expect(both.map((a) => a.sellerId)).toEqual(["manch", "acme"]);
+    expect((await baseDb.account.findUniqueOrThrow({ where: { id: manchCo.id } })).updatedAt.getTime()).toBe(manchCo.updatedAt.getTime());
   });
 
   it("with several clients in view, adding companies asks for one client first", async () => {

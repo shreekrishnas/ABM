@@ -21,7 +21,7 @@ describe("why similar", () => {
 
 describe("hand-off decisions and fact corrections", () => {
   it("sending a hand-off back returns the account to nurture with a re-check date", async () => {
-    const a = await db.account.create({ data: { name: `Back Co ${tag}`, nameKey: `back co ${tag}`, stage: "MQA" } });
+    const a = await db.account.create({ data: { sellerId: "manch", name: `Back Co ${tag}`, nameKey: `back co ${tag}`, stage: "MQA" } });
     const h = await db.handoff.create({ data: { accountId: a.id, trigger: "manual", briefing: { whyNow: "x", facts: [], unknowns: [], engaged: [] } } });
     await decideHandoff(h.id, { decision: "sent_back", reason: "Not ready yet", by: "rep@x.com", recheckDays: 30 });
     const after = await db.handoff.findUniqueOrThrow({ where: { id: h.id } });
@@ -33,7 +33,7 @@ describe("hand-off decisions and fact corrections", () => {
   });
 
   it("correcting a fact keeps a verified replacement and retires the old one", async () => {
-    const a = await db.account.create({ data: { name: `Fact Co ${tag}`, nameKey: `fact co ${tag}` } });
+    const a = await db.account.create({ data: { sellerId: "manch", name: `Fact Co ${tag}`, nameKey: `fact co ${tag}` } });
     const e = await db.evidence.create({ data: { accountId: a.id, key: "trigger", claim: "Opened 3 plants", sourceUrl: "https://news.example/a", sourceType: "news", publishedAt: new Date() } });
     await db.twinVersion.create({ data: { accountId: a.id, version: 1, snapshot: { facts: [{ id: e.id, key: "trigger", claim: e.claim, status: "probable", sourceUrl: e.sourceUrl, sourceType: "news", publishedAt: new Date().toISOString() }], inferences: [], contradictions: [], negatives: [], changed: [], unknowns: [], noNegativeNews: true } } });
     await correctFact(e.id, { claim: "Opened 2 plants in Pune", sourceUrl: null, by: "rep@x.com" });

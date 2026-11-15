@@ -6,6 +6,7 @@
 
 import { baseDb } from "@/lib/db-base";
 import { normalizeDomain } from "@/lib/pipeline/normalize";
+import { runSellerId } from "@/lib/seller";
 import type { DataProvider, PersonQuery } from "@/lib/adapters/types";
 
 export class ApprovalRequired extends Error {
@@ -15,15 +16,19 @@ export class ApprovalRequired extends Error {
   }
 }
 
-/** True when a person approved the company with this website. */
-export async function contactLookupAllowed(domain: string | null | undefined): Promise<boolean> {
+/**
+ * True when a person approved the company with this website, for the client doing the lookup
+ * (the run's client): another client's approval of the same company doesn't count. Outside a
+ * run, every client's record of that website must be approved.
+ */
+export async function contactLookupAllowed(domain: string | null | undefined, sellerId: string | null = runSellerId()): Promise<boolean> {
   const d = normalizeDomain(domain);
   if (!d) return false;
-  const account = await baseDb.account.findFirst({ where: { domain: d, mergedIntoId: null }, select: { id: true } });
-  if (!account) return false;
+  const accounts = await baseDb.account.findMany({ where: { domain: d, mergedIntoId: null, ...(sellerId ? { sellerId } : {}) }, select: { id: true } });
+  if (!accounts.length) return false;
   // Created from a suggestion: only once that suggestion was approved.
-  const fromSuggestion = await baseDb.prospectSuggestion.findFirst({ where: { accountId: account.id }, select: { status: true } });
-  return !fromSuggestion || fromSuggestion.status === "added";
+  const pending = await baseDb.prospectSuggestion.count({ where: { accountId: { in: accounts.map((a) => a.id) }, status: { not: "added" } } });
+  return pending === 0;
 }
 
 /** Wrap a contact provider so every call checks approval first. */
