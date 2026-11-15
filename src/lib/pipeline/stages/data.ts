@@ -18,7 +18,7 @@ import {
   phoneCountry,
   standardizeTitle,
 } from "../normalize";
-import { exclusionGate, fitFloorGate, mustHaveGate, emailDomainStatus, isStale, phoneCountryStatus } from "../gates";
+import { exclusionGate, fitFloorGate, mustHaveGate, emailDomainStatus, isStale, phoneCountryStatus, titlesAgree, emailOnCompanyDomain } from "../gates";
 import { dataConfidence, identityConfidence, researchPriority, scoreFit, tierFor } from "../scoring";
 import { addToWatchlist, charge, logEvent, openReview, StopRun, type RunContext } from "../context";
 import { proposeRejection } from "../rejection";
@@ -275,7 +275,7 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     let title = c.titleNormalized;
     if (p) {
       companyStatus = p.companyDomain === account.domain ? "verified" : "conflicting";
-      if (p.title && title) titleStatus = p.title.toLowerCase() === title.toLowerCase() ? "verified" : "conflicting";
+      if (p.title && title) titleStatus = titlesAgree(p.title, title) ? "verified" : "conflicting";
       else if (p.title && !title) {
         title = standardizeTitle(p.title);
         titleStatus = "probable";
@@ -294,8 +294,8 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
       if (r) {
         if (companyStatus === "conflicting") companyStatus = r.companyDomain === account.domain ? "probable" : "conflicting";
         if (titleStatus === "conflicting" && r.title && title) {
-          if (r.title.toLowerCase() === title.toLowerCase()) titleStatus = "probable";
-          else if (p?.title && r.title.toLowerCase() === p.title.toLowerCase()) {
+          if (titlesAgree(r.title, title)) titleStatus = "probable";
+          else if (p?.title && titlesAgree(r.title, p.title)) {
             title = standardizeTitle(p.title);
             titleStatus = "probable";
           }
@@ -304,6 +304,14 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
       const resolved = companyStatus !== "conflicting" && titleStatus !== "conflicting";
       await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "identity.focused_recheck", outcome: resolved ? "pass" : "block", reason: resolved ? "Resolved by second source" : "Still conflicting after re-check" });
       await setContactField(c.id, "title", { status: titleStatus, recheckUsed: true });
+    }
+
+    // No provider record: an address on the company's own domain shows where they work, and the
+    // title then comes from your own list (stated, not confirmed elsewhere).
+    if (companyStatus === "unknown" && emailOnCompanyDomain(c.email, account.domain)) {
+      companyStatus = "probable";
+      if (titleStatus === "unknown" && title) titleStatus = "probable";
+      await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "identity.email_domain_employer", outcome: "pass", reason: `Works at ${account.domain}: email is on the company's domain${title ? "; title from your list" : ""}` });
     }
 
     statuses.company = companyStatus;
@@ -315,6 +323,8 @@ export async function s04Identity(account: Account, ctx: RunContext): Promise<Ac
     else {
       const ed = emailDomainStatus(c.email, account.domain);
       statuses.email = ed.status;
+      // The provider confirmed this exact mailbox.
+      if (ed.status === "probable" && p?.email && c.email && p.email.toLowerCase() === c.email.toLowerCase() && p.emailStatus === "verified") statuses.email = "verified";
       await logEvent(ctx, { accountId: account.id, contactId: c.id, stage: S, step: "identity.email_domain_match", outcome: "pass", reason: ed.reason });
     }
 

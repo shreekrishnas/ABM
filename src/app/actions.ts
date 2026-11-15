@@ -188,10 +188,35 @@ export async function resolveIdentityAction(reviewId: string, decision: "confirm
   }
   await db.reviewItem.update({ where: { id: reviewId }, data: { status: "resolved", resolution: decision === "confirm" ? "Identity confirmed by reviewer" : "Contact dropped", resolvedAt: new Date() } });
   if (r.accountId && decision === "confirm") {
-    await db.account.update({ where: { id: r.accountId }, data: { pipelineStatus: "idle" } });
+    // The company carries on from the people step with this person (roles, email check, readiness, drafting).
+    await db.account.updateMany({ where: { id: r.accountId, pipelineStatus: { notIn: ["running", "queued"] } }, data: { pipelineStatus: "queued", queuedFromStage: 8, nextRetryAt: null } });
+    await db.contact.update({ where: { id: r.contactId }, data: { readiness: null, readinessReasons: [] } });
   }
   refresh("/review", r.accountId ? `/accounts/${r.accountId}` : "/accounts");
-  return { ok: true, message: decision === "confirm" ? "Confirmed — re-run the account from buying group to use this person" : "Contact dropped" };
+  return { ok: true, message: decision === "confirm" ? "Confirmed: the company continues from the people step with this person" : "Contact dropped" };
+}
+
+/**
+ * Re-check everyone waiting on "Is this the right person?" for the clients in view, with today's
+ * rules and only saved data (no lookups, no AI). Confirmed people leave the queue; the rest stay.
+ */
+export async function recheckWaitingPeopleAction(): Promise<ActionState> {
+  await logAction("person.identity_recheck", {});
+  const { resolveScope } = await import("@/lib/scope");
+  const { recheckWaitingPeople } = await import("@/lib/admin/cleanup");
+  const scope = await resolveScope();
+  const clients = scope?.ids ?? [undefined];
+  if (!clients.length) return { ok: false, message: "Pick a client at the top of the menu first" };
+  let confirmed = 0, still = 0, companies = 0;
+  for (const id of clients) {
+    const r = await recheckWaitingPeople(id);
+    confirmed += r.confirmed.length;
+    still += r.stillWaiting.length;
+    companies += r.companies;
+  }
+  refresh("/review", "/accounts");
+  if (!confirmed) return { ok: true, message: still ? `Checked: all ${still} still need a person (title really differs, or no email yet)` : "Nobody is waiting on this" };
+  return { ok: true, message: `${confirmed} confirmed and moved on${companies ? ` (${companies} compan${companies === 1 ? "y" : "ies"} continue from the people step)` : ""}${still ? ` · ${still} still need you` : ""}` };
 }
 
 // ── Signals & replies ──

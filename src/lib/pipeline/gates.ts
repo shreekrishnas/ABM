@@ -91,6 +91,49 @@ export function emailDomainStatus(email: string | null, companyDomain: string | 
   return { status: "probable", reason: `Email on another domain (${d}): fine to use` };
 }
 
+// ── Job titles that say the same thing ──
+
+const TITLE_WORDS: Record<string, string> = {
+  avp: "associate vice president", svp: "senior vice president", evp: "executive vice president", vp: "vice president",
+  ceo: "chief executive officer", cfo: "chief financial officer", cio: "chief information officer", cto: "chief technology officer",
+  coo: "chief operating officer", cmo: "chief marketing officer", cdo: "chief digital officer", cso: "chief strategy officer",
+  chro: "chief human resources officer", cpo: "chief procurement officer", ciso: "chief information security officer",
+  md: "managing director", gm: "general manager", agm: "assistant general manager", dgm: "deputy general manager",
+  sr: "senior", jr: "junior", dy: "deputy", asst: "assistant", assoc: "associate", mgr: "manager", dir: "director",
+  hr: "human resources", it: "it", ops: "operations", fin: "finance", tech: "technology",
+};
+// Word forms that mean the same role: "Operations" / "Operating", "Technical" / "Technology".
+const TITLE_STEMS: [RegExp, string][] = [[/^operat\w*/, "operat"], [/^technolog\w*|^technical$/, "technolog"], [/^financ\w*/, "financ"], [/^informat\w*/, "informat"], [/^digit\w*/, "digit"], [/^market\w*/, "market"], [/^procure\w*/, "procure"], [/^strateg\w*/, "strateg"]];
+const TITLE_FILLER = new Set(["of", "and", "the", "for", "in", "at", "group", "global", "head"]);
+
+function titleWords(t: string): string[] {
+  const raw = t.toLowerCase().replace(/c\.\s*f\.\s*o\.?/g, "cfo").replace(/[\u2010-\u2015]/g, "-").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  return raw.flatMap((w) => (TITLE_WORDS[w] ?? w).split(" ")).map((w) => TITLE_STEMS.find(([re]) => re.test(w))?.[1] ?? w).filter((w) => !TITLE_FILLER.has(w));
+}
+
+/**
+ * Two titles for the same person agree when they say the same thing: spelling, dashes,
+ * abbreviations ("AVP" = "Associate Vice President") and word forms ("Operations" / "Operating")
+ * aside, or when one is the other with more detail ("AVP IT" and "Associate Vice President - IT - Sales").
+ */
+export function titlesAgree(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const A = titleWords(a), B = titleWords(b);
+  if (!A.length || !B.length) return false;
+  if (A.join(" ") === B.join(" ")) return true;
+  const [short, long] = A.length <= B.length ? [A, new Set(B)] : [B, new Set(A)];
+  // Every word of the shorter title is in the longer one, and the shorter one names a real role (2+ words).
+  return short.length >= 2 && short.every((w) => long.has(w));
+}
+
+/** The address is on the company's own domain (or one of its sub-domains): evidence of where the person works. */
+export function emailOnCompanyDomain(email: string | null | undefined, companyDomain: string | null | undefined): boolean {
+  const d = email ? emailDomain(email) : null;
+  const c = companyDomain?.toLowerCase().replace(/^www\./, "");
+  if (!d || !c) return false;
+  return d === c || d.endsWith(`.${c}`);
+}
+
 export function phoneCountryStatus(phoneCountry: string | null, companyCountry: string | null): FieldStatus {
   if (!phoneCountry || !companyCountry) return "unknown";
   return phoneCountry === companyCountry ? "probable" : "conflicting";

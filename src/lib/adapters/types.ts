@@ -11,6 +11,8 @@ export interface ProviderPerson {
   title: string | null;
   companyDomain: string | null;
   email: string | null;
+  /** The provider's own check of the address: "verified" means it confirmed the mailbox. */
+  emailStatus?: string | null;
   linkedinUrl: string | null;
   observedAt: Date;
   source: string;

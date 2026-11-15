@@ -62,7 +62,7 @@ function toPerson(p: ApolloPerson, fallbackDomain: string | null): ProviderPerso
   if (!fullName) return null;
   // Apollo marks guessed addresses; only keep ones it has verified or found.
   const email = p.email && !/^email_not_unlocked/.test(p.email) && p.email_status !== "unavailable" ? p.email.toLowerCase() : null;
-  return { fullName, title: p.title ?? null, companyDomain: domainOf(p, fallbackDomain), email, linkedinUrl: p.linkedin_url ?? null, observedAt: new Date(), source: "apollo" };
+  return { fullName, title: p.title ?? null, companyDomain: domainOf(p, fallbackDomain), email, emailStatus: email ? (p.email_status ?? null) : null, linkedinUrl: p.linkedin_url ?? null, observedAt: new Date(), source: "apollo" };
 }
 
 export class ApolloProvider implements DataProvider {

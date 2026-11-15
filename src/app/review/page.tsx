@@ -5,11 +5,11 @@ import Link from "next/link";
 import type { ReviewType } from "@prisma/client";
 import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
 import { db } from "@/lib/db";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { ago, date } from "@/components/ui";
 import { Badge as Kb, ConfidenceTag, EmptyState, FormField, PageHeader } from "@/components/kit";
 import { KpiRow, KpiTile } from "@/components/viz/cards";
-import { approveRejectionAction, keepCompanyAction, moreResearchAction, resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
+import { approveRejectionAction, keepCompanyAction, moreResearchAction, recheckWaitingPeopleAction, resolveIdentityAction, resolveReviewAction, reviewDraftAction } from "../actions";
 import { DecideButton, KeyNav } from "./decide";
 import { BodyEditor } from "./body-editor";
 import { sellerFor } from "@/lib/seller";
@@ -71,7 +71,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
             <KpiTile tint={1} label="Rule out a company?" value={ruleOut} note="a rule or bad news says so" href="/review?type=proposed_rejection" />
             <KpiTile tint={2} label="Emails to approve" value={emails} note="drafts and replies to check" href="/review?type=draft_approval" />
             <KpiTile tint={3} label="Other" value={other} note="budget, data and hand-offs" href="/review" />
-          </KpiRow></div>
+          </KpiRow>
+          {n(["identity_conflict"]) > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <ActionButton action={recheckWaitingPeopleAction} className="btn btn-secondary btn-sm"><UserCheck size={14} /> Re-check waiting people</ActionButton>
+              <span className="muted text-xs">Free: uses what we already have. Same title written differently, or an email on the company&apos;s own domain, counts as confirmed. Real mismatches and missing emails stay here.</span>
+            </div>
+          )}</div>
         );
       })()}
 

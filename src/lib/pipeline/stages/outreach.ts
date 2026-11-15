@@ -107,8 +107,13 @@ export async function s10Readiness(account: Account, ctx: RunContext): Promise<R
       data: { readiness: decision.outcome, readinessReasons: decision.reasons, state: decision.outcome === "ready" ? "ready" : p.state === "ready" ? "selected" : p.state },
     });
     await logEvent(ctx, { accountId: account.id, contactId: p.id, stage: S, step: "readiness.decide", outcome: decision.outcome === "ready" ? "pass" : "block", reason: `${p.fullName}: ${decision.outcome} — ${decision.reasons.join("; ")}` });
+    const identityIssue = decision.outcome === "human_review" && decision.reasons.some((r) => /^(Email|Title|Company) |lawful/.test(r));
+    if (!identityIssue) {
+      // Who they are is settled; whatever still holds them (research, role) is shown elsewhere.
+      await db.reviewItem.updateMany({ where: { contactId: p.id, status: "open", type: { in: ["identity_conflict", "lawful_basis_missing"] } }, data: { status: "resolved", resolution: `Auto-resolved: identity confirmed${decision.outcome === "ready" ? "" : ` (now: ${decision.reasons[0] ?? decision.outcome})`}`, resolvedAt: ctx.now } });
+    }
     if (decision.outcome === "human_review") {
-      await openReview({ type: decision.reasons.some((r) => r.includes("lawful")) ? "lawful_basis_missing" : "identity_conflict", stage: S, accountId: account.id, contactId: p.id, reason: `${p.fullName}: ${decision.reasons.join("; ")}` });
+      await openReview({ type: decision.reasons.every((r) => r.includes("lawful")) ? "lawful_basis_missing" : "identity_conflict", stage: S, accountId: account.id, contactId: p.id, reason: `${p.fullName}: ${decision.reasons.join("; ")}` });
     }
     if (decision.outcome === "ready") {
       ready++;
