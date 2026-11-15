@@ -238,13 +238,26 @@ async function AccountsTab({ clients, canAdd }: { clients: Clients; canAdd: bool
 }
 
 async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeof systemHealth>>; clients: Clients }) {
-  const [spend, month, aiPaused, runs, stopped] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause(), runHistory(30), stoppedGroups()]);
+  const [spend, month, aiPaused, runs, stopped, alerts] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause(), runHistory(30), stoppedGroups(), import("@/lib/admin/alerts").then((m) => m.systemAlerts())]);
   const q = health.queue;
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   const stoppedTotal = stopped.reduce((t, g) => t + g.count, 0);
   const dur = (a: Date, b: Date) => { const s = Math.max(0, Math.round((b.getTime() - a.getTime()) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
   return (
     <>
+      {alerts.length > 0 && (
+        <Card title="Needs attention" sub="Things that stop research, drafting or website visitors from working, and how to fix each.">
+          <ul className="grid gap-3">
+            {alerts.map((a) => (
+              <li key={a.key}>
+                <p className={a.tone === "bad" ? "tm-warn font-semibold" : "font-semibold"}>{a.title}</p>
+                <p className="secondary text-sm">{a.detail}</p>
+                <p className="text-sm"><b>Fix:</b> {a.fix}</p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <Card title="AI spending" sub="Pausing stops all OpenRouter use: no company research runs (they stay queued), scheduled AI jobs are skipped, and AI buttons say it is paused. Searches that need the AI stop with it.">
         {aiPaused
           ? <p className="tm-warn">Paused by an admin {ago(aiPaused.since)}. {q.queued} companies are waiting.</p>

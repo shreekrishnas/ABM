@@ -46,7 +46,7 @@ export const companyKey = (name: string, domain: string | null) => (domain ? `d:
 /** Every company seen on the website in the range, newest visit first. Customers stay in the list. */
 export async function listVisitorCompanies(from: Date, to: Date): Promise<VisitorCompany[]> {
   const visits = await db.webVisit.findMany({
-    where: { occurredAt: { gte: from, lte: to }, NOT: { title: UNKNOWN_DATE_TITLE }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
+    where: { occurredAt: { gte: from, lte: to }, AND: [{ OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }], OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
     orderBy: { occurredAt: "desc" },
     take: 5000,
   });
@@ -87,7 +87,7 @@ export function parseRange(fromRaw: string | undefined, toRaw: string | undefine
 export async function visitorFreshness(): Promise<{ lastFetch: Date | null; lastFetchNote: string | null; newestVisit: Date | null; undated: string[] }> {
   const [ev, newest, undated] = await Promise.all([
     db.pipelineEvent.findFirst({ where: { step: "apollo.visitors" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reason: true } }),
-    db.webVisit.findFirst({ where: { source: "apollo", NOT: { title: UNKNOWN_DATE_TITLE } }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }),
+    db.webVisit.findFirst({ where: { source: "apollo", OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }),
     db.webVisit.findMany({ where: { source: "apollo", title: UNKNOWN_DATE_TITLE }, select: { companyName: true, companyDomain: true }, take: 100 }),
   ]);
   return {

@@ -26,3 +26,9 @@ describe("visit dates", () => {
     expect(f.undated).toEqual(["Undated Co"]);
   });
 });
+
+it("visits without any title (e.g. from the tracking script) still count in date ranges", async () => {
+  await baseDb.webVisit.create({ data: { companyName: "Untitled Co", url: "https://site.example/pricing", path: "/pricing", topic: "pricing", source: "tracking_script", occurredAt: new Date("2026-10-20T10:00:00Z") } });
+  const oct = await listVisitorCompanies(new Date("2026-10-01"), new Date("2026-10-31"));
+  expect(oct.map((c) => c.name)).toContain("Untitled Co");
+});

@@ -49,6 +49,8 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
     for (const [id, m] of month) if (m.state !== "ok") out.push({ id: `s-${id}-${m.state}`, kind: "spend", tone: m.state === "over" ? "bad" : "warn", title: `${clients.find((c) => c.id === id)?.name ?? id}: ${m.state === "over" ? "monthly cap reached" : `${Math.round((m.share ?? 0) * 100)}% of monthly cap`}`, detail: `$${m.spent.toFixed(2)} of $${(m.cap ?? 0).toFixed(2)}`, href: "/team?tab=system", at: now.toISOString() });
   }
   if (me?.fullSuperAdmin) {
+    const { systemAlerts } = await import("@/lib/admin/alerts");
+    for (const a of await systemAlerts(now)) out.push({ id: `al-${a.key}-${a.at.getTime()}`, kind: "system", tone: a.tone, title: a.title, detail: `${a.detail} ${a.fix}`, href: a.href, at: a.at.toISOString() });
     const { SENSITIVE, ACTION_WORD } = await import("@/lib/admin/audit");
     const changes = await db.auditEntry.findMany({ where: { action: { in: [...SENSITIVE] }, actorEmail: { not: me.email }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 5 });
     for (const c of changes) out.push({ id: `x-${c.id}`, kind: "security", tone: "warn", title: `${c.actorEmail} ${ACTION_WORD[c.action] ?? c.action}`, detail: c.target ?? "Sensitive change", href: "/team?tab=security", at: c.createdAt.toISOString() });
