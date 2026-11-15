@@ -17,6 +17,7 @@ export function WhyThisEmail({ brief }: { brief: DraftBrief | null | undefined }
           </span>
           {brief.whyNow.quote && <q className="wte-q">{brief.whyNow.quote}</q>}
         </dd></div>
+        {brief.focus && <div><dt>Their signals point at</dt><dd>{brief.focus.useCase}{brief.focus.why.map((w) => <span key={w} className="wte-sub">{w}</span>)}</dd></div>}
         <div><dt>Why us</dt><dd>{brief.whyUs.useCase ?? "—"}{brief.whyUs.pain ? <span className="wte-sub">Likely pain (asked, not stated): {brief.whyUs.pain}</span> : null}{brief.whyUs.proofPoint ? <span className="wte-sub">Proof point: {brief.whyUs.proofPoint}</span> : null}</dd></div>
         <div><dt>The ask</dt><dd>{brief.ask}</dd></div>
       </dl>

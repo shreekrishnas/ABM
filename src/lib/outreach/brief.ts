@@ -25,6 +25,8 @@ export interface DraftBrief {
   /** At most two more facts the email may use. */
   support: { factId: string; claim: string }[];
   whyUs: { useCase: string | null; pain: string | null; capability: string | null; proofPoint: string | null; pitch: string };
+  /** What the company's signals converge on (several pieces of evidence point at one use case). */
+  focus?: { useCase: string; why: string[] } | null;
   ask: string;
   never: string[];
 }
@@ -51,6 +53,7 @@ export function buildDraftBrief(i: {
   angle: { pain: string; capability: string } | null;
   proofPoint: string | null;
   pitch: string;
+  focus?: { useCase: string; why: string[] } | null;
 }): DraftBrief | null {
   const lead = pickLeadTrigger(i.facts);
   if (!lead) return null;
@@ -75,6 +78,7 @@ export function buildDraftBrief(i: {
       proofPoint: i.proofPoint,
       pitch: i.pitch,
     },
+    focus: i.focus ?? null,
     ask: i.writing?.play.cta || i.sp.messaging.cta || "One soft question about whether this is a priority",
     never: [
       ...i.sp.bannedClaims,

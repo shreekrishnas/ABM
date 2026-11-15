@@ -1,6 +1,7 @@
 // Stages 10–11: Readiness Gate, Draft & Review.
 
-import { buildDraftBrief, fixInstruction, isSellerSentence } from "@/lib/outreach/brief";
+import { signalFocus } from "@/lib/outreach/focus";
+import { buildDraftBrief, fixInstruction, isSellerSentence, pickLeadTrigger } from "@/lib/outreach/brief";
 import { isPaused, planBuyingGroup, resumeCompany } from "../coordination";
 import { visitSummary } from "@/lib/web/visits";
 import type { Account, Contact, Prisma } from "@prisma/client";
@@ -171,9 +172,10 @@ export async function usableFacts(accountId: string, now: Date) {
 export async function draftForContact(account: Account, contact: Contact, stepOrder: number, instruction: string, ctx: RunContext) {
   const S = 11;
   const existing = await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: { notIn: ["rejected", "needs_refresh"] } } });
-  if (existing) return existing;
+  // Approved, sent or blocked drafts stand. One still waiting for approval is rewritten below if the research has moved on.
+  if (existing && existing.status !== "pending_review") return existing;
   // A draft held by the freshness gate is replaced, never edited: the new one links back to it.
-  const replaces = await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: "needs_refresh" }, orderBy: { createdAt: "desc" }, select: { id: true } });
+  let replaces = existing ? null : await db.draft.findFirst({ where: { contactId: contact.id, stepOrder, status: "needs_refresh" }, orderBy: { createdAt: "desc" }, select: { id: true } });
 
   // The brain's angle for this person: their role's pain point, rotated so colleagues
   // at the same company get different emails.
@@ -197,24 +199,55 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   }
   await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.choose_evidence", outcome: "pass", reason: `Lead: ${facts[0].claim}${angle ? ` · angle: ${angle.useCase.replace(/_/g, " ")} for ${angle.persona}` : ""}` });
 
-  // Seller messaging: the brain's use case for this person, else the trigger/industry match.
+  // Seller messaging: what the company's signals converge on, else the brain's use case for this
+  // person, else the trigger/industry match.
   const sp = seller();
   const trigger = classifyTrigger(facts.find((f) => isTriggerKey(f.key))!.claim, sp);
-  const useCase = angle?.useCase ?? pickUseCase(account.industry, trigger?.key ?? null, sp) ?? account.useCase;
+  // This person's converging signals (their own LinkedIn conversation and engagement + the company's).
+  const intent = await readIntent(account.id, ctx.now, contact.id);
+  const ownVisits = await visitSummary({ contactId: contact.id }, ctx.now);
+  const visits = ownVisits.interest ? ownVisits : await visitSummary({ accountId: account.id }, ctx.now);
+  const focus = signalFocus([
+    ...facts.filter((f) => isTriggerKey(f.key) || /hiring|job|careers/i.test(f.key)).slice(0, 6).map((f) => ({ source: "fact" as const, text: f.claim })),
+    ...intent.signals.filter((s) => s.strength > 0 && s.family !== "team_context").slice(0, 6).map((s) => ({ source: "signal" as const, text: s.label })),
+    ...visits.topics.filter((t) => t.key !== "general" && t.key !== "pricing" && t.key !== "demo").slice(0, 3).map((t) => ({ source: "website" as const, text: `${t.label} ${t.key.replace(/_/g, " ")}` })),
+  ], sp);
+  const baseUseCase = angle?.useCase ?? pickUseCase(account.industry, trigger?.key ?? null, sp) ?? account.useCase;
+  const useCase = focus?.strong ? focus.useCase : baseUseCase;
+  const focusUc = focus?.strong ? sp.useCases.find((u) => u.key === focus.useCase) : undefined;
+  if (focus) await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.focus", outcome: "info", reason: `Signals point at ${focus.name} (${focus.votes} piece${focus.votes === 1 ? "" : "s"}: ${focus.sources.join(", ")})${focus.strong ? (focus.useCase !== baseUseCase ? ` · pitching it instead of ${baseUseCase?.replace(/_/g, " ") ?? "the default"}` : " · pitching it") : " · too little to change the pitch"}` });
   const proof = sp.proofPoints.find((p) => useCase && p.text.toLowerCase().includes(useCase.split("_")[0])) ?? sp.proofPoints[0];
+
+  // A draft waiting for approval keeps up with the research: when the strongest trigger or what the
+  // signals point at has changed since it was written, it is replaced by a fresh one (never edited).
+  if (existing) {
+    const was = existing.brief as { whyNow?: { factId?: string }; focus?: { useCase?: string } | null } | null;
+    const lead = pickLeadTrigger(facts);
+    const leadMoved = Boolean(lead && was?.whyNow?.factId && was.whyNow.factId !== lead.id);
+    const focusMoved = (was?.focus?.useCase ?? null) !== (focus?.strong ? focus.name : null) && Boolean(focus?.strong);
+    // Drafts written before the brief existed are rewritten under today's rules.
+    const oldStyle = !was?.whyNow;
+    if (!leadMoved && !focusMoved && !oldStyle) return existing;
+    const why = leadMoved ? `newer research: ${lead!.claim.slice(0, 120)}` : focusMoved ? `signals now point at ${focus!.name}` : "written before the current drafting rules";
+    await db.draft.update({ where: { id: existing.id }, data: { status: "needs_refresh", reviewerNote: `Replaced before approval: ${why}` } });
+    await db.reviewItem.updateMany({ where: { draftId: existing.id, status: "open" }, data: { status: "resolved", resolution: "Replaced by a fresh draft (the research changed)", resolvedAt: ctx.now } });
+    await logEvent(ctx, { accountId: account.id, contactId: contact.id, stage: S, step: "draft_review.refresh", outcome: "info", reason: `Pending draft replaced: ${why}` });
+    replaces = { id: existing.id };
+  }
   const input: DraftInput = {
     firstName: contact.firstName, title: contact.titleNormalized, company: account.name, stepOrder, instruction,
     facts: facts.map((f) => ({ id: f.id, key: f.key, claim: f.claim })), sender: sp.sender,
     seller: { name: sp.name, pitch: (useCase && sp.messaging.byUseCase[useCase]) || sp.messaging.default, cta: sp.messaging.cta, useCase },
-    angle: angle ? { pain: angle.pain, capability: angle.capability, persona: contact.titleNormalized ?? angle.persona, whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null } : null,
+    angle: focusUc && angle?.useCase !== focusUc.key
+      // The signals point elsewhere than the brain's angle: build the email around what they point at.
+      ? { pain: focusUc.pains, capability: focusUc.outcome, persona: contact.titleNormalized ?? angle?.persona ?? "this role", whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null }
+      : angle ? { pain: angle.pain, capability: angle.capability, persona: contact.titleNormalized ?? angle.persona, whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null } : null,
     learnings: await latestLearnings(),
   };
   const sc = sellerContext();
-  // This person's converging signals (their own LinkedIn conversation and engagement + the company's) decide the opening.
-  const intent = await readIntent(account.id, ctx.now, contact.id);
   // Website visits pick the angle but are never quoted to the prospect: keep them out of the opening signals.
   input.signals = intent.signals.filter((s) => s.strength > 0 && s.family !== "team_context" && !/site visit|pricing visit/.test(s.label)).slice(0, 3).map((s) => s.label);
-  input.interest = (await visitSummary({ contactId: contact.id }, ctx.now)).interest ?? (await visitSummary({ accountId: account.id }, ctx.now)).interest;
+  input.interest = visits.interest;
   if (input.angle && intent.whyNow && intent.level !== "cold") input.angle.whyNow = intent.whyNow;
   input.tone = sp.tone;
   input.bannedClaims = sp.bannedClaims;
@@ -236,8 +269,9 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
   // The brief: why this person, why now (the strongest fresh trigger), why us, and one ask.
   const msgBrief = buildDraftBrief({
     contact: { firstName: contact.firstName, title: contact.titleNormalized ?? contact.title, buyingRole: contact.buyingRole },
-    facts, sp, writing, useCase: useCase ?? null, angle: angle ? { pain: angle.pain, capability: angle.capability } : null,
+    facts, sp, writing, useCase: useCase ?? null, angle: input.angle ? { pain: input.angle.pain, capability: input.angle.capability } : null,
     proofPoint: proof?.text ?? null, pitch: input.seller.pitch,
+    focus: focus?.strong ? { useCase: focus.name, why: focus.why } : null,
   });
   if (msgBrief) {
     input.brief = msgBrief;

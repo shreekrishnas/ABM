@@ -611,6 +611,8 @@ const GENERIC_PHRASES = [
   /hope (this|you)[^.\n]{0,30}well/i, /\btouch(ing)? base\b/i, /\bjust (checking|following) (in|up)\b/i, /\bin today'?s (fast[- ]paced|competitive|digital|ever[- ]changing)/i,
   /\bi came across your (profile|company|website)\b/i, /\bsynerg/i, /\bstreamline your (operations|processes|business)\b/i, /\bunlock (the )?(full )?potential\b/i,
   /\bgame[- ]chang/i, /\bcutting[- ]edge\b/i, /\bwould love to (connect|chat|pick your brain)\b/i, /\b(take|taking) (your|the) business to the next level\b/i, /\bi wanted to reach out\b/i,
+  // Template tells: they read as automated however true the facts are.
+  /\bit looks like your\b/i, /\bsomething your team is dealing with\b/i, /^\s*i (saw|noticed) that\b/im,
 ];
 
 const STOP = new Set(["about", "their", "there", "which", "would", "could", "company", "announced", "recently", "across", "with", "from", "that", "this", "have", "will", "into", "more", "than", "they", "were", "been"]);

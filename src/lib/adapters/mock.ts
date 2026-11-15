@@ -618,7 +618,6 @@ class MockLLM implements LLM {
 
   async draft(input: DraftInput, attempt: number) {
     const lead = input.facts.find((f) => isTriggerKey(f.key)) ?? input.facts[0];
-    const support = input.facts.find((f) => f.key === "owner_function" && f.id !== lead?.id);
     const hi = input.firstName ? `Hi ${input.firstName},` : "Hi,";
     const claims: { text: string; factIds: string[] }[] = [];
 
@@ -638,38 +637,38 @@ class MockLLM implements LLM {
       return { subject: "", body, angle: lead?.key ?? null, claims };
     }
 
+    // Same shape as the real writer: their news first, one pain for this role as a question,
+    // what we do for it with one proof, then the ask. Never a list of pains.
     const lines: string[] = [hi, ""];
+    const rest = lead ? lead.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "").replace(/\.$/, "") : "";
     if (lead) {
-      const text = `I saw that ${input.company} ${lead.claim.replace(new RegExp(`^${input.company}\\s+`, "i"), "")}.`;
+      const text = `${input.company} ${rest}.`;
       lines.push(text);
       // First attempt sometimes forgets to cite, exercising the regenerate path.
       claims.push({ text, factIds: attempt === 1 && input.stepOrder === 99 ? [] : [lead.id] });
     }
-    if (support) {
-      const text = `It looks like your ${support.claim.match(/The (\w+) team/)?.[1] ?? "operations"} team is hiring for partner and vendor onboarding at the same time.`;
-      lines.push(text);
-      claims.push({ text, factIds: [support.id] });
-    }
-    // The brain's angle for this person, asked as a question (a hypothesis, not a fact).
-    if (input.angle && input.stepOrder === 1) lines.push("", `Is ${input.angle.pain.split(" — ")[0].replace(/^./, (c) => c.toLowerCase())} something your team is dealing with?`);
-    // Approved seller collateral (about the seller, not the prospect).
-    let pitch = input.seller.pitch;
-    const tail = () => (input.stepOrder === 1 ? `${pitch}\n\n${input.seller.cta}` : `Following up on my last note — ${input.instruction.toLowerCase()}. ${pitch}`);
-    // Respect the play's length: drop the supporting line, then shorten the pitch to its first sentence.
+    const pain = (input.brief?.whyUs.pain ?? input.angle?.pain ?? "").split(/;|—| - /)[0].trim().replace(/^./, (c) => c.toLowerCase());
+    const role = input.title ? `a ${input.title}` : "a team in that position";
+    // One pain for this role, said plainly (the ask is the only question).
+    const painLine = pain && input.stepOrder === 1 ? `For ${role}, that usually means ${pain}.` : null;
+    if (painLine) lines.push("", painLine);
+    // Approved seller collateral (about the seller, not the prospect): the focus use case, with one proof.
+    const proofLine = input.brief?.whyUs.proofPoint ?? input.angle?.proofPoint ?? null;
+    let pitch = input.brief?.focus ? `${input.brief.whyUs.capability ?? input.seller.pitch}${proofLine ? `. ${proofLine}` : ""}` : input.seller.pitch;
+    const ask = (input.brief?.ask && (input.brief.ask.match(/\?/g) ?? []).length <= 1 ? input.brief.ask : null) ?? input.seller.cta;
+    const tail = () => (input.stepOrder === 1 ? `${pitch}\n\n${ask}` : `Following up on my last note: ${input.instruction.toLowerCase()}. ${pitch}`);
+    // Respect the play's length: drop the pain line, then shorten the pitch to its first sentence.
     const max = input.writing?.play.limits.maxWords;
     const count = () => [...lines, tail()].join(" ").split(/\s+/).filter(Boolean).length;
-    if (max && count() > max && support) {
-      const i = lines.findIndex((l) => l.startsWith("It looks like your"));
-      if (i >= 0) {
-        lines.splice(i, 1);
-        claims.splice(claims.findIndex((c) => c.factIds[0] === support.id), 1);
-      }
-    }
+    if (max && count() > max && painLine) lines.splice(lines.indexOf(painLine) - 1, 2);
     if (max && count() > max) pitch = pitch.split(/(?<=\.)\s/)[0];
     lines.push("", tail());
     lines.push("", `${input.sender.name}`, `${input.sender.company} · ${input.sender.address}`, "", "Reply \"unsubscribe\" and I won't email again.");
+    const maxSubject = input.writing?.play.limits.subjectMaxWords ?? 6;
+    const topicWords = rest.replace(/^(announced|announces|plans to|planned to|launched|launches|is|has|raised|raises|opened|opens|added|adds)\s+/i, "").replace(/^(its|a|an|the)\s+/i, "").split(/\s+/).filter(Boolean);
+    const topic = topicWords.slice(0, Math.max(2, Math.min(5, maxSubject))).join(" ");
     return {
-      subject: input.stepOrder === 1 ? `${input.company} + ${input.seller.name}` : `Re: ${input.company} + ${input.seller.name}`,
+      subject: topic ? `${input.stepOrder === 1 ? "" : "Re: "}${topic.replace(/^./, (c) => c.toUpperCase())}` : `${input.stepOrder === 1 ? "" : "Re: "}${input.company}`,
       body: lines.join("\n"),
       angle: lead?.key ?? null,
       claims,

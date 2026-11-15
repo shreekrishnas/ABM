@@ -67,3 +67,30 @@ describe("drafting with a brief and a writer model", () => {
     expect(rewrite?.revise?.issues.join(" ")).toMatch(/cite one of these fact ids/);
   });
 });
+
+describe("drafts keep up with the research", () => {
+  it("a pending draft is replaced (never edited) when a newer, stronger trigger arrives; the old one is kept for the record", async () => {
+    withWriter();
+    const r = await ingestRows(company("refresh-co"), { source: "test" });
+    const id = r.accountIds[0];
+    await runAccount(id);
+    const first = await db.draft.findFirstOrThrow({ where: { contact: { accountId: id }, status: { not: "blocked" } } });
+    await db.draft.update({ where: { id: first.id }, data: { status: "pending_review" } });
+    // New research: a stronger, fresher trigger than the one the draft leads with.
+    await db.evidence.create({ data: { accountId: id, key: "trigger", claim: "refresh-co announced a programme to onboard 5,000 new distributors in 2026", sourceUrl: "https://news.example.com/refresh-co-distributors", sourceType: "official", publishedAt: new Date(), status: "verified", confidence: 99, quote: "refresh-co announced a programme to onboard 5,000 new distributors in 2026" } });
+    const { draftForContact } = await import("@/lib/pipeline/stages/outreach");
+    const { newContext } = await import("@/lib/pipeline/context");
+    const account = await db.account.findUniqueOrThrow({ where: { id } });
+    const contact = await db.contact.findUniqueOrThrow({ where: { id: first.contactId } });
+    const next = await draftForContact(account, contact, 1, "Lead", newContext());
+    expect(next?.id).not.toBe(first.id);
+    expect(next?.replacesId).toBe(first.id);
+    const old = await db.draft.findUniqueOrThrow({ where: { id: first.id } });
+    expect(old.status).toBe("needs_refresh");
+    expect(old.reviewerNote).toMatch(/newer research/);
+    expect((next?.brief as { whyNow: { claim: string } } | null)?.whyNow.claim).toMatch(/5,000 new distributors/);
+    // Nothing changed since: the same pending draft stands.
+    const again = await draftForContact(account, contact, 1, "Lead", newContext());
+    expect(again?.id).toBe(next?.id);
+  });
+});
