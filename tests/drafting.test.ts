@@ -94,3 +94,14 @@ describe("drafts keep up with the research", () => {
     expect(again?.id).toBe(next?.id);
   });
 });
+
+describe("the writer gets the team's lessons", () => {
+  it("lessons saved from earlier reviews reach the next draft", async () => {
+    const w = withWriter();
+    const r = await ingestRows(company("strong-lessons"), { source: "test" });
+    const acc = await db.account.findUniqueOrThrow({ where: { id: r.accountIds[0] } });
+    await db.knowledgeDoc.create({ data: { sellerId: acc.sellerId, key: "lesson:draft:x1", origin: "learned", kind: "norm", title: "Team edit", text: 'The team cut: "It looks like your team is busy."', approved: false, hash: "x1" } });
+    await runAccount(acc.id);
+    expect(w.inputs[0]?.teamLessons).toContain('The team cut: "It looks like your team is busy."');
+  });
+});

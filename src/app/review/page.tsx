@@ -51,6 +51,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const prev = idx > 0 ? href({ pick: items[idx - 1].id }) : undefined;
   const next = idx < items.length - 1 ? href({ pick: items[idx + 1].id }) : undefined;
   const draft = r?.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
+  // The version this draft replaced (the research changed before it was approved).
+  const earlier = draft?.replacesId ? await db.draft.findUnique({ where: { id: draft.replacesId }, select: { subject: true, body: true, reviewerNote: true, createdAt: true } }) : null;
   const reports = r?.type === "possible_blocker" || r?.type === "proposed_rejection" ? ((r.payload as { reports?: { kind: string; claim: string; quote: string | null; sourceUrl: string; publishedAt: string }[] } | null)?.reports ?? []) : [];
 
   return (
@@ -162,6 +164,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
               {r.type === "draft_approval" && draft && (
                 <>
                 <WhyThisEmail brief={draft.brief as unknown as DraftBrief | null} />
+                {earlier && (
+                  <details className="wte mb-3 text-sm">
+                    <summary className="cursor-pointer font-semibold">Earlier version ({ago(earlier.createdAt)}){earlier.reviewerNote ? ` · ${earlier.reviewerNote.replace(/^Replaced before approval: /, "replaced because of ")}` : ""}</summary>
+                    <p className="mt-2 font-semibold">{earlier.subject}</p>
+                    <pre className="secondary mt-1 whitespace-pre-wrap font-sans text-sm">{earlier.body.split(/\n\n[^\n]*\n[^\n]* · /)[0]}</pre>
+                  </details>
+                )}
                 <div className="dz-body dz-draft">
                   <ActionForm action={reviewDraftAction} className="dz-form" resetOnSuccess={false}>
                     <input type="hidden" name="draftId" value={draft.id} />

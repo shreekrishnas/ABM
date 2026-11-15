@@ -164,6 +164,19 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
     },
   });
   await db.reviewItem.updateMany({ where: { draftId: d.id, status: "open" }, data: { status: "resolved", resolution: p.data.decision === "approve" ? (edited ? "approved with edits" : "approved") : "rejected", resolvedAt: new Date() } });
+  // The writer learns from what the team changed or rejected (never blocks the review).
+  if (edited || p.data.decision === "reject" || p.data.note) {
+    try {
+      const { learnFromReview } = await import("@/lib/knowledge/rag/learn");
+      const c = await db.contact.findUnique({ where: { id: d.contactId }, select: { titleNormalized: true, title: true } });
+      await learnFromReview(
+        { id: d.id, sellerId: d.sellerId, stepOrder: d.stepOrder, useCase: d.useCase, knowledge: d.knowledge, contactTitle: c?.titleNormalized ?? c?.title ?? null },
+        { decision: p.data.decision, edited, note: p.data.note ?? null, before: { subject: d.subject, body: d.body }, after: { subject: p.data.subject, body: p.data.body } },
+      );
+    } catch (e) {
+      console.error("learnFromReview", e);
+    }
+  }
   refresh("/review", "/outreach");
   return { ok: true, message: p.data.decision === "approve" ? "Approved — it will send on the next run" : "Rejected — it will never be sent" };
 }

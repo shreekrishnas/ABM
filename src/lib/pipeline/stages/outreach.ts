@@ -244,6 +244,7 @@ export async function draftForContact(account: Account, contact: Contact, stepOr
       ? { pain: focusUc.pains, capability: focusUc.outcome, persona: contact.titleNormalized ?? angle?.persona ?? "this role", whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null }
       : angle ? { pain: angle.pain, capability: angle.capability, persona: contact.titleNormalized ?? angle.persona, whyNow: brief?.whyNow?.text ?? null, proofPoint: proof?.text ?? null } : null,
     learnings: await latestLearnings(),
+    teamLessons: await (await import("@/lib/knowledge/rag/learn")).teamLessons(sellerContext().pack.id).catch(() => []),
   };
   const sc = sellerContext();
   // Website visits pick the angle but are never quoted to the prospect: keep them out of the opening signals.

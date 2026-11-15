@@ -106,6 +106,8 @@ export interface Inference {
 }
 
 export interface DraftInput {
+  /** What the team changed or rejected in earlier drafts for this client: follow these. */
+  teamLessons?: string[];
   firstName: string | null;
   title: string | null;
   company: string;
