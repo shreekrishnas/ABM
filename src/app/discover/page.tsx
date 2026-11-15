@@ -1,3 +1,4 @@
+import { visitOnly } from "@/lib/discover/recommend";
 import Link from "next/link";
 import { ExternalLink, Globe, Plus, Radar, TrendingDown, TrendingUp, X } from "lucide-react";
 import { db } from "@/lib/db";
@@ -51,9 +52,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     industryTrends(),
     db.prospectSuggestion.groupBy({ by: ["status"], where: scope, _count: true }),
     db.prospectSuggestion.groupBy({ by: ["origin"], where: { sellerId: p.id, status: "new" }, _count: true }),
-    db.prospectSuggestion.findMany({ where: { ...scope, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 60 }),
+    db.prospectSuggestion.findMany({ where: { ...scope, status, ...(sp.industry ? { bucket: sp.industry } : {}) }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 200 }),
     db.pipelineEvent.findFirst({ where: { step: "discover.scan" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reason: true } }),
   ]);
+  // A website visit alone isn't enough to suggest a company: it needs a second source. Those wait under
+  // Website visitors (or here, when that source is picked on purpose).
+  const visitOnlyHidden = origin === "website_visitor" ? 0 : suggestions.filter((x) => visitOnly(x)).length;
+  const shown = (origin === "website_visitor" ? suggestions : suggestions.filter((x) => !visitOnly(x))).slice(0, 60);
   const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
   const rising = trends.filter((t) => t.momentum === "rising");
   const under = trends.filter((t) => t.underCovered);
@@ -126,7 +131,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       </Card>
 
       <section>
-        <SectionLabel count={suggestions.length}>{sp.industry ? `Companies · ${bucketLabel(sp.industry)}` : "Companies to look at"}</SectionLabel>
+        <SectionLabel count={shown.length}>{sp.industry ? `Companies · ${bucketLabel(sp.industry)}` : "Companies to look at"}</SectionLabel>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Link href={link({ origin: undefined, seed: undefined })} className={cx("chip", !origin && "chip-active")} style={!origin ? { ["--c" as string]: "var(--accent-section)" } : undefined}>All sources</Link>
           {ORIGINS.map((o) => (
@@ -145,7 +150,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           ))}
           {sp.industry && <Link href={link({ industry: undefined })} className="chip"><X size={12} /> {bucketLabel(sp.industry)}</Link>}
         </div>
-        {suggestions.length === 0 ? (
+        {visitOnlyHidden > 0 && (
+          <p className="muted mb-3 text-xs">{visitOnlyHidden} compan{visitOnlyHidden === 1 ? "y" : "ies"} only visited your website, with no other signal yet, so {visitOnlyHidden === 1 ? "it isn't" : "they aren't"} suggested here. {visitOnlyHidden === 1 ? "It appears" : "They appear"} once a second source agrees. <Link href="/import/apollo" style={{ color: "var(--accent-indigo)" }}>See website visitors</Link></p>
+        )}
+        {shown.length === 0 ? (
           <Card><Empty icon={<Globe size={22} />} title={status === "new" ? NO_PROSPECTS_MESSAGE : `Nothing here: ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "The next scan runs on its own. You can also scan now, find companies similar to one website on Import, or connect Apollo website visitors." : undefined} /></Card>
         ) : (
           <ActionForm action={approveSuggestionsAction}>
@@ -157,7 +165,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
           <div className="grid gap-4 md:grid-cols-2">
-            {suggestions.map((s) => {
+            {shown.map((s) => {
               const sources = (s.sources as Source[]) ?? [];
               const fit = sellerFit({ industry: s.industry, employees: s.employees, country: s.country }, p).fit;
               const fresh = sources.filter((x) => x.newSinceIgnored);

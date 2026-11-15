@@ -100,3 +100,24 @@ describe("the daily run", () => {
     expect(est.lines.length).toBeGreaterThan(0);
   });
 });
+
+describe("website visits alone don't make a recommendation", () => {
+  it("a company that only visited the site is left out; with a second source it is listed", async () => {
+    const { visitOnly } = await import("@/lib/discover/recommend");
+    const visitorOnly = await baseDb.prospectSuggestion.create({ data: { sellerId: "manch", origin: "website_visitor", name: "Visitor Only Co", nameKey: "visitor only co", bucket: "fmcg", score: 90, level: "hot", families: ["engagement"], whyNow: "Visited your website 3 times", sources: [] } });
+    const both = await baseDb.prospectSuggestion.create({ data: { sellerId: "manch", origin: "website_visitor", name: "Visitor Plus News Co", nameKey: "visitor plus news co", bucket: "fmcg", score: 70, level: "warm", families: ["engagement", "programme"], whyNow: "Visited your website and announced an SAP migration", sources: [{ url: "https://news.example.com/sap", quote: "announced an SAP migration", at: now.toISOString(), trigger: "market:erp_migration" }] } });
+    expect(visitOnly(visitorOnly)).toBe(true);
+    expect(visitOnly(both)).toBe(false);
+    const items = await buildDailyList("manch", dailySettings(), new Map(), now);
+    const names = items.map((i) => i.name);
+    expect(names).not.toContain("Visitor Only Co");
+    expect(names).toContain("Visitor Plus News Co");
+  });
+
+  it("market and lookalike suggestions are unaffected", async () => {
+    const { visitOnly } = await import("@/lib/discover/recommend");
+    const s = await suggestion("Market Co", 60);
+    expect(visitOnly(s)).toBe(false);
+  });
+});
+

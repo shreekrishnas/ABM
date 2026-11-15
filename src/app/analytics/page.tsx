@@ -13,6 +13,8 @@ import { Card, PageHeader, money } from "@/components/ui";
 export const metadata = { title: "Analytics" };
 
 import { LinkedInPerformance } from "./linkedin-card";
+import { WhatsWorking } from "./working";
+import { working } from "@/lib/insights/working";
 
 export default async function AnalyticsPage() {
   await ensureSellerPacks();
@@ -78,6 +80,7 @@ export default async function AnalyticsPage() {
   return (
     <div className="page-enter">
       <PageHeader eyebrow="Learning loop" title="Analytics" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
+      <WhatsWorking w={await working(now)} />
       <KpiRow>
         <KpiTile tint={0} label={metric("spend_total").label} period="All time" value={`$${totalSpend.toFixed(2)}`} pct={change(wkSpend(thisWeek), wkSpend(lastWeek))} goodWhenUp={false} note="this week vs last" />
         <KpiTile tint={1} label="AI (research and writing)" period="All time" value={`$${spend("llm").toFixed(2)}`} pct={change(wkSpend(thisWeek, "llm"), wkSpend(lastWeek, "llm"))} goodWhenUp={false} note={`${ledgerByKind.find((l) => l.kind === "llm")?._count ?? 0} calls`} />

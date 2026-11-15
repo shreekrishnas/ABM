@@ -80,6 +80,19 @@ async function typicalCost(sellerId: string): Promise<number> {
 }
 
 /** Build (or rebuild) today's list for the active client. `changes` are "what changed" lines from today's re-checks. */
+/**
+ * A suggestion whose only evidence is a website visit. Visits alone don't make a company a
+ * recommendation: it needs a second, independent source (news, a job opening, a market signal).
+ * Until then it stays under Website visitors for a person to pick by hand.
+ */
+export function visitOnly(s: { origin: string; families: string[]; sources: unknown }): boolean {
+  const src = (s.sources as { url?: string | null; kind?: string | null; trigger?: string | null }[] | null) ?? [];
+  const other =
+    s.families.some((f) => f !== "engagement") ||
+    src.some((x) => Boolean(x.trigger) || Boolean(x.kind && !/visit|website|engagement/i.test(x.kind)) || Boolean(x.url && !/apollo\.io/i.test(x.url)));
+  return !other && (s.origin === "website_visitor" || s.families.includes("engagement"));
+}
+
 export async function buildDailyList(sellerId: string, settings: Required<DailySettings>, changes: Map<string, string[]>, now = new Date()): Promise<RecItem[]> {
   const [pen, cost] = await Promise.all([rejectionPenalties(sellerId, now), typicalCost(sellerId)]);
   const items: RecItem[] = [];
@@ -87,9 +100,10 @@ export async function buildDailyList(sellerId: string, settings: Required<DailyS
   // 1. Companies we don't hold yet.
   const sugg = await db.prospectSuggestion.findMany({
     where: { sellerId, status: "new", OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }] },
-    orderBy: { score: "desc" }, take: 60,
+    orderBy: { score: "desc" }, take: 200,
   });
   for (const s of sugg) {
+    if (visitOnly(s)) continue;
     const src = (s.sources as { url?: string; quote?: string; at?: string; trigger?: string; reports?: number; claim?: string; title?: string; kind?: string }[] | null) ?? [];
     const newest = src.map((x) => (x.at ? new Date(x.at) : null)).filter((d): d is Date => Boolean(d)).sort((a, b) => b.getTime() - a.getTime())[0] ?? s.updatedAt;
     const fit = s.fitScore ?? null;

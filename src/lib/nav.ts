@@ -57,7 +57,7 @@ export const SECTIONS: NavSection[] = [
     key: "insights", label: "Insights", blurb: "How the program is doing", icon: BarChart3,
     items: [
       { href: "/overview", label: "Program overview", blurb: "Coverage, pipeline and results", icon: LayoutDashboard },
-      { href: "/analytics", label: "Analytics", blurb: "Trends and conversion", icon: BarChart3, extra: true },
+      { href: "/analytics", label: "What's working", blurb: "What the team approves, where companies stop, cost per email", icon: BarChart3 },
       { href: "/pipeline", label: "Behind the scenes", blurb: "What the brain did and why", icon: Workflow, extra: true },
     ],
   },
