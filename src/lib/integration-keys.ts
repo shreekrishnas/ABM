@@ -23,6 +23,7 @@ export const INTEGRATION_KEYS: IntegrationSpec[] = [
   { key: "apollo", name: "Apollo", fields: [
     { env: "APOLLO_API_KEY", label: "API key (master)", secret: true, required: true, help: "Apollo → Settings → Integrations → API" },
     { env: "APOLLO_VISITOR_LIST", label: "Website visitor list name", secret: false, placeholder: "Website visitors (optional)" },
+    { env: "APOLLO_VISITOR_SITE", label: "Website to count visits for", secret: false, placeholder: "yourcompany.com (optional: defaults to the client website)" },
   ] },
   { key: "email", name: "Email sending", fields: [
     { env: "SMTP_URL", label: "Mailbox address (SMTP URL)", secret: true, required: true, placeholder: "smtps://user:password@smtp.example.com:465" },

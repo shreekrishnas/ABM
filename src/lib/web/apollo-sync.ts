@@ -3,7 +3,8 @@
 // unknown ones appear in Discover under "On your website, not in your database".
 
 import { db } from "@/lib/db";
-import { apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
+import { apolloVisitDates, apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
+import { seller } from "@/lib/seller";
 import { logEvent, type RunContext } from "@/lib/pipeline/context";
 import { recordVisit } from "./visits";
 import { suggestFromVisitors } from "@/lib/discover/visitors";
@@ -25,12 +26,36 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   // Once a day is enough: Apollo updates visitors in batches.
   const last = await db.pipelineEvent.findFirst({ where: { step: "apollo.visitors", createdAt: { gte: new Date(ctx.now.getTime() - DAY + 3_600_000) } }, select: { id: true } });
   if (last && !opts.force) return null;
-  let companies;
+  let companies: Awaited<ReturnType<typeof apolloVisitorCompanies>>;
   try {
     companies = await apolloVisitorCompanies(key, list);
   } catch (e) {
     await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 300) : "Apollo request failed" });
     return { companies: 0, recorded: 0, suggested: 0, excluded: 0 };
+  }
+  // The real visit date per company (the list only says when a company was saved to it).
+  const site = env("APOLLO_VISITOR_SITE") ?? (seller().website || null);
+  let realDates = 0, otherSite = 0, dateError: string | null = null;
+  try {
+    const dates = await apolloVisitDates(key, companies.map((c) => c.domain ?? "").filter(Boolean), site);
+    const kept: typeof companies = [];
+    for (const c of companies) {
+      const v = c.domain ? dates.get(c.domain) : undefined;
+      if (v === "other_site") {
+        otherSite++;
+        continue; // visited another tracked site, not ours
+      }
+      if (v) {
+        c.lastSeenAt = v.at;
+        c.dateField = v.field;
+        realDates++;
+      }
+      kept.push(c);
+    }
+    companies = kept;
+  } catch (e) {
+    // Visit dates are a refinement: without them, the list's own dates are used as before.
+    dateError = e instanceof Error ? e.message.slice(0, 200) : "Apollo company search failed";
   }
   let recorded = 0;
   let corrected = 0;
@@ -60,6 +85,6 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   // Visitors not in the database become suggestions (checked against the targeting rule) for approval.
   // Apollo dates visits by its own activity date, which can be months back.
   const s = await suggestFromVisitors(ctx, 180);
-  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} new companies suggested`, data: { companies: companies.length, recorded, corrected, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
+  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} new companies suggested · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""}`, data: { companies: companies.length, recorded, corrected, realDates, otherSite, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
   return { companies: companies.length, recorded, ...s };
 }

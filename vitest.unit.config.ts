@@ -10,7 +10,7 @@ export default defineConfig({
     include: [
       "tests/unit.test.ts", "tests/live.test.ts", "tests/brain-editor.test.ts", "tests/opportunities.test.ts", "tests/http-retry.test.ts",
       "tests/precision.test.ts", "tests/jobs-feed.test.ts", "tests/api-auth.test.ts", "tests/auth.test.ts", "tests/why-now-text.test.ts",
-      "tests/logo.test.ts", "tests/word-count.test.ts",
+      "tests/logo.test.ts", "tests/word-count.test.ts", "tests/apollo-visit-dates.test.ts",
     ],
     setupFiles: ["tests/setup.ts"],
     testTimeout: 30000,

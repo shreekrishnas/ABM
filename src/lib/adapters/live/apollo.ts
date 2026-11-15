@@ -185,6 +185,75 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
   return out;
 }
 
+// ── Real website visit dates ──
+
+type IntentAccount = {
+  last_visited_at?: number | string | null;
+  last_visited_at_datetime?: string | null;
+  domain_aggregates?: { domain?: string | null; last_visit?: number | string | null }[] | null;
+};
+const cleanHost = (raw: string | null | undefined) => (raw ? raw.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim() : "");
+
+/** Apollo writes visit dates as 20261031 (a number or text) or as an ISO timestamp. */
+export function apolloDate(v: number | string | null | undefined): Date | null {
+  if (v == null || v === "") return null;
+  const t = String(v).trim();
+  const m = t.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) {
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * The company's last visit to our site, from Apollo's visitor data on a company. Visits to other
+ * tracked sites don't count: when Apollo breaks visits down by site and ours isn't there, the
+ * answer is "no visit to this site". Without a breakdown, the combined date is used.
+ */
+export function visitToSite(intent: IntentAccount | null | undefined, site: string | null): { at: Date; field: string } | "other_site" | null {
+  if (!intent) return null;
+  const want = cleanHost(site);
+  const byDomain = intent.domain_aggregates ?? [];
+  if (want && byDomain.length) {
+    const hit = byDomain.find((d) => {
+      const h = cleanHost(d.domain);
+      return h === want || h.endsWith(`.${want}`);
+    });
+    const at = hit ? apolloDate(hit.last_visit) : null;
+    return at ? { at, field: `domain_aggregates.last_visit (${want})` } : "other_site";
+  }
+  const at = apolloDate(intent.last_visited_at_datetime) ?? apolloDate(intent.last_visited_at);
+  return at ? { at, field: "intent_signal_account.last_visited_at" } : null;
+}
+
+/**
+ * Real last-visit dates for these company domains, from Apollo's company search (the list itself
+ * only gives "last activity", which is when a company was saved). 100 domains per call.
+ */
+export async function apolloVisitDates(key: string, domains: string[], site: string | null): Promise<Map<string, { at: Date; field: string } | "other_site">> {
+  const api = new ApolloClient(key);
+  const out = new Map<string, { at: Date; field: string } | "other_site">();
+  const unique = [...new Set(domains.map(cleanHost).filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+    const r = await api.post<{ organizations?: (Record<string, unknown> & { intent_signal_account?: IntentAccount | null })[]; accounts?: (Record<string, unknown> & { intent_signal_account?: IntentAccount | null })[] }>("/mixed_companies/search", {
+      q_organization_domains_list: batch, page: 1, per_page: 100,
+    });
+    for (const o of [...(r.organizations ?? []), ...(r.accounts ?? [])]) {
+      const host = cleanHost((o.primary_domain as string | undefined) ?? (o.domain as string | undefined) ?? (o.website_url as string | undefined));
+      if (!host || !batch.includes(host)) continue;
+      const v = visitToSite(o.intent_signal_account, site);
+      if (!v) continue;
+      // Keep the most useful answer if a company comes back twice (as organization and account).
+      const prev = out.get(host);
+      if (!prev || prev === "other_site" || (v !== "other_site" && v.at > prev.at)) out.set(host, v);
+    }
+  }
+  return out;
+}
+
 /** A plain check of the key: does it work, is it a master key, which account lists exist, which one holds visitors. */
 export async function apolloHealth(key: string, list: { id?: string; name?: string }) {
   const api = new ApolloClient(key);
