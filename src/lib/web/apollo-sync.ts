@@ -13,6 +13,8 @@ const DAY = 86_400_000;
 const env = (name: string) => process.env[name]?.trim() || undefined;
 /** Apollo keeps a company in the list after its visit; count it again only after this many days. */
 const RECOUNT_DAYS = 7;
+import { UNKNOWN_DATE_TITLE } from "./visits";
+export { UNKNOWN_DATE_TITLE };
 
 export function apolloVisitorsConfigured() {
   // The visitor list is found by name ("…visitor…") when it isn't configured.
@@ -61,10 +63,31 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   let corrected = 0;
   const since = new Date(ctx.now.getTime() - RECOUNT_DAYS * DAY);
   const fields = new Set<string>();
+  let unknownDate = 0;
   for (const c of companies) {
     if (c.dateField) fields.add(c.dateField);
+    // Apollo has no visit date to our site for this company: list it, but never date it by the day it was saved.
+    const realDate = Boolean(c.dateField && /^(domain_aggregates|intent_signal)/.test(c.dateField));
+    if (!dateError && !realDate) {
+      const whereCo = { source: "apollo", OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] };
+      const had = await db.webVisit.findFirst({ where: whereCo, orderBy: { occurredAt: "desc" }, select: { id: true, title: true } });
+      if (had) {
+        if (had.title !== UNKNOWN_DATE_TITLE) await db.webVisit.update({ where: { id: had.id }, data: { title: UNKNOWN_DATE_TITLE } });
+      } else {
+        await recordVisit({ url: "https://apollo.io/website-visitors", title: UNKNOWN_DATE_TITLE, companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined }, ctx);
+        recorded++;
+      }
+      unknownDate++;
+      continue;
+    }
     const where = { source: "apollo", OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] };
-    const last = await db.webVisit.findFirst({ where, orderBy: { occurredAt: "desc" }, select: { id: true, occurredAt: true } });
+    const last = await db.webVisit.findFirst({ where, orderBy: { occurredAt: "desc" }, select: { id: true, occurredAt: true, title: true } });
+    // A visit shown earlier as "date unknown" now has its real date.
+    if (last?.title === UNKNOWN_DATE_TITLE && c.lastSeenAt) {
+      await db.webVisit.update({ where: { id: last.id }, data: { title: "Visited the website (seen by Apollo)", occurredAt: c.lastSeenAt } });
+      corrected++;
+      continue;
+    }
     // The visit is dated by Apollo's own activity date, never by when it was fetched.
     if (c.lastSeenAt && last) {
       const diff = c.lastSeenAt.getTime() - last.occurredAt.getTime();
@@ -85,6 +108,6 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   // Visitors not in the database become suggestions (checked against the targeting rule) for approval.
   // Apollo dates visits by its own activity date, which can be months back.
   const s = await suggestFromVisitors(ctx, 180);
-  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} new companies suggested · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""}`, data: { companies: companies.length, recorded, corrected, realDates, otherSite, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
+  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} new companies suggested · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${unknownDate ? `, ${unknownDate} with no visit date (shown as date unknown)` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""}`, data: { companies: companies.length, recorded, corrected, realDates, otherSite, unknownDate, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
   return { companies: companies.length, recorded, ...s };
 }

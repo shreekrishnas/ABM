@@ -7,6 +7,7 @@
 // structure a person would upload. Importing goes through the normal CSV import
 // (ingestRows): same matching, same duplicate rules, same pipeline.
 
+import { UNKNOWN_DATE_TITLE } from "./visits";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { seller } from "@/lib/seller";
@@ -45,7 +46,7 @@ export const companyKey = (name: string, domain: string | null) => (domain ? `d:
 /** Every company seen on the website in the range, newest visit first. Customers stay in the list. */
 export async function listVisitorCompanies(from: Date, to: Date): Promise<VisitorCompany[]> {
   const visits = await db.webVisit.findMany({
-    where: { occurredAt: { gte: from, lte: to }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
+    where: { occurredAt: { gte: from, lte: to }, NOT: { title: UNKNOWN_DATE_TITLE }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
     orderBy: { occurredAt: "desc" },
     take: 5000,
   });
@@ -82,6 +83,21 @@ export function parseRange(fromRaw: string | undefined, toRaw: string | undefine
 }
 
 /** The first identified visit in the last year: the page opens on a range that shows every visitor company. */
+/** How fresh the visitor data is: the last fetch from Apollo, the newest dated visit, and visitors without a date. */
+export async function visitorFreshness(): Promise<{ lastFetch: Date | null; lastFetchNote: string | null; newestVisit: Date | null; undated: string[] }> {
+  const [ev, newest, undated] = await Promise.all([
+    db.pipelineEvent.findFirst({ where: { step: "apollo.visitors" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reason: true } }),
+    db.webVisit.findFirst({ where: { source: "apollo", NOT: { title: UNKNOWN_DATE_TITLE } }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }),
+    db.webVisit.findMany({ where: { source: "apollo", title: UNKNOWN_DATE_TITLE }, select: { companyName: true, companyDomain: true }, take: 100 }),
+  ]);
+  return {
+    lastFetch: ev?.createdAt ?? null,
+    lastFetchNote: ev?.reason ?? null,
+    newestVisit: newest?.occurredAt ?? null,
+    undated: [...new Set(undated.map((u) => u.companyName ?? u.companyDomain ?? "").filter(Boolean))].sort(),
+  };
+}
+
 export async function earliestVisit(now = new Date()): Promise<Date | null> {
   const v = await db.webVisit.findFirst({ where: { occurredAt: { gte: new Date(now.getTime() - 365 * DAY) }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } });
   return v?.occurredAt ?? null;

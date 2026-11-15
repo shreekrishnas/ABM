@@ -88,6 +88,9 @@ const STRONG = new Set(["pricing", "demo"]);
 
 // ── Recording ──
 
+/** A visitor Apollo listed without a visit date to our site: shown, never counted in a date range. */
+export const UNKNOWN_DATE_TITLE = "Visited the website (seen by Apollo; visit date unknown)";
+
 export async function recordVisit(input: VisitInput, ctx: RunContext = newContext()) {
   const occurredAt = input.occurredAt ?? ctx.now;
   let path = input.url;

@@ -7,7 +7,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
 import { fetchApolloVisitorsAction } from "@/app/discover/actions";
-import { customerCheck, earliestVisit, listVisitorCompanies, parseRange } from "@/lib/web/visitor-prospects";
+import { customerCheck, earliestVisit, listVisitorCompanies, parseRange, visitorFreshness } from "@/lib/web/visitor-prospects";
 import { VisitorsTable, type VisitorRow } from "./visitors-table";
 import { checkApolloAction } from "./actions";
 
@@ -25,7 +25,9 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   const need = await needs(["apollo"]);
   // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
   const ready = need.ok;
-  const companies = await listVisitorCompanies(from, to);
+  const [companies, fresh] = await Promise.all([listVisitorCompanies(from, to), visitorFreshness()]);
+  const DAY = 86_400_000;
+  const stale = fresh.newestVisit ? (Date.now() - fresh.newestVisit.getTime()) / DAY > 7 : false;
   const rows: VisitorRow[] = await Promise.all(
     companies.map(async (c) => {
       const chk = await customerCheck(c.name, c.domain);
@@ -61,10 +63,21 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
           <label className="grid gap-1 text-sm"><span className="secondary">To</span><input className="glass-input" type="date" name="to" defaultValue={ymd(to)} /></label>
           <button className="btn btn-secondary" type="submit">Show visitors</button>
         </form>
+        <p className="muted mb-3 text-xs">
+          {fresh.lastFetch ? <>Last fetched from Apollo {short(fresh.lastFetch)}, {fresh.lastFetch.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST · </> : <>Not fetched from Apollo yet · </>}
+          {fresh.newestVisit ? <>newest visit we have: <b className={stale ? "text-[var(--warning,#B45309)]" : undefined}>{short(fresh.newestVisit)}</b></> : "no dated visits yet"}
+          {stale && <> · nothing newer has come from Apollo for over a week. If people are visiting the site, check that Apollo&apos;s tracking script on the website is recording visits.</>}
+        </p>
         {rows.length ? (
           <VisitorsTable rows={rows} range={{ from: ymd(from), to: ymd(to) }} />
         ) : (
-          <p className="secondary text-sm">No identified companies visited between {short(from)} and {short(to)}. Try a wider range{ready ? ", or fetch visitors from Apollo now" : ""}.</p>
+          <p className="secondary text-sm">No identified companies visited between {short(from)} and {short(to)}.{fresh.newestVisit && fresh.newestVisit < from ? ` The newest visit we have is from ${short(fresh.newestVisit)}: Apollo hasn't sent anything newer.` : " Try a wider range."}{ready ? " You can also fetch visitors from Apollo now." : ""}</p>
+        )}
+        {fresh.undated.length > 0 && (
+          <details className="mt-3 text-xs">
+            <summary className="muted cursor-pointer">{fresh.undated.length} visitor{fresh.undated.length === 1 ? "" : "s"} with no visit date from Apollo (not counted in date ranges)</summary>
+            <p className="secondary mt-1">{fresh.undated.join(", ")}</p>
+          </details>
         )}
       </Card>
       <h2 className="mb-2 text-base font-semibold">Waiting for approval</h2>
