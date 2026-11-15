@@ -238,7 +238,7 @@ async function AccountsTab({ clients, canAdd }: { clients: Clients; canAdd: bool
 }
 
 async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeof systemHealth>>; clients: Clients }) {
-  const [spend, month, aiPaused, runs, stopped, alerts] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause(), runHistory(30), stoppedGroups(), import("@/lib/admin/alerts").then((m) => m.systemAlerts())]);
+  const [spend, month, aiPaused, runs, stopped, alerts] = await Promise.all([spendByAccount(), monthlyStatus(), aiPause(), runHistory(30), stoppedGroups(), import("@/lib/admin/alerts").then((m) => m.systemAlerts()).then((a) => a.filter((x) => x.key !== "ai_blocked"))]);
   const q = health.queue;
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
   const stoppedTotal = stopped.reduce((t, g) => t + g.count, 0);
@@ -449,7 +449,8 @@ async function OverviewTab({ health }: { health: Awaited<ReturnType<typeof syste
     ...(health.queue.stuck ? [{ tone: "bad" as const, text: "The background queue has stopped", href: "/team?tab=system" }] : []),
     ...(health.tables?.length ? [{ tone: "bad" as const, text: `The app can't use ${health.tables.length} table(s)`, href: "/team?tab=system" }] : []),
     ...(health.errors.length ? [{ tone: "warn" as const, text: `${health.errors.length} error type(s) in the log`, href: "/team?tab=system" }] : []),
-    ...rows.flatMap((r) => r.issues.map((i) => ({ tone: (r.health === "bad" ? "bad" : "warn") as "bad" | "warn", text: `${r.name}: ${i}`, href: "/team?tab=accounts" }))),
+    // Spending and caps are shown in the notification bar only.
+    ...rows.flatMap((r) => r.issues.filter((i) => !/cap|budget|spend/i.test(i)).map((i) => ({ tone: (r.health === "bad" ? "bad" : "warn") as "bad" | "warn", text: `${r.name}: ${i}`, href: "/team?tab=accounts" }))),
   ];
   const sample = await sampleState();
   const svc = new Map(serviceStatus().map((x) => [x.key, x]));
