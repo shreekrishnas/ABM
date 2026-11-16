@@ -59,6 +59,18 @@ export function coversClient(me: Pick<Me, "superAdmin" | "superAdminClients"> | 
   return me.superAdminClients === null || me.superAdminClients.includes(clientId);
 }
 
+/**
+ * A Super Admin page for this person (optionally one client's page):
+ * "open" when Super Admin is on and covers it; "switch" when they could open it by switching
+ * Super Admin on; "hidden" for everyone else (the page answers "not found").
+ */
+export function superAdminGate(me: Pick<Me, "superAdmin" | "canSuperAdmin" | "superAdminClients"> | null, clientId?: string): "open" | "switch" | "hidden" {
+  if (!me?.canSuperAdmin) return "hidden";
+  const covers = !clientId || me.superAdminClients === null || me.superAdminClients.includes(clientId);
+  if (!covers) return "hidden";
+  return me.superAdmin ? "open" : "switch";
+}
+
 /** For Super Admin actions: the actor, or an error to return. */
 export async function requireSuperAdmin(): Promise<Me> {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);

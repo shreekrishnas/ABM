@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { baseDb } from "@/lib/db-base";
 import { SESSION_COOKIE, sessionToken } from "@/lib/auth";
 import { clearScopeCache, scopeFor } from "@/lib/scope";
-import { coversClient, getMe } from "@/lib/me";
+import { coversClient, getMe, superAdminGate } from "@/lib/me";
 import { setAssignmentAction, setClientStatusAction, setSuperAdminAction, setUserStatusAction, setAiPausedAction } from "@/app/team/actions";
 
 const SECRET = "test-secret-for-super-admin-scope";
@@ -152,5 +152,21 @@ describe("what a limited Super Admin can do", () => {
     const r = await setAiPausedAction(true);
     expect(r?.ok).toBe(false);
     expect(r?.message).toMatch(/all clients/);
+  });
+});
+
+describe("opening a Super Admin page", () => {
+  const full = { canSuperAdmin: true, superAdminClients: null };
+  const some = { canSuperAdmin: true, superAdminClients: ["test", "test-b"] };
+  it("a Super Admin in User mode is asked to switch on, not told the page doesn't exist", () => {
+    expect(superAdminGate({ ...full, superAdmin: false })).toBe("switch");
+    expect(superAdminGate({ ...full, superAdmin: true })).toBe("open");
+    expect(superAdminGate({ ...some, superAdmin: false }, "test")).toBe("switch");
+  });
+  it("everyone else still gets 'not found', including a limited Super Admin on a client they don't cover", () => {
+    expect(superAdminGate(null)).toBe("hidden");
+    expect(superAdminGate({ canSuperAdmin: false, superAdmin: false, superAdminClients: [] })).toBe("hidden");
+    expect(superAdminGate({ ...some, superAdmin: true }, "test-c")).toBe("hidden");
+    expect(superAdminGate({ ...some, superAdmin: false }, "test-c")).toBe("hidden");
   });
 });

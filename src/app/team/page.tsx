@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Lock, LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { coversClient, getMe, superAdminClientsOf, type Me } from "@/lib/me";
+import { coversClient, getMe, superAdminClientsOf, superAdminGate, type Me } from "@/lib/me";
+import { SuperAdminNeeded } from "@/components/super-admin-needed";
 import { allowedDomains } from "@/lib/auth";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { Card, PageHeader, ago } from "@/components/ui";
@@ -51,7 +52,9 @@ const usd = (n: number) => (n < 0.01 && n > 0 ? "<$0.01" : `$${n.toFixed(n >= 10
 /** Super Admin only: people, accounts, system health, data and the audit log, one tab each. */
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ tab?: string; who?: string; what?: string; account?: string; from?: string; to?: string; sensitive?: string; result?: string }> }) {
   const me = await getMe();
-  if (!me?.superAdmin) notFound();
+  const gate = superAdminGate(me);
+  if (gate === "switch") return <SuperAdminNeeded title="Team & Access" />;
+  if (gate === "hidden" || !me) notFound();
   const sp = await searchParams;
   const full = me.fullSuperAdmin;
   const tabs = full ? TABS : TABS.filter((t) => SCOPED_TABS.includes(t.key));
