@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KpiRow, KpiTile } from "@/components/viz/cards";
-import { ArrowRight, Circle, Upload } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Circle, Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMe } from "@/lib/me";
 import { nextAction } from "@/lib/journey/engine";
@@ -8,8 +8,8 @@ import { STAGE_INFO } from "@/lib/journey/stages";
 import { ActionButton } from "@/components/client";
 import { Avatar } from "@/components/ui";
 import { FamilyChip, type IntentLevel } from "@/components/v2";
-import { Badge, DecisionCard, EmptyState } from "@/components/kit";
-import { reviewLabel } from "@/lib/review-labels";
+import { Badge, EmptyState } from "@/components/kit";
+import { asDecisionFilter, openDecisions, type DecisionFilter } from "@/lib/decisions";
 import { runAllAction, setTaskStatusAction } from "../../actions";
 import { TopOpportunities } from "./top-opportunities";
 import { whyNowReasons } from "@/lib/why-now";
@@ -21,8 +21,11 @@ type Reading = { score: number; level: IntentLevel; whyNow: string | null; famil
 const REPLY_ACTION: Record<string, string> = { details_requested: "Send the details", interested: "Book the call", replied_neutral: "Reply with context", referred: "Reach the referral" };
 
 /** Today: only what needs a person, each with one action. Everything else runs in the backend. */
-export default async function Today({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
+const FILTER_LABEL: Record<DecisionFilter, string> = { all: "All", exception: "Exceptions", approval: "Approvals" };
+
+export default async function Today({ searchParams }: { searchParams: Promise<{ q?: string; f?: string }> }) {
+  const { q, f } = await searchParams;
+  const filter = asDecisionFilter(f);
   const now = new Date();
   const week = new Date(now.getTime() - 7 * 86_400_000);
   const [replies, approvals, approvalsCount, hotRaw, followCandidates, decisions, sentWeek, repliesWeek, liveConversations] = await Promise.all([
@@ -56,10 +59,10 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
     orderBy: { dueAt: "asc" }, take: 8, include: { account: { select: { id: true, name: true } }, contact: { select: { id: true, fullName: true } } },
   });
 
-  const decisionsOpen = await db.reviewItem.count({ where: { status: "open", type: { notIn: ["draft_approval"] } } });
+  const center = await openDecisions(filter, 6);
 
   const tabs = [
-    { key: "decisions", label: "Decisions", n: decisionsOpen },
+    { key: "decisions", label: "Decisions", n: center.counts.all },
     { key: "replies", label: "Replies", n: replies.length },
     { key: "approvals", label: "Emails to approve", n: approvalsCount },
     { key: "followups", label: "Follow-ups", n: followUps.length },
@@ -100,12 +103,27 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
             ))}
           </nav>
           <div className="td3-panel">
-            {active === "decisions" && (decisions.length === 0 ? <EmptyState title="No open decisions" text="Research, identity checks and rejections that need a person land here." /> : <>
-              {decisions.map((r) => (
-                <DecisionCard key={r.id} variant="queue" type={r.type} href={`/review?type=${r.type}&pick=${r.id}`} title={[r.contact?.fullName, r.account?.name].filter(Boolean).join(" · ") || reviewLabel(r.type)} context={r.reason} />
-              ))}
-              {decisionsOpen > decisions.length && <Link href="/review" className="td3-more">All {decisionsOpen} decisions <ArrowRight size={14} /></Link>}
-            </>)}
+            {active === "decisions" && (
+              <div className="dc">
+                <div className="dc-head">
+                  <p>Rule exceptions and things to sign off, in one queue, oldest first.</p>
+                  <nav className="k-seg sg-seg" aria-label="Filter decisions">
+                    {(["all", "exception", "approval"] as const).map((k) => (
+                      <Link key={k} href={`/work/today?q=decisions${k === "all" ? "" : `&f=${k}`}`} scroll={false} className={filter === k ? "on" : undefined} aria-current={filter === k ? "page" : undefined}>
+                        {FILTER_LABEL[k]} <span className="tnum dc-n">{center.counts[k]}</span>
+                      </Link>
+                    ))}
+                  </nav>
+                </div>
+                {center.items.length === 0 ? <EmptyState title={filter === "all" ? "No open decisions" : `No open ${FILTER_LABEL[filter].toLowerCase()}`} text="Rule exceptions, identity checks and emails to sign off land here." /> : center.items.map((d) => (
+                  <Row key={d.id} href={d.href}
+                    lead={<span className={`dc-ic ${d.kind}`} aria-hidden>{d.kind === "exception" ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}</span>}
+                    title={d.title} sub={d.description ?? undefined}
+                    tags={<Badge tone={d.kind === "exception" ? "danger" : "accent"}>{d.label}</Badge>} action="Review" />
+                ))}
+                {center.counts[filter] > center.items.length && <Link href="/review" className="td3-more">All {center.counts[filter]} {filter === "all" ? "decisions" : FILTER_LABEL[filter].toLowerCase()} <ArrowRight size={14} /></Link>}
+              </div>
+            )}
             {active === "replies" && (replies.length === 0 ? <EmptyState title="No open replies" /> : replies.map((j) => (
               <Row key={j.id} href={`/people/${j.contactId}`} lead={<Avatar name={j.contact.fullName} id={j.contactId} size={32} round />}
                 title={`${j.contact.fullName} · ${j.contact.account.name}`}

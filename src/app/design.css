@@ -1720,3 +1720,14 @@ a.rt-name:hover { text-decoration: underline; }
   .hm-hero { grid-template-columns: minmax(0, 1fr); padding: var(--sp-5); }
   .hm-hero-side { padding-left: 0; padding-top: var(--sp-4); border-left: 0; border-top: 1px solid var(--hero-line); }
 }
+
+/* ── Today: Decision Center (exceptions and approvals in one queue) ── */
+.dc { display: grid; gap: var(--sp-1); }
+.dc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border); }
+.dc-head p { margin: 0; font-size: var(--fs-13); color: var(--muted); }
+.dc-n { margin-left: var(--sp-1); color: var(--muted); font-size: var(--fs-12); }
+.sg-seg a.on .dc-n { color: var(--accent); }
+.dc .td2-row { padding-left: var(--sp-1); padding-right: var(--sp-1); }
+.dc-ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-md); }
+.dc-ic.exception { background: var(--danger-bg); color: var(--danger); }
+.dc-ic.approval { background: var(--accent-subtle); color: var(--accent); }
