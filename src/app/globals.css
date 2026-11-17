@@ -226,6 +226,8 @@ table.data tr:last-child td { border-bottom: 0; }
 table.data tbody tr { transition: background 120ms; }
 table.data tbody tr:hover { background: rgba(14, 165, 233, 0.05); }
 table.data td.strong { color: var(--text-primary); font-weight: 600; }
+/* A label cell that should stay on one line even when short on width (the table scrolls instead). */
+table.data td.nowrap { white-space: nowrap; }
 table.data.compact th, table.data.compact td { padding: 0.6rem 0.55rem; }
 
 /* ── Tabs ── */
@@ -669,7 +671,10 @@ body { background: var(--ground); font-feature-settings: "ss01", "tnum" 0; lette
 .nav-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .nav-search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-ctl); border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink-3); font-size: 0.82rem; min-width: 200px; cursor: pointer; transition: border-color 150ms; }
 .nav-search:hover { border-color: var(--teal); color: var(--ink-2); }
-.nav-search kbd { margin-left: auto; }
+.nav-search kbd { margin-left: auto; flex: none; }
+/* Same wording as the Home page's search pill (hs-search-ph); truncates if the bar is narrow
+   rather than pushing the ⌘K hint out of the pill. */
+.nav-search-ph { flex: 1 1 auto; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-icon { position: relative; width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-ctl); color: var(--ink-2); border: 1px solid transparent; background: transparent; cursor: pointer; transition: background 150ms, color 150ms; }
 .nav-icon:hover, .nav-icon.on { background: var(--sunk); color: var(--ink); }
 .nav-dotcount { position: absolute; top: 2px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; font-size: 0.6rem; font-weight: 700; color: #fff; background: var(--teal); box-shadow: 0 0 0 2px var(--ground); }
@@ -2039,7 +2044,9 @@ a.ch-c:hover .ch-v b { color: #6D28D9; }
 .dir-co small { display: block; font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dir-co:hover b { color: #6D28D9; }
 .dir-ind { max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dir-tech { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 240px; }
+/* Capped at two rows of chips, so every row in the Technology column is the same height
+   (hover for the full list via the title tooltip already on this element). */
+.dir-tech { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 240px; max-height: 40px; overflow: hidden; }
 .dir-tech span { font-size: 0.68rem; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--well, rgba(99, 102, 241, 0.07)); color: var(--text-secondary); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 .dir-tech em { font-style: normal; font-size: 0.68rem; color: var(--text-muted); }
 .dir-intent { display: inline-grid; place-items: center; min-width: 30px; height: 22px; padding: 0 6px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); background: var(--well, rgba(99, 102, 241, 0.06)); font-variant-numeric: tabular-nums; }

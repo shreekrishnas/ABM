@@ -18,7 +18,7 @@ function Table({ rows, first }: { rows: Row[]; first: string }) {
           const decided = r.approved + r.rejected;
           return (
             <tr key={r.label}>
-              <td className="strong">{r.label}</td>
+              <td className="strong nowrap">{r.label}</td>
               <td className="r tnum">{r.total}</td>
               <td className="r tnum">{r.approved}</td>
               <td className="r tnum">{r.edited}</td>

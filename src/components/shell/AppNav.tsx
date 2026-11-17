@@ -63,7 +63,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
           {superAdmin?.can && <SuperAdminSwitch on={superAdmin.on} />}
           <button type="button" className="nav-search" onClick={() => window.dispatchEvent(new Event("abm:palette"))} aria-label="Search (Ctrl+K)">
             <Search size={15} strokeWidth={1.75} />
-            <span className="hide-sm">Search</span>
+            <span className="hide-sm nav-search-ph">Search companies, contacts…</span>
             <kbd className="hide-sm">⌘K</kbd>
           </button>
           {extras && <Link href="/discover" className={`nav-icon${path.startsWith("/discover") ? " on" : ""}`} aria-label={`Discover${discover ? ` (${discover} suggested)` : ""}`} title="Discover new companies">
