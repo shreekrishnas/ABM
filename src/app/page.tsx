@@ -96,6 +96,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const actionable = ["approve", "overdue"].map((k) => cc.kpis.find((x) => x.key.includes(k))).filter(Boolean) as typeof cc.kpis;
   const context = cc.kpis.filter((k) => !actionable.includes(k));
 
+  // Hero: the biggest drop between two steps of the company flow (same rule as the flow chart).
+  const reachedN = flow.steps.map((_, i) => flow.accounts.filter((a) => a.reached >= i).length);
+  let gap = -1;
+  for (let i = 1; i < reachedN.length; i++) {
+    if (!reachedN[i - 1]) continue;
+    if (gap < 0 || reachedN[i] / reachedN[i - 1] < reachedN[gap] / reachedN[gap - 1]) gap = i;
+  }
+  const gapRate = gap > 0 ? reachedN[gap] / reachedN[gap - 1] : 0;
+  const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
   // The signed-in user's own name from the team list; the email's first part only as a fallback.
@@ -153,6 +163,37 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </header>
 
+        <section className="hm-hero" aria-label="Today's focus">
+          <div>
+            <div className="hm-hero-k">{dateLine}<i>/</i>{p.name}</div>
+            <h2>{waiting ? `${waiting} decision${waiting === 1 ? "" : "s"} need you today.` : "Nothing is waiting on you today."}</h2>
+            <p>
+              <b>{reachedN[0] ?? 0}</b> compan{reachedN[0] === 1 ? "y" : "ies"} in the program
+              {flow.steps.slice(1, 4).map((s, j) => <span key={s.key}>{j ? ", " : ": "}<b>{reachedN[j + 1]}</b> {lower(s.label)}</span>)}.
+              {gap > 0 && <> The biggest gap is between {lower(flow.steps[gap - 1].label)} and {lower(flow.steps[gap].label)}.</>}
+            </p>
+            <div className="hm-hero-acts">
+              <Link href="/review" className="hm-hero-btn">{waiting ? `Review ${waiting} decision${waiting === 1 ? "" : "s"}` : "Open approvals"} <ArrowRight size={14} /></Link>
+              <Link href="#flow" className="hm-hero-btn ghost">See the company flow <ArrowRight size={14} /></Link>
+            </div>
+          </div>
+          <div className="hm-hero-side">
+            <span className="hm-hero-k">Biggest bottleneck</span>
+            {gap > 0 ? (
+              <>
+                <div className="hm-hero-stat">
+                  <strong className="tnum">{reachedN[gap - 1] - reachedN[gap]}</strong>
+                  <div><b>{flow.steps[gap - 1].label}, not yet {lower(flow.steps[gap].label)}</b><span>{Math.round(gapRate * 100)}% move on to the next step</span></div>
+                </div>
+                <div className="hm-hero-track" aria-hidden><span style={{ width: `${Math.round(gapRate * 100)}%` }} /></div>
+                <p className="hm-hero-cap">The step where most companies stop right now.</p>
+              </>
+            ) : (
+              <p className="hm-hero-cap">No bottleneck yet. Import companies to see where they stop.</p>
+            )}
+          </div>
+        </section>
+
         {getStarted}
 
         <section className="hm2-kpis" aria-label="What needs doing">
@@ -197,7 +238,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           <SparkStat label="Website visits" value={sum(sparkVisits)} pct={vsLast(wkVisits.map((v) => v.occurredAt), sparkVisits)} points={sparkVisits} tone={trend(sparkVisits)} href="/import/apollo" />
         </section>
 
-        <section className="hm2-card hm2-flow">
+        <section className="hm2-card hm2-flow" id="flow">
           <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
         </section>
 
