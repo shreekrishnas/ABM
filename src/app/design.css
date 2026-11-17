@@ -3,7 +3,7 @@
    Font: Inter. 700 for headings and big numbers, 500-600 for subheads, tabs and
    buttons, 400 for body, metadata and dates. Plex Mono for code-like data. 12px floor.
    Text: #0F172A headings, #374151 body, #6B7280 labels and timestamps.
-   Surfaces: #F9FAFB page, #EEF1F8 panels and fills. Borders: #E5E7EB / #E2E8F0.
+   Surfaces: #EEF1FA page, #EEF1F8 panels and fills. Borders: #E5E7EB / #E2E8F0.
    Accent: indigo #6366F1 (hover #4F46E5) for primary buttons, links, active states.
    Status: amber #F59E0B warning, red #EF4444 urgent, green #10B981 done.
    Charts: blue, green, orange, red, violet, sky (--chart-1..6).
@@ -14,7 +14,7 @@
 :root {
   color-scheme: light;
   /* Colour roles (Design 2: slate text, one violet accent, indigo primary pill) */
-  --canvas: #F9FAFB;
+  --canvas: #EEF1FA;
   --surface: #FFFFFF;                      /* opaque: header, inputs, menus, modals */
   --glass: rgba(255, 255, 255, 0.65);      /* .glass-card */
   --glass-hover: rgba(255, 255, 255, 0.82);
