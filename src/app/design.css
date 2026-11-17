@@ -790,6 +790,8 @@ html, body { background: var(--canvas) !important; }
 .sh-rail { background: var(--glass) !important; backdrop-filter: blur(16px) saturate(140%) !important; -webkit-backdrop-filter: blur(16px) saturate(140%) !important; border-right: 1px solid var(--glass-border) !important; }
 /* The header stays opaque (content must never show through it), on the surface colour. */
 .sh .nav { background: var(--surface) !important; }
+/* globals.css gives the dark header a translucent glass with a stronger selector; match it so it stays opaque. */
+:root[data-theme="dark"] .sh .nav { background: var(--surface) !important; }
 
 /* Glass cards: every card-like surface, old and new. */
 .glass-card, .glass-card-static, .sh .glass-card, .sh .glass-card-static, .ch, .dir-filters, .dir-table-wrap, .cc-panel, .cc-k, .hm-k, .layer-card, .viz-drill, .td-grid > *,
