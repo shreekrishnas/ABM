@@ -31,6 +31,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   const reached = (n: number) => atStage.filter((g) => g.pipelineStage >= n).reduce((a, g) => a + g._count, 0);
   const stuck = (n: number) => atStage.filter((g) => g.pipelineStage === n - 1 && g.pipelineStatus === "blocked").reduce((a, g) => a + g._count, 0);
   const blocks = (n: number) => blocksByStage.find((b) => b.stage === n)?._count ?? 0;
+  const top = reached(1);
 
   const steps = new Map<string, { pass: number; block: number; info: number; error: number }>();
   for (const s of stepStats) {
@@ -66,22 +67,25 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         </StatRow>
       </section>
 
-      <Card>
-        <div className="table-wrap pb-2">
-          <nav className="transit" aria-label="Pipeline stages">
-            {STAGES.map((s) => (
-              <Link key={s.n} href={`/pipeline?s=${s.n}`} scroll={false} className={cx("stn", s.n === sel && "on")} style={{ ["--c" as string]: CAT_COLOR[s.cat] }} aria-current={s.n === sel ? "step" : undefined}>
-                <div className="node" />
-                <div className="muted text-[0.7rem] tnum">{s.n}</div>
-                <div className="text-[0.78rem] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{s.name}</div>
-                <div className="mt-1 flex flex-wrap justify-center gap-1">
-                  <span className="badge" style={{ background: "var(--surface-track)", color: "var(--text-secondary)" }} title="Accounts that completed this stage">{reached(s.n)}</span>
-                  {blocks(s.n) > 0 && <span className="badge" style={{ background: "var(--warning-bg)", color: "var(--warning)" }} title="Companies stopped at this step">{blocks(s.n)}</span>}
-                </div>
+      <Card title="The thirteen steps" sub="How many companies got past each step, and the share that moved on from the step before. Pick a step to see its detail below.">
+        <nav className="stg" aria-label="Pipeline stages">
+          {STAGES.map((s) => {
+            const n = reached(s.n);
+            const prev = s.n > 1 ? reached(s.n - 1) : 0;
+            return (
+              <Link key={s.n} href={`/pipeline?s=${s.n}`} scroll={false} className={cx("stg-c", s.n === sel && "on")} style={{ ["--c" as string]: CAT_COLOR[s.cat] }} aria-current={s.n === sel ? "step" : undefined}>
+                <span className="stg-top"><span className="tnum">Step {s.n}</span><i aria-hidden /></span>
+                <span className="stg-v tnum" title="Companies that completed this step">{n}</span>
+                <span className="stg-l">{s.name}</span>
+                <span className="stg-bar" aria-hidden><span style={{ width: `${top ? Math.round((n / top) * 100) : 0}%` }} /></span>
+                <span className="stg-r tnum">
+                  {s.n === 1 ? "Entry point" : prev ? `${Math.round((n / prev) * 100)}% of step ${s.n - 1}` : "—"}
+                  {blocks(s.n) > 0 && <b title="Companies stopped at this step"> · {blocks(s.n)} stopped</b>}
+                </span>
               </Link>
-            ))}
-          </nav>
-        </div>
+            );
+          })}
+        </nav>
         <div className="muted mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
           <span><b className="secondary">Loop 1</b> 10 → 6: weak evidence gets one targeted re-research pass ({loops._count._all} used)</span>
           <span><b className="secondary">Loop 2</b> 7 → 6: a contradiction reopens its question once</span>

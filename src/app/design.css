@@ -1731,3 +1731,17 @@ a.rt-name:hover { text-decoration: underline; }
 .dc-ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-md); }
 .dc-ic.exception { background: var(--danger-bg); color: var(--danger); }
 .dc-ic.approval { background: var(--accent-subtle); color: var(--accent); }
+
+/* ── Pipeline: the thirteen steps as cards (count, share of step before, stops) ── */
+.stg { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: var(--sp-2); }
+.stg-c { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); color: var(--text); transition: border-color 150ms, box-shadow 150ms; }
+.stg-c:hover { border-color: var(--border-2); box-shadow: var(--shadow-sm); }
+.stg-c.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
+.stg-top { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-12); color: var(--muted); }
+.stg-top i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.stg-v { font-size: var(--fs-24); font-weight: var(--fw-bold); letter-spacing: -0.02em; line-height: 1.1; }
+.stg-l { min-height: 2.6em; font-size: var(--fs-12); font-weight: var(--fw-semibold); line-height: 1.3; color: var(--text-2); }
+.stg-bar { height: 4px; margin-top: var(--sp-1); border-radius: var(--r-full); background: var(--subtle); overflow: hidden; }
+.stg-bar span { display: block; height: 100%; background: var(--c); }
+.stg-r { font-size: var(--fs-12); color: var(--muted); }
+.stg-r b { font-weight: var(--fw-semibold); color: var(--warning); }
