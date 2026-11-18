@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, Briefcase, FileSpreadsheet, FlaskConical, Inbox, Radar, Sparkles, Target, TrendingDown } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
@@ -206,10 +206,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         {getStarted}
 
         <section className="ws-metrics" aria-label="Key metrics">
-          <Link href="/review" className="ws-metric"><div className="ws-metric-top">Pending decisions <span className="ws-micon">↗</span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews</div></Link>
-          <Link href="/accounts" className="ws-metric"><div className="ws-metric-top">Qualified accounts <span className="ws-micon">◉</span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate</div></Link>
-          <Link href="/accounts" className="ws-metric"><div className="ws-metric-top">Research complete <span className="ws-micon">✧</span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"}</div></Link>
-          <Link href={opps?.href || "/handoffs"} className="ws-metric"><div className="ws-metric-top">Open opportunities <span className="ws-micon">◇</span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"}</div></Link>
+          <Link href="/review" className="ws-metric m0"><div className="ws-metric-top">Pending decisions <span className="ws-micon"><Inbox size={16} /></span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews</div></Link>
+          <Link href="/accounts" className="ws-metric m1"><div className="ws-metric-top">Qualified accounts <span className="ws-micon"><BadgeCheck size={16} /></span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate</div></Link>
+          <Link href="/accounts" className="ws-metric m2"><div className="ws-metric-top">Research complete <span className="ws-micon"><FlaskConical size={16} /></span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"}</div></Link>
+          <Link href={opps?.href || "/handoffs"} className="ws-metric m3"><div className="ws-metric-top">Open opportunities <span className="ws-micon"><Briefcase size={16} /></span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"}</div></Link>
         </section>
 
         <section className="ws-progress" aria-label="Account progression">
@@ -242,20 +242,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             </div>
             {cc.attention.slice(0, 3).map((a, i) => (
               <div key={i} className="ws-signal">
-                <span className={`ws-sicon ${a.tone}`} aria-hidden>!</span>
+                <span className={`ws-sicon ${a.tone}`} aria-hidden><AlertTriangle size={15} /></span>
                 <div className="min-w-0"><b>{a.title}</b> <span className={`ws-tag ${a.tone === "risk" ? "red" : a.tone === "warn" ? "amber" : "purple"}`}>{a.kind}</span><p>{a.detail}</p></div>
                 <Link href={a.href} className="ws-link">Review →</Link>
               </div>
             ))}
             {gap > 0 && (
               <div className="ws-signal">
-                <span className="ws-sicon" aria-hidden>↘</span>
+                <span className="ws-sicon" aria-hidden><TrendingDown size={15} /></span>
                 <div className="min-w-0"><b>{flow.steps[gap - 1].label} → {flow.steps[gap].label}</b><p>{Math.round((1 - gapRate) * 100)}% drop-off at this step based on the current funnel counts.</p></div>
                 <Link href="#journey" className="ws-link">Inspect →</Link>
               </div>
             )}
             {cc.attention.length === 0 && gap <= 0 && <p className="ws-empty">All clear · checked {ago(cc.freshAt)}.</p>}
-            <div className="ws-summary"><span aria-hidden>◈</span><span><strong>Priority focus</strong><br />{cc.attention.length ? "Resolve exceptions" : "Keep the queue clear"}{gap > 0 ? ` and advance ${lower(flow.steps[gap - 1].label)} accounts.` : "."}</span></div>
+            <div className="ws-summary"><span className="ws-sum-ic" aria-hidden><Target size={16} /></span><span><strong>Priority focus</strong><br />{cc.attention.length ? "Resolve exceptions" : "Keep the queue clear"}{gap > 0 ? ` and advance ${lower(flow.steps[gap - 1].label)} accounts.` : "."}</span></div>
           </section>
           <JourneyPanel steps={flow.steps} accounts={flow.accounts} start={gap > 0 ? gap - 1 : 0} />
         </div>

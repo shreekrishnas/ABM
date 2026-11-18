@@ -30,7 +30,7 @@ export function DecisionPanel({ items, counts }: { items: QueueItem[]; counts: {
       </div>
       <div className="ws-queue">
         {shown.length === 0 ? <p className="ws-empty">Nothing waiting here.</p> : shown.map((q) => (
-          <div key={q.id} className="ws-qrow">
+          <div key={q.id} className={`ws-qrow ${q.kind}`}>
             <span className="ws-initial" aria-hidden>{initials(q.title)}</span>
             <div className="min-w-0">
               <div className="ws-qtitle">{q.title}<span className={`ws-tag ${q.kind === "exception" ? "red" : "purple"}`}>{q.label}</span></div>
