@@ -47,9 +47,9 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
             {account?.many ? (
               <>
                 <li><Link href="/clients">Clients</Link></li>
-                {path !== "/clients" && <li><ChevronRight size={13} aria-hidden /><a href="/">{account.name}</a></li>}
+                {path !== "/clients" && <li><ChevronRight size={13} aria-hidden /><Link href="/">{account.name}</Link></li>}
               </>
-            ) : <li><a href="/">Home</a></li>}
+            ) : <li><Link href="/">Home</Link></li>}
             {crumbs.map((c, i) => (
               <li key={c.href + i}>
                 <ChevronRight size={13} aria-hidden />

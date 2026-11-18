@@ -38,18 +38,16 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
     <div className="sh-outer">
       <div className="sh">
         <nav className="sh-rail" aria-label="Main">
-          <a href="/" className="sh-logo" aria-label="ABM home"><LogoMark size={42} /><span className="sh-brand" aria-hidden><b>ABM</b><small>Account intelligence</small></span></a>
+          <Link href="/" className="sh-logo" aria-label="ABM home"><LogoMark size={42} /><span className="sh-brand" aria-hidden><b>ABM</b><small>Account intelligence</small></span></Link>
           <div className="sh-rail-items">
             {RAIL.map((r) => {
               const n = r.count ? counts[r.count] : 0;
-              // Home is a static document (src/app/route.ts), not a Next page: a plain link loads it.
-              const L = r.href === "/" ? "a" : Link;
               return (
-                <L key={r.key} href={r.href} className={`sh-item${active === r.key ? " on" : ""}${PHONE.includes(r.key) ? "" : " sh-desk"}`} data-tip={r.label} aria-label={r.label} aria-current={active === r.key ? "page" : undefined}>
+                <Link key={r.key} href={r.href} className={`sh-item${active === r.key ? " on" : ""}${PHONE.includes(r.key) ? "" : " sh-desk"}`} data-tip={r.label} aria-label={r.label} aria-current={active === r.key ? "page" : undefined}>
                   <r.icon size={20} strokeWidth={1.9} aria-hidden />
                   <span className="sh-lbl">{r.short}</span>
                   {n > 0 && <span className="sh-badge tnum" aria-label={`${n} waiting`}>{n > 99 ? "99+" : n}</span>}
-                </L>
+                </Link>
               );
             })}
             {access && (access.choices.length > 1 || sup || access.canSuperAdmin) && <AccountsNav choices={access.choices} picked={access.picked} on={active === "clients"} />}
