@@ -111,12 +111,13 @@ export function Kpi({ label, value, meta, accent, icon }: { label: string; value
   );
 }
 
-export function Card({ title, sub, action, children, className, pad = true, id }: { title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean; id?: string }) {
+export function Card({ eyebrow, title, sub, action, children, className, pad = true, id }: { eyebrow?: string; title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean; id?: string }) {
   return (
     <section id={id} className={cx("glass-card-static", pad && "card-pad", className)}>
       {(title || action) && (
         <div className={cx("card-head", !pad && "px-5 pt-5")}>
           <div>
+            {eyebrow && <span className="card-eyebrow">{eyebrow}</span>}
             {title && <h2 className="card-title">{title}</h2>}
             {sub && <p className="card-sub">{sub}</p>}
           </div>
@@ -132,8 +133,8 @@ export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: string;
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        {/* The breadcrumb above says where the page is; no second label over the title. */}
-        <h1 className="page-title" data-section={eyebrow}>{title}</h1>
+        {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
+        <h1 className="page-title">{title}</h1>
         {sub && <p className="secondary mt-1.5 max-w-3xl text-sm">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

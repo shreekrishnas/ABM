@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Moon, Search, Sun } from "lucide-react";
 
@@ -58,25 +58,6 @@ export function SearchPill() {
         <Search size={18} strokeWidth={2} />
       </button>
     </>
-  );
-}
-
-const RANGES = [["today", "Today"], ["week", "Week"], ["all", "All"]] as const;
-
-/** Today / Week / All for the activity table, kept in the URL. */
-export function RangeToggle() {
-  const sp = useSearchParams();
-  const path = usePathname();
-  const router = useRouter();
-  const on = sp.get("range") ?? "week";
-  return (
-    <div className="hs-seg" role="tablist" aria-label="Time range">
-      {RANGES.map(([k, label]) => (
-        <button key={k} type="button" role="tab" aria-selected={on === k} className={on === k ? "on" : ""} onClick={() => router.replace(`${path}?range=${k}`, { scroll: false })}>
-          {label}
-        </button>
-      ))}
-    </div>
   );
 }
 

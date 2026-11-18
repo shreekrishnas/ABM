@@ -38,7 +38,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
     <div className="sh-outer">
       <div className="sh">
         <nav className="sh-rail" aria-label="Main">
-          <Link href="/" className="sh-logo" aria-label="ABM home"><LogoMark size={42} /></Link>
+          <Link href="/" className="sh-logo" aria-label="ABM home"><LogoMark size={42} /><span className="sh-brand" aria-hidden><b>ABM</b><small>Account intelligence</small></span></Link>
           <div className="sh-rail-items">
             {RAIL.map((r) => {
               const n = r.count ? counts[r.count] : 0;
@@ -82,7 +82,7 @@ function AccountMenu({ access, sup }: { access: NonNullable<Access>; sup: boolea
   return (
     <div className="sh-acct" ref={ref}>
       <button type="button" className="sh-item sh-acct-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Account: ${access.name}`} data-tip="Account" onClick={() => setOpen(!open)}>
-        <span className={`sh-av${sup ? " sup" : ""}`} aria-hidden>{initials}</span><span className="sh-lbl">{access.name.split(" ")[0] || "Account"}</span>
+        <span className={`sh-av${sup ? " sup" : ""}`} aria-hidden>{initials}</span><span className="sh-lbl sh-who"><b>{access.name.split(" ")[0] || "Account"}</b><small>{sup ? "Super Admin" : access.canSuperAdmin ? "Admin" : "Team member"}</small></span>
       </button>
       {open && (
         <div className="sh-menu" role="menu">

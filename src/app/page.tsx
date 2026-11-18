@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ArrowRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileSpreadsheet, Radar, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, authSecret, verify, type Session } from "@/lib/auth";
 import { getMe } from "@/lib/me";
@@ -10,17 +10,18 @@ import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
-import { FunnelTrack } from "@/components/viz/funnel-track";
-import { RangeToggle, SearchPill, ThemePill } from "@/components/home/client";
+import { DecisionPanel, ExportView, JourneyPanel } from "@/components/home/workspace";
+import { openDecisions } from "@/lib/decisions";
+import { SearchPill, ThemePill } from "@/components/home/client";
 import { NotificationBell } from "@/components/shell/NotificationBell";
 import { JobsIndicator } from "@/components/shell/JobsIndicator";
-import { Donut, GroupedBars, SparkStat, change, dayLabels, daily } from "@/components/viz/cards";
+import { GroupedBars, dayLabels, daily } from "@/components/viz/cards";
 
 export const metadata = { title: "Home" };
 
 const DAY = 86_400_000;
 type Status = "Researching" | "Awaiting approval" | "Draft ready" | "Researched" | "New";
-const STATUS_TONE: Record<Status, string> = { Researching: "sky", "Awaiting approval": "amber", "Draft ready": "violet", Researched: "ink", New: "muted" };
+const STATUS_TAG: Record<Status, string> = { Researching: "purple", "Awaiting approval": "amber", "Draft ready": "purple", Researched: "green", New: "" };
 
 const PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
 function brandColor(id: string) {
@@ -36,42 +37,32 @@ function greeting(d: Date) {
 }
 
 /** Home is the Command Center: what needs doing, where companies stand, what is stuck, and the two ways in. */
-export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string; ev?: string }> }) {
   await ensureSellerPacks();
   const p = await activeSeller();
-  const { range = "week" } = await searchParams;
+  const { range = "week", ev } = await searchParams;
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
   const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
   // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
   const wkAgo = new Date(now.getTime() - 14 * DAY);
-  const [wkAccounts, wkDrafts, wkSent, wkReplies, wkHandoffs, wkVisits] = await Promise.all([
+  const [wkAccounts, wkSent] = await Promise.all([
     db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
-    db.draft.findMany({ where: { createdAt: { gte: wkAgo } }, select: { createdAt: true, status: true } }),
     db.message.findMany({ where: { sentAt: { gte: wkAgo } }, select: { sentAt: true } }),
-    db.reply.findMany({ where: { receivedAt: { gte: wkAgo } }, select: { receivedAt: true } }),
-    db.handoff.findMany({ where: { createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
-    db.webVisit.findMany({ where: { occurredAt: { gte: wkAgo } }, select: { occurredAt: true } }),
   ]);
-  const trend = (pts: number[]) => (pts.length < 2 ? "flat" : pts[pts.length - 1] > pts[0] ? "up" : pts[pts.length - 1] < pts[0] ? "down" : "flat") as "up" | "down" | "flat";
-  const sparkReplies = daily(wkReplies.map((r) => r.receivedAt), 7, now);
-  const sparkDrafts = daily(wkDrafts.map((d) => d.createdAt), 7, now);
-  const sparkHandoffs = daily(wkHandoffs.map((h) => h.createdAt), 7, now);
-  const sparkVisits = daily(wkVisits.map((v) => v.occurredAt), 7, now);
   const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
-  const vsLast = (dates: Date[], spark: number[]) => change(sum(spark), dates.length - sum(spark));
-  const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
-  const [companies, toApprove, draftsReady, importedWeek, byStage, recent] = await Promise.all([
+  const addedDaily = daily(wkAccounts.map((a) => a.createdAt), 7, now);
+  const sentDaily = daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now);
+  const days = dayLabels(7, now);
+  const [companies, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
-    db.draft.count({ where: { status: "pending_review" } }),
-    db.draft.count({ where: { status: "approved", message: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 7 * DAY) } } }),
     db.account.groupBy({ by: ["stage"], where: { mergedIntoId: null }, _count: true }),
     db.account.findMany({
       where: { mergedIntoId: null, ...(since ? { updatedAt: { gte: since } } : {}) },
       orderBy: { updatedAt: "desc" },
-      take: 6,
+      take: 8,
       select: { id: true, name: true, domain: true, pipelineStatus: true, updatedAt: true, owner: { select: { name: true } }, contacts: { select: { drafts: { where: { status: { in: ["pending_review", "approved"] }, message: null }, select: { status: true } } } } },
     }),
   ]);
@@ -145,14 +136,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     return <GetStarted steps={steps} left={left} />;
   })();
 
+  const center = await openDecisions("all", 30);
+  const queue = center.items.map((d) => ({ id: d.id, kind: d.kind, label: d.label, title: d.title, description: d.description, href: d.href, ago: ago(d.createdAt) }));
+  const fv = (k: string) => cc.funnel.find((f) => f.key === k)?.value ?? 0;
+  const [nImported, nQualified, nResearched] = [fv("imported"), fv("qualified"), fv("researched")];
+  const opps = cc.kpis.find((k) => k.key === "opps");
+  const stuck = gap > 0 ? reachedN[gap - 1] - reachedN[gap] : 0;
+  const strip = flow.steps.slice(0, 5);
+  const rows = recent.map((a, i) => ({ a, e: lastEvents[i] })).filter((r) => ev !== "stopped" || r.e?.outcome === "block");
+  const exportRows: [string, number, string][] = flow.steps.map((st, i) => [st.label, reachedN[i], i === 0 ? "Entry point" : reachedN[i - 1] ? `${Math.round((reachedN[i] / reachedN[i - 1]) * 100)}% of ${lower(flow.steps[i - 1].label)}` : "No conversions yet"]);
+  const firstName = userName ? `, ${userName}` : "";
+
   return (
-    <div className="hm-main">
-        <header className="hm-top">
-          <div className="min-w-0">
-            <div className="hm-date">{dateLine}</div>
-            <h1 className="hm-title">{greeting(now)}{userName ? `, ${userName}` : ""}</h1>
-            <p className="hm-brief">{waiting ? <><b>{waiting} item{waiting === 1 ? "" : "s"}</b> waiting for you on <Link href="/review">Approvals</Link></> : "Nothing is waiting for you"}{stageCount("MQA") ? <> · <b>{stageCount("MQA")}</b> ready for sales</> : null}{importedWeek ? <> · <b>{importedWeek}</b> imported this week</> : null}{recommended ? <> · <Link href="/discover#recommended"><b>{recommended}</b> recommended today</Link></> : null}.</p>
-          </div>
+    <div className="hm-main ws">
+        <header className="ws-topbar">
+          <div className="ws-crumb"><span>{p.name}</span><span>/</span><strong>Intelligence overview</strong></div>
           <div className="hm-tools">
             {me?.canSuperAdmin && <SuperAdminSwitch on={me.superAdmin} />}
             <SearchPill />
@@ -163,142 +161,157 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </div>
         </header>
 
-        <section className="hm-hero" aria-label="Today's focus">
+        <section className="ws-heading">
           <div>
-            <div className="hm-hero-k">{dateLine}<i>/</i>{p.name}</div>
-            <h2>{waiting ? `${waiting} decision${waiting === 1 ? "" : "s"} need you today.` : "Nothing is waiting on you today."}</h2>
+            <div className="ws-eyebrow">{dateLine} · Client workspace</div>
+            <h1>{greeting(now)}{firstName}</h1>
+            <p className="ws-subtle">A sharper view of account progress, decisions and what needs to happen next.</p>
+          </div>
+          <ExportView rows={exportRows} />
+        </section>
+
+        <div className="ws-meta">
+          <span><i className="ws-live" />Live data · checked {ago(cc.freshAt)}</span>
+          <span>Client: <strong>{p.name}</strong></span>
+          <span>•</span>
+          <span>{importedWeek} imported this week</span>
+          {recommended ? <><span>•</span><Link href="/discover#recommended">{recommended} recommended today</Link></> : null}
+        </div>
+
+        <section className="ws-hero" aria-label="Today's focus">
+          <div className="ws-hero-copy">
+            <div className="ws-hero-kicker">{dateLine}<span className="ws-hero-sep">/</span>{p.name} workspace</div>
+            <h2>Your account operations, in focus.</h2>
             <p>
-              <b>{reachedN[0] ?? 0}</b> compan{reachedN[0] === 1 ? "y" : "ies"} in the program
-              {flow.steps.slice(1, 4).map((s, j) => <span key={s.key}>{j ? ", " : ": "}<b>{reachedN[j + 1]}</b> {lower(s.label)}</span>)}.
-              {gap > 0 && <> The biggest gap is between {lower(flow.steps[gap - 1].label)} and {lower(flow.steps[gap].label)}.</>}
+              {waiting ? `${waiting} decision${waiting === 1 ? " requires" : "s require"} attention.` : "No decision is waiting on you."}{" "}
+              {nQualified} compan{nQualified === 1 ? "y is" : "ies are"} qualified{gap > 0 ? `, while ${stuck} ${lower(flow.steps[gap - 1].label)} ${stuck === 1 ? "account has" : "accounts have"} not progressed to ${lower(flow.steps[gap].label)}.` : "."}
             </p>
-            <div className="hm-hero-acts">
-              <Link href="/review" className="hm-hero-btn">{waiting ? `Review ${waiting} decision${waiting === 1 ? "" : "s"}` : "Open approvals"} <ArrowRight size={14} /></Link>
-              <Link href="#flow" className="hm-hero-btn ghost">See the company flow <ArrowRight size={14} /></Link>
+            <div className="ws-hero-actions">
+              <Link href="/review" className="ws-btn">{waiting ? `Review ${waiting} decision${waiting === 1 ? "" : "s"}` : "Open approvals"} <ArrowUpRight size={13} /></Link>
+              <Link href="#journey" className="ws-btn outline">Explore account progression <ArrowRight size={13} /></Link>
             </div>
           </div>
-          <div className="hm-hero-side">
-            <span className="hm-hero-k">Biggest bottleneck</span>
+          <div className="ws-focus">
+            <span className="ws-focus-label">Current bottleneck</span>
             {gap > 0 ? (
               <>
-                <div className="hm-hero-stat">
-                  <strong className="tnum">{reachedN[gap - 1] - reachedN[gap]}</strong>
-                  <div><b>{flow.steps[gap - 1].label}, not yet {lower(flow.steps[gap].label)}</b><span>{Math.round(gapRate * 100)}% move on to the next step</span></div>
-                </div>
-                <div className="hm-hero-track" aria-hidden><span style={{ width: `${Math.round(gapRate * 100)}%` }} /></div>
-                <p className="hm-hero-cap">The step where most companies stop right now.</p>
+                <div className="ws-focus-stat"><strong className="tnum">{stuck}</strong><div><b>{flow.steps[gap - 1].label}, not {lower(flow.steps[gap].label)}</b><span>Next transition is at {Math.round(gapRate * 100)}%</span></div></div>
+                <div className="ws-track" aria-hidden><span style={{ width: `${Math.round(gapRate * 100)}%` }} /></div>
+                <p className="ws-focus-cap">The strongest operational signal in your current workspace.</p>
               </>
-            ) : (
-              <p className="hm-hero-cap">No bottleneck yet. Import companies to see where they stop.</p>
-            )}
+            ) : <p className="ws-focus-cap">No bottleneck yet. Import companies to see where they stop.</p>}
           </div>
         </section>
 
         {getStarted}
 
-        <section className="hm2-kpis" aria-label="What needs doing">
-          {actionable.map((k) => (
-            <Link key={k.key} href={k.href} className={`hm2-q${k.value ? " due" : ""}`} title={k.define}>
-              <span className="hm2-q-l">{k.label}<em>Now</em></span>
-              <span className="hm2-q-v tnum">{k.value}</span>
-              <span className="hm2-q-n">{k.note}</span>
-            </Link>
-          ))}
-          <div className="hm2-ctx" aria-label="Context">
-            {context.map((k) => (
-              <Link key={k.key} href={k.href} className="hm2-c" title={k.define}>
-                <span className="hm2-c-l">{k.label}<em>{k.key === "opps" ? "Open" : "All time"}</em></span>
-                <span className="hm2-c-v tnum">{k.value}</span>
-                <span className="hm2-c-n">{k.note}</span>
-              </Link>
+        <section className="ws-metrics" aria-label="Key metrics">
+          <Link href="/review" className="ws-metric"><div className="ws-metric-top">Pending decisions <span className="ws-micon">↗</span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews</div></Link>
+          <Link href="/accounts" className="ws-metric"><div className="ws-metric-top">Qualified accounts <span className="ws-micon">◉</span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate</div></Link>
+          <Link href="/accounts" className="ws-metric"><div className="ws-metric-top">Research complete <span className="ws-micon">✧</span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"}</div></Link>
+          <Link href={opps?.href || "/handoffs"} className="ws-metric"><div className="ws-metric-top">Open opportunities <span className="ws-micon">◇</span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"}</div></Link>
+        </section>
+
+        <section className="ws-progress" aria-label="Account progression">
+          <div className="ws-progress-cap">
+            <span className="ws-eyebrow">Account progression</span>
+            <b>{(reachedN[4] ?? 0) === 0 ? "Research is moving. Outreach has not started." : `${reachedN[4]} compan${reachedN[4] === 1 ? "y" : "ies"} contacted so far.`}</b>
+            <span>All accounts · current workspace</span>
+          </div>
+          <div className="ws-steps">
+            {strip.map((st, i) => (
+              <div key={st.key} className="ws-step-wrap">
+                {i > 0 && <i className={reachedN[i] === 0 && reachedN[i - 1] > 0 ? "blocked" : undefined} />}
+                <div className={reachedN[i] === 0 ? "zero" : undefined}><b className="tnum">{reachedN[i]}</b><span>{st.label}</span></div>
+              </div>
             ))}
           </div>
+          <Link href="#journey" className="ws-btn small">Inspect journey <ArrowUpRight size={12} /></Link>
         </section>
 
-
-
-        <div className="hm2-grid charts">
-          <section className="hm2-card">
-            <div className="hm2-head"><h2>Activity this week</h2><span className="hm2-meta">Last 7 days</span></div>
-            <GroupedBars categories={dayLabels(7, now)} series={[
-              { name: "Companies added", values: daily(wkAccounts.map((a) => a.createdAt), 7, now) },
-              { name: "Emails sent", values: daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now) },
-            ]} empty="Nothing happened in the last 7 days. New companies, drafts and emails show here as they happen." />
+        <div className="ws-grid">
+          <DecisionPanel items={queue} counts={center.counts} />
+          <section className="ws-panel" aria-labelledby="ws-sig">
+            <div className="ws-panel-head">
+              <div>
+                <div className="ws-eyebrow sm">02 / Signals</div>
+                <h3 id="ws-sig">Attention &amp; signals</h3>
+                <p>Important account signals that need a human decision.</p>
+              </div>
+              <Link href="/review" className="ws-btn small">All signals</Link>
+            </div>
+            {cc.attention.slice(0, 3).map((a, i) => (
+              <div key={i} className="ws-signal">
+                <span className={`ws-sicon ${a.tone}`} aria-hidden>!</span>
+                <div className="min-w-0"><b>{a.title}</b> <span className={`ws-tag ${a.tone === "risk" ? "red" : a.tone === "warn" ? "amber" : "purple"}`}>{a.kind}</span><p>{a.detail}</p></div>
+                <Link href={a.href} className="ws-link">Review →</Link>
+              </div>
+            ))}
+            {gap > 0 && (
+              <div className="ws-signal">
+                <span className="ws-sicon" aria-hidden>↘</span>
+                <div className="min-w-0"><b>{flow.steps[gap - 1].label} → {flow.steps[gap].label}</b><p>{Math.round((1 - gapRate) * 100)}% drop-off at this step based on the current funnel counts.</p></div>
+                <Link href="#journey" className="ws-link">Inspect →</Link>
+              </div>
+            )}
+            {cc.attention.length === 0 && gap <= 0 && <p className="ws-empty">All clear · checked {ago(cc.freshAt)}.</p>}
+            <div className="ws-summary"><span aria-hidden>◈</span><span><strong>Priority focus</strong><br />{cc.attention.length ? "Resolve exceptions" : "Keep the queue clear"}{gap > 0 ? ` and advance ${lower(flow.steps[gap - 1].label)} accounts.` : "."}</span></div>
           </section>
-          <section className="hm2-card">
-            <div className="hm2-head"><h2>Companies by stage</h2><Link href="/accounts" className="hm-sec-link">All companies</Link></div>
-            <Donut data={byStage.map((b) => ({ label: STAGE_WORD[b.stage] ?? b.stage, value: b._count }))} center="of companies" empty="No companies yet." />
-          </section>
+          <JourneyPanel steps={flow.steps} accounts={flow.accounts} start={gap > 0 ? gap - 1 : 0} />
         </div>
 
-        <section className="vz-sparks" aria-label="This week">
-          <SparkStat label="Replies this week" value={sum(sparkReplies)} pct={vsLast(wkReplies.map((r) => r.receivedAt), sparkReplies)} points={sparkReplies} tone={trend(sparkReplies)} href="/outreach" />
-          <SparkStat label="Drafts written" value={sum(sparkDrafts)} pct={vsLast(wkDrafts.map((d) => d.createdAt), sparkDrafts)} sub={toApprove ? `${toApprove} waiting` : "None waiting"} points={sparkDrafts} tone={trend(sparkDrafts)} href="/review" />
-          <SparkStat label="Hand-offs" value={sum(sparkHandoffs)} pct={vsLast(wkHandoffs.map((h) => h.createdAt), sparkHandoffs)} points={sparkHandoffs} tone={trend(sparkHandoffs)} href="/handoffs" />
-          <SparkStat label="Website visits" value={sum(sparkVisits)} pct={vsLast(wkVisits.map((v) => v.occurredAt), sparkVisits)} points={sparkVisits} tone={trend(sparkVisits)} href="/import/apollo" />
-        </section>
-
-        <section className="hm2-card hm2-flow" id="flow">
-          <FunnelTrack steps={flow.steps} accounts={flow.accounts} />
-        </section>
-
-
-        <div className="hm2-grid">
-          <section className="hm-activity" aria-label="Recent activity">
-            <div className="hm-sec-head">
-              <h2>Recent activity</h2>
-              <div className="flex items-center gap-4"><RangeToggle /><Link href="/accounts" className="hm-sec-link">View all</Link></div>
+        <div className="ws-bottom">
+          <section className="ws-panel" aria-labelledby="ws-act">
+            <div className="ws-panel-head">
+              <div>
+                <div className="ws-eyebrow sm">04 / Account operations</div>
+                <h3 id="ws-act">Account activity</h3>
+                <p>Recent events across your companies this week.</p>
+              </div>
+              <Link href={ev === "stopped" ? "/" : "/?ev=stopped"} scroll={false} className="ws-btn small">{ev === "stopped" ? "Stopped only ⌄" : "All events ⌄"}</Link>
             </div>
-            {recent.length === 0 ? (
-              <p className="hm-empty">Nothing changed {range === "today" ? "today" : range === "week" ? "this week" : "yet"}. <Link href="/import">Import companies</Link> to get started.</p>
-            ) : (
-              <table className="hm-table">
-                <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th className="r">Updated</th></tr></thead>
+            <div className="ws-table-wrap">
+              <table className="ws-table">
+                <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th>Updated</th></tr></thead>
                 <tbody>
-                  {recent.map((a, i) => {
-                    const s = statusOf(a);
+                  {rows.length === 0 ? <tr><td colSpan={5} className="ws-empty">{companies ? "No matching companies this week." : <>No companies yet. <Link href="/import">Import companies</Link> to get started.</>}</td></tr> : rows.map(({ a, e }) => {
+                    const st = statusOf(a);
                     return (
                       <tr key={a.id}>
-                        <td data-l="Company"><Link href={`/accounts/${a.id}`} className="hm-co"><span className="hm-co-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><span className="hm-co-n">{a.name}</span>{a.domain && <span className="hm-co-d">{a.domain}</span>}</span></Link></td>
-                        <td data-l="Last event" title={lastEvents[i]?.reason ?? undefined}>{eventText(lastEvents[i])}</td>
-                        <td data-l="Status"><span className={`hm-status ${STATUS_TONE[s]}`}><i />{s}</span></td>
-                        <td data-l="Owner" className="hm-dim">{a.owner?.name ?? "Unassigned"}</td>
-                        <td data-l="Updated" className="hm-dim r tnum">{ago(a.updatedAt)}</td>
+                        <td><Link href={`/accounts/${a.id}`} className="ws-co"><span className="ws-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><strong>{a.name}</strong>{a.domain && <small>{a.domain}</small>}</span></Link></td>
+                        <td title={e?.reason ?? undefined}>{eventText(e)}</td>
+                        <td><span className={`ws-tag ${STATUS_TAG[st]}`}>{st}</span></td>
+                        <td>{a.owner?.name ?? "Unassigned"}</td>
+                        <td className="tnum">{ago(a.updatedAt)} <Link href={`/accounts/${a.id}`} className="ws-link" aria-label={`Open ${a.name}`}>↗</Link></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            )}
-          </section>
-          <div className="hm2-card" id="attention">
-            <div className="hm2-head">
-              <h2>Needs attention</h2>
-              <span className="hm2-meta">{cc.attention.length ? `${cc.attention.length} item${cc.attention.length === 1 ? "" : "s"}` : "All clear"}</span>
             </div>
-            {cc.attention.length === 0 ? (
-              <p className="hm-empty">All clear · checked {ago(cc.freshAt)}. Nothing is stuck, overdue or paused.</p>
-            ) : (
-              <ul className="cc-att">
-                {cc.attention.slice(0, 4).map((a, i) => (
-                  <li key={i}>
-                    <Link href={a.href} className={`cc-a ${a.tone}`}>
-                      <i />
-                      <span className="min-w-0 flex-1"><span className="cc-a-kind">{a.kind}</span><span className="cc-a-title">{a.title}</span><span className="cc-a-detail">{a.detail}</span></span>
-                      <span className="cc-a-at">{ago(a.at)}</span>
-                    </Link>
-                  </li>
-                ))}
-                {cc.attention.length > 4 && <li><Link href="/review" className="hm2-more">All {cc.attention.length} <ArrowRight size={14} /></Link></li>}
-              </ul>
-            )}
-          </div>
+          </section>
+          <section className="ws-panel" aria-labelledby="ws-mom">
+            <div className="ws-panel-head">
+              <div>
+                <div className="ws-eyebrow sm">05 / Momentum</div>
+                <h3 id="ws-mom">Weekly activity</h3>
+                <p>Activity distribution over the last seven days.</p>
+              </div>
+              <span className="ws-tag">Last 7 days</span>
+            </div>
+            <div className="ws-activity">
+              <GroupedBars categories={days} series={[{ name: "Companies added", values: addedDaily }, { name: "Emails sent", values: sentDaily }]} empty="Nothing happened in the last 7 days." />
+              <div className="ws-insight">
+                <span><strong>{sum(addedDaily)} compan{sum(addedDaily) === 1 ? "y" : "ies"}</strong> added this week</span>
+                <span className="r"><strong>{sum(sentDaily)} email{sum(sentDaily) === 1 ? "" : "s"}</strong><br /><span className="ws-muted">{sum(sentDaily) ? "sent this week" : "No outreach yet"}</span></span>
+              </div>
+            </div>
+          </section>
         </div>
 
-
         {companies < 10 && (
-          <section className="hm2-card hm2-onboard" aria-label="Import">
-            <div className="hm2-head"><h2>Get companies in</h2><Link href="/import" className="hm-sec-link">All options</Link></div>
+          <section className="ws-panel hm2-onboard" aria-label="Import">
+            <div className="ws-panel-head"><div><h3>Get companies in</h3></div><Link href="/import" className="ws-link">All options</Link></div>
             <ul className="hm2-imp">
               {[
                 { href: "/import/upload", icon: FileSpreadsheet, label: "Upload a CSV", hint: "Map columns, preview, import" },
@@ -311,7 +324,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           </section>
         )}
 
-        <footer className="hm-foot">{p.name} · ABM account intelligence</footer>
+        <footer className="ws-footer"><span>{p.name} · ABM account intelligence</span><span>Every number is counted from recorded events.</span></footer>
     </div>
   );
 }
