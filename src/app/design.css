@@ -2144,3 +2144,12 @@ a.ws-signal:hover b { color: var(--accent); }
 .ws-spark-line { fill: none; stroke: var(--mc, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ws-spark-s0 { stop-color: var(--mc, var(--accent)); stop-opacity: 0.22; }
 .ws-spark-s1 { stop-color: var(--mc, var(--accent)); stop-opacity: 0; }
+
+/* Companies: status strip above the table (one compact row, scrolls sideways on phones) */
+.dir-stages { display: flex; gap: var(--sp-1); overflow-x: auto; padding: 2px; margin: 0 0 var(--sp-2); scrollbar-width: none; }
+.dir-stages a { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-full); font-size: var(--fs-12); color: var(--text-2); border: 1px solid var(--border); background: var(--surface); white-space: nowrap; }
+.dir-stages a b { color: var(--muted); font-weight: var(--fw-medium); }
+.dir-stages a:hover { border-color: var(--border-2); }
+.dir-stages a.on { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
+.dir-stages a.on b { color: var(--accent); }
+.dir-table tr.is-on td { background: var(--accent-subtle); }

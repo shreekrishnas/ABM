@@ -15,6 +15,8 @@ import { ActiveChips, ExportTicked, FilterPanel, RefreshButton, SearchBox, Selec
 import { PriorityMap } from "./priority-map";
 import { NewCompany } from "./new-company";
 import type { IntentLevel } from "@/components/v2";
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
+import { ListKeys } from "@/components/peek/list-keys";
 
 export const metadata = { title: "Companies" };
 
@@ -83,13 +85,17 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     return flip(base);
   })() as Prisma.AccountOrderByWithRelationInput;
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, stageRows] = await Promise.all([
     db.account.count({ where }),
     db.account.findMany({
       where, orderBy: [orderBy, { name: "asc" }], skip: (page - 1) * PAGE, take: PAGE,
       select: { id: true, name: true, domain: true, industry: true, employees: true, technologies: true, intentScore: true, priorityScore: true, tier: true, stage: true, source: true, city: true, country: true, lastImportBatchId: true, updatedAt: true, _count: { select: { contacts: { where: { mergedIntoId: null } } } } },
     }),
+    db.account.groupBy({ by: ["stage"], where: accountWhere({ ...sp, stage: undefined }), _count: true }),
   ]);
+  const stageN = new Map(stageRows.map((r) => [r.stage as string, r._count]));
+  const stageAll = stageRows.reduce((a, r) => a + r._count, 0);
+  const keep = { ...sp, peek: undefined };
   const mapRows = view === "map" ? await db.account.findMany({ where, select: { id: true, name: true, tier: true, fitScore: true, intentReading: true }, take: 300 }) : [];
   const batchName = new Map(batches.map((b) => [b.id, b.filename]));
   const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -133,6 +139,14 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
           <RefreshButton />
         </div>
         <ActiveChips chips={chips} />
+        <nav className="dir-stages" aria-label="Companies by status">
+          <Link href={href({ stage: undefined, page: undefined, peek: undefined })} className={!sp.stage ? "on" : ""} scroll={false}><span>All</span><b className="tnum">{stageAll}</b></Link>
+          {STAGES.filter((st) => stageN.get(st)).map((st) => (
+            <Link key={st} href={href({ stage: sp.stage === st ? undefined : st, page: undefined, peek: undefined })} className={sp.stage === st ? "on" : ""} scroll={false}>
+              <span>{label(st)}</span><b className="tnum">{stageN.get(st)}</b>
+            </Link>
+          ))}
+        </nav>
 
         {view === "map" ? (
           <div className="k-table-wrap dir-map"><PriorityMap accounts={mapRows.map((a) => ({ id: a.id, name: a.name, tier: a.tier, fit: a.fitScore, intent: a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null } | null }))} /></div>
@@ -180,10 +194,10 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                   const intent = Math.round(r.intentScore);
                   const src = r.lastImportBatchId ? batchName.get(r.lastImportBatchId) ?? r.source : r.source;
                   return (
-                    <tr key={r.id}>
+                    <tr key={r.id} data-row-select={peekHref("/accounts", keep, "a", r.id)} data-selected={sp.peek === `a_${r.id}` ? "" : undefined} className={sp.peek === `a_${r.id}` ? "is-on" : undefined}>
                       <td className="dir-cb"><input type="checkbox" name="ids" value={r.id} aria-label={`Select ${r.name}`} /></td>
                       <td>
-                        <Link href={`/accounts/${r.id}`} className="dir-co">
+                        <Link href={peekHref("/accounts", keep, "a", r.id)} scroll={false} className="dir-co">
                           <Avatar name={r.name} id={r.id} size={30} round />
                           <span className="min-w-0">
                             <b>{r.name}</b>
@@ -222,6 +236,8 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
           </nav>
         )}
       </section>
+      <PeekPanel peek={sp.peek} close={closeHref("/accounts", sp)} />
+      <ListKeys />
     </div>
   );
 }

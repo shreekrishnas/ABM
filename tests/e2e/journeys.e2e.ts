@@ -63,6 +63,8 @@ describe("1. Understand a company", () => {
     const first = p.locator(".dir-table tbody a.dir-co").first();
     await expect(first.count()).resolves.toBeGreaterThan(0);
     await first.click();
+    await p.waitForSelector(".peek-drawer");
+    await p.locator("[data-peek-open]").click();
     await p.waitForURL(/\/accounts\/[^/?]+$/);
     const card = p.locator("section:has(h2:text('What we know'))");
     await expect(card.count()).resolves.toBe(1);
@@ -86,6 +88,8 @@ describe("3. Long tasks don't hold up the app", () => {
   it("Run pipeline answers at once and another section opens straight away", async () => {
     const p = await open("/accounts");
     await p.locator(".dir-table tbody a.dir-co").first().click();
+    await p.waitForSelector(".peek-drawer");
+    await p.locator("[data-peek-open]").click();
     await p.waitForURL(/\/accounts\/[^/?]+$/);
     const t = Date.now();
     await p.getByRole("button", { name: /Run pipeline/ }).click();
