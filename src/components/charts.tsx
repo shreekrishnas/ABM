@@ -85,7 +85,7 @@ export function HBars({ data, unit, height = 260, empty = "Nothing to show yet."
         <CartesianGrid horizontal={false} stroke={t["--grid-line"]} />
         <XAxis type="number" tick={axis(t)} axisLine={false} tickLine={false} allowDecimals={sc.decimals} domain={sc.domain} tickFormatter={(v: number) => fmt(v, unit)} />
         <YAxis type="category" dataKey="label" tick={axis(t)} axisLine={false} tickLine={false} width={96} />
-        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(124, 58, 237, 0.06)", radius: 6 }} />
+        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(29, 95, 184, 0.06)", radius: 6 }} />
         <Bar dataKey="value" fill={t["--chart-seq"]} radius={[0, 4, 4, 0]} maxBarSize={16} background={{ fill: "transparent" }} label={{ position: "right", fontSize: 12, fill: t["--text-primary"], formatter: (v: unknown) => fmt(Number(v), unit) }} />
       </BarChart>
     </ResponsiveContainer>
@@ -107,7 +107,7 @@ export function VBars({ data, unit, height = 220, empty = "Nothing to show yet."
         <CartesianGrid vertical={false} stroke={t["--grid-line"]} />
         <XAxis dataKey="label" tick={axis(t)} axisLine={false} tickLine={false} interval={0} />
         <YAxis tick={axis(t)} axisLine={false} tickLine={false} allowDecimals={sc.decimals} domain={sc.domain} tickFormatter={(v: number) => fmt(v, unit)} />
-        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(124, 58, 237, 0.06)", radius: 6 }} />
+        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(29, 95, 184, 0.06)", radius: 6 }} />
         <Bar dataKey="value" fill={t["--chart-seq"]} radius={[4, 4, 0, 0]} maxBarSize={24} background={{ fill: "transparent" }} />
       </BarChart>
     </ResponsiveContainer>
@@ -132,7 +132,7 @@ export function AreaTrend({ data, unit, height = 220, empty = "Nothing recorded 
         <CartesianGrid vertical={false} stroke={t["--grid-line"]} />
         <XAxis dataKey="label" tick={axis(t)} axisLine={false} tickLine={false} minTickGap={24} />
         <YAxis tick={axis(t)} axisLine={false} tickLine={false} allowDecimals={sc.decimals} domain={sc.domain} />
-        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(124, 58, 237, 0.06)" }} />
+        <Tooltip content={<Tip unit={unit} />} cursor={{ fill: "rgba(29, 95, 184, 0.06)" }} />
         <Bar dataKey="value" fill={t["--chart-area"]} radius={[3, 3, 0, 0]} maxBarSize={18} />
       </BarChart>
     </ResponsiveContainer>

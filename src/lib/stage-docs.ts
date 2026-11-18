@@ -17,7 +17,7 @@ export const STAGE_DOCS: Record<number, { purpose: string; rule: string; trigger
 
 export const CAT_COLOR: Record<string, string> = {
   data: "#2F6FDB",
-  research: "#7A3FD6",
+  research: "#0D7480",
   people: "#0F8A6A",
   outreach: "#C0620A",
   engagement: "#B4235A",

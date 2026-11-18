@@ -1,59 +1,60 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    THE design system (frozen). Loaded last, so it governs every page.
-   Font: Inter. 700 for headings and big numbers, 500-600 for subheads, tabs and
-   buttons, 400 for body, metadata and dates. Plex Mono for code-like data. 12px floor.
-   Text: #0F172A headings, #374151 body, #6B7280 labels and timestamps.
-   Surfaces: #EEF1FA page, #EEF1F8 panels and fills. Borders: #E5E7EB / #E2E8F0.
-   Accent: indigo #6366F1 (hover #4F46E5) for primary buttons, links, active states.
+   Font: Geist (dealt by taste-skill). 500 for headings and big numbers, 500 for subheads, tabs and
+   buttons, 400 for body, metadata and dates. Geist Mono for code-like data. 12px floor.
+   Text: #1F3038 headings, #3E5059 body, #5D6B72 labels and timestamps.
+   Surfaces: #F7F9FA page, #ECF0F2 panels and fills. Borders: #DCE3E6 / #CDD5D9.
+   Accent: teal #0D7480 (hover #0A5F69) for primary buttons, links, active states (taste-skill palette).
    Status: amber #F59E0B warning, red #EF4444 urgent, green #10B981 done.
-   Charts: blue, green, orange, red, violet, sky (--chart-1..6).
+   Charts: blue, green, orange, red, rose, sky (--chart-1..6). Never violet.
    Rule: components use these variables only; no hex colours or px font sizes
    outside this block (checked by scripts/check-tokens.mjs).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
   color-scheme: light;
-  /* Colour roles (Design 2: slate text, one violet accent, indigo primary pill) */
-  --canvas: #F5F7FD;
+  /* Colour roles: the palette taste-skill dealt for software (cool-white-slate: off-white ground,
+     slate ink, one teal accent; never violet) */
+  --canvas: #F7F9FA;
   --surface: #FFFFFF;                      /* opaque: header, inputs, menus, modals */
-  --glass: rgba(255, 255, 255, 0.73);      /* panels: the workspace concept's glass */
-  --glass-hover: rgba(255, 255, 255, 0.92);
+  --glass: rgba(255, 255, 255, 0.86);      /* panels */
+  --glass-hover: rgba(255, 255, 255, 0.96);
   --glass-panel: rgba(255, 255, 255, 0);
-  --glass-border: #E7EAF3;
-  --subtle: #F6F7FC;
-  --border: #E7EAF3;
-  --border-2: #DCE0EC;
-  --text: #171C33;
-  --text-2: #515C77;
-  --muted: #758099;
-  --accent: #7C3AED;                       /* eyebrows, links, selected stage */
-  --accent-h: #6D28D9;
-  --accent-subtle: #F0EDFF;
+  --glass-border: #DCE3E6;
+  --subtle: #ECF0F2;
+  --border: #DCE3E6;
+  --border-2: #CDD5D9;
+  --text: #1F3038;
+  --text-2: #3E5059;
+  --muted: #5D6B72;
+  --accent: #0D7480;                       /* links, eyebrows, selected state */
+  --accent-h: #0A5F69;
+  --accent-subtle: #E2EFF0;
   --on-accent: #FFFFFF;
-  --pill: #6366F1;                         /* primary buttons and the sidebar's active pill (deliberately indigo) */
-  --pill-h: #4F46E5;
-  --pill-subtle: #ECEDFD;
-  --success: #07835E; --success-bg: #E4F8F0;
-  --warning: #B57B25; --warning-bg: #FFF5E9;
-  --danger: #D15160;  --danger-bg: #FFF0F1;
-  --info: #1D4ED8;    --info-bg: #E8EFFD;
-  --neutral: #515C77; --neutral-bg: #F6F7FC;
-  --badge-amber: #F3A729; --live: #13B888; --live-ring: rgba(17, 184, 141, 0.13);
-  --brand-mark: #21183F; --glow-1: rgba(99, 102, 241, 0.10); --glow-2: rgba(87, 103, 191, 0.08);
-  --shadow-card-2: 0 1px 2px rgba(23, 28, 51, 0.04), 0 8px 24px rgba(26, 29, 68, 0.06); --shadow-lift: 0 2px 4px rgba(23, 28, 51, 0.05), 0 16px 36px rgba(26, 29, 68, 0.10);
+  --pill: #0D7480;                         /* primary buttons and the sidebar's active pill */
+  --pill-h: #0A5F69;
+  --pill-subtle: #E2EFF0;
+  --success: #07835E; --success-bg: #E4F6EE;
+  --warning: #A86A14; --warning-bg: #FDF2E2;
+  --danger: #C2414F;  --danger-bg: #FCEDEE;
+  --info: #1D5FB8;    --info-bg: #E6EFFA;
+  --neutral: #3E5059; --neutral-bg: #ECF0F2;
+  --badge-amber: #D98A1C; --live: #13B888; --live-ring: rgba(17, 184, 141, 0.13);
+  --brand-mark: #1F3038; --glow-1: rgba(13, 116, 128, 0.07); --glow-2: rgba(31, 48, 56, 0.05);
+  --shadow-card-2: 0 1px 2px rgba(31, 48, 56, 0.05), 0 8px 24px rgba(31, 48, 56, 0.06); --shadow-lift: 0 2px 4px rgba(31, 48, 56, 0.06), 0 16px 36px rgba(31, 48, 56, 0.10);
   --sheen: rgba(255, 255, 255, 0.9);
-  --stage-bar-1: #7665F3; --stage-bar-2: #A795FF; --step-line-1: #8E86F8; --step-line-2: #B7B3FF; --step-blocked: #EF9BA3;
-  --skeleton: #E5E8F1;
-  /* Atmosphere: one cool hue family (indigo/slate) */
-  --atm-1: #E0E7FF; --atm-2: #EDE9FE; --atm-3: #F1F5F9; --atm-4: #E0E7FF; --atm-5: #E2E8F0;
-  /* Home hero band: deep indigo in both themes, light text on it */
-  --hero-1: #272746; --hero-2: #2D2D57; --hero-3: #35346C;
-  --on-hero: #FFFFFF; --on-hero-2: #C6C6DE; --hero-kicker: #BDBCF3; --hero-warn: #E7A8AD;
+  --stage-bar-1: #0D7480; --stage-bar-2: #5BA7AF; --step-line-1: #5BA7AF; --step-line-2: #A8D0D4; --step-blocked: #E59AA2;
+  --skeleton: #E3E9EC;
+  /* Atmosphere: the teal-slate family */
+  --atm-1: #DCEBEC; --atm-2: #E5EEF0; --atm-3: #EEF2F4; --atm-4: #DCEBEC; --atm-5: #E1E7EA;
+  /* Deep slate band (hero panels): light text on it */
+  --hero-1: #1F3038; --hero-2: #24363F; --hero-3: #2C3C44;
+  --on-hero: #FFFFFF; --on-hero-2: #C8D0D3; --hero-kicker: #9ED1D6; --hero-warn: #E8A6AD;
   --hero-line: rgba(255, 255, 255, 0.16); --hero-fill: rgba(255, 255, 255, 0.07);
 
-  /* Type (Inter; Plex Mono for code-like data) */
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* Type: the pairing taste-skill dealt (Geist; Geist Mono for code-like data) */
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
   --fs-12: 12px;  /* labels, table headers, meta */
   --fs-13: 13px;  /* dense rows, controls */
   --fs-14: 14px;  /* body, descriptions */
@@ -68,11 +69,11 @@
   /* Radius (Design 2 scale) */
   --r-xs: 6px;   /* chips, inline code */
   --r-sm: 8px;   /* segments, small controls */
-  --r-md: 10px;  /* inputs, buttons (= --radius) */
-  --r-lg: 15px;  /* glass cards and panels */
+  --r-md: 12px;  /* inputs, buttons (= --radius) */
+  --r-lg: 20px;  /* cards and panels (taste-skill soft) */
   --r-3xl: 32px; /* modals */
   --r-full: 999px;
-  --radius: 10px;
+  --radius: 12px;
   /* Shadow (Design 2 scale) */
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 10px 32px rgba(26, 29, 68, 0.045);
@@ -102,23 +103,23 @@
   --line: var(--border); --ink: var(--text); --ground: var(--canvas); --panel: var(--surface);
   --teal: var(--accent); --teal-hover: var(--accent-h); --teal-soft: var(--accent-subtle);
   --chart-1: #3b82f6; --chart-2: #10b981; --chart-3: #f59e0b; --chart-seq: var(--pill); --chart-area: var(--accent);
-  --chart-4: #ef4444; --chart-5: #8b5cf6; --chart-6: #0ea5e9;
+  --chart-4: #ef4444; --chart-5: #db2777; --chart-6: #0ea5e9;
   --fs-2xs: var(--fs-12); --fs-xs: var(--fs-12); --fs-sm: var(--fs-13); --fs-base: var(--fs-14); --fs-lg: var(--fs-16); --fs-xl: var(--fs-16); --fs-3xl: var(--fs-24); --fs-4xl: var(--fs-28);
   --r-xl: var(--r-lg); --r-2xl: var(--r-lg);
 }
 
 [data-theme="dark"], :root[data-theme="dark"] {
-  --chart-1: #60a5fa; --chart-2: #34d399; --chart-3: #fbbf24; --chart-4: #f87171; --chart-5: #a78bfa; --chart-6: #38bdf8;
+  --chart-1: #60a5fa; --chart-2: #34d399; --chart-3: #fbbf24; --chart-4: #f87171; --chart-5: #f472b6; --chart-6: #38bdf8;
   color-scheme: dark;
-  --canvas: #111729; --surface: #1B2135; --subtle: #252C42; --border: #30374F; --border-2: #3A4260;
-  --glass: rgba(27, 33, 53, 0.82); --glass-hover: rgba(33, 40, 63, 0.92); --glass-panel: rgba(17, 23, 41, 0); --glass-border: #30374F;
-  --text: #F1F3FE; --text-2: #B9C2D8; --muted: #98A4BF;
-  --accent: #A78BFA; --accent-h: #C4B5FD; --accent-subtle: #2A2350; --on-accent: #FFFFFF;
-  --pill: #6366F1; --pill-h: #818CF8; --pill-subtle: #262C5A;
+  --canvas: #18252B; --surface: #1F3038; --subtle: #2C3C44; --border: #34474F; --border-2: #3F545D;
+  --glass: rgba(31, 48, 56, 0.88); --glass-hover: rgba(38, 57, 66, 0.96); --glass-panel: rgba(24, 37, 43, 0); --glass-border: #34474F;
+  --text: #F7F9FA; --text-2: #C8D0D3; --muted: #9EA7AB;
+  --accent: #5EB5BE; --accent-h: #84C8CF; --accent-subtle: #173C42; --on-accent: #FFFFFF;
+  --pill: #138795; --pill-h: #1C9DAB; --pill-subtle: #17393E;
   --success: #2BC992; --success-bg: #0F2E25; --warning: #F3B45C; --warning-bg: #33260C;
   --danger: #FF7282; --danger-bg: #3A1720; --info: #93C5FD; --info-bg: #13254A;
-  --neutral: #CBD5E1; --neutral-bg: #1E2846; --skeleton: #1C2544;
-  --atm-1: #1E1B4B; --atm-2: #2E1065; --atm-3: #0F172A; --atm-4: #172554; --atm-5: #0B1020;
+  --neutral: #C8D0D3; --neutral-bg: #26383F; --skeleton: #26383F;
+  --atm-1: #173238; --atm-2: #1C2F35; --atm-3: #18252B; --atm-4: #173238; --atm-5: #142026;
   --shadow-sm: none; --shadow-md: 0 12px 30px rgba(8, 13, 24, 0.5); --shadow-card-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(8, 13, 24, 0.45); --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.35), 0 18px 40px rgba(8, 13, 24, 0.6); --sheen: rgba(255, 255, 255, 0.04); --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5); --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.6);
 }
 @media (max-width: 1100px) { :root { --gutter: var(--sp-6); } }
@@ -2065,3 +2066,13 @@ table.data tbody tr:hover td, .hm-table tbody tr:hover td, .dir-table tbody tr:h
 .ws-panel-head { margin-bottom: 0; }
 .ws-queue, .ws-pipe, .ws-activity { padding-top: var(--sp-3); }
 .ws-panel-head + .ws-signal { border-top: 0; }
+
+
+/* ── taste-skill type rules on every page: headlines at 500 with tight tracking, never 700 or 800;
+   text 400 and 500 (layout-v4.md section 5) ── */
+h1, h2, .page-title, .ws-heading h1, .hm-title, .td3-head h1 { font-weight: 500 !important; letter-spacing: -0.035em !important; }
+h3, .card-title, .card-head .card-title, .ws-panel-head h3, .hm2-head h2 { font-weight: 500 !important; letter-spacing: -0.015em !important; }
+.vz-kpi-v, .hm2-q-v, .hm2-c-v, .kpi .value, .ws-metric-v, .stg-v, .ws-stage .num, .ws-step-wrap b, .ws-focus-stat strong, .display-num { font-weight: 500 !important; }
+.btn, .ws-btn, .k-badge, .badge, .ws-tag, .page-eyebrow, .card-eyebrow, .ws-eyebrow { font-weight: 500 !important; }
+.font-bold, .font-extrabold, .font-black { font-weight: 500; }
+.page-eyebrow, .card-eyebrow, .ws-eyebrow, .ws-hero-kicker, .ws-focus-label { text-transform: none !important; letter-spacing: 0 !important; }

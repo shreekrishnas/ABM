@@ -29,9 +29,9 @@ export function hexA(hex: string, a: number) {
 export const STAGE_STYLE: Record<BuyingStage, { color: string; label: string }> = {
   UNAWARE: { color: "#64748B", label: "Unaware" },
   AWARE: { color: "#0EA5E9", label: "Aware" },
-  ENGAGED: { color: "#8B5CF6", label: "Engaged" },
-  MQA: { color: "#7C3AED", label: "Sales-ready" },
-  OPPORTUNITY: { color: "#4F46E5", label: "Opportunity" },
+  ENGAGED: { color: "#3A7DC4", label: "Engaged" },
+  MQA: { color: "#1D5FB8", label: "Sales-ready" },
+  OPPORTUNITY: { color: "#0D7480", label: "Opportunity" },
   CUSTOMER: { color: "#059669", label: "Customer" },
   WATCH: { color: "#B45309", label: "Watch" },
   DISQUALIFIED: { color: "#DC2626", label: "Disqualified" },
@@ -70,7 +70,7 @@ export function FieldBadge({ status }: { status: FieldStatus | undefined | null 
   return <Badge color={FIELD_STATUS_STYLE[s]} dot title={s}>{FIELD_WORD[s]}</Badge>;
 }
 
-const AVATAR_PALETTE = ["#6366F1", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#8B5CF6", "#06B6D4", "#EF4444"];
+const AVATAR_PALETTE = ["#0D7480", "#0EA5E9", "#10B981", "#F59E0B", "#F472B6", "#3A7DC4", "#06B6D4", "#EF4444"];
 
 export function brandColor(id: string) {
   let hash = 0;

@@ -1,13 +1,6 @@
 import type { Metadata } from "next";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller, resolveScope } from "@/lib/scope";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
-import "@fontsource/inter/800.css";
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
 import "./globals.css";
 import "./design.css";
 import { AppNav } from "@/components/shell/AppNav";
@@ -63,6 +56,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Geist and Geist Mono: the type pairing taste-skill dealt for this app */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400..500&display=swap" rel="stylesheet" />
       </head>
       <body>
         {process.env.ABM_TEST_COPY === "true" && <div className="tc-ribbon" role="status">Test copy: sample data only. Nothing here is real and no emails are sent.</div>}

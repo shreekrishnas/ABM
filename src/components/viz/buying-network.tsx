@@ -9,7 +9,7 @@ import { useState } from "react";
 
 export interface NetPerson { id: string; name: string; title: string | null; fn: string; role: string; status: string; interactions: number }
 const STATUS: Record<string, { color: string; label: string }> = {
-  engaged: { color: "#059669", label: "Engaged" }, contacted: { color: "#4F46E5", label: "Contacted" },
+  engaged: { color: "#059669", label: "Engaged" }, contacted: { color: "#0D7480", label: "Contacted" },
   planned: { color: "#B45309", label: "Planned" }, found: { color: "#94A3B8", label: "Found" },
 };
 const ROLE_WORD: Record<string, string> = { decision_maker: "Decision maker", champion: "Champion", influencer: "Influencer", budget_owner: "Budget owner", unknown: "Role unknown" };

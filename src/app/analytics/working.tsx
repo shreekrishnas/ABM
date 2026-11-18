@@ -60,7 +60,7 @@ export function WhatsWorking({ w }: { w: Working }) {
             {w.funnel.map((f) => (
               <li key={f.label} className="flex items-center gap-3">
                 <span className="w-56 text-sm">{f.label}{f.note && <span className="muted block text-xs">{f.note}</span>}</span>
-                <span className="h-2 flex-1 rounded-full bg-[var(--surface-hover)]"><span className="block h-2 rounded-full bg-[var(--accent-primary,#6366F1)]" style={{ width: `${f.value ? Math.max(2, Math.round((f.value / max) * 100)) : 0}%` }} /></span>
+                <span className="h-2 flex-1 rounded-full bg-[var(--surface-hover)]"><span className="block h-2 rounded-full bg-[var(--accent-primary,#0D7480)]" style={{ width: `${f.value ? Math.max(2, Math.round((f.value / max) * 100)) : 0}%` }} /></span>
                 <b className="tnum w-10 text-right">{f.value}</b>
               </li>
             ))}

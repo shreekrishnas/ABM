@@ -451,8 +451,8 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
               </div>
               <p className="muted text-xs">Duplicate rows (same LinkedIn URL, email, or name at the same company) are merged into one person. Existing journeys only receive activity that is new. Without activity columns, new journeys start at <b>Not Contacted</b>.</p>
               {Object.keys(phase.data.unknownStages ?? {}).length > 0 && (
-                <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(99,102,241,0.08)" }}>
-                  <div className="mb-1 font-semibold" style={{ color: "#4F46E5" }}>Stage words we don&apos;t use, imported anyway</div>
+                <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(13, 116, 128,0.08)" }}>
+                  <div className="mb-1 font-semibold" style={{ color: "#0D7480" }}>Stage words we don&apos;t use, imported anyway</div>
                   <p className="secondary">{Object.entries(phase.data.unknownStages).map(([k, n]) => `"${k}" (${n})`).join(", ")}: these people are imported and start at <b>Not Contacted</b>, or at the stage their activity columns show. Map a column to Stage only if it uses the 17 stage names.</p>
                 </div>
               )}

@@ -70,7 +70,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
       <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Signals (30d)" value={total} meta={`${anon} anonymous`} />
         <Kpi label="Intent surging" value={surging.length} accent="#0EA5E9" meta={`Intent ≥ ${CONFIG.intent.surgeThreshold}`} />
-        <Kpi label="Pricing visits (30d)" value={byType.find((t) => t.type === "pricing_visit")?._count ?? 0} accent="#7C3AED" meta={`+${CONFIG.engagement.points.pricing_visit} pts each`} />
+        <Kpi label="Pricing visits (30d)" value={byType.find((t) => t.type === "pricing_visit")?._count ?? 0} accent="#1D5FB8" meta={`+${CONFIG.engagement.points.pricing_visit} pts each`} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
