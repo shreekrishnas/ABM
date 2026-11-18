@@ -8,3 +8,7 @@ next-env.d.ts
 # Test coverage output at the root only (a bare "coverage" also ignored src/app/accounts/coverage)
 /coverage
 tests/e2e/.session.json
+
+# taste-skill build history and checker output
+.taste-skill/
+shots/
