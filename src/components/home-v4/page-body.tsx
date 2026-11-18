@@ -1,4 +1,5 @@
 import { HomeDoc } from "./doc";
+import { renderHtml } from "@/lib/html";
 import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller } from "@/lib/scope";
@@ -62,10 +63,7 @@ export async function homeHtml(): Promise<string> {
   const flowShown = flow.steps;
   const runAt = gap > 0 ? gap : flowShown.length - 1;
 
-  // Loaded at run time: Next refuses a static react-dom/server import, and this page must not hydrate.
-  const server = "react-dom/server";
-  const { renderToStaticMarkup } = (await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ server)) as typeof import("react-dom/server");
-  return "<!doctype html>" + renderToStaticMarkup(
+  return "<!doctype html>" + renderHtml(
     <HomeDoc>
       <header className="nav">
         <div className="wrap nav__bar">
