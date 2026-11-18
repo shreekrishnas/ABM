@@ -41,8 +41,8 @@ function greeting(d: Date) {
 
 /** A 14-day sparkline for a metric tile: a smooth curve across the tile's foot with a soft fill. */
 function Spark({ points, id }: { points: number[]; id: string }) {
-  const W = 300, H = 56, max = Math.max(1, ...points);
-  const pts = points.map((v, i) => [(i / Math.max(1, points.length - 1)) * W, H - 4 - (v / max) * (H - 12)] as const);
+  const W = 300, H = 34, max = Math.max(1, ...points);
+  const pts = points.map((v, i) => [(i / Math.max(1, points.length - 1)) * W, H - 3 - (v / max) * (H - 8)] as const);
   // Catmull-Rom to cubic Bezier: a smooth line through every day's point.
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -260,10 +260,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         {getStarted}
 
         <section className="ws-metrics" aria-label="Key metrics">
-          <Link href="/review" className="ws-metric m0"><div className="ws-metric-top">Pending decisions <span className="ws-micon"><Inbox size={16} /></span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews</div><Trend pct={tiles.decisions.pct} total={tiles.decisions.total} unit="opened" /><Spark id="dec" points={tiles.decisions.points} /></Link>
-          <Link href="/accounts?flow=qualified" className="ws-metric m1"><div className="ws-metric-top">Qualified accounts <span className="ws-micon"><BadgeCheck size={16} /></span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate</div><Trend pct={tiles.qualified.pct} total={tiles.qualified.total} unit="passed fit" /><Spark id="qual" points={tiles.qualified.points} /></Link>
-          <Link href="/accounts?flow=researched" className="ws-metric m2"><div className="ws-metric-top">Research complete <span className="ws-micon"><FlaskConical size={16} /></span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"}</div><Trend pct={tiles.research.pct} total={tiles.research.total} unit="briefs written" /><Spark id="res" points={tiles.research.points} /></Link>
-          <Link href={opps?.href || "/accounts?flow=opportunity"} className="ws-metric m3"><div className="ws-metric-top">Open opportunities <span className="ws-micon"><Briefcase size={16} /></span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"}</div><Trend pct={tiles.opps.pct} total={tiles.opps.total} unit="created" /><Spark id="opp" points={tiles.opps.points} /></Link>
+          <Link href="/review" className="ws-metric m0"><div className="ws-metric-top">Pending decisions <span className="ws-micon"><Inbox size={16} /></span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews · <Trend pct={tiles.decisions.pct} total={tiles.decisions.total} unit="opened" /></div><Spark id="dec" points={tiles.decisions.points} /></Link>
+          <Link href="/accounts?flow=qualified" className="ws-metric m1"><div className="ws-metric-top">Qualified accounts <span className="ws-micon"><BadgeCheck size={16} /></span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate · <Trend pct={tiles.qualified.pct} total={tiles.qualified.total} unit="passed fit" /></div><Spark id="qual" points={tiles.qualified.points} /></Link>
+          <Link href="/accounts?flow=researched" className="ws-metric m2"><div className="ws-metric-top">Research complete <span className="ws-micon"><FlaskConical size={16} /></span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"} · <Trend pct={tiles.research.pct} total={tiles.research.total} unit="briefs written" /></div><Spark id="res" points={tiles.research.points} /></Link>
+          <Link href={opps?.href || "/accounts?flow=opportunity"} className="ws-metric m3"><div className="ws-metric-top">Open opportunities <span className="ws-micon"><Briefcase size={16} /></span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"} · <Trend pct={tiles.opps.pct} total={tiles.opps.total} unit="created" /></div><Spark id="opp" points={tiles.opps.points} /></Link>
         </section>
 
         <div className="ws-main">
