@@ -2076,3 +2076,60 @@ h3, .card-title, .card-head .card-title, .ws-panel-head h3, .hm2-head h2 { font-
 .btn, .ws-btn, .k-badge, .badge, .ws-tag, .page-eyebrow, .card-eyebrow, .ws-eyebrow { font-weight: 500 !important; }
 .font-bold, .font-extrabold, .font-black { font-weight: 500; }
 .page-eyebrow, .card-eyebrow, .ws-eyebrow, .ws-hero-kicker, .ws-focus-label { text-transform: none !important; letter-spacing: 0 !important; }
+
+/* ── Home dashboard: two columns with a right rail, sparkline tiles, funnel, age bar ── */
+.ws-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 15px; align-items: start; margin-top: 15px; }
+@media (min-width: 1280px) { .ws-main { grid-template-columns: minmax(0, 1fr) 360px; } }
+.ws-col, .ws-rail { display: grid; gap: 15px; min-width: 0; align-content: start; }
+@media (min-width: 900px) and (max-width: 1279px) { .ws-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ws-rail > :first-child { grid-column: 1 / -1; } }
+.ws-wide-panel { margin-top: 15px; }
+
+/* metric tiles: number beside a 14-day sparkline, the change under it */
+.ws-metric-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-3); }
+.ws-metric-row .ws-metric-v { margin: 8px 0 4px; }
+.ws-spark { flex: none; overflow: visible; }
+.ws-spark-line { fill: none; stroke: var(--mc, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ws-spark-fill { fill: color-mix(in srgb, var(--mc, var(--accent)) 12%, transparent); stroke: none; }
+.ws-up { color: var(--success); font-weight: var(--fw-medium); }
+.ws-down { color: var(--danger); font-weight: var(--fw-medium); }
+
+/* decision ages */
+.ws-ages { padding: 0 20px 4px; }
+.ws-ages-bar { display: flex; gap: 2px; height: 6px; border-radius: var(--r-full); overflow: hidden; background: var(--subtle); }
+.ws-ages-bar i, .ws-ages-key i { display: block; }
+.ws-ages-key { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-2); font-size: var(--fs-12); color: var(--muted); }
+.ws-ages-key span { display: inline-flex; align-items: center; gap: 6px; }
+.ws-ages-key i { width: 8px; height: 8px; border-radius: 2px; }
+.ws-ages .a0 { background: var(--accent); } .ws-ages .a1 { background: var(--warning); } .ws-ages .a2 { background: var(--danger); }
+
+/* funnel: one row per flow step, linked to its companies */
+.ws-funnel { display: grid; gap: 4px; margin: 0 0 var(--sp-4); padding: 0; list-style: none; }
+.ws-funnel-row { display: grid; grid-template-columns: 132px minmax(0, 1fr) 44px 44px; align-items: center; gap: var(--sp-3); padding: 6px 8px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-13); }
+.ws-funnel-row:hover { background: var(--subtle); color: var(--text); }
+.ws-funnel-l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-funnel-track { height: 10px; border-radius: var(--r-full); background: var(--subtle); overflow: hidden; }
+.ws-funnel-track span { display: block; height: 100%; border-radius: var(--r-full); background: linear-gradient(90deg, var(--stage-bar-1), var(--stage-bar-2)); }
+.ws-funnel-row b { text-align: right; color: var(--text); font-weight: var(--fw-medium); }
+.ws-funnel-c { text-align: right; font-size: var(--fs-12); color: var(--muted); }
+.ws-funnel-row.worst .ws-funnel-c { color: var(--danger); font-weight: var(--fw-medium); }
+@media (max-width: 640px) { .ws-funnel-row { grid-template-columns: 96px minmax(0, 1fr) 36px 36px; gap: var(--sp-2); } }
+
+/* rail panels */
+.ws-donut { padding: 4px 20px 18px; }
+.ws-donut .vz-donut { gap: var(--sp-4); }
+.vz-legend-link { display: contents; color: inherit; }
+.vz-legend li:has(> .vz-legend-link):hover { background: var(--subtle); border-radius: var(--r-sm); }
+.ws-daylinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp-3); }
+.ws-daylinks a { padding: 3px 8px; border-radius: var(--r-full); border: 1px solid var(--border); font-size: var(--fs-12); color: var(--text-2); }
+.ws-daylinks a:hover { border-color: var(--accent); color: var(--accent); }
+a.ws-signal { color: inherit; text-decoration: none; }
+a.ws-signal:hover b { color: var(--accent); }
+
+/* activity rows preview on click */
+.ws-table tbody tr[data-row-select] { cursor: pointer; }
+.ws-table tbody tr.is-on td { background: var(--accent-subtle) !important; }
+.ws-col .ws-stages { grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+@media (max-width: 670px) { .ws-col .ws-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* the preview drawer sits over every card, opaque */
+.peek-drawer { z-index: var(--z-popover) !important; }
+.peek-drawer > .peek, .peek-drawer > .peek.glass-card-static { background: var(--surface) !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border: 1px solid var(--border) !important; box-shadow: var(--shadow-xl) !important; }

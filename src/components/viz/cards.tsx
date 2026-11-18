@@ -93,7 +93,7 @@ function niceStep(max: number) {
 }
 
 /** Donut with the largest share called out in the middle and a legend underneath. */
-export function Donut({ data, center, empty = "No data yet", size = 210 }: { data: { label: string; value: number }[]; center?: string; empty?: string; size?: number }) {
+export function Donut({ data, center, empty = "No data yet", size = 210 }: { data: { label: string; value: number; href?: string }[]; center?: string; empty?: string; size?: number }) {
   const rows = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const total = rows.reduce((t, d) => t + d.value, 0);
   if (!total) return <p className="vz-empty">{empty}</p>;
@@ -119,7 +119,7 @@ export function Donut({ data, center, empty = "No data yet", size = 210 }: { dat
         {rows.length > 1 && <g className="vz-bubble"><rect x={bx - 22} y={by - 13} width="44" height="26" rx="13" /><text x={bx} y={by + 5} textAnchor="middle">{topPct}%</text></g>}
       </svg>
       <ul className="vz-legend col">
-        {rows.slice(0, 6).map((d, i) => <li key={d.label}><i style={{ background: SERIES[i % SERIES.length] }} /><span>{d.label}</span><b className="tnum">{fmt(d.value)}</b></li>)}
+        {rows.slice(0, 6).map((d, i) => { const body = <><i style={{ background: SERIES[i % SERIES.length] }} /><span>{d.label}</span><b className="tnum">{fmt(d.value)}</b></>; return <li key={d.label}>{d.href ? <Link href={d.href} className="vz-legend-link">{body}</Link> : body}</li>; })}
       </ul>
     </div>
   );

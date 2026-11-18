@@ -11,7 +11,8 @@ export interface QueueItem { id: string; kind: "exception" | "approval"; label: 
 
 const initials = (s: string) => s.split(/[\s·&]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 
-export function DecisionPanel({ items, counts }: { items: QueueItem[]; counts: { all: number; exception: number; approval: number } }) {
+export function DecisionPanel({ items, counts, ages }: { items: QueueItem[]; counts: { all: number; exception: number; approval: number }; ages?: { today: number; few: number; old: number } }) {
+  const agesTotal = ages ? ages.today + ages.few + ages.old : 0;
   const [f, setF] = useState<"all" | "exception" | "approval">("all");
   const shown = items.filter((i) => f === "all" || i.kind === f).slice(0, 4);
   return (
@@ -28,6 +29,16 @@ export function DecisionPanel({ items, counts }: { items: QueueItem[]; counts: {
           ))}
         </div>
       </div>
+      {ages && agesTotal > 0 && (
+        <div className="ws-ages" aria-label={`Age of open decisions: ${ages.today} from today, ${ages.few} from 1 to 3 days, ${ages.old} older`}>
+          <div className="ws-ages-bar" aria-hidden>
+            {ages.today > 0 && <i className="a0" style={{ flex: ages.today }} />}
+            {ages.few > 0 && <i className="a1" style={{ flex: ages.few }} />}
+            {ages.old > 0 && <i className="a2" style={{ flex: ages.old }} />}
+          </div>
+          <div className="ws-ages-key"><span><i className="a0" />Today {ages.today}</span><span><i className="a1" />1–3 days {ages.few}</span><span><i className="a2" />Older {ages.old}</span></div>
+        </div>
+      )}
       <div className="ws-queue">
         {shown.length === 0 ? <p className="ws-empty">Nothing waiting here.</p> : shown.map((q) => (
           <div key={q.id} className={`ws-qrow ${q.kind}`}>
@@ -36,7 +47,7 @@ export function DecisionPanel({ items, counts }: { items: QueueItem[]; counts: {
               <div className="ws-qtitle">{q.title}<span className={`ws-tag ${q.kind === "exception" ? "red" : "purple"}`}>{q.label}</span></div>
               <div className="ws-qdesc">{q.description ? `${q.description} · ` : ""}{q.ago}</div>
             </div>
-            <Link href={q.href} className="ws-btn small">Review <ArrowUpRight size={12} /></Link>
+            <Link href={q.href} scroll={false} className="ws-btn small">Preview <ArrowUpRight size={12} /></Link>
           </div>
         ))}
       </div>
@@ -83,6 +94,18 @@ export function JourneyPanel({ steps, accounts, start }: { steps: { key: string;
         </div>
       </div>
       <div className="ws-pipe">
+        <ol className="ws-funnel" aria-label="Companies reaching each step">
+          {steps.map((st, i) => (
+            <li key={st.key}>
+              <Link href={`/accounts?flow=${st.key}`} className={`ws-funnel-row${i === worst ? " worst" : ""}`} title={`${st.define} · see these ${n[i]} companies`}>
+                <span className="ws-funnel-l">{st.label}</span>
+                <span className="ws-funnel-track"><span style={{ width: `${Math.max(n[i] ? 2 : 0, pct(n[i], top))}%` }} /></span>
+                <b className="tnum">{n[i]}</b>
+                <span className="ws-funnel-c tnum">{i ? `${n[i - 1] ? pct(n[i], n[i - 1]) : 0}%` : ""}</span>
+              </Link>
+            </li>
+          ))}
+        </ol>
         {table ? (
           <div className="ws-table-wrap">
             <table className="ws-table">
@@ -107,7 +130,7 @@ export function JourneyPanel({ steps, accounts, start }: { steps: { key: string;
             <div className="ws-dcard-top"><h4>{s.label} · {n[sel]} compan{n[sel] === 1 ? "y" : "ies"}</h4><span className="ws-tag purple">Stage {sel + 1} of {steps.length}</span></div>
             <p>{s.define}</p>
             <div className="ws-chips">
-              {chips.length ? chips.map((a) => <Link key={a.id} href={`/accounts/${a.id}`} className="ws-chip">{a.name} ↗</Link>) : <span className="ws-muted">No account records at this stage.</span>}
+              {chips.length ? chips.map((a) => <Link key={a.id} href={`?peek=a_${a.id}`} scroll={false} className="ws-chip">{a.name} ↗</Link>) : <span className="ws-muted">No account records at this stage.</span>}
             </div>
           </div>
           <div className="ws-dcard">

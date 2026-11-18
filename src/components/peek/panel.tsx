@@ -1,10 +1,10 @@
-// A preview drawer any list can open with ?peek=a_<accountId> or ?peek=p_<contactId>.
+// A preview drawer any list can open with ?peek=a_<accountId>, ?peek=p_<contactId> or ?peek=d_<reviewItemId>.
 // It floats over the right edge, so a page needs no layout change to offer it.
 
-import { CompanyPeek, PersonPeek } from "./peek";
+import { CompanyPeek, DecisionPeek, PersonPeek } from "./peek";
 
 /** `${path}?…&peek=a_<id>`, keeping the page's other params. */
-export function peekHref(path: string, params: Record<string, string | undefined>, kind: "a" | "p", id: string) {
+export function peekHref(path: string, params: Record<string, string | undefined>, kind: "a" | "p" | "d", id: string) {
   const q = new URLSearchParams(Object.entries({ ...params, peek: `${kind}_${id}` }).filter(([, v]) => v) as [string, string][]);
   return `${path}?${q}`;
 }
@@ -18,5 +18,5 @@ export async function PeekPanel({ peek, close }: { peek: string | undefined; clo
   if (!peek) return null;
   const [kind, id] = [peek.slice(0, 1), peek.slice(2)];
   if (!id) return null;
-  return <div className="peek-drawer">{kind === "p" ? await PersonPeek({ id, close }) : await CompanyPeek({ id, close })}</div>;
+  return <div className="peek-drawer">{kind === "p" ? await PersonPeek({ id, close }) : kind === "d" ? await DecisionPeek({ id, close }) : await CompanyPeek({ id, close })}</div>;
 }

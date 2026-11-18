@@ -15,7 +15,10 @@ import { openDecisions } from "@/lib/decisions";
 import { SearchPill, ThemePill } from "@/components/home/client";
 import { NotificationBell } from "@/components/shell/NotificationBell";
 import { JobsIndicator } from "@/components/shell/JobsIndicator";
-import { GroupedBars, dayLabels, daily } from "@/components/viz/cards";
+import { Donut, GroupedBars, change, dayLabels, daily } from "@/components/viz/cards";
+import { AreaTrend } from "@/components/charts";
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
+import { ListKeys } from "@/components/peek/list-keys";
 
 export const metadata = { title: "Home" };
 
@@ -36,17 +39,35 @@ function greeting(d: Date) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
+/** A 14-day sparkline for a metric tile. */
+function Spark({ points }: { points: number[] }) {
+  if (points.every((v) => v === 0)) return null;
+  const W = 96, H = 32, max = Math.max(1, ...points);
+  const x = (i: number) => (i / (points.length - 1)) * (W - 4) + 2;
+  const y = (v: number) => H - 3 - (v / max) * (H - 6);
+  const d = points.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return <svg className="ws-spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden><path d={`${d} L${x(points.length - 1).toFixed(1)},${H} L2,${H} Z`} className="ws-spark-fill" /><path d={d} className="ws-spark-line" /></svg>;
+}
+
+/** "12 opened in 14 days · up 30%" against the 14 days before. */
+function Trend({ pct, total, unit }: { pct: number | null; total: number; unit: string }) {
+  return <span>{total} {unit} in 14 days{pct === null ? "" : pct === 0 ? " · same as before" : <> · <span className={pct > 0 ? "ws-up" : "ws-down"}>{pct > 0 ? "up" : "down"} {Math.abs(pct)}%</span></>}</span>;
+}
+
 /** Home is the Command Center: what needs doing, where companies stand, what is stuck, and the two ways in. */
-export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string; ev?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ range?: string; ev?: string; peek?: string; wk?: string }> }) {
   await ensureSellerPacks();
   const p = await activeSeller();
-  const { range = "week", ev } = await searchParams;
+  const { range = "week", ev, peek, wk } = await searchParams;
+  const keep = { ev, wk };
+  const peekTo = (kind: "a" | "d", id: string) => peekHref("/", keep, kind, id);
+  const long = wk === "30";
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
   const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
   // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
-  const wkAgo = new Date(now.getTime() - 14 * DAY);
+  const wkAgo = new Date(now.getTime() - 30 * DAY);
   const [wkAccounts, wkSent] = await Promise.all([
     db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
     db.message.findMany({ where: { sentAt: { gte: wkAgo } }, select: { sentAt: true } }),
@@ -55,6 +76,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const addedDaily = daily(wkAccounts.map((a) => a.createdAt), 7, now);
   const sentDaily = daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now);
   const days = dayLabels(7, now);
+  const added30 = daily(wkAccounts.map((a) => a.createdAt), 30, now);
+  const added30Data = dayLabels(30, now).map((label, i) => ({ label, value: added30[i] }));
+  const dayKey = (i: number, n: number) => new Date(now.getTime() - (n - 1 - i) * DAY).toISOString().slice(0, 10);
+
+  // 28 days of each tile's events: the last 14 drawn as a sparkline, the 14 before for the change.
+  const d28 = new Date(now.getTime() - 28 * DAY);
+  const [rvDates, fitDates, briefDates, oppDates] = await Promise.all([
+    db.reviewItem.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
+    db.pipelineEvent.findMany({ where: { createdAt: { gte: d28 }, outcome: "pass", step: { startsWith: "fit_tier" } }, select: { createdAt: true } }),
+    db.accountBrief.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
+    db.opportunity.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
+  ]);
+  const trend = (dates: { createdAt: Date }[]) => {
+    const all = daily(dates.map((x) => x.createdAt), 28, now);
+    const last = all.slice(14), prev = all.slice(0, 14);
+    return { points: last, total: sum(last), pct: change(sum(last), sum(prev)) };
+  };
+  const tiles = { decisions: trend(rvDates), qualified: trend(fitDates), research: trend(briefDates), opps: trend(oppDates) };
   const [companies, importedWeek, byStage, recent] = await Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 7 * DAY) } } }),
@@ -137,7 +176,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   })();
 
   const center = await openDecisions("all", 30);
-  const queue = center.items.map((d) => ({ id: d.id, kind: d.kind, label: d.label, title: d.title, description: d.description, href: d.href, ago: ago(d.createdAt) }));
+  const queue = center.items.map((d) => ({ id: d.id, kind: d.kind, label: d.label, title: d.title, description: d.description, href: peekTo("d", d.id), ago: ago(d.createdAt) }));
+  const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
+  const stageData = byStage.map((b) => ({ label: STAGE_WORD[b.stage] ?? b.stage, value: b._count, href: `/accounts?stage=${b.stage}` }));
+  const ageDays = center.items.map((d) => (now.getTime() - d.createdAt.getTime()) / DAY);
+  const ages = { today: ageDays.filter((d) => d < 1).length, few: ageDays.filter((d) => d >= 1 && d < 3).length, old: ageDays.filter((d) => d >= 3).length };
   const fv = (k: string) => cc.funnel.find((f) => f.key === k)?.value ?? 0;
   const [nImported, nQualified, nResearched] = [fv("imported"), fv("qualified"), fv("researched")];
   const opps = cc.kpis.find((k) => k.key === "opps");
@@ -206,108 +249,105 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         {getStarted}
 
         <section className="ws-metrics" aria-label="Key metrics">
-          <Link href="/review" className="ws-metric m0"><div className="ws-metric-top">Pending decisions <span className="ws-micon"><Inbox size={16} /></span></div><div className="ws-metric-v tnum">{waiting}</div><div className="ws-metric-d">Approvals and qualification reviews</div></Link>
-          <Link href="/accounts" className="ws-metric m1"><div className="ws-metric-top">Qualified accounts <span className="ws-micon"><BadgeCheck size={16} /></span></div><div className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualification rate</div></Link>
-          <Link href="/accounts" className="ws-metric m2"><div className="ws-metric-top">Research complete <span className="ws-micon"><FlaskConical size={16} /></span></div><div className="ws-metric-v tnum">{nResearched}</div><div className="ws-metric-d">Of {nQualified} qualified compan{nQualified === 1 ? "y" : "ies"}</div></Link>
-          <Link href={opps?.href || "/handoffs"} className="ws-metric m3"><div className="ws-metric-top">Open opportunities <span className="ws-micon"><Briefcase size={16} /></span></div><div className="ws-metric-v tnum">{opps?.value ?? 0}</div><div className="ws-metric-d">{opps?.value ? opps.note : "No opportunities recorded"}</div></Link>
+          <Link href="/review" className="ws-metric m0"><div className="ws-metric-top">Pending decisions <span className="ws-micon"><Inbox size={16} /></span></div><div className="ws-metric-row"><span className="ws-metric-v tnum">{waiting}</span><Spark points={tiles.decisions.points} /></div><div className="ws-metric-d"><Trend pct={tiles.decisions.pct} total={tiles.decisions.total} unit="opened" /></div></Link>
+          <Link href="/accounts?flow=qualified" className="ws-metric m1"><div className="ws-metric-top">Qualified accounts <span className="ws-micon"><BadgeCheck size={16} /></span></div><div className="ws-metric-row"><span className="ws-metric-v tnum">{nQualified} <span className="ws-denom">/ {nImported}</span></span><Spark points={tiles.qualified.points} /></div><div className="ws-metric-d"><span className="ws-delta">{nImported ? Math.round((nQualified / nImported) * 100) : 0}%</span> qualified · <Trend pct={tiles.qualified.pct} total={tiles.qualified.total} unit="passed fit" /></div></Link>
+          <Link href="/accounts?flow=researched" className="ws-metric m2"><div className="ws-metric-top">Research complete <span className="ws-micon"><FlaskConical size={16} /></span></div><div className="ws-metric-row"><span className="ws-metric-v tnum">{nResearched}</span><Spark points={tiles.research.points} /></div><div className="ws-metric-d"><Trend pct={tiles.research.pct} total={tiles.research.total} unit="briefs written" /></div></Link>
+          <Link href={opps?.href || "/accounts?flow=opportunity"} className="ws-metric m3"><div className="ws-metric-top">Open opportunities <span className="ws-micon"><Briefcase size={16} /></span></div><div className="ws-metric-row"><span className="ws-metric-v tnum">{opps?.value ?? 0}</span><Spark points={tiles.opps.points} /></div><div className="ws-metric-d">{opps?.value ? `${opps.note} · ` : ""}<Trend pct={tiles.opps.pct} total={tiles.opps.total} unit="created" /></div></Link>
         </section>
 
-        <section className="ws-progress" aria-label="Account progression">
-          <div className="ws-progress-cap">
-            <span className="ws-eyebrow">Account progression</span>
-            <b>{(reachedN[4] ?? 0) === 0 ? "Research is moving. Outreach has not started." : `${reachedN[4]} compan${reachedN[4] === 1 ? "y" : "ies"} contacted so far.`}</b>
-            <span>All accounts · current workspace</span>
+        <div className="ws-main">
+          <div className="ws-col">
+            <DecisionPanel items={queue} counts={center.counts} ages={ages} />
+            <JourneyPanel steps={flow.steps} accounts={flow.accounts} start={gap > 0 ? gap - 1 : 0} />
           </div>
-          <div className="ws-steps">
-            {strip.map((st, i) => (
-              <div key={st.key} className="ws-step-wrap">
-                {i > 0 && <i className={reachedN[i] === 0 && reachedN[i - 1] > 0 ? "blocked" : undefined} />}
-                <div className={reachedN[i] === 0 ? "zero" : undefined}><b className="tnum">{reachedN[i]}</b><span>{st.label}</span></div>
+          <aside className="ws-rail" aria-label="Signals and breakdowns">
+            <section className="ws-panel" aria-labelledby="ws-sig">
+              <div className="ws-panel-head">
+                <div>
+                  <div className="ws-eyebrow sm">02 / Signals</div>
+                  <h3 id="ws-sig">Attention &amp; signals</h3>
+                  <p>What needs a human decision.</p>
+                </div>
+                <Link href="/review" className="ws-btn small">All</Link>
               </div>
-            ))}
+              {cc.attention.slice(0, 3).map((a, i) => (
+                <Link key={i} href={a.href} className="ws-signal">
+                  <span className={`ws-sicon ${a.tone}`} aria-hidden><AlertTriangle size={15} /></span>
+                  <div className="min-w-0"><b>{a.title}</b> <span className={`ws-tag ${a.tone === "risk" ? "red" : a.tone === "warn" ? "amber" : "purple"}`}>{a.kind}</span><p>{a.detail}</p></div>
+                </Link>
+              ))}
+              {gap > 0 && (
+                <Link href={`/accounts?flow=${flow.steps[gap - 1].key}`} className="ws-signal">
+                  <span className="ws-sicon" aria-hidden><TrendingDown size={15} /></span>
+                  <div className="min-w-0"><b>{flow.steps[gap - 1].label} → {flow.steps[gap].label}</b><p>{Math.round((1 - gapRate) * 100)}% drop-off at this step. See the {stuck} compan{stuck === 1 ? "y" : "ies"}.</p></div>
+                </Link>
+              )}
+              {cc.attention.length === 0 && gap <= 0 && <p className="ws-empty">All clear · checked {ago(cc.freshAt)}.</p>}
+            </section>
+            <section className="ws-panel" aria-labelledby="ws-stage">
+              <div className="ws-panel-head">
+                <div>
+                  <div className="ws-eyebrow sm">03 / Breakdown</div>
+                  <h3 id="ws-stage">Companies by stage</h3>
+                  <p>Click a stage to see its companies.</p>
+                </div>
+                <Link href="/accounts" className="ws-btn small">All companies</Link>
+              </div>
+              <div className="ws-donut"><Donut data={stageData} center="companies" size={180} empty="No companies yet." /></div>
+            </section>
+            <section className="ws-panel" aria-labelledby="ws-mom">
+              <div className="ws-panel-head">
+                <div>
+                  <div className="ws-eyebrow sm">04 / Momentum</div>
+                  <h3 id="ws-mom">{long ? "Last 30 days" : "This week"}</h3>
+                  <p>{long ? "Companies added per day." : "Companies added and emails sent per day."}</p>
+                </div>
+                <div className="k-seg sg-seg" role="group" aria-label="Period">
+                  <Link href={peek ? `/?wk=7&peek=${peek}` : "/"} scroll={false} className={long ? undefined : "on"}>7d</Link>
+                  <Link href={peek ? `/?wk=30&peek=${peek}` : "/?wk=30"} scroll={false} className={long ? "on" : undefined}>30d</Link>
+                </div>
+              </div>
+              <div className="ws-activity">
+                {long ? <AreaTrend data={added30Data} unit="companies" height={180} empty="No companies added in 30 days." /> : <GroupedBars categories={days} series={[{ name: "Companies added", values: addedDaily }, { name: "Emails sent", values: sentDaily }]} height={180} empty="Nothing happened in the last 7 days." />}
+                {!long && <div className="ws-daylinks" aria-label="Companies added by day">{addedDaily.map((v, i) => v ? <Link key={i} href={`/accounts?added=${dayKey(i, 7)}`}>{days[i]} · {v}</Link> : null)}</div>}
+                <div className="ws-insight">
+                  <span><strong>{long ? sum(added30) : sum(addedDaily)} compan{(long ? sum(added30) : sum(addedDaily)) === 1 ? "y" : "ies"}</strong> added</span>
+                  {!long && <span className="r"><strong>{sum(sentDaily)} email{sum(sentDaily) === 1 ? "" : "s"}</strong> sent</span>}
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <section className="ws-panel ws-wide-panel" aria-labelledby="ws-act">
+          <div className="ws-panel-head">
+            <div>
+              <div className="ws-eyebrow sm">05 / Account operations</div>
+              <h3 id="ws-act">Account activity</h3>
+              <p>Recent events across your companies. Click a row to preview it.</p>
+            </div>
+            <Link href={ev === "stopped" ? (wk ? `/?wk=${wk}` : "/") : `/?ev=stopped${wk ? `&wk=${wk}` : ""}`} scroll={false} className="ws-btn small">{ev === "stopped" ? "Stopped only ⌄" : "All events ⌄"}</Link>
           </div>
-          <Link href="#journey" className="ws-btn small">Inspect journey <ArrowUpRight size={12} /></Link>
+          <div className="ws-table-wrap">
+            <table className="ws-table">
+              <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th>Updated</th></tr></thead>
+              <tbody>
+                {rows.length === 0 ? <tr><td colSpan={5} className="ws-empty">{companies ? "No matching companies this week." : <>No companies yet. <Link href="/import">Import companies</Link> to get started.</>}</td></tr> : rows.map(({ a, e }) => {
+                  const st = statusOf(a);
+                  return (
+                    <tr key={a.id} data-row-select={peekTo("a", a.id)} data-row-open={`/accounts/${a.id}`} className={peek === `a_${a.id}` ? "is-on" : undefined} data-selected={peek === `a_${a.id}` ? "" : undefined}>
+                      <td><Link href={peekTo("a", a.id)} scroll={false} className="ws-co"><span className="ws-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><strong>{a.name}</strong>{a.domain && <small>{a.domain}</small>}</span></Link></td>
+                      <td title={e?.reason ?? undefined}>{eventText(e)}</td>
+                      <td><span className={`ws-tag ${STATUS_TAG[st]}`}>{st}</span></td>
+                      <td>{a.owner?.name ?? "Unassigned"}</td>
+                      <td className="tnum">{ago(a.updatedAt)} <Link href={`/accounts/${a.id}`} className="ws-link" aria-label={`Open ${a.name}`}>↗</Link></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
-
-        <div className="ws-grid">
-          <DecisionPanel items={queue} counts={center.counts} />
-          <section className="ws-panel" aria-labelledby="ws-sig">
-            <div className="ws-panel-head">
-              <div>
-                <div className="ws-eyebrow sm">02 / Signals</div>
-                <h3 id="ws-sig">Attention &amp; signals</h3>
-                <p>Important account signals that need a human decision.</p>
-              </div>
-              <Link href="/review" className="ws-btn small">All signals</Link>
-            </div>
-            {cc.attention.slice(0, 3).map((a, i) => (
-              <div key={i} className="ws-signal">
-                <span className={`ws-sicon ${a.tone}`} aria-hidden><AlertTriangle size={15} /></span>
-                <div className="min-w-0"><b>{a.title}</b> <span className={`ws-tag ${a.tone === "risk" ? "red" : a.tone === "warn" ? "amber" : "purple"}`}>{a.kind}</span><p>{a.detail}</p></div>
-                <Link href={a.href} className="ws-link">Review →</Link>
-              </div>
-            ))}
-            {gap > 0 && (
-              <div className="ws-signal">
-                <span className="ws-sicon" aria-hidden><TrendingDown size={15} /></span>
-                <div className="min-w-0"><b>{flow.steps[gap - 1].label} → {flow.steps[gap].label}</b><p>{Math.round((1 - gapRate) * 100)}% drop-off at this step based on the current funnel counts.</p></div>
-                <Link href="#journey" className="ws-link">Inspect →</Link>
-              </div>
-            )}
-            {cc.attention.length === 0 && gap <= 0 && <p className="ws-empty">All clear · checked {ago(cc.freshAt)}.</p>}
-            <div className="ws-summary"><span className="ws-sum-ic" aria-hidden><Target size={16} /></span><span><strong>Priority focus</strong><br />{cc.attention.length ? "Resolve exceptions" : "Keep the queue clear"}{gap > 0 ? ` and advance ${lower(flow.steps[gap - 1].label)} accounts.` : "."}</span></div>
-          </section>
-          <JourneyPanel steps={flow.steps} accounts={flow.accounts} start={gap > 0 ? gap - 1 : 0} />
-        </div>
-
-        <div className="ws-bottom">
-          <section className="ws-panel" aria-labelledby="ws-act">
-            <div className="ws-panel-head">
-              <div>
-                <div className="ws-eyebrow sm">04 / Account operations</div>
-                <h3 id="ws-act">Account activity</h3>
-                <p>Recent events across your companies this week.</p>
-              </div>
-              <Link href={ev === "stopped" ? "/" : "/?ev=stopped"} scroll={false} className="ws-btn small">{ev === "stopped" ? "Stopped only ⌄" : "All events ⌄"}</Link>
-            </div>
-            <div className="ws-table-wrap">
-              <table className="ws-table">
-                <thead><tr><th>Company</th><th>Last event</th><th>Status</th><th>Owner</th><th>Updated</th></tr></thead>
-                <tbody>
-                  {rows.length === 0 ? <tr><td colSpan={5} className="ws-empty">{companies ? "No matching companies this week." : <>No companies yet. <Link href="/import">Import companies</Link> to get started.</>}</td></tr> : rows.map(({ a, e }) => {
-                    const st = statusOf(a);
-                    return (
-                      <tr key={a.id}>
-                        <td><Link href={`/accounts/${a.id}`} className="ws-co"><span className="ws-av" style={{ background: brandColor(a.id) }} aria-hidden>{initials(a.name)}</span><span className="min-w-0"><strong>{a.name}</strong>{a.domain && <small>{a.domain}</small>}</span></Link></td>
-                        <td title={e?.reason ?? undefined}>{eventText(e)}</td>
-                        <td><span className={`ws-tag ${STATUS_TAG[st]}`}>{st}</span></td>
-                        <td>{a.owner?.name ?? "Unassigned"}</td>
-                        <td className="tnum">{ago(a.updatedAt)} <Link href={`/accounts/${a.id}`} className="ws-link" aria-label={`Open ${a.name}`}>↗</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <section className="ws-panel" aria-labelledby="ws-mom">
-            <div className="ws-panel-head">
-              <div>
-                <div className="ws-eyebrow sm">05 / Momentum</div>
-                <h3 id="ws-mom">Weekly activity</h3>
-                <p>Activity distribution over the last seven days.</p>
-              </div>
-              <span className="ws-tag">Last 7 days</span>
-            </div>
-            <div className="ws-activity">
-              <GroupedBars categories={days} series={[{ name: "Companies added", values: addedDaily }, { name: "Emails sent", values: sentDaily }]} empty="Nothing happened in the last 7 days." />
-              <div className="ws-insight">
-                <span><strong>{sum(addedDaily)} compan{sum(addedDaily) === 1 ? "y" : "ies"}</strong> added this week</span>
-                <span className="r"><strong>{sum(sentDaily)} email{sum(sentDaily) === 1 ? "" : "s"}</strong><br /><span className="ws-muted">{sum(sentDaily) ? "sent this week" : "No outreach yet"}</span></span>
-              </div>
-            </div>
-          </section>
-        </div>
 
         {companies < 10 && (
           <section className="ws-panel hm2-onboard" aria-label="Import">
@@ -325,6 +365,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         )}
 
         <footer className="ws-footer"><span>{p.name} · ABM account intelligence</span><span>Every number is counted from recorded events.</span></footer>
+        <PeekPanel peek={peek} close={closeHref("/", keep)} />
+        <ListKeys />
     </div>
   );
 }

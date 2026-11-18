@@ -7,10 +7,12 @@ import { STAGE_INFO } from "@/lib/journey/stages";
 import { Avatar, TierBadge, ago } from "@/components/ui";
 import { FamilyChip, IntentPill, type IntentLevel } from "@/components/v2";
 import { PipelineStepper, accountStep } from "./stepper";
+import { reviewLabel } from "@/lib/review-labels";
+import { decisionKind } from "@/lib/decisions";
 
 type Reading = { score: number; level: IntentLevel; whyNow: string | null; families: string[] };
 
-function Shell({ title, sub, lead, close, open, children }: { title: string; sub?: string; lead?: React.ReactNode; close: string; open: string; children: React.ReactNode }) {
+function Shell({ title, sub, lead, close, open, openLabel = "Open full page", children }: { title: string; sub?: string; lead?: React.ReactNode; close: string; open: string; openLabel?: string; children: React.ReactNode }) {
   return (
     <aside className="peek glass-card-static" aria-label={`Preview: ${title}`}>
       <div className="peek-head">
@@ -23,7 +25,7 @@ function Shell({ title, sub, lead, close, open, children }: { title: string; sub
       </div>
       <div className="peek-body">{children}</div>
       <div className="peek-foot">
-        <Link href={open} className="btn btn-primary btn-sm w-full justify-center" data-peek-open>Open full page <ArrowRight size={14} /></Link>
+        <Link href={open} className="btn btn-primary btn-sm w-full justify-center" data-peek-open>{openLabel} <ArrowRight size={14} /></Link>
         <div className="muted mt-2 text-center text-[0.68rem]">J / K move · Enter opens · Esc closes</div>
       </div>
     </aside>
@@ -94,6 +96,37 @@ export async function PersonPeek({ id, close }: { id: string; close: string }) {
         <div key={m.id} className="peek-row"><span className="min-w-0 truncate">{m.draft?.subject ?? "Email"}</span><span className="muted text-xs">{m.sentAt ? ago(m.sentAt) : m.status}</span></div>
       ))}
       {visits.total > 0 && (<><div className="peek-label">Website</div><p className="secondary text-sm">{visits.total} visit{visits.total > 1 ? "s" : ""} · {visits.topics.map((t) => t.label).slice(0, 3).join(", ")}</p></>)}
+    </Shell>
+  );
+}
+
+/** A decision waiting for a person, read-only: the reason, the company and the person, then a link
+ *  to Approvals, where it is approved or ruled out (with its undo and checks). */
+export async function DecisionPeek({ id, close }: { id: string; close: string }) {
+  const r = await db.reviewItem.findUnique({ where: { id }, include: { account: { select: { id: true, name: true, domain: true, tier: true } }, contact: { select: { id: true, fullName: true, titleNormalized: true, title: true } } } });
+  if (!r) return null;
+  const kind = decisionKind(r.type);
+  return (
+    <Shell title={reviewLabel(r.type)} sub={[r.account?.name, r.contact?.fullName].filter(Boolean).join(" · ") || undefined} close={close} open={`/review?type=${r.type}&pick=${r.id}`} openLabel="Open in Approvals">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="chip">{kind === "exception" ? "Exception" : "Approval"}</span>
+        <span className="chip">{r.status === "open" ? `Open ${ago(r.createdAt)}` : `Closed ${ago(r.resolvedAt ?? r.createdAt)}`}</span>
+        {r.account && <TierBadge tier={r.account.tier} />}
+      </div>
+      <div className="peek-label">Why it needs you</div>
+      <p className="secondary text-sm">{r.reason}</p>
+      {r.account && (
+        <>
+          <div className="peek-label">Company</div>
+          <Link href={`/accounts/${r.account.id}`} className="peek-row"><span className="min-w-0 truncate"><b style={{ color: "var(--text-primary)" }}>{r.account.name}</b> <span className="muted">{r.account.domain ?? ""}</span></span><ArrowRight size={13} /></Link>
+        </>
+      )}
+      {r.contact && (
+        <>
+          <div className="peek-label">Person</div>
+          <Link href={`/people/${r.contact.id}`} className="peek-row"><span className="min-w-0 truncate"><b style={{ color: "var(--text-primary)" }}>{r.contact.fullName}</b> <span className="muted">{r.contact.titleNormalized ?? r.contact.title ?? ""}</span></span><ArrowRight size={13} /></Link>
+        </>
+      )}
     </Shell>
   );
 }

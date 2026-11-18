@@ -21,9 +21,15 @@ export function ListKeys() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (e.metaKey || e.ctrlKey || e.altKey || t.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (e.key === "Escape") {
+        document.querySelector<HTMLAnchorElement>("[data-peek-close]")?.click();
+        return;
+      }
       const list = rows();
       if (!list.length) return;
       const i = list.findIndex((r) => r.hasAttribute("data-selected"));
+      // Arrow keys move the selection only once a row is selected, so they still scroll the page otherwise.
+      if (i < 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) return;
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
         go(list[Math.min(list.length - 1, i + 1)]);
@@ -32,8 +38,6 @@ export function ListKeys() {
         go(list[Math.max(0, i - 1)]);
       } else if (e.key === "Enter" && i >= 0) {
         document.querySelector<HTMLAnchorElement>("[data-peek-open]")?.click();
-      } else if (e.key === "Escape") {
-        document.querySelector<HTMLAnchorElement>("[data-peek-close]")?.click();
       }
     };
     const onClick = (e: MouseEvent) => {

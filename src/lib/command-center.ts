@@ -4,24 +4,12 @@
 import { db } from "@/lib/db";
 import { metric, type MetricKey } from "@/lib/metrics";
 
-const live = { mergedIntoId: null };
-const engagedContact = { OR: [{ state: { in: ["replied", "handed_off"] as ("replied" | "handed_off")[] } }, { signals: { some: { attributed: true } } }, { journeys: { some: { stage: { in: ["replied_neutral", "details_requested", "details_shared", "interested", "call_scheduled", "demo_scheduled", "opportunity", "closed_won"] as never[] } } } }] };
+import { FLOW_STEPS as STEPS, live } from "@/lib/flow-steps";
 
 export interface Kpi { key: string; label: string; value: number; note: string; href: string; tone: "" | "warn" | "risk" | "up"; define: string }
 export interface FunnelStep { key: string; label: string; value: number; href: string; define: string }
 export interface Attention { kind: string; title: string; detail: string; href: string; at: Date; tone: "risk" | "warn" | "info" }
 
-// Funnel steps are nested: each counts companies that also passed every step before it.
-const STEPS = [
-  { key: "imported", where: {} },
-  { key: "qualified", where: { pipelineStage: { gte: 4 }, stage: { not: "DISQUALIFIED" as const } } },
-  { key: "researched", where: { briefs: { some: {} } } },
-  { key: "contactable", where: { contacts: { some: { mergedIntoId: null, state: { in: ["ready", "in_sequence", "replied", "handed_off"] as ("ready" | "in_sequence" | "replied" | "handed_off")[] } } } } },
-  { key: "contacted", where: { contacts: { some: { OR: [{ messages: { some: { status: "delivered" as const } } }, { journeys: { some: { stage: { not: "not_contacted" as const } } } }] } } } },
-  { key: "engaged", where: { contacts: { some: engagedContact } } },
-  { key: "handoff", where: { handoffs: { some: {} } } },
-  { key: "opportunity", where: { opportunities: { some: {} } } },
-];
 const nested = (i: number) => ({ ...live, AND: STEPS.slice(0, i + 1).map((s) => s.where) });
 
 export interface FlowAccount { id: string; name: string; tier: string | null; reached: number; reason: string }

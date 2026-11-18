@@ -1,5 +1,6 @@
 // The Companies list filters, shared by the page and its export so both return the same companies.
 import type { Prisma } from "@prisma/client";
+import { flowStepWhere } from "@/lib/flow-steps";
 
 export const SIZES = [
   { value: "1-200", label: "1–200", min: 1, max: 200 },
@@ -32,6 +33,13 @@ export function accountWhere(sp: SP): Prisma.AccountWhereInput {
   if (sp.hot === "1") and.push({ intentReading: { path: ["level"], equals: "hot" } });
   if (sp.nopeople === "1") and.push({ contacts: { none: {} } });
   if (sp.rel === "customer" || sp.rel === "competitor") and.push({ relationship: sp.rel });
+  const flow = sp.flow ? flowStepWhere(sp.flow) : null;
+  if (flow) and.push(flow);
+  // ?added=yyyy-mm-dd: companies added that day (the Home chart's bars link here).
+  if (sp.added && /^\d{4}-\d{2}-\d{2}$/.test(sp.added)) {
+    const start = new Date(`${sp.added}T00:00:00`);
+    if (!Number.isNaN(start.getTime())) and.push({ createdAt: { gte: start, lt: new Date(start.getTime() + 86_400_000) } });
+  }
   const minIntent = Number(sp.intent) || 0;
   if (minIntent > 0) and.push({ intentScore: { gte: minIntent } });
   return { AND: and };

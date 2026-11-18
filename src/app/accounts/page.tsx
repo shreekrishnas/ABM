@@ -96,6 +96,9 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
 
   const chips = filters.flatMap((f) => (sp[f.key] ? [{ key: f.key, label: `${f.label}: ${f.options.find((o) => o.value === sp[f.key])?.label ?? sp[f.key]}` }] : []));
   if (minIntent > 0) chips.push({ key: "intent", label: `Intent ≥ ${minIntent}` });
+  const FLOW_WORD: Record<string, string> = { imported: "Imported", qualified: "Qualified", researched: "Researched", contactable: "Contactable", contacted: "Contacted", engaged: "Engaged", handoff: "Handed to sales", opportunity: "Opportunity" };
+  if (sp.flow && FLOW_WORD[sp.flow]) chips.push({ key: "flow", label: `Reached: ${FLOW_WORD[sp.flow]}` });
+  if (sp.added) chips.push({ key: "added", label: `Added on ${sp.added}` });
 
   const href = (patch: SP) => {
     const next = new URLSearchParams(Object.entries({ ...sp, ...patch }).filter(([, v]) => v) as [string, string][]);

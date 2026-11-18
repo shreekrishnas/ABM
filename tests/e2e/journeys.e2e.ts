@@ -111,4 +111,21 @@ describe("4. Daily work", () => {
   it("Home, Today, Approvals and Insights open", async () => {
     for (const path of ["/", "/work/today", "/review", "/pipeline", "/analytics"]) (await open(path)).close();
   });
+
+  it("Home previews a company and a decision in a side panel, and a funnel bar opens its companies", async () => {
+    const p = await open("/");
+    await p.locator(".ws-table tbody tr").first().locator("td").nth(1).click();
+    await p.waitForSelector(".peek-drawer");
+    expect(p.url()).toMatch(/peek=a_/);
+    await p.keyboard.press("Escape");
+    await p.waitForURL((u: URL) => !u.search.includes("peek="));
+    await p.locator(".ws-qrow a").first().click();
+    await p.waitForSelector(".peek-drawer");
+    expect(await p.locator("[data-peek-open]").innerText()).toMatch(/Open in Approvals/);
+    await p.goto(BASE + "/", { waitUntil: "networkidle" });
+    await p.locator(".ws-funnel-row").nth(1).click();
+    await p.waitForURL(/\/accounts\?flow=qualified/);
+    expect(await p.locator(".dir-chips").innerText()).toMatch(/Reached: Qualified/);
+    await p.close();
+  });
 });
