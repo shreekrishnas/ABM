@@ -9,8 +9,8 @@ import { useState } from "react";
 
 export interface NetPerson { id: string; name: string; title: string | null; fn: string; role: string; status: string; interactions: number }
 const STATUS: Record<string, { color: string; label: string }> = {
-  engaged: { color: "#059669", label: "Engaged" }, contacted: { color: "#0D7480", label: "Contacted" },
-  planned: { color: "#B45309", label: "Planned" }, found: { color: "#94A3B8", label: "Found" },
+  engaged: { color: "var(--success)", label: "Engaged" }, contacted: { color: "var(--accent)", label: "Contacted" },
+  planned: { color: "var(--warning)", label: "Planned" }, found: { color: "var(--muted)", label: "Found" },
 };
 const ROLE_WORD: Record<string, string> = { decision_maker: "Decision maker", champion: "Champion", influencer: "Influencer", budget_owner: "Budget owner", unknown: "Role unknown" };
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();

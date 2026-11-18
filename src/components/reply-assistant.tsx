@@ -29,7 +29,7 @@ export function ReplyAssistant({ contactId, campaignId, senderId }: { contactId:
           })}>
             {pending ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} Suggest meaning
           </button>
-          {err && <span className="text-xs" style={{ color: "#B91C1C" }}>{err}</span>}
+          {err && <span className="text-xs" style={{ color: "var(--danger)" }}>{err}</span>}
         </div>
       ) : (
         <div className="grid gap-2 rounded-xl px-3 py-3 text-sm" style={{ background: "var(--surface-card-header)", border: "1px solid var(--border-subtle)" }}>

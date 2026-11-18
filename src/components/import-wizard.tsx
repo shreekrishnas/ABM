@@ -115,7 +115,7 @@ function NewOption({ label, onCreate }: { label: string; onCreate: (name: string
         else { setOpen(false); setName(""); setErr(null); }
       }}>Create</button>
       <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Cancel</button>
-      {err && <span className="text-xs" style={{ color: "#B91C1C" }}>{err}</span>}
+      {err && <span className="text-xs" style={{ color: "var(--danger)" }}>{err}</span>}
     </div>
   );
 }
@@ -304,7 +304,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
         ))}
       </ol>
 
-      {error && <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "#B91C1C" }}><XCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
+      {error && <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "var(--danger)" }}><XCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
 
       {phase.k === "upload" && (
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl px-6 py-10 text-center transition hover:opacity-90" style={{ border: "1.5px dashed var(--border-default)", background: "var(--surface-card-header)" }}>
@@ -389,7 +389,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
                             </optgroup>
                           ))}
                         </select>
-                        {dup && <div className="mt-1 text-[0.7rem]" style={{ color: "#B91C1C" }}>Already mapped from another column — this one will be ignored</div>}
+                        {dup && <div className="mt-1 text-[0.7rem]" style={{ color: "var(--danger)" }}>Already mapped from another column — this one will be ignored</div>}
                       </td>
                     </tr>
                   );
@@ -398,12 +398,12 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
             </table>
           </div>
           {analysis.missingRequired.length > 0 && (
-            <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "#B91C1C" }}>
+            <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "var(--danger)" }}>
               <XCircle size={17} className="mt-0.5 shrink-0" /> Map the required field{analysis.missingRequired.length > 1 ? "s" : ""}: {analysis.missingRequired.map((f) => f.label).join(", ")}{analysis.missingRequired.some((f) => f.key === "firstName") ? " (or Full Name)" : ""}.
             </div>
           )}
           {!analysis.missingRequired.length && !Object.values(analysis.mapping).includes("domain") && (
-            <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)", color: "#B45309" }}>
+            <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)" }}>
               <AlertTriangle size={15} className="mt-0.5 shrink-0" /> No Company Website mapped: companies will be matched by LinkedIn URL or name only. Website is recommended to prevent duplicates.
             </div>
           )}
@@ -452,13 +452,13 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
               <p className="muted text-xs">Duplicate rows (same LinkedIn URL, email, or name at the same company) are merged into one person. Existing journeys only receive activity that is new. Without activity columns, new journeys start at <b>Not Contacted</b>.</p>
               {Object.keys(phase.data.unknownStages ?? {}).length > 0 && (
                 <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(13, 116, 128,0.08)" }}>
-                  <div className="mb-1 font-semibold" style={{ color: "#0D7480" }}>Stage words we don&apos;t use, imported anyway</div>
+                  <div className="mb-1 font-semibold" style={{ color: "var(--accent)" }}>Stage words we don&apos;t use, imported anyway</div>
                   <p className="secondary">{Object.entries(phase.data.unknownStages).map(([k, n]) => `"${k}" (${n})`).join(", ")}: these people are imported and start at <b>Not Contacted</b>, or at the stage their activity columns show. Map a column to Stage only if it uses the 17 stage names.</p>
                 </div>
               )}
               {phase.data.sampleErrors.length > 0 && (
                 <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)" }}>
-                  <div className="mb-1 flex items-center gap-1.5 font-semibold" style={{ color: "#B45309" }}><AlertTriangle size={14} /> Rows that will be rejected (first {phase.data.sampleErrors.length})</div>
+                  <div className="mb-1 flex items-center gap-1.5 font-semibold" style={{ color: "var(--warning)" }}><AlertTriangle size={14} /> Rows that will be rejected (first {phase.data.sampleErrors.length})</div>
                   <ul className="grid gap-0.5 secondary">{phase.data.sampleErrors.map((e) => <li key={e.row}>Row {e.row}: {e.error}</li>)}</ul>
                 </div>
               )}
@@ -481,7 +481,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
 
       {phase.k === "finished" && (
         <div className="grid gap-4">
-          <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(16,185,129,0.1)", color: "#047857" }}>
+          <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(16,185,129,0.1)", color: "var(--success)" }}>
             <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
             <span><b>{phase.summary.filename}</b> imported into {campaignName} · {senderName}: {phase.summary.accepted.toLocaleString()} rows saved, {phase.summary.rejected.toLocaleString()} rejected. {phase.summary.processed} compan{phase.summary.processed === 1 ? "y" : "ies"} processed{phase.summary.remaining ? `, ${phase.summary.remaining} still processing in the background` : ""}.</span>
           </div>
@@ -498,7 +498,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
               <div className="micro mb-1.5">Import → research</div>
               <ul className="grid gap-1 secondary">
                 {phase.summary.research.websitesFound > 0 && <li>Research found <b style={{ color: "var(--text-primary)" }}>{phase.summary.research.websitesFound}</b> missing website{phase.summary.research.websitesFound > 1 ? "s" : ""}, so people there can be verified.</li>}
-                {phase.summary.research.websitesMissing > 0 && <li style={{ color: "#B45309" }}>{phase.summary.research.websitesMissing} website{phase.summary.research.websitesMissing > 1 ? "s" : ""} could not be found — add Company Website in the next upload.</li>}
+                {phase.summary.research.websitesMissing > 0 && <li style={{ color: "var(--warning)" }}>{phase.summary.research.websitesMissing} website{phase.summary.research.websitesMissing > 1 ? "s" : ""} could not be found — add Company Website in the next upload.</li>}
                 {phase.summary.research.profilesFilled > 0 && <li>Missing industry, size or country filled for <b style={{ color: "var(--text-primary)" }}>{phase.summary.research.profilesFilled}</b> compan{phase.summary.research.profilesFilled > 1 ? "ies" : "y"} (with sources).</li>}
                 <li><b style={{ color: "var(--text-primary)" }}>{phase.summary.research.deepDives}</b> deep-dive research run{phase.summary.research.deepDives === 1 ? "" : "s"}{phase.summary.research.engagedDeepDives ? `, ${phase.summary.research.engagedDeepDives} because someone already replied on LinkedIn` : ""}.</li>
                 {phase.summary.research.skippedKnown > 0 && <li>{phase.summary.research.skippedKnown} search{phase.summary.research.skippedKnown > 1 ? "es" : ""} skipped because the file already answered them (tech stack).</li>}
@@ -508,7 +508,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
           )}
           {phase.summary.errors.length > 0 && (
             <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(245,158,11,0.1)" }}>
-              <div className="mb-1 font-semibold" style={{ color: "#B45309" }}>Rejected rows (fix and re-upload — re-uploading is safe)</div>
+              <div className="mb-1 font-semibold" style={{ color: "var(--warning)" }}>Rejected rows (fix and re-upload — re-uploading is safe)</div>
               <ul className="grid gap-0.5 secondary">{phase.summary.errors.slice(0, 20).map((e, i) => <li key={i}>Row {e.row}: {e.error}</li>)}</ul>
             </div>
           )}

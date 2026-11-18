@@ -27,14 +27,14 @@ export function hexA(hex: string, a: number) {
 }
 
 export const STAGE_STYLE: Record<BuyingStage, { color: string; label: string }> = {
-  UNAWARE: { color: "#64748B", label: "Unaware" },
-  AWARE: { color: "#0EA5E9", label: "Aware" },
-  ENGAGED: { color: "#3A7DC4", label: "Engaged" },
-  MQA: { color: "#1D5FB8", label: "Sales-ready" },
-  OPPORTUNITY: { color: "#0D7480", label: "Opportunity" },
-  CUSTOMER: { color: "#059669", label: "Customer" },
-  WATCH: { color: "#B45309", label: "Watch" },
-  DISQUALIFIED: { color: "#DC2626", label: "Disqualified" },
+  UNAWARE: { color: "var(--muted)", label: "Unaware" },
+  AWARE: { color: "var(--chart-6)", label: "Aware" },
+  ENGAGED: { color: "var(--chart-2)", label: "Engaged" },
+  MQA: { color: "var(--info)", label: "Sales-ready" },
+  OPPORTUNITY: { color: "var(--accent)", label: "Opportunity" },
+  CUSTOMER: { color: "var(--success)", label: "Customer" },
+  WATCH: { color: "var(--warning)", label: "Watch" },
+  DISQUALIFIED: { color: "var(--danger)", label: "Disqualified" },
   RECYCLED: { color: "#0891B2", label: "Back in research" },
 };
 

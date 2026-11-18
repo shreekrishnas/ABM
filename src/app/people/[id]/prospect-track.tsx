@@ -7,11 +7,11 @@ import { FamilyChip, IntentPill, Stepper } from "@/components/v2";
 
 const KIND: Record<TrackKind, { label: string; color: string }> = {
   linkedin: { label: "LinkedIn", color: "#0A66C2" },
-  email: { label: "Email", color: "#0D7480" },
-  brain: { label: "Brain", color: "#1D5FB8" },
+  email: { label: "Email", color: "var(--accent)" },
+  brain: { label: "Brain", color: "var(--info)" },
   engagement: { label: "Engagement", color: "#DB2777" },
   data: { label: "Data checks", color: "#0D9488" },
-  people: { label: "People & reviews", color: "#B45309" },
+  people: { label: "People & reviews", color: "var(--warning)" },
 };
 const TONE = { good: "#10B981", bad: "#DC2626", wait: "#F59E0B", info: "#94A3B8" } as const;
 

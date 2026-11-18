@@ -107,7 +107,7 @@ export default async function SellerPage() {
           <ul className="grid gap-3">
             {sp.useCases.map((u) => (
               <li key={u.key} className="rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)" }}>
-                <div className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</b><span className="text-xs" style={{ color: "#059669" }}>{u.outcome}</span></div>
+                <div className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</b><span className="text-xs" style={{ color: "var(--success)" }}>{u.outcome}</span></div>
                 <div className="muted mt-0.5 text-xs">Pain: {u.pains}</div>
                 <div className="secondary mt-1.5 text-xs italic">“{sp.messaging.byUseCase[u.key]}”</div>
               </li>
@@ -125,7 +125,7 @@ export default async function SellerPage() {
           </Card>
           <Card title="Sender details" sub="Required in every email">
             <div className="text-xs secondary">{sp.sender.name} · {sp.sender.company}<br />{sp.sender.address}</div>
-            <p className="mt-2 text-xs" style={{ color: "#B45309" }}>Replace with the full registered postal address before real sending.</p>
+            <p className="mt-2 text-xs" style={{ color: "var(--warning)" }}>Replace with the full registered postal address before real sending.</p>
           </Card>
         </div>
       </div>

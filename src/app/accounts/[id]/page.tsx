@@ -112,7 +112,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <h1 className="ch-name">{a.name}</h1>
               <StageBadge stage={a.stage} />
               <TierBadge tier={a.tier} />
-              {a.relationship !== "prospect" && <Badge color="#475569">{a.relationship}</Badge>}
+              {a.relationship !== "prospect" && <Badge color="var(--text-2)">{a.relationship}</Badge>}
             </div>
             <div className="ch-meta">
               {[a.industry ?? "Industry unknown", [a.city, a.country].filter(Boolean).join(", "), a.employees ? `${a.employees.toLocaleString()} employees` : null, `Owner ${a.owner?.name ?? "unassigned"}`].filter(Boolean).map((x) => <span key={x}>{x}</span>)}
@@ -252,7 +252,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <div className="grid gap-3 text-sm">
                 <div>
                   <div className="micro mb-1.5">Negative evidence</div>
-                  {twin?.negatives.length ? twin.negatives.map((n) => <div key={n.id} className="flex items-center gap-2 text-xs" style={{ color: "#B45309" }}><ShieldAlert size={14} />{n.claim} · {date(n.publishedAt)}</div>) : <span className="muted text-xs">{twin?.noNegativeNews ? "Checked — no negative news (counts as an answer)" : "Not checked yet"}</span>}
+                  {twin?.negatives.length ? twin.negatives.map((n) => <div key={n.id} className="flex items-center gap-2 text-xs" style={{ color: "var(--warning)" }}><ShieldAlert size={14} />{n.claim} · {date(n.publishedAt)}</div>) : <span className="muted text-xs">{twin?.noNegativeNews ? "Checked — no negative news (counts as an answer)" : "Not checked yet"}</span>}
                 </div>
                 {twin?.changed.length ? (
                   <div>

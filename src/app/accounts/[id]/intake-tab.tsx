@@ -18,7 +18,7 @@ function Source({ s }: { s: string | null }) {
     try {
       host = new URL(m[1]).hostname;
     } catch {}
-    return <a href={m[1]} target="_blank" rel="noreferrer" className="hover:underline"><Badge color="#1D5FB8">research</Badge> <span className="mono text-[0.7rem]">{host}</span></a>;
+    return <a href={m[1]} target="_blank" rel="noreferrer" className="hover:underline"><Badge color="var(--info)">research</Badge> <span className="mono text-[0.7rem]">{host}</span></a>;
   }
   return <span className="text-xs"><Badge color="#0D9488">import</Badge> <span className="muted">{s}</span></span>;
 }
@@ -47,9 +47,9 @@ export async function IntakeTab({ account }: { account: Account }) {
       <div className="glass-card-static card-pad">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Badge color="#0D9488"><FileInput size={12} className="mr-1 inline" />Import</Badge><ArrowRight size={14} className="muted" />
-          <Badge color="#B45309"><Database size={12} className="mr-1 inline" />Intake map · {gaps.length ? `${gaps.length} gap${gaps.length > 1 ? "s" : ""}` : "complete"}</Badge><ArrowRight size={14} className="muted" />
-          <Badge color="#1D5FB8"><Search size={12} className="mr-1 inline" />Research · {plan?.depth ?? "not planned yet"}</Badge><ArrowRight size={14} className="muted" />
-          <Badge color="#0D7480"><Sparkles size={12} className="mr-1 inline" />AI brief</Badge>
+          <Badge color="var(--warning)"><Database size={12} className="mr-1 inline" />Intake map · {gaps.length ? `${gaps.length} gap${gaps.length > 1 ? "s" : ""}` : "complete"}</Badge><ArrowRight size={14} className="muted" />
+          <Badge color="var(--info)"><Search size={12} className="mr-1 inline" />Research · {plan?.depth ?? "not planned yet"}</Badge><ArrowRight size={14} className="muted" />
+          <Badge color="var(--accent)"><Sparkles size={12} className="mr-1 inline" />AI brief</Badge>
         </div>
         <p className="secondary mt-2 text-sm">Everything the CSV brought in is mapped below. Missing basics are researched before fit and identity run; what the import already answered is not searched again; LinkedIn conversations from the import decide how deep research goes.</p>
       </div>
@@ -65,7 +65,7 @@ export async function IntakeTab({ account }: { account: Account }) {
                     <td className="strong">{f.label}</td>
                     <td className="max-w-[220px] truncate text-xs" title={f.value ?? ""}>{f.value ?? <span style={{ color: f.gap ? "#B45309" : undefined }}>{f.gap ? "missing — researched" : "—"}</span>}</td>
                     <td className="max-w-[200px] truncate"><Source s={f.value ? f.source : null} /></td>
-                    <td>{f.status === "missing" ? <Badge color={f.gap ? "#B45309" : "#94A3B8"}>missing</Badge> : f.status === "unknown" ? <Badge color="#64748B">unverified</Badge> : <FieldBadge status={f.status as FieldStatus} />}</td>
+                    <td>{f.status === "missing" ? <Badge color={f.gap ? "#B45309" : "#94A3B8"}>missing</Badge> : f.status === "unknown" ? <Badge color="var(--muted)">unverified</Badge> : <FieldBadge status={f.status as FieldStatus} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -100,7 +100,7 @@ export async function IntakeTab({ account }: { account: Account }) {
                       <td className="strong whitespace-nowrap">{label(q.key)}</td>
                       <td className="max-w-[280px] text-xs secondary">{q.why}</td>
                       <td className="max-w-[260px] text-xs">{s ? <><Badge color={s.cached ? "#0D9488" : "#0D7480"}>{s.cached ? "cache" : s.engine}</Badge><div className="mono muted mt-1 truncate" title={s.query}>{s.query}</div></> : <span className="muted">—</span>}</td>
-                      <td className="whitespace-nowrap text-xs">{n ? <Badge color="#059669">{n} fact{n > 1 ? "s" : ""}</Badge> : q.key === "negative" ? <Badge color="#059669">none found (good)</Badge> : <Badge color="#94A3B8">nothing found</Badge>}</td>
+                      <td className="whitespace-nowrap text-xs">{n ? <Badge color="var(--success)">{n} fact{n > 1 ? "s" : ""}</Badge> : q.key === "negative" ? <Badge color="var(--success)">none found (good)</Badge> : <Badge color="var(--muted)">nothing found</Badge>}</td>
                     </tr>
                   );
                 })}
@@ -108,7 +108,7 @@ export async function IntakeTab({ account }: { account: Account }) {
                   <tr key={`skip-${q.key}`} className="opacity-70">
                     <td className="whitespace-nowrap">{label(q.key)}</td>
                     <td className="text-xs muted" colSpan={2}>Not asked: {q.reason}</td>
-                    <td className="text-xs">{facts(q.key) ? <Badge color="#059669">{facts(q.key)} held</Badge> : <Badge color="#94A3B8">skipped</Badge>}</td>
+                    <td className="text-xs">{facts(q.key) ? <Badge color="var(--success)">{facts(q.key)} held</Badge> : <Badge color="var(--muted)">skipped</Badge>}</td>
                   </tr>
                 ))}
               </tbody>

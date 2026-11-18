@@ -6,7 +6,7 @@
    Surfaces: #F7F9FA page, #ECF0F2 panels and fills. Borders: #DCE3E6 / #CDD5D9.
    Accent: teal #0D7480 (hover #0A5F69) for primary buttons, links, active states (taste-skill palette).
    Status: amber #F59E0B warning, red #EF4444 urgent, green #10B981 done.
-   Charts: blue, green, orange, red, rose, sky (--chart-1..6). Never violet.
+   Charts: teal, blue, amber, green, rose, slate blue (--chart-1..6). Never violet.
    Rule: components use these variables only; no hex colours or px font sizes
    outside this block (checked by scripts/check-tokens.mjs).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -102,14 +102,14 @@
   --l1-shadow: var(--shadow-sm); --l2-shadow: var(--shadow-lg); --l3-shadow: var(--shadow-xl);
   --line: var(--border); --ink: var(--text); --ground: var(--canvas); --panel: var(--surface);
   --teal: var(--accent); --teal-hover: var(--accent-h); --teal-soft: var(--accent-subtle);
-  --chart-1: #3b82f6; --chart-2: #10b981; --chart-3: #f59e0b; --chart-seq: var(--pill); --chart-area: var(--accent);
-  --chart-4: #ef4444; --chart-5: #db2777; --chart-6: #0ea5e9;
+  --chart-1: #0D7480; --chart-2: #3A7DC4; --chart-3: #C98A1E; --chart-seq: var(--pill); --chart-area: var(--accent);
+  --chart-4: #2E9D6E; --chart-5: #C2566A; --chart-6: #6B7FB0;
   --fs-2xs: var(--fs-12); --fs-xs: var(--fs-12); --fs-sm: var(--fs-13); --fs-base: var(--fs-14); --fs-lg: var(--fs-16); --fs-xl: var(--fs-16); --fs-3xl: var(--fs-24); --fs-4xl: var(--fs-28);
   --r-xl: var(--r-lg); --r-2xl: var(--r-lg);
 }
 
 [data-theme="dark"], :root[data-theme="dark"] {
-  --chart-1: #60a5fa; --chart-2: #34d399; --chart-3: #fbbf24; --chart-4: #f87171; --chart-5: #f472b6; --chart-6: #38bdf8;
+  --chart-1: #5EB5BE; --chart-2: #7FA9E0; --chart-3: #F0B65A; --chart-4: #4FC796; --chart-5: #EE8C9D; --chart-6: #A3B1DA;
   color-scheme: dark;
   --canvas: #18252B; --surface: #1F3038; --subtle: #2C3C44; --border: #34474F; --border-2: #3F545D;
   --glass: rgba(31, 48, 56, 0.88); --glass-hover: rgba(38, 57, 66, 0.96); --glass-panel: rgba(24, 37, 43, 0); --glass-border: #34474F;

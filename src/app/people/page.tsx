@@ -190,7 +190,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
                         </td>
                         <td className="max-w-[170px] text-xs">{j?.lastEngagement ? <><div className="truncate" title={j.lastEngagement}>{j.lastEngagement}</div><div className="muted">{ago(j.lastEngagementAt)}</div></> : <span className="muted">—</span>}</td>
                         <td className="max-w-[170px] text-xs">{next ? next.text : "—"}</td>
-                        <td>{call.ok ? <Badge color="#059669">Yes</Badge> : <span title={call.reason}><Badge color="#94A3B8">No</Badge></span>}</td>
+                        <td>{call.ok ? <Badge color="var(--success)">Yes</Badge> : <span title={call.reason}><Badge color="var(--muted)">No</Badge></span>}</td>
                         <td>
                           <div className="flex items-center gap-0.5">
                             <Link href={`/people/${c.id}`} className="btn btn-ghost btn-sm" title="View"><Eye size={14} /></Link>

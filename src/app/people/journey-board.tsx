@@ -5,14 +5,14 @@ import { Avatar, ago } from "@/components/ui";
 
 /** Lanes a person moves through. Several detailed stages share a lane so the board stays readable. */
 export const LANES: { id: string; title: string; hint: string; stages: JourneyStage[]; color: string }[] = [
-  { id: "new", title: "Not contacted", hint: "Send the request", stages: ["not_contacted"], color: "#64748B" },
-  { id: "invited", title: "Invited", hint: "Waiting to accept", stages: ["connection_sent"], color: "#0EA5E9" },
-  { id: "connected", title: "Connected", hint: "Follow up", stages: ["connection_accepted", "follow_up_sent"], color: "#0D7480" },
-  { id: "talking", title: "Talking", hint: "Answer them", stages: ["replied_neutral", "details_requested", "details_shared", "referred"], color: "#1D5FB8" },
+  { id: "new", title: "Not contacted", hint: "Send the request", stages: ["not_contacted"], color: "var(--muted)" },
+  { id: "invited", title: "Invited", hint: "Waiting to accept", stages: ["connection_sent"], color: "var(--chart-6)" },
+  { id: "connected", title: "Connected", hint: "Follow up", stages: ["connection_accepted", "follow_up_sent"], color: "var(--accent)" },
+  { id: "talking", title: "Talking", hint: "Answer them", stages: ["replied_neutral", "details_requested", "details_shared", "referred"], color: "var(--info)" },
   { id: "interested", title: "Interested", hint: "Book the call", stages: ["interested"], color: "#DB2777" },
   { id: "meeting", title: "Meeting", hint: "Run it", stages: ["call_scheduled", "demo_scheduled"], color: "#E11D48" },
-  { id: "won", title: "Opportunity", hint: "With sales", stages: ["opportunity", "closed_won"], color: "#059669" },
-  { id: "parked", title: "Parked", hint: "Later or closed", stages: ["nurture", "not_interested", "disqualified", "closed_lost"], color: "#94A3B8" },
+  { id: "won", title: "Opportunity", hint: "With sales", stages: ["opportunity", "closed_won"], color: "var(--success)" },
+  { id: "parked", title: "Parked", hint: "Later or closed", stages: ["nurture", "not_interested", "disqualified", "closed_lost"], color: "var(--muted)" },
 ];
 
 export interface BoardCard { journeyId: string; contactId: string; name: string; title: string | null; company: string; sender: string; stage: JourneyStage; followUps: number; last: Date | null; /** The next step, when it is due now. */ due: string | null }
