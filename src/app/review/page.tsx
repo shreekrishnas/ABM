@@ -45,6 +45,15 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const evidence = await db.evidence.findMany({ where: { id: { in: evidenceIds } } });
   const evById = new Map(evidence.map((e) => [e.id, e]));
   const total = counts.reduce((a, c) => a + c._count, 0);
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const threeAgo = new Date(dayStart.getTime() - 3 * 86_400_000);
+  const base = { status: "open" as const, ...(type ? { type } : {}) };
+  const [aToday, aFew, aOld] = await Promise.all([
+    db.reviewItem.count({ where: { ...base, createdAt: { gte: dayStart } } }),
+    db.reviewItem.count({ where: { ...base, createdAt: { gte: threeAgo, lt: dayStart } } }),
+    db.reviewItem.count({ where: { ...base, createdAt: { lt: threeAgo } } }),
+  ]);
+  const aAll = aToday + aFew + aOld;
   const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type, ...q }).filter(([, v]) => v) as [string, string][])}`;
   const idx = Math.max(0, items.findIndex((i) => i.id === sp.pick));
   const r = items[idx];
@@ -92,6 +101,17 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         {lookalikes > 0 && <Link href="/import/lookalikes?view=review" className="dz-chip out">Lookalikes to review · {lookalikes} <ExternalLink size={12} aria-hidden /></Link>}
         {handoffs > 0 && <Link href="/handoffs" className="dz-chip out">Hand-offs to accept · {handoffs} <ExternalLink size={12} aria-hidden /></Link>}
       </div>
+
+      {aAll > 0 && (
+        <div className="ws-ages rv-ages" aria-label={`How long these have waited: ${aToday} from today, ${aFew} from 1 to 3 days, ${aOld} older`}>
+          <div className="ws-ages-bar" aria-hidden>
+            {aToday > 0 && <i className="a0" style={{ flex: aToday }} />}
+            {aFew > 0 && <i className="a1" style={{ flex: aFew }} />}
+            {aOld > 0 && <i className="a2" style={{ flex: aOld }} />}
+          </div>
+          <div className="ws-ages-key"><span><i className="a0" />Today {aToday}</span><span><i className="a1" />1–3 days {aFew}</span><span><i className="a2" />Older {aOld}</span></div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="k-table-wrap"><EmptyState icon={<ClipboardCheck size={20} />} title="Nothing waiting" text="When the pipeline needs a decision, it lands here with its reason." /></div>

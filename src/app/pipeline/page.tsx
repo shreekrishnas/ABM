@@ -1,3 +1,4 @@
+import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import Link from "next/link";
 import { Play, Timer } from "lucide-react";
 import { db } from "@/lib/db";
@@ -13,8 +14,9 @@ import { Stat, StatRow } from "@/components/kit";
 
 export const metadata = { title: "Pipeline" };
 
-export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
-  const sel = Math.min(13, Math.max(1, Number((await searchParams).s ?? 10) || 10));
+export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ s?: string; peek?: string }> }) {
+  const spp = await searchParams;
+  const sel = Math.min(13, Math.max(1, Number(spp.s ?? 10) || 10));
   const stage = STAGES[sel - 1];
   const doc = STAGE_DOCS[sel];
 
@@ -136,7 +138,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
               <ul className="grid gap-2">
                 {recentBlocks.map((b) => (
                   <li key={b.id} className="text-xs">
-                    <div className="flex justify-between gap-2"><Link href={`/accounts/${b.accountId}?tab=pipeline`} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>{b.account?.name ?? "—"}</Link><span className="muted">{ago(b.createdAt)}</span></div>
+                    <div className="flex justify-between gap-2"><Link href={b.accountId ? peekHref("/pipeline", { s: spp.s }, "a", b.accountId) : "/pipeline"} scroll={false} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>{b.account?.name ?? "—"}</Link><span className="muted">{ago(b.createdAt)}</span></div>
                     <div className="secondary">{b.reason}</div>
                   </li>
                 ))}
@@ -183,6 +185,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
           </div>
         </Card>
       </div>
+      <PeekPanel peek={spp.peek} close={closeHref("/pipeline", spp)} />
     </div>
   );
 }

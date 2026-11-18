@@ -2153,3 +2153,6 @@ a.ws-signal:hover b { color: var(--accent); }
 .dir-stages a.on { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
 .dir-stages a.on b { color: var(--accent); }
 .dir-table tr.is-on td { background: var(--accent-subtle); }
+
+/* Approvals: waiting-time bar under the kind chips */
+.rv-ages { margin: 0 0 var(--sp-3); max-width: 560px; }
