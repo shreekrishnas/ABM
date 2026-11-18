@@ -2133,3 +2133,13 @@ a.ws-signal:hover b { color: var(--accent); }
 /* the preview drawer sits over every card, opaque */
 .peek-drawer { z-index: var(--z-popover) !important; }
 .peek-drawer > .peek, .peek-drawer > .peek.glass-card-static { background: var(--surface) !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border: 1px solid var(--border) !important; box-shadow: var(--shadow-xl) !important; }
+
+/* metric tiles: KPI cards with a full-width spark area along the foot */
+.ws-metric { display: flex; flex-direction: column; padding-bottom: 0 !important; }
+.ws-metric-v { margin: 10px 0 2px !important; }
+.ws-trend { display: block; margin-top: var(--sp-2); font-size: var(--fs-12); color: var(--muted); }
+.ws-trend .ws-up, .ws-trend .ws-down { font-weight: var(--fw-medium); }
+.ws-spark { display: block; width: calc(100% + 34px); height: 56px; margin: var(--sp-3) -17px 0; }
+.ws-spark-line { fill: none; stroke: var(--mc, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ws-spark-s0 { stop-color: var(--mc, var(--accent)); stop-opacity: 0.22; }
+.ws-spark-s1 { stop-color: var(--mc, var(--accent)); stop-opacity: 0; }
