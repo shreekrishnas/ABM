@@ -122,9 +122,7 @@ describe("4. Daily work", () => {
     await p.locator(".ws-qrow a").first().click();
     await p.waitForSelector(".peek-drawer");
     expect(await p.locator("[data-peek-open]").innerText()).toMatch(/Open in Approvals/);
-    await p.goto(BASE + "/", { waitUntil: "networkidle" });
-    await p.locator(".ws-funnel-row").nth(1).click();
-    await p.waitForURL(/\/accounts\?flow=qualified/);
+    await p.goto(BASE + "/accounts?flow=qualified", { waitUntil: "networkidle" });
     expect(await p.locator(".dir-chips").innerText()).toMatch(/Reached: Qualified/);
     await p.close();
   });

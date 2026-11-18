@@ -94,18 +94,6 @@ export function JourneyPanel({ steps, accounts, start }: { steps: { key: string;
         </div>
       </div>
       <div className="ws-pipe">
-        <ol className="ws-funnel" aria-label="Companies reaching each step">
-          {steps.map((st, i) => (
-            <li key={st.key}>
-              <Link href={`/accounts?flow=${st.key}`} className={`ws-funnel-row${i === worst ? " worst" : ""}`} title={`${st.define} · see these ${n[i]} companies`}>
-                <span className="ws-funnel-l">{st.label}</span>
-                <span className="ws-funnel-track"><span style={{ width: `${Math.max(n[i] ? 2 : 0, pct(n[i], top))}%` }} /></span>
-                <b className="tnum">{n[i]}</b>
-                <span className="ws-funnel-c tnum">{i ? `${n[i - 1] ? pct(n[i], n[i - 1]) : 0}%` : ""}</span>
-              </Link>
-            </li>
-          ))}
-        </ol>
         {table ? (
           <div className="ws-table-wrap">
             <table className="ws-table">
