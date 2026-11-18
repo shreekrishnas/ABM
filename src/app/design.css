@@ -1988,3 +1988,9 @@ table.data tbody tr:hover td, .hm-table tbody tr:hover td, .dir-table tbody tr:h
   .ws-step-wrap b { font-size: var(--fs-16); }
   .ws-step-wrap span { display: block; }
 }
+/* Today's Decision Center and Pipeline step cards in the concept's row and card style */
+.dc .td2-row, .dc .td2-row:last-child { margin: 7px 0 0; padding: 12px !important; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.dc .td2-row:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.dc .dc-ic { border-radius: var(--r-md); }
+.stg-c { border-radius: 12px; }
+.stg-c.on { border-width: 1.5px; }
