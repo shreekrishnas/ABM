@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import { WhyThisEmail } from "@/components/why-this-email";
 import type { DraftBrief } from "@/lib/outreach/brief";
@@ -150,7 +151,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                   <ul className="dz-reports">
                     {reports.map((x, i) => (
                       <li key={i}>
-                        <Kb tone="warning">{x.kind.replace(/_/g, " ")}</Kb>
+                        <Kb tone="warning">{humanize(x.kind)}</Kb>
                         <p>{x.claim}</p>
                         {x.quote && <blockquote>“{x.quote}”</blockquote>}
                         <a href={x.sourceUrl} target="_blank" rel="noreferrer">{(() => { try { return new URL(x.sourceUrl).hostname.replace(/^www\./, ""); } catch { return x.sourceUrl; } })()} · {date(new Date(x.publishedAt))} <ExternalLink size={11} /></a>
@@ -204,7 +205,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     </div>
                   </ActionForm>
                   <aside className="dz-claims">
-                    {(draft.useCase || draft.painPoint) && <p className="dz-explain"><b>Angle:</b> {draft.useCase?.replace(/_/g, " ")}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</p>}
+                    {(draft.useCase || draft.painPoint) && <p className="dz-explain"><b>Angle:</b> {humanize(draft.useCase)}{draft.painPoint ? ` — ${draft.painPoint}` : ""}</p>}
                     <h3>Claims and their evidence</h3>
                     <ul>
                       {(draft.claims as { text: string; factIds: string[] }[]).map((c, i) => {

@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
 import { ensureSellerPacks } from "@/lib/seller";
@@ -81,7 +82,7 @@ export default async function SellerPage() {
               <tbody>
                 {sp.personas.map((p, i) => (
                   <tr key={i}>
-                    <td><Badge color={ROLE_COLOR[p.role]}>{p.role.replace("_", " ")}</Badge></td>
+                    <td><Badge color={ROLE_COLOR[p.role]}>{humanize(p.role)}</Badge></td>
                     <td className="text-xs">{p.titles.slice(0, 6).join(", ")}{p.titles.length > 6 ? "…" : ""}</td>
                     <td className="text-xs">{p.why}</td>
                   </tr>

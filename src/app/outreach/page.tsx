@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import { Mail, MessageSquareReply, MessagesSquare, Phone, Send, Timer, UserPlus as Linkedin } from "lucide-react";
@@ -142,7 +143,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
                         <tr key={r.id}>
                           <td className="strong whitespace-nowrap"><Link href={peekHref("/outreach", keep, "p", r.contactId)} scroll={false} className="hover:underline">{r.contact.fullName}</Link><div className="muted text-xs font-normal">{r.contact.account.name}</div></td>
                           <td className="max-w-[260px]"><span className="line-clamp-2">{r.body}</span></td>
-                          <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#1D5FB8" : "#B45309"}>{r.class.replace("_", " ")}</Badge></td>
+                          <td><Badge color={r.class === "positive" ? "#059669" : r.class === "unsubscribe" ? "#DC2626" : r.class === "needs_human" ? "#1D5FB8" : "#B45309"}>{humanize(r.class)}</Badge></td>
                           <td className="text-xs">{r.route}</td>
                           <td className="muted whitespace-nowrap text-xs">{ago(r.receivedAt)}</td>
                         </tr>

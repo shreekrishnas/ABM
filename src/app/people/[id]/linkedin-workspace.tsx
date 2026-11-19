@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { CheckCircle2, MessageSquareText, RefreshCw, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { CopyButton } from "@/components/copy-button";
@@ -53,7 +54,7 @@ export async function LinkedInWorkspace({ journeyId }: { journeyId: string }) {
         <section className="lg:col-span-2">
           <H>Contact intelligence</H>
           <dl className="grid gap-1.5 text-xs">
-            <div><dt className="muted inline">Role: </dt><dd className="inline">{w.c.titleNormalized ?? w.c.title ?? "title unknown"} · {w.c.buyingRole.replace("_", " ")}{w.persona ? ` · ${w.persona.why}` : ""}</dd></div>
+            <div><dt className="muted inline">Role: </dt><dd className="inline">{w.c.titleNormalized ?? w.c.title ?? "title unknown"} · {humanize(w.c.buyingRole)}{w.persona ? ` · ${w.persona.why}` : ""}</dd></div>
             {w.brief?.whyNow && <div><dt className="muted inline">Why now: </dt><dd className="inline">{w.brief.whyNow.text}</dd></div>}
             {w.pain && <div><dt className="muted inline">Suggested angle: </dt><dd className="inline">{w.pain.pain} → {w.pain.capability}</dd></div>}
             {w.intent?.level && <div><dt className="muted inline">Buying intent: </dt><dd className="inline">{w.intent.level}{w.intent.score != null ? ` (${Math.round(w.intent.score)})` : ""}</dd></div>}

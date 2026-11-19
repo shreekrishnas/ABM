@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import { SPEND_KINDS, metric } from "@/lib/metrics";
 import { db } from "@/lib/db";
@@ -60,7 +61,7 @@ export default async function AnalyticsPage() {
     if (r.class === "positive") s.positive++;
     angleStats.set(k, s);
   }
-  const replyClasses = Object.entries(replies.reduce<Record<string, number>>((a, r) => ({ ...a, [r.class]: (a[r.class] ?? 0) + 1 }), {})).map(([label, value]) => ({ label: label.replace("_", " "), value }));
+  const replyClasses = Object.entries(replies.reduce<Record<string, number>>((a, r) => ({ ...a, [r.class]: (a[r.class] ?? 0) + 1 }), {})).map(([label, value]) => ({ label: humanize(label), value }));
 
   const tierRows = (["T1", "T2", "T3"] as const).map((t) => {
     const sent = messages.filter((m) => m.contact.account.tier === t).length;

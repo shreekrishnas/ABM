@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, Briefcase, FileSpreadsheet, FlaskConical, Inbox, Radar, Sparkles, Target, TrendingDown } from "lucide-react";
@@ -131,7 +132,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     if (!e) return "—";
     const [area] = e.step.split(".");
     const what: Record<string, string> = { research_plan: "Research planned", account_research: "Research ran", account_twin: "Evidence updated", investigate: "Investigation", readiness: e.outcome === "block" ? "Held at readiness" : "Ready for outreach", draft_review: "Draft written", rejection: "Rejection proposed", fit_tier: e.outcome === "block" ? "Stopped at fit" : "Fit scored", intake: "Data filled", brain: "Brief written", orchestrator: e.outcome === "block" ? "Stopped" : "Run finished" };
-    return what[area] ?? area.replace(/_/g, " ");
+    return what[area] ?? humanize(area);
   };
   const waiting = Number(cc.kpis.find((k) => k.key === "approve")?.value ?? 0);
   const actionable = ["approve", "overdue"].map((k) => cc.kpis.find((x) => x.key.includes(k))).filter(Boolean) as typeof cc.kpis;

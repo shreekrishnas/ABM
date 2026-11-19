@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { Bot, Hand, Link2 as Linkedin, ListTodo, Mail, MessageSquareReply, Radar, StickyNote } from "lucide-react";
 import { db } from "@/lib/db";
 import { STAGE_INFO, type Stage } from "@/lib/journey/stages";
@@ -5,7 +6,7 @@ import { Card, ago } from "@/components/ui";
 
 /** "reply → Details Requested"; a step that names its own stage ("details shared → Details Shared") says it once. */
 function railTitle(type: string, from: string | null, to: string | null) {
-  const what = type.replaceAll("_", " ");
+  const what = humanize(type);
   const verb = what.charAt(0).toUpperCase() + what.slice(1);
   if (!to || from === to) return verb;
   const stage = STAGE_INFO[to as Stage]?.label ?? to;
@@ -27,14 +28,14 @@ export async function InteractionRail({ contactId }: { contactId: string }) {
     db.note.findMany({ where: { contactId }, include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 30 }),
   ]);
   const items: Item[] = [
-    ...messages.map((m): Item => ({ at: m.sentAt ?? new Date(0), channel: "email", title: `${m.status === "delivered" ? "Email sent" : `Email ${m.status.replace("_", " ")}`} · step ${m.draft.stepOrder}`, detail: m.draft.subject, manual: false, by: m.mailbox })),
-    ...replies.map((r): Item => ({ at: r.receivedAt, channel: "email", title: `Replied by email · ${r.class.replace("_", " ")}`, detail: r.body.slice(0, 220), manual: false, by: r.route })),
+    ...messages.map((m): Item => ({ at: m.sentAt ?? new Date(0), channel: "email", title: `${m.status === "delivered" ? "Email sent" : `Email ${humanize(m.status)}`} · step ${m.draft.stepOrder}`, detail: m.draft.subject, manual: false, by: m.mailbox })),
+    ...replies.map((r): Item => ({ at: r.receivedAt, channel: "email", title: `Replied by email · ${humanize(r.class)}`, detail: r.body.slice(0, 220), manual: false, by: r.route })),
     ...events.filter((e) => e.type !== "imported").map((e): Item => ({
       at: e.occurredAt, channel: "linkedin",
       title: railTitle(e.type, e.fromStage, e.toStage),
       detail: e.detail, manual: e.source !== "agent", by: `${e.journey.sender.name} · logged ${e.source}`,
     })),
-    ...signals.filter((s) => s.source !== "linkedin_manual").map((s): Item => ({ at: s.occurredAt, channel: "signal", title: s.type.replaceAll("_", " "), detail: s.detail, manual: s.source === "manual", by: s.source })),
+    ...signals.filter((s) => s.source !== "linkedin_manual").map((s): Item => ({ at: s.occurredAt, channel: "signal", title: humanize(s.type), detail: s.detail, manual: s.source === "manual", by: s.source })),
     ...tasks.map((t): Item => ({ at: t.createdAt, channel: "task", title: `${t.status === "done" ? "Done" : "Task"}: ${t.title}`, detail: t.body, manual: t.origin === "manual" || t.origin === "palette", by: t.assignee?.name ?? null })),
     ...notes.map((n): Item => ({ at: n.createdAt, channel: "note", title: "Note", detail: n.body.slice(0, 220), manual: Boolean(n.authorId), by: n.author?.name ?? "system" })),
   ].filter((i) => i.at.getTime() > 0).sort((a, b) => b.at.getTime() - a.at.getTime());

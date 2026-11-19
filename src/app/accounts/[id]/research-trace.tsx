@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { ExternalLink } from "lucide-react";
 import { db } from "@/lib/db";
 import { Badge, EmptyState } from "@/components/kit";
@@ -33,7 +34,7 @@ export async function ResearchTrace({ accountId }: { accountId: string }) {
   const refText = (ref: string) => {
     const [kind, id] = [ref.split(":")[0], ref.slice(ref.indexOf(":") + 1)];
     if (kind === "fact") return `“${(fact.get(id)?.claim ?? "a fact").slice(0, 70)}”`;
-    if (kind === "capability") return id.replace(/_/g, " ");
+    if (kind === "capability") return humanize(id);
     if (kind === "hypothesis") return "this hypothesis";
     return id;
   };
@@ -72,7 +73,7 @@ export async function ResearchTrace({ accountId }: { accountId: string }) {
                   <div className="rt-hyp-top">
                     <Badge tone={CLASS_TONE[cls]}>{CLASS_LABEL[cls]}</Badge>
                     <Badge tone={h.status === "validated" ? "success" : h.status === "rejected" ? "danger" : "neutral"}>{STATUS_LABEL[h.status] ?? h.status}</Badge>
-                    {h.useCase && <span className="rt-muted">{h.useCase.replace(/_/g, " ")}</span>}
+                    {h.useCase && <span className="rt-muted">{humanize(h.useCase)}</span>}
                   </div>
                   <p className="rt-hyp-text">{h.text}</p>
                   <p className="rt-muted">May be stated as: “{CLASS_CLAIM[cls]}”</p>
@@ -91,7 +92,7 @@ export async function ResearchTrace({ accountId }: { accountId: string }) {
                   {links.filter((l) => l.hypothesisId === h.id).length > 0 && (
                     <ul className="rt-links">
                       {links.filter((l) => l.hypothesisId === h.id).map((l) => (
-                        <li key={l.id}><span>{refText(l.fromRef)}</span> <b>{l.relation.replace(/_/g, " ")}</b> <span>{refText(l.toRef)}</span>{l.isHypothesis && <Badge tone="warning">Assumption</Badge>} <span className="rt-muted">{l.rationale}</span></li>
+                        <li key={l.id}><span>{refText(l.fromRef)}</span> <b>{humanize(l.relation)}</b> <span>{refText(l.toRef)}</span>{l.isHypothesis && <Badge tone="warning">Assumption</Badge>} <span className="rt-muted">{l.rationale}</span></li>
                       ))}
                     </ul>
                   )}

@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { SignalType } from "@prisma/client";
 import { ListTodo, Radar } from "lucide-react";
@@ -15,7 +16,7 @@ export const metadata = { title: "Signals" };
 /** "pricing_visit" → "Pricing page"; anything else in plain words. */
 const WORD: Record<string, string> = { site_visit: "Site visit", pricing_visit: "Pricing page", demo_visit: "Demo page", email_open: "Email open", email_click: "Email click", email_reply: "Email reply", intent_surge: "Intent surge", job_change: "Job change" };
 function signalWord(type: string) {
-  return WORD[type] ?? type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return WORD[type] ?? humanize(type).replace(/^./, (c) => c.toUpperCase());
 }
 
 type Sig = { id: string; accountId: string; account: { name: string }; contact: { id: string; fullName: string } | null; type: string; detail: string | null; points: number; occurredAt: Date; anonymous: boolean };

@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { AlertTriangle, Check, Clock, Globe, Handshake, MessageSquareReply, Phone, Undo2 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -47,7 +48,7 @@ export default async function HandoffsPage({ searchParams }: { searchParams: Pro
   const active = show === "overdue" ? overdue : show === "accepted" || show === "sent_back" ? [] : activeAll;
   const decidedShown = show === "accepted" ? accepted : show === "sent_back" ? sentBack : show === "overdue" ? [] : decided;
   const card = (key: string, el: React.ReactNode) => <Link href={show === key ? "/handoffs" : `/handoffs?show=${key}`} className={`ho-kpi${show === key ? " on" : ""}`} aria-pressed={show === key}>{el}</Link>;
-  const label = (sellerId: string, key: string) => { try { return sellerFor(sellerId).researchQuestions.find((q) => q.key === key)?.label ?? key.replace(/_/g, " "); } catch { return key.replace(/_/g, " "); } };
+  const label = (sellerId: string, key: string) => { try { return sellerFor(sellerId).researchQuestions.find((q) => q.key === key)?.label ?? humanize(key); } catch { return humanize(key); } };
   const packets = new Map(await Promise.all(active.slice(0, 20).map(async (h) => {
     const [visits, replies, sent, brief] = await Promise.all([
       visitSummary({ accountId: h.accountId }, now, 30),
@@ -82,7 +83,7 @@ export default async function HandoffsPage({ searchParams }: { searchParams: Pro
                 <div className="flex items-center gap-3">
                   <Avatar name={h.account.name} id={h.account.id} size={44} />
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><span className="ho-trig">{TRIGGER_LABEL[h.trigger] ?? h.trigger.replace(/_/g, " ")}</span></div>
+                    <div className="flex flex-wrap items-center gap-2"><Link href={`/accounts/${h.accountId}`} className="text-base font-bold hover:underline" style={{ color: "var(--text-primary)" }}>{h.account.name}</Link><StageBadge stage={h.account.stage} /><span className="ho-trig">{TRIGGER_LABEL[h.trigger] ?? humanize(h.trigger)}</span></div>
                     <div className="muted mt-0.5 text-xs">To {h.owner?.name ?? "the unassigned queue"} · {ago(h.createdAt)}{h.escalatedAt ? " · escalated to a manager" : ""}</div>
                   </div>
                 </div>
@@ -101,7 +102,7 @@ export default async function HandoffsPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div>
                   <div className="micro mb-1">Who engaged</div>
-                  {b.engaged.length ? b.engaged.slice(0, 4).map((e) => <div key={e.name} className="text-sm secondary"><b style={{ color: "var(--text-primary)" }}>{e.name}</b>{e.title ? ` · ${e.title}` : ""} <span className="muted text-xs">({e.signals.map((s) => s.replaceAll("_", " ")).join(", ")})</span></div>) : <span className="muted text-sm">No named person yet</span>}
+                  {b.engaged.length ? b.engaged.slice(0, 4).map((e) => <div key={e.name} className="text-sm secondary"><b style={{ color: "var(--text-primary)" }}>{e.name}</b>{e.title ? ` · ${e.title}` : ""} <span className="muted text-xs">({e.signals.map((s) => humanize(s)).join(", ")})</span></div>) : <span className="muted text-sm">No named person yet</span>}
                   {pk && pk.visits.total > 0 && (
                     <>
                       <div className="micro mb-1 mt-3 flex items-center gap-1"><Globe size={12} /> What they read (30 days)</div>
@@ -150,7 +151,7 @@ export default async function HandoffsPage({ searchParams }: { searchParams: Pro
               <li key={h.id}>
                 <Avatar name={h.account.name} id={h.account.id} size={28} />
                 <Link href={`/accounts/${h.accountId}`} className="ho-done-co">{h.account.name}</Link>
-                <span className="ho-done-meta">{TRIGGER_LABEL[h.trigger] ?? h.trigger.replace(/_/g, " ")} · to {h.owner?.name ?? "unassigned"}</span>
+                <span className="ho-done-meta">{TRIGGER_LABEL[h.trigger] ?? humanize(h.trigger)} · to {h.owner?.name ?? "unassigned"}</span>
                 {h.status === "accepted"
                   ? <span className="ho-state ok"><Check size={13} /> Accepted{h.decidedBy ? ` by ${h.decidedBy.split("@")[0]}` : ""} · {ago(h.decidedAt ?? h.createdAt)}</span>
                   : <span className="ho-state back"><Undo2 size={13} /> Sent back: {h.decisionReason ?? "no reason"} · {ago(h.decidedAt ?? h.createdAt)}</span>}

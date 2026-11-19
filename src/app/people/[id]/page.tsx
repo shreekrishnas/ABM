@@ -1,3 +1,4 @@
+import { humanize, personStage } from "@/lib/labels";
 import Link from "next/link";
 import { InteractionRail } from "./interaction-rail";
 import { LinkedInWorkspace } from "./linkedin-workspace";
@@ -96,10 +97,10 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <h1 className="pv-name">{c.fullName}</h1>
           <div className="pv-role">{c.title ?? "Title unknown"} · <Link href={`/accounts/${c.account.id}`}>{c.account.name}</Link></div>
           <div className="pv-tags">
-            {c.seniority && <span className="pv-tag">{c.seniority.replaceAll("_", " ")}</span>}
-            <span className="pv-tag">{c.buyingRole.replaceAll("_", " ")}</span>
-            {c.readiness && <span className="pv-tag accent">{c.readiness.replaceAll("_", " ")}</span>}
-            <span className={`pv-tag${["suppressed", "do_not_contact", "paused"].includes(c.state) ? " warn" : ""}`}>{c.state.replaceAll("_", " ")}</span>
+            {c.seniority && <span className="pv-tag">{humanize(c.seniority)}</span>}
+            <span className="pv-tag">{humanize(c.buyingRole)}</span>
+            {c.readiness && !["suppressed", "do_not_contact"].includes(c.state) && <span className="pv-tag accent">{humanize(c.readiness)}</span>}
+            <span className={`pv-tag${["suppressed", "do_not_contact", "paused"].includes(c.state) ? " warn" : ""}`}>{humanize(c.state)}</span>
             {c.email && <a href={`mailto:${c.email}`} className="pv-link"><Mail size={12} />{c.email}</a>}
             {c.phone && <span className="pv-link"><Phone size={12} />{c.phone}</span>}
             {c.linkedinUrl && <a href={c.linkedinUrl} target="_blank" rel="noreferrer" className="pv-link"><Linkedin size={12} />LinkedIn<ExternalLink size={10} /></a>}
@@ -115,7 +116,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
       {sp.edit === "1" && <Card title="Edit person" className="mb-5">{editForm}</Card>}
 
-      <PersonSummary contactId={c.id} stage={j ? STAGE_INFO[j.stage].label : "Not in a journey"} followUps={j?.followUpCount ?? 0} replies={j?.replyCount ?? 0} last={j?.lastEngagementAt ?? null} next={next?.text ?? null} />
+      <PersonSummary contactId={c.id} stage={j ? STAGE_INFO[j.stage].label : null} followUps={j?.followUpCount ?? 0} replies={j?.replyCount ?? 0} last={j?.lastEngagementAt ?? null} next={next?.text ?? null} />
       <div className="pv-grid">
         <div className="pv-main">
           <nav className="pv-tabs" aria-label="Person sections">
@@ -234,13 +235,13 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             <div className="pv-sec">Contact</div>
             <Field k="Job title" v={c.title} />
             <Field k="Department" v={c.department} />
-            <Field k="Seniority" v={c.seniority ? <span className="capitalize">{c.seniority.replaceAll("_", " ")}</span> : null} />
+            <Field k="Seniority" v={c.seniority ? <span className="capitalize">{humanize(c.seniority)}</span> : null} />
             <Field k="Location" v={c.location} />
             <Field k="Company" v={<Link href={`/accounts/${c.account.id}`} className="hover:underline">{c.account.name}</Link>} />
             <div className="pv-sec">Email pipeline</div>
-            <Field k="Buying role" v={c.buyingRole.replaceAll("_", " ")} />
-            <Field k="Readiness" v={c.readiness?.replaceAll("_", " ")} />
-            <Field k="State" v={c.state.replaceAll("_", " ")} />
+            <Field k="Buying role" v={humanize(c.buyingRole)} />
+            <Field k="Readiness" v={humanize(c.readiness)} />
+            <Field k="State" v={humanize(c.state)} />
             <div className="pv-sec">Record</div>
             <Field k="Data source" v={c.source} />
             <Field k="Added" v={date(c.createdAt)} />
@@ -255,7 +256,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 }
 
 /** The person at a glance: where they stand, what we've sent, what came back, what's next. */
-async function PersonSummary({ contactId, stage, followUps, replies, last, next }: { contactId: string; stage: string; followUps: number; replies: number; last: Date | null; next: string | null }) {
+async function PersonSummary({ contactId, stage, followUps, replies, last, next }: { contactId: string; stage: string | null; followUps: number; replies: number; last: Date | null; next: string | null }) {
   // LinkedIn steps the team logs (or imports) are journey events; count them with the emails.
   const [sent, emailReplies, liEvents] = await Promise.all([
     db.message.count({ where: { contactId, sentAt: { not: null } } }),
@@ -265,12 +266,14 @@ async function PersonSummary({ contactId, stage, followUps, replies, last, next 
   const ev = (t: string[]) => liEvents.filter((e) => t.includes(e.type)).reduce((n, e) => n + e._count, 0);
   const liOut = ev(["connection_sent", "follow_up_sent", "message_sent", "details_shared"]);
   const liIn = ev(["reply"]);
+  const shown = personStage(stage, sent);
   return (
     <div className="mb-5"><KpiRow>
-      <KpiTile tint={0} label="Journey stage" value={<span className="ps-stage">{stage}</span>} note={next ?? undefined} />
+      <KpiTile tint={0} label="Journey stage" value={<span className="ps-stage">{shown}</span>} note={next ?? undefined} />
       <KpiTile tint={1} label="Messages sent" value={sent + liOut} note={`${sent} email · ${liOut} LinkedIn · ${followUps} follow-up${followUps === 1 ? "" : "s"}`} />
       <KpiTile tint={2} label="Replies" value={Math.max(replies, emailReplies + liIn)} note={`${emailReplies} email · ${liIn} LinkedIn`} />
       <KpiTile tint={3} label="Last touch" value={last ? ago(last) : "None yet"} note={last ? date(last) : "No engagement recorded"} />
     </KpiRow></div>
   );
 }
+

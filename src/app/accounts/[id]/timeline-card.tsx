@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { collectSignals } from "@/lib/brain/intent";
 import { Card } from "@/components/ui";
@@ -31,7 +32,7 @@ export async function TimelineCard({ accountId }: { accountId: string }) {
       href: s.refs.map((r) => url.get(r)).find(Boolean) ?? (s.contactId ? `/people/${s.contactId}` : null),
     })),
     ...messages.filter((m) => m.sentAt).map((m) => ({ lane: "outreach", label: `${m.status === "bounced" ? "Bounced" : "Email"} to ${m.contact.fullName} · step ${m.draft.stepOrder}: ${m.draft.subject}`, at: m.sentAt!.toISOString(), strength: 0.5, href: `/people/${m.contactId}` })),
-    ...replies.map((r) => ({ lane: "reply", label: `${r.contact.fullName} replied (${r.class.replace("_", " ")}): ${r.body.slice(0, 90)}`, at: r.receivedAt.toISOString(), strength: r.class === "positive" ? 1 : 0.6, href: `/people/${r.contactId}` })),
+    ...replies.map((r) => ({ lane: "reply", label: `${r.contact.fullName} replied (${humanize(r.class)}): ${r.body.slice(0, 90)}`, at: r.receivedAt.toISOString(), strength: r.class === "positive" ? 1 : 0.6, href: `/people/${r.contactId}` })),
   ];
   return (
     <Card title="Signal timeline" sub="Every signal at this company on one axis. Bigger dot = stronger signal (fresher, better sourced). Shaded spans: two or more different kinds of signal within 30 days.">

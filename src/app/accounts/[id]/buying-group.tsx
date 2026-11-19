@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
@@ -39,7 +40,7 @@ export async function BuyingGroupPlan({ accountId }: { accountId: string }) {
   const paused = account.outreachPausedUntil && account.outreachPausedUntil > now;
 
   return (
-    <Card title="Buying group plan" sub={`One plan for the company: ${CONFIG.coordination.roleOrder.map((r) => r.replace("_", " ")).join(" first, then ")} · at most ${CONFIG.coordination.maxEmailsPerAccountPerDay} email a day and ${CONFIG.coordination.maxNewPeoplePerWeek} new people a week`} className="mb-5">
+    <Card title="Buying group plan" sub={`One plan for the company: ${CONFIG.coordination.roleOrder.map((r) => humanize(r)).join(" first, then ")} · at most ${CONFIG.coordination.maxEmailsPerAccountPerDay} email a day and ${CONFIG.coordination.maxNewPeoplePerWeek} new people a week`} className="mb-5">
       {paused && (
         <div className="bg-banner mb-4">
           <div className="min-w-0"><b>Company outreach paused until {date(account.outreachPausedUntil!)}</b><div className="secondary text-xs">{account.outreachPauseReason}. Colleagues&apos; sequences are paused and unsent drafts were withdrawn.</div></div>
@@ -70,7 +71,7 @@ export async function BuyingGroupPlan({ accountId }: { accountId: string }) {
           {plan.map((c) => (
             <li key={c.id}>
               <span className="bg-n tnum">{c.planOrder}</span>
-              <div className="min-w-0 flex-1"><Link href={`/people/${c.id}`} className="font-semibold hover:underline">{c.fullName}</Link> <span className="muted text-xs">{c.buyingRole.replace("_", " ")}</span><div className="secondary truncate text-xs">{c.planReason}</div></div>
+              <div className="min-w-0 flex-1"><Link href={`/people/${c.id}`} className="font-semibold hover:underline">{c.fullName}</Link> <span className="muted text-xs">{humanize(c.buyingRole)}</span><div className="secondary truncate text-xs">{c.planReason}</div></div>
               <span className="muted whitespace-nowrap text-xs">{c.planStartAt ? date(c.planStartAt) : "—"}</span>
               <Badge color={STATUS_COLOR[statusOf(c)]}>{statusOf(c)}</Badge>
             </li>

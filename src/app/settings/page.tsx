@@ -1,3 +1,4 @@
+import { humanize } from "@/lib/labels";
 import { linkSignIn } from "@/lib/auth";
 import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
@@ -109,7 +110,7 @@ export default async function SettingsPage() {
           <Row k="Minimum triggers" v={`${CONFIG.readiness.minVerifiedTriggers} verified or ${CONFIG.readiness.minUsableTriggers} usable`} />
         </Card>
         <Card id="scoring" title="Engagement & sending">
-          {Object.entries(CONFIG.engagement.points).map(([k, v]) => <Row key={k} k={k.replaceAll("_", " ")} v={`+${v}`} />)}
+          {Object.entries(CONFIG.engagement.points).map(([k, v]) => <Row key={k} k={humanize(k)} v={`+${v}`} />)}
           <Row k="Half-life" v={`${CONFIG.engagement.halfLifeDays} days`} />
           <Row k="Stages" v={`Aware ${CONFIG.engagement.stages.AWARE} · Engaged ${CONFIG.engagement.stages.ENGAGED} · MQA ${CONFIG.engagement.stages.MQA}`} />
           <Row k="Per-mailbox / global cap" v={`${CONFIG.sending.perMailboxDailyCap} / ${CONFIG.sending.globalDailyCap}`} />
