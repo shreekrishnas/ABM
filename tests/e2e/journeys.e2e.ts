@@ -131,3 +131,14 @@ describe("4. Daily work", () => {
     await p.close();
   });
 });
+
+describe("8. JARVIS", () => {
+  it("opens for a Super Admin with the briefing, chat and company focus, and settles", async () => {
+    const p = await open("/jarvis");
+    const text = await p.locator("body").innerText();
+    expect(text).toMatch(/Ask JARVIS/);
+    expect(text).toMatch(/waiting for a person/);
+    expect(await p.locator(".jv-ctx").count()).toBe(1);
+    await p.close();
+  });
+});

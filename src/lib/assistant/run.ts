@@ -32,7 +32,7 @@ export interface Answer {
 const str = (max: number) => z.preprocess((v) => (v == null ? "" : String(v)), z.string().max(max * 2).transform((s) => s.slice(0, max)));
 const list = <T extends z.ZodTypeAny>(item: T, max: number) => z.preprocess((v) => (Array.isArray(v) ? v.slice(0, max) : []), z.array(item));
 
-const StepSchema = z.object({
+export const StepSchema = z.object({
   tools: list(z.object({ tool: z.string(), args: z.record(z.string(), z.unknown()).catch({}) }), MAX_TOOLS_PER_ROUND),
   answer: z
     .object({
@@ -82,7 +82,7 @@ async function callModel(sys: string, messages: { role: "user" | "assistant"; co
   return res.choices?.[0]?.message?.content ?? "";
 }
 
-function parseStep(text: string) {
+export function parseStep(text: string) {
   const t = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   const body = t.startsWith("{") ? t : t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1);
   return StepSchema.parse(JSON.parse(body));

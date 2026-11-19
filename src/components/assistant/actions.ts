@@ -35,7 +35,7 @@ const toMessage = (m: { id: string; role: string; content: string; evidence: Pri
 export async function listAssistantConversations(): Promise<{ id: string; title: string; updatedAt: string }[] | null> {
   const u = await me();
   if (!u) return null;
-  const rows = await db.assistantConversation.findMany({ where: { userEmail: u.email }, orderBy: { updatedAt: "desc" }, take: 30, select: { id: true, title: true, updatedAt: true } });
+  const rows = await db.assistantConversation.findMany({ where: { userEmail: u.email, sellerId: null }, orderBy: { updatedAt: "desc" }, take: 30, select: { id: true, title: true, updatedAt: true } });
   return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
 }
 
