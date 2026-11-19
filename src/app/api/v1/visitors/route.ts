@@ -1,3 +1,4 @@
+import { checkSignature } from "@/lib/webhook-signature";
 import { z } from "zod";
 import { json, parseBody } from "@/lib/api";
 import { authorizeClient } from "@/lib/api-clients";
@@ -20,6 +21,8 @@ const Body = z.union([Visit, z.object({ visits: z.array(Visit).min(1).max(500) }
 
 export async function POST(req: Request) {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
+  const unsigned = await checkSignature(req);
+  if (unsigned) return unsigned;
   const b = await parseBody(req, Body);
   if ("error" in b) return b.error;
   // The client whose website was visited: the key's client (or the one named with the workspace key).

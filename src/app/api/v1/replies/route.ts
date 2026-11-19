@@ -1,3 +1,4 @@
+import { checkSignature } from "@/lib/webhook-signature";
 import { z } from "zod";
 import { baseDb } from "@/lib/db-base";
 import { recordReply } from "@/lib/pipeline/stages/engagement";
@@ -22,6 +23,8 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
+  const unsigned = await checkSignature(req);
+  if (unsigned) return unsigned;
   const b = await parseBody(req, Body);
   if ("error" in b) return b.error;
   const auth = await authorizeClient(req, b.data.clientId);

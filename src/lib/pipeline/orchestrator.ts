@@ -390,6 +390,37 @@ async function tickUnscoped(ctx: RunContext) {
   return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }
 
+/**
+ * The daily check split into steps that each fit well inside one request (the single run
+ * timed out at 300s on busy days). The tick route runs one step, then calls itself for the next.
+ */
+export const TICK_STEPS = ["core", "intel", "intent", "market"] as const;
+export type TickStep = (typeof TICK_STEPS)[number];
+
+export async function tickStep(step: TickStep, ctx: RunContext = newContext()) {
+  return unscoped(async () => {
+    const { aiPause } = await import("@/lib/admin/ai-pause");
+    const paused = Boolean(await aiPause());
+    if (step === "core") {
+      await ensureSellerPacks();
+      const queue = await processQueue({ ctx, budgetMs: 30_000 });
+      const sequences = await tickSequences(ctx);
+      const sent = await sendApproved(ctx);
+      const escalated = await escalateOverdue(ctx);
+      const visitors = await syncApolloVisitors(ctx).catch(() => null);
+      return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, escalated, visitors };
+    }
+    if (step === "intel") {
+      const watch = paused ? [] : await processWatchlist(ctx);
+      const insights = paused ? false : await maybeGenerateInsights(ctx);
+      return { watchlist: watch.length, insights };
+    }
+    if (step === "intent") return { intentReruns: (await processIntent(ctx)).length };
+    const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
+    return { market };
+  });
+}
+
 export async function budgetSummary(account: Account) {
   return { spentUsd: await spentUsd(account.id), capUsd: budgetFor(account.tier) };
 }

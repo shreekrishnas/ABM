@@ -1,3 +1,4 @@
+import { UNTRUSTED_RULE, fenceUntrusted } from "@/lib/llm/fence";
 // Live LLM via OpenRouter (default model: openai/gpt-4o-mini).
 // Every call asks for strict JSON and is validated. Source URLs and dates are
 // never taken from the model — they come from the fetched pages — so the model
@@ -73,7 +74,7 @@ export class OpenRouterLLM implements LLM {
         temperature: 0.2,
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
-        messages: [{ role: "system", content: `${system}\nRespond with a single JSON object only.` }, ...messages],
+        messages: [{ role: "system", content: `${system}\n${UNTRUSTED_RULE}\nRespond with a single JSON object only.` }, ...messages],
       }),
       timeoutMs: 45_000,
     });
@@ -119,7 +120,7 @@ export class OpenRouterLLM implements LLM {
     const out = await this.json(
       schema,
       "You extract facts from web pages for B2B account research. Extract only what a page states explicitly — never infer or combine pages. For every item, copy into \"quote\" the exact sentence from the page that supports it, character for character. Write each claim as one short sentence that starts with the company name. If nothing relevant is stated, return {\"items\": []}.",
-      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${body(p)}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
+      `Question: ${key}\nGuidance: ${guide[key] ?? key}\n${known.length ? `\nFacts we already hold (if a page reports the SAME event or value, set "sameAs" to that fact id):\n${known.map((k) => `${k.id}: ${k.claim}`).join("\n")}\n` : ""}\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\nDate: ${p.publishedAt.toISOString().slice(0, 10)}\n${fenceUntrusted(body(p))}`).join("\n\n")}\n\nReturn {"items":[{"page": <page index>, "claim": "...", "quote": "<exact sentence copied from that page>", "value": "... or null", "kind": "${key === "negative" ? "one of the allowed kinds" : "null"}", "sameAs": "<known fact id or null>"}]}`,
     );
     return out.items.slice(0, 8).flatMap((raw) => {
       const it = { ...raw, claim: clip(raw.claim, 240)!, quote: clip(raw.quote, 400), value: clip(raw.value, 120) };
@@ -227,7 +228,7 @@ export class OpenRouterLLM implements LLM {
     const out = await this.json(
       schema,
       "Classify a reply to a B2B sales email. positive = wants to talk or learn more; objection = pushes back (has a tool, no budget, not a priority); not_now = timing; unsubscribe = asks to stop; wrong_person = redirects to someone else; out_of_office = auto-reply; needs_human = unclear or anything else.",
-      `Reply:\n"""${text.slice(0, 3000)}"""\n\nReturn {"class":"..."}`,
+      `Reply:\n${fenceUntrusted(text.slice(0, 3000))}\n\nReturn {"class":"..."}`,
       50,
     );
     return out.class;
@@ -410,7 +411,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
   }
 
   async analyzeLinkedInReply(text: string, context: { company: string; title: string | null; history: { direction: "out" | "in"; text: string }[] }): Promise<ReplyAnalysis> {
-    return this.json(replySchema, REPLY_SYSTEM, `Company: ${context.company}${context.title ? ` · prospect: ${context.title}` : ""}\n\nCONVERSATION (oldest first):\n${context.history.map((h) => `${h.direction === "out" ? "US" : "THEM"}: ${h.text}`).join("\n") || "none"}\n\nNEW REPLY:\n${text}\n\nReturn {"type":"...","intent":"...","futureOpportunity":false,"questions":[],"mentions":[],"commitments":[],"stopRequested":false,"continueOutreach":true,"recommendedAction":"...","nextKind":null,"suggestedStage":"...","followUpOn":null,"summary":"..."}`, 700) as Promise<ReplyAnalysis>;
+    return this.json(replySchema, REPLY_SYSTEM, `Company: ${context.company}${context.title ? ` · prospect: ${context.title}` : ""}\n\nCONVERSATION (oldest first):\n${context.history.map((h) => `${h.direction === "out" ? "US" : "THEM"}: ${h.direction === "out" ? h.text : fenceUntrusted(h.text, 3000)}`).join("\n") || "none"}\n\nNEW REPLY:\n${fenceUntrusted(text)}\n\nReturn {"type":"...","intent":"...","futureOpportunity":false,"questions":[],"mentions":[],"commitments":[],"stopRequested":false,"continueOutreach":true,"recommendedAction":"...","nextKind":null,"suggestedStage":"...","followUpOn":null,"summary":"..."}`, 700) as Promise<ReplyAnalysis>;
   }
 
   async summarizeConversation(history: { direction: "out" | "in"; kind: string; text: string; at: string }[], context: { company: string; contact: string; stage: string }): Promise<ConversationSummary> {
@@ -432,7 +433,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
         "mustHave = traits a company must show to qualify; niceToHave = preferences; exclude = what rules a company out. technologies = named products (\"moving to Oracle NetSuite\" → technologies [\"Oracle NetSuite\"], signals [\"ERP migration\"]). " +
         "funding = only when the description is about funding (stages like \"Series B\", minimum amount in USD, within how many months). " +
         "queries = 3 to 6 web searches that would surface LISTS or NEWS naming such companies (e.g. \"top pharmaceutical manufacturers India 2025\", \"Indian pharma ERP go-live\"); never a query for one named company.",
-      `What the team sells: ${context.offering}\nTheir usual markets: ${context.defaultCountries.join(", ") || "any"}\n\nDescription: ${brief}\n\nReturn {"summary":"...","industries":[],"countries":[],"minEmployees":null,"maxEmployees":null,"businessModels":[],"mustHave":[],"niceToHave":[],"exclude":[],"technologies":[],"funding":null,"signals":[],"queries":[]}`,
+      `What the team sells: ${context.offering}\nTheir usual markets: ${context.defaultCountries.join(", ") || "any"}\n\nDescription: ${fenceUntrusted(brief, 4000)}\n\nReturn {"summary":"...","industries":[],"countries":[],"minEmployees":null,"maxEmployees":null,"businessModels":[],"mustHave":[],"niceToHave":[],"exclude":[],"technologies":[],"funding":null,"signals":[],"queries":[]}`,
       900,
     );
   }
@@ -454,7 +455,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
       schema,
       "You read web pages and list the companies they name that plausibly fit the criteria. Only companies a page names explicitly; never the publisher, a consultant, an investor, a vendor or a government body. " +
         "reason = which criteria the page shows they meet, in a few words. quote = the exact words copied from the page that name the company and show why. domain = the company's own website only if the page gives it, else null. Skip companies the exclusions rule out.",
-      `Criteria:\n${want}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${plainText(p.text).slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items":[{"page":0,"name":"...","domain":null,"reason":"...","quote":"..."}]}`,
+      `Criteria:\n${want}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(plainText(p.text).slice(0, 2500))}`).join("\n\n")}\n\nReturn {"items":[{"page":0,"name":"...","domain":null,"reason":"...","quote":"..."}]}`,
       1500,
     );
     return out.items;
@@ -488,7 +489,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       "You read company profile pages and return the company's industry, employee count and headquarters country. Use only what a page states about THIS company; null when not stated. employees = one number (midpoint of a range).",
-      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1500)}`).join("\n\n")}\n\nReturn {"page": <index of the page used or null>, "industry": "...", "employees": 1234, "country": "..."}`,
+      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(p.text.slice(0, 1500))}`).join("\n\n")}\n\nReturn {"page": <index of the page used or null>, "industry": "...", "employees": 1234, "country": "..."}`,
       200,
     );
     if (out.page == null || !pages[out.page]) return null;
@@ -502,7 +503,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       `You read news pages and list companies that had a buying event relevant to ${sp.name}. Events: ${sp.triggers.map((t) => `${t.key} = ${t.label}`).join("; ")}. Only companies a page names explicitly; never the publisher, a consultant or a vendor. quote = exact words copied from the page that show the event. triggerKey = one of the keys above, "hiring" for a job post or hiring drive for the roles that own this problem, or "other". industry = the company's industry if the page says or makes it obvious, else null.`,
-      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "company": "...", "industry": "...", "triggerKey": "...", "claim": "...", "quote": "..."}]}`,
+      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(p.text.slice(0, 1800))}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "company": "...", "industry": "...", "triggerKey": "...", "claim": "...", "quote": "..."}]}`,
       1500,
     );
     return out.items.filter((x) => pages[x.page]);
@@ -514,7 +515,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       `You read web pages and list real companies that are similar to ${seed.name}${seed.industry ? ` (${seed.industry})` : ""}: direct competitors or peers in the same business. Only companies a page names explicitly. Never ${seed.name} itself, never publishers, consultants, investors or software vendors serving them. quote = exact words copied from the page that name the company. reason = a few words on why it is similar.`,
-      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 1800)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "name": "...", "domain": null, "reason": "...", "quote": "..."}]}`,
+      `${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(p.text.slice(0, 1800))}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "name": "...", "domain": null, "reason": "...", "quote": "..."}]}`,
       1500,
     );
     return out.items.filter((x) => pages[x.page]);
@@ -529,7 +530,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       `You profile a company from its own and reputable pages, to find other companies like it. Describe what it actually does, not its marketing: how it makes money (businessModel), how it runs (operations: plants, distribution, branches, field teams, supply chain, systems), its industry, who its customers are, its scale (employees, revenue, locations, only if stated) and why it would buy what this seller offers: ${offering}. Use only what the pages state; write "unknown" for anything not stated. found=false if the pages are not about this company.`,
-      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"found": true, "summary": "...", "businessModel": "...", "operations": "...", "industry": "...", "customers": "...", "scale": "...", "offeringFit": "..."}`,
+      `Company: ${company}\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(p.text.slice(0, 2500))}`).join("\n\n")}\n\nReturn {"found": true, "summary": "...", "businessModel": "...", "operations": "...", "industry": "...", "customers": "...", "scale": "...", "offeringFit": "..."}`,
       900,
     );
     if (!out.found) return null;
@@ -556,7 +557,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       `You read pages and list facts about ${company} that answer the question. Only facts a page states about THIS company (never a competitor, the publisher or a vendor). claim = one plain sentence. quote = the exact words copied from the page that support it. dimension = what the fact is about. Return no items if the pages don't answer it.`,
-      `Question: ${question.question} (${question.dimension})\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${p.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "claim": "...", "quote": "...", "dimension": "${question.dimension}"}]}`,
+      `Question: ${question.question} (${question.dimension})\n\n${pages.map((p, i) => `[page ${i}] ${p.title}\nURL: ${p.url}\n${fenceUntrusted(p.text.slice(0, 2500))}`).join("\n\n")}\n\nReturn {"items": [{"page": 0, "claim": "...", "quote": "...", "dimension": "${question.dimension}"}]}`,
       900,
     );
     return out.items.filter((x) => pages[x.page]);
@@ -581,7 +582,7 @@ ${input.hypotheses.map((h) => `${h.id}: ${h.text} (use case ${h.useCase ?? "?"};
     const out = await this.json(
       schema,
       `You help fill in an account-based marketing brain for ${input.account}. Section: ${input.section}. Find ${input.ask}. Use ONLY what the pages and files below say; never invent customers, numbers or claims. Skip anything already listed. Write plainly and briefly. Each item has these fields: ${fields}.`,
-      `Already in this section:\n${input.existing.slice(0, 30).map((e) => `- ${e}`).join("\n") || "- nothing yet"}\n\n${input.context.map((c, i) => `[source ${i}] ${c.title}${c.url ? ` (${c.url})` : ""}\n${c.text.slice(0, 2500)}`).join("\n\n")}\n\nReturn {"items": [{...}]}${input.single ? " with exactly one item" : " with up to 8 items"}.`,
+      `Already in this section:\n${input.existing.slice(0, 30).map((e) => `- ${e}`).join("\n") || "- nothing yet"}\n\n${input.context.map((c, i) => `[source ${i}] ${c.title}${c.url ? ` (${c.url})` : ""}\n${fenceUntrusted(c.text.slice(0, 2500))}`).join("\n\n")}\n\nReturn {"items": [{...}]}${input.single ? " with exactly one item" : " with up to 8 items"}.`,
       1500,
     );
     return out.items;

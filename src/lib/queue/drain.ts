@@ -90,7 +90,7 @@ export function shouldContinue(r: DrainResult) {
 }
 
 /** The secret the drain uses to call its own route. */
-function selfToken() {
+export function selfToken() {
   return process.env.ABM_API_KEY?.trim() || process.env.CRON_SECRET?.trim() || "";
 }
 
