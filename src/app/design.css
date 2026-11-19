@@ -2198,3 +2198,27 @@ a.ws-signal:hover b { color: var(--accent); }
 /* Table headings: a shaded band with stronger, darker labels and a firm rule underneath. */
 .sh table thead th { background: var(--subtle) !important; color: var(--text-2) !important; font-size: var(--fs-12) !important; font-weight: var(--fw-semibold) !important; text-transform: none !important; letter-spacing: 0 !important; border-bottom: 1px solid var(--border-2) !important; white-space: nowrap; }
 .sh table thead th a, .sh table thead th button { color: inherit !important; font-weight: inherit !important; }
+
+/* Person page: compact header, section tabs, sticky "About" side card. */
+.pv-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--sp-4); align-items: center; padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-card-2); }
+.pv-name { margin: 0; font-size: var(--fs-20); font-weight: var(--fw-semibold); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-role { font-size: var(--fs-14); color: var(--text-2); margin-top: 2px; }
+.pv-role a:hover { text-decoration: underline; }
+.pv-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: var(--sp-2); }
+.pv-tag { font-size: var(--fs-12); padding: 1px 8px; border-radius: var(--r-full); background: var(--subtle); color: var(--text-2); text-transform: capitalize; }
+.pv-tag.accent { background: var(--accent-subtle); color: var(--accent); }
+.pv-tag.warn { background: var(--danger-bg); color: var(--danger); }
+.pv-link { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--muted); margin-left: 4px; }
+a.pv-link:hover { color: var(--accent); }
+.pv-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: flex-end; }
+.pv-grid { display: grid; gap: var(--sp-4); align-items: start; }
+@media (min-width: 1200px) { .pv-grid { grid-template-columns: minmax(0, 1fr) 340px; } .pv-side { position: sticky; top: var(--sp-4); } }
+.pv-main, .pv-side { display: grid; gap: var(--sp-4); min-width: 0; align-content: start; }
+.pv-tabs { display: flex; gap: var(--sp-1); padding: 4px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); width: max-content; max-width: 100%; overflow-x: auto; }
+.pv-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: var(--fs-13); color: var(--text-2); white-space: nowrap; }
+.pv-tabs a:hover { background: var(--subtle); }
+.pv-tabs a.on { background: var(--accent-subtle); color: var(--accent); font-weight: var(--fw-medium); }
+.pv-tabs a span { font-size: var(--fs-12); color: var(--muted); }
+.pv-sec { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--muted); }
+.pv-sec:first-of-type { margin-top: 0; }
+@media (max-width: 760px) { .pv-head { grid-template-columns: auto minmax(0, 1fr); } .pv-actions { grid-column: 1 / -1; justify-content: flex-start; } }

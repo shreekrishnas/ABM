@@ -30,10 +30,12 @@ function Field({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
+const TABS = [["activity", "Activity"], ["journey", "Research & drafting log"], ["linkedin", "LinkedIn"]] as const;
+
 // Drafting and reply analysis call the AI inside the request.
 export const maxDuration = 120;
 
-export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string; track?: string }> }) {
+export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string; track?: string; tab?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const c = await db.contact.findUnique({
@@ -53,6 +55,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     c.journeys.find((x) => (!sp.sender || x.senderId === sp.sender) && (!sp.campaign || x.campaignId === sp.campaign)) ??
     c.journeys[0];
   const now = new Date();
+  const tab = sp.tab === "journey" || sp.tab === "linkedin" ? sp.tab : sp.track ? "journey" : sp.journey ? "linkedin" : "activity";
   const state = j ? { stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement } : null;
   const next = state ? nextAction(state, now, { disqualifyReason: c.account.stage === "DISQUALIFIED" ? c.account.disqualifyReason : null }) : null;
   const call = eligibleToCall({ phone: c.phone, suppressed: c.state === "suppressed", doNotContact: c.state === "do_not_contact" || c.account.doNotContact, companyDisqualified: c.account.stage === "DISQUALIFIED" }, j?.stage ?? null);
@@ -87,37 +90,41 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     <div className="page-enter">
       <Crumbs items={[{ label: "Companies", href: "/accounts" }, { label: c.account.name, href: `/accounts/${c.account.id}?tab=people` }, { label: c.fullName }]} />
 
-      <div className="glass-card-static card-pad mb-5" style={{ background: "linear-gradient(155deg, rgba(13, 116, 128,0.08), var(--surface-card) 55%)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar name={c.fullName} id={c.id} size={56} round />
-            <div className="min-w-0">
-              <h1 className="page-title truncate">{c.fullName}</h1>
-              <div className="secondary text-sm">{c.title ?? "Title unknown"} · <Link href={`/accounts/${c.account.id}`} className="hover:underline">{c.account.name}</Link></div>
-              <div className="mono muted mt-1 flex flex-wrap gap-x-3 text-xs">
-                {c.email && <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 hover:underline"><Mail size={11} />{c.email}</a>}
-                {c.phone && <span className="inline-flex items-center gap-1"><Phone size={11} />{c.phone}</span>}
-                {c.linkedinUrl && <a href={c.linkedinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline"><Linkedin size={11} />LinkedIn<ExternalLink size={10} /></a>}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {c.phone && call.ok && <a href={`tel:${c.phone}`} className="btn btn-success"><Phone size={15} /> Call</a>}
-            <AddTaskButton target={{ contactId: c.id, label: c.fullName }} className="btn btn-secondary" />
-            <Modal trigger={<><Pencil size={15} /> Edit</>} title={`Edit ${c.fullName}`} eyebrow="People" triggerClass="btn btn-secondary">{editForm}</Modal>
-            <ActionButton action={deletePersonAction.bind(null, c.id)} className="btn btn-secondary" confirm={`Delete ${c.fullName}? Their journeys and history are removed.`}><Trash2 size={15} /> Delete</ActionButton>
+      <header className="pv-head">
+        <Avatar name={c.fullName} id={c.id} size={52} round />
+        <div className="min-w-0">
+          <h1 className="pv-name">{c.fullName}</h1>
+          <div className="pv-role">{c.title ?? "Title unknown"} · <Link href={`/accounts/${c.account.id}`}>{c.account.name}</Link></div>
+          <div className="pv-tags">
+            {c.seniority && <span className="pv-tag">{c.seniority.replaceAll("_", " ")}</span>}
+            <span className="pv-tag">{c.buyingRole.replaceAll("_", " ")}</span>
+            {c.readiness && <span className="pv-tag accent">{c.readiness.replaceAll("_", " ")}</span>}
+            <span className={`pv-tag${["suppressed", "do_not_contact", "paused"].includes(c.state) ? " warn" : ""}`}>{c.state.replaceAll("_", " ")}</span>
+            {c.email && <a href={`mailto:${c.email}`} className="pv-link"><Mail size={12} />{c.email}</a>}
+            {c.phone && <span className="pv-link"><Phone size={12} />{c.phone}</span>}
+            {c.linkedinUrl && <a href={c.linkedinUrl} target="_blank" rel="noreferrer" className="pv-link"><Linkedin size={12} />LinkedIn<ExternalLink size={10} /></a>}
           </div>
         </div>
-      </div>
+        <div className="pv-actions">
+          {c.phone && call.ok && <a href={`tel:${c.phone}`} className="btn btn-success btn-sm"><Phone size={14} /> Call</a>}
+          <AddTaskButton target={{ contactId: c.id, label: c.fullName }} className="btn btn-secondary btn-sm" />
+          <Modal trigger={<><Pencil size={14} /> Edit</>} title={`Edit ${c.fullName}`} eyebrow="People" triggerClass="btn btn-secondary btn-sm">{editForm}</Modal>
+          <ActionButton action={deletePersonAction.bind(null, c.id)} className="btn btn-secondary btn-sm btn-icon" confirm={`Delete ${c.fullName}? Their journeys and history are removed.`}><Trash2 size={14} aria-label="Delete" /></ActionButton>
+        </div>
+      </header>
 
       {sp.edit === "1" && <Card title="Edit person" className="mb-5">{editForm}</Card>}
 
       <PersonSummary contactId={c.id} stage={j ? STAGE_INFO[j.stage].label : "Not in a journey"} followUps={j?.followUpCount ?? 0} replies={j?.replyCount ?? 0} last={j?.lastEngagementAt ?? null} next={next?.text ?? null} />
-      <div className="grid gap-5 xl:grid-cols-3">
-        <div className="grid min-w-0 content-start gap-5 xl:col-span-2">
-          <InteractionRail contactId={c.id} />
+      <div className="pv-grid">
+        <div className="pv-main">
+          <nav className="pv-tabs" aria-label="Person sections">
+            {TABS.map(([k, l]) => <Link key={k} href={`/people/${c.id}${k === "activity" ? "" : `?tab=${k}`}`} scroll={false} className={tab === k ? "on" : undefined} aria-current={tab === k ? "page" : undefined}>{l}{k === "linkedin" && c.journeys.length > 0 && <span className="tnum">{c.journeys.length}</span>}</Link>)}
+          </nav>
+          {tab === "activity" && <InteractionRail contactId={c.id} />}
+          {tab === "journey" &&           <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />}
+          {tab === "linkedin" && <>
           {j && <LinkedInWorkspace journeyId={j.id} />}
-          <ProspectTrack contactId={c.id} accountId={c.account.id} sellerId={c.account.sellerId} filter={sp.track} />
           <Card
             title="LinkedIn journey"
             sub="Each sender profile keeps its own history — switching never mixes them"
@@ -140,7 +147,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               <div className="grid gap-4">
                 <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Sender profile">
                   {c.journeys.map((x) => (
-                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(13, 116, 128,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "#4338CA" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "#0D7480" : "transparent"}` }}>
+                    <Link key={x.id} role="tab" aria-selected={x.id === j.id} href={`/people/${c.id}?journey=${x.id}`} className="badge" style={{ background: x.id === j.id ? "rgba(13, 116, 128,0.14)" : "var(--surface-card-header)", color: x.id === j.id ? "var(--accent)" : "var(--text-secondary)", border: `1px solid ${x.id === j.id ? "var(--accent)" : "transparent"}` }}>
                       {x.sender.name} · {x.campaign.name} · {stageLabel(x.stage, x.followUpCount)}
                     </Link>
                   ))}
@@ -219,28 +226,29 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               )}
             </Card>
           )}
+          </>}
         </div>
 
-        <div className="grid min-w-0 content-start gap-5">
-          <WebVisitsCard contactId={c.id} />
-          <Card title="Identity & contact">
-            <Field k="First name" v={c.firstName} />
-            <Field k="Last name" v={c.lastName} />
+        <aside className="pv-side">
+          <Card title="About">
+            <div className="pv-sec">Contact</div>
             <Field k="Job title" v={c.title} />
             <Field k="Department" v={c.department} />
-            <Field k="Seniority" v={c.seniority?.replace("_", " ")} />
+            <Field k="Seniority" v={c.seniority ? <span className="capitalize">{c.seniority.replaceAll("_", " ")}</span> : null} />
             <Field k="Location" v={c.location} />
             <Field k="Company" v={<Link href={`/accounts/${c.account.id}`} className="hover:underline">{c.account.name}</Link>} />
+            <div className="pv-sec">Email pipeline</div>
+            <Field k="Buying role" v={c.buyingRole.replaceAll("_", " ")} />
+            <Field k="Readiness" v={c.readiness?.replaceAll("_", " ")} />
+            <Field k="State" v={c.state.replaceAll("_", " ")} />
+            <div className="pv-sec">Record</div>
             <Field k="Data source" v={c.source} />
             <Field k="Added" v={date(c.createdAt)} />
+            <div className="pv-sec">Notes</div>
+            {c.personNotes ? <p className="secondary whitespace-pre-wrap text-sm">{c.personNotes}</p> : <span className="muted text-xs">No notes yet. Add them with Edit.</span>}
           </Card>
-          <Card title="Notes">{c.personNotes ? <p className="secondary whitespace-pre-wrap text-sm">{c.personNotes}</p> : <span className="muted text-xs">No notes — add them with Edit.</span>}</Card>
-          <Card title="AI pipeline" sub="Email research and verification (separate from LinkedIn journeys)">
-            <Field k="Buying role" v={c.buyingRole.replace("_", " ")} />
-            <Field k="Readiness" v={c.readiness?.replaceAll("_", " ")} />
-            <Field k="State" v={c.state.replace("_", " ")} />
-          </Card>
-        </div>
+          <WebVisitsCard contactId={c.id} />
+        </aside>
       </div>
     </div>
   );
