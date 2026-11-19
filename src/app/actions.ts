@@ -111,8 +111,15 @@ export async function runAllAction(): Promise<ActionState> {
 
 export async function tickAction(): Promise<ActionState> {
   const ctx = newContext();
-  const t = await tick(ctx);
-  const intent = await processIntent(ctx);
+  let t: Awaited<ReturnType<typeof tick>>, intent: Awaited<ReturnType<typeof processIntent>>;
+  try {
+    t = await tick(ctx);
+    intent = await processIntent(ctx);
+  } catch (e) {
+    const { BudgetExceeded } = await import("@/lib/budget");
+    if (e instanceof BudgetExceeded) return { ok: false, message: e.message };
+    throw e;
+  }
   refresh("/outreach", "/pipeline", "/review", "/handoffs", "/crm/tasks");
   return { ok: true, message: `Sent ${t.sent.sent} (held ${t.sent.held}) · ${t.sequences.drafts} new drafts · ${t.sequences.tasks} rep tasks · ${t.watchlist} watchlist re-checks · ${intent.length} intent re-runs · ${t.escalated} escalations` };
 }
@@ -583,7 +590,14 @@ export async function processQueueNowAction(): Promise<ActionState> {
     refresh("/import", "/pipeline");
     return { ok: true, message: "Processing in the background; this page updates as companies finish" };
   }
-  const r = await processQueue({ budgetMs: 35_000 });
+  let r: Awaited<ReturnType<typeof processQueue>>;
+  try {
+    r = await processQueue({ budgetMs: 35_000 });
+  } catch (e) {
+    const { BudgetExceeded } = await import("@/lib/budget");
+    if (e instanceof BudgetExceeded) return { ok: false, message: e.message };
+    throw e;
+  }
   refresh("/import", "/accounts", "/pipeline", "/review");
   return { ok: true, message: `Processed ${r.processed}; ${r.remaining} remaining` };
 }

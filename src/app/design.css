@@ -2222,3 +2222,11 @@ a.pv-link:hover { color: var(--accent); }
 .pv-sec { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--muted); }
 .pv-sec:first-of-type { margin-top: 0; }
 @media (max-width: 760px) { .pv-head { grid-template-columns: auto minmax(0, 1fr); } .pv-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+
+/* Section error screen */
+.se-box { display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-10) var(--sp-6); text-align: center; color: var(--text-2); }
+.se-box svg { color: var(--warning); }
+.se-box h2 { margin: 0; font-size: var(--fs-16); color: var(--text); }
+.se-box p { margin: 0; max-width: 440px; font-size: var(--fs-14); }
+.se-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.se-box small { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-12); }

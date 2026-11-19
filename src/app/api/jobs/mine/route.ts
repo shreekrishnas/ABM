@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const me = await getMe();
-  if (!me) return NextResponse.json({ jobs: [] }, { status: 401 });
+  // Signed out (or no team record): nothing to show, not an error. Every page polls this.
+  if (!me) return NextResponse.json({ jobs: [] }, { headers: { "cache-control": "no-store" } });
   return NextResponse.json({ jobs: await jobsFor(me.email) }, { headers: { "cache-control": "no-store" } });
 }
