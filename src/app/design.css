@@ -2169,3 +2169,21 @@ a.ws-signal:hover b { color: var(--accent); }
 .sh .nav-page.on { border-bottom-color: var(--sec) !important; }
 .sh .nav-page.on svg { color: var(--sec) !important; }
 .sh .sh-rail .sh-item.on { color: var(--sec) !important; background: var(--sec-bg) !important; }
+
+/* Hub pages (Import, other "pick a way in" pages): compact option cards — icon beside the title,
+   two-line text, meta and arrow at the foot. Same pattern as the Admin tiles. */
+.hub .hub-head .micro { color: var(--sec) !important; }
+.hub-md .layer-card { display: grid !important; grid-template-columns: 36px minmax(0, 1fr); column-gap: var(--sp-3); row-gap: 2px; align-items: center; padding: var(--sp-4) var(--sp-5) !important; min-height: 0 !important; background-image: none !important; }
+.hub-md .layer-card::before, .hub-md .layer-card::after { display: none !important; }
+.hub-md .layer-icon { grid-row: span 1; width: 36px !important; height: 36px !important; border-radius: var(--r-sm) !important; background: var(--sec-bg) !important; color: var(--sec) !important; box-shadow: none !important; margin: 0 !important; }
+.hub-md .layer-icon svg { width: 18px; height: 18px; }
+.hub-md .layer-title { font-size: var(--fs-16) !important; margin: 0 !important; }
+.hub-md .layer-text { grid-column: 1 / -1; font-size: var(--fs-13) !important; color: var(--muted) !important; margin-top: var(--sp-2) !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hub-md .layer-foot { grid-column: 1 / -1; margin-top: var(--sp-3) !important; padding-top: 0 !important; }
+.hub-md .hub-grid { gap: var(--sp-3) !important; }
+
+/* Admin overview tiles: tinted icon and an arrow, equal heights. */
+.ad-tile { position: relative; height: 100%; align-items: center !important; padding-right: var(--sp-10) !important; }
+.ad-tile::after { content: "→"; position: absolute; right: var(--sp-5); top: 50%; transform: translateY(-50%); color: var(--muted); transition: transform .15s, color .15s; }
+.ad-tile:hover::after { color: var(--sec); transform: translate(3px, -50%); }
+.ad-tile .ad-ic { background: var(--sec-bg) !important; color: var(--sec) !important; }
