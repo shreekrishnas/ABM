@@ -103,13 +103,14 @@
   --line: var(--border); --ink: var(--text); --ground: var(--canvas); --panel: var(--surface);
   --teal: var(--accent); --teal-hover: var(--accent-h); --teal-soft: var(--accent-subtle);
   --chart-1: #0D7480; --chart-2: #3A7DC4; --chart-3: #C98A1E; --chart-seq: var(--pill); --chart-area: var(--accent);
+  --sec-prospect: #4B5FA0; --sec-pipe: #94590C;
   --chart-4: #2E9D6E; --chart-5: #C2566A; --chart-6: #6B7FB0;
   --fs-2xs: var(--fs-12); --fs-xs: var(--fs-12); --fs-sm: var(--fs-13); --fs-base: var(--fs-14); --fs-lg: var(--fs-16); --fs-xl: var(--fs-16); --fs-3xl: var(--fs-24); --fs-4xl: var(--fs-28);
   --r-xl: var(--r-lg); --r-2xl: var(--r-lg);
 }
 
 [data-theme="dark"], :root[data-theme="dark"] {
-  --chart-1: #5EB5BE; --chart-2: #7FA9E0; --chart-3: #F0B65A; --chart-4: #4FC796; --chart-5: #EE8C9D; --chart-6: #A3B1DA;
+  --sec-prospect: #A3B1DA; --sec-pipe: #F3B45C; --chart-1: #5EB5BE; --chart-2: #7FA9E0; --chart-3: #F0B65A; --chart-4: #4FC796; --chart-5: #EE8C9D; --chart-6: #A3B1DA;
   color-scheme: dark;
   --canvas: #18252B; --surface: #1F3038; --subtle: #2C3C44; --border: #34474F; --border-2: #3F545D;
   --glass: rgba(31, 48, 56, 0.88); --glass-hover: rgba(38, 57, 66, 0.96); --glass-panel: rgba(24, 37, 43, 0); --glass-border: #34474F;
@@ -2156,3 +2157,15 @@ a.ws-signal:hover b { color: var(--accent); }
 
 /* Approvals: waiting-time bar under the kind chips */
 .rv-ages { margin: 0 0 var(--sp-3); max-width: 560px; }
+
+/* Section tints: each part of the app colours its eyebrow, active sub-tab and rail icon. */
+.sh { --sec: var(--accent); --sec-bg: var(--accent-subtle); }
+.sh[data-section="prospecting"] { --sec: var(--sec-prospect); --sec-bg: var(--info-bg); }
+.sh[data-section="engage"] { --sec: var(--info); --sec-bg: var(--info-bg); }
+.sh[data-section="pipeline"] { --sec: var(--sec-pipe); --sec-bg: var(--warning-bg); }
+.sh[data-section="insights"] { --sec: var(--success); --sec-bg: var(--success-bg); }
+.sh[data-section="admin"] { --sec: var(--text-2); --sec-bg: var(--neutral-bg); }
+.sh .page-eyebrow { color: var(--sec) !important; }
+.sh .nav-page.on { border-bottom-color: var(--sec) !important; }
+.sh .nav-page.on svg { color: var(--sec) !important; }
+.sh .sh-rail .sh-item.on { color: var(--sec) !important; background: var(--sec-bg) !important; }

@@ -36,7 +36,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   const sup = Boolean(access?.superAdmin);
   return (
     <div className="sh-outer">
-      <div className="sh">
+      <div className="sh" data-section={active || undefined}>
         <nav className="sh-rail" aria-label="Main">
           <Link href="/" className="sh-logo" aria-label="ABM home"><LogoMark size={42} /><span className="sh-brand" aria-hidden><b>ABM</b><small>Account intelligence</small></span></Link>
           <div className="sh-rail-items">
