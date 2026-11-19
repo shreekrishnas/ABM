@@ -349,6 +349,7 @@ model Account {
   techUses      TechUse[]
 
   @@index([stage])
+  @@index([createdAt])
   @@index([tier])
   @@index([linkedinUrl])
   @@index([nameKey])
@@ -816,6 +817,7 @@ model ReviewItem {
   createdAt  DateTime     @default(now())
 
   @@index([status, type])
+  @@index([status, createdAt])
   @@index([accountId])
   @@index([contactId])
 }
@@ -1016,6 +1018,7 @@ model JourneyEvent {
   createdAt  DateTime      @default(now())
 
   @@index([journeyId, occurredAt])
+  @@index([journeyId, type])
 }
 
 /// Typed, stored, replayable signals between brain modules. Modules never call each other; they publish here.

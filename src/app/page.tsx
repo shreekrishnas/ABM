@@ -77,36 +77,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const now = new Date();
   const since = range === "today" ? new Date(now.getTime() - DAY) : range === "all" ? undefined : new Date(now.getTime() - 7 * DAY);
 
-  const [cc, flow] = await Promise.all([commandCenter(now), companyFlow(now)]);
-  // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
+  // Start every independent query at once; each section below awaits only its own.
   const wkAgo = new Date(now.getTime() - 30 * DAY);
-  const [wkAccounts, wkSent] = await Promise.all([
+  const d28 = new Date(now.getTime() - 28 * DAY);
+  const ccP = Promise.all([commandCenter(now), companyFlow(now)]);
+  const wkP = Promise.all([
     db.account.findMany({ where: { mergedIntoId: null, createdAt: { gte: wkAgo } }, select: { createdAt: true } }),
     db.message.findMany({ where: { sentAt: { gte: wkAgo } }, select: { sentAt: true } }),
   ]);
-  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
-  const addedDaily = daily(wkAccounts.map((a) => a.createdAt), 7, now);
-  const sentDaily = daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now);
-  const days = dayLabels(7, now);
-  const added30 = daily(wkAccounts.map((a) => a.createdAt), 30, now);
-  const added30Data = dayLabels(30, now).map((label, i) => ({ label, value: added30[i] }));
-  const dayKey = (i: number, n: number) => new Date(now.getTime() - (n - 1 - i) * DAY).toISOString().slice(0, 10);
-
-  // 28 days of each tile's events: the last 14 drawn as a sparkline, the 14 before for the change.
-  const d28 = new Date(now.getTime() - 28 * DAY);
-  const [rvDates, fitDates, briefDates, oppDates] = await Promise.all([
+  const datesP = Promise.all([
     db.reviewItem.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
     db.pipelineEvent.findMany({ where: { createdAt: { gte: d28 }, outcome: "pass", step: { startsWith: "fit_tier" } }, select: { createdAt: true } }),
     db.accountBrief.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
     db.opportunity.findMany({ where: { createdAt: { gte: d28 } }, select: { createdAt: true } }),
   ]);
-  const trend = (dates: { createdAt: Date }[]) => {
-    const all = daily(dates.map((x) => x.createdAt), 28, now);
-    const last = all.slice(14), prev = all.slice(0, 14);
-    return { points: last, total: sum(last), pct: change(sum(last), sum(prev)) };
-  };
-  const tiles = { decisions: trend(rvDates), qualified: trend(fitDates), research: trend(briefDates), opps: trend(oppDates) };
-  const [companies, importedWeek, byStage, recent] = await Promise.all([
+  const baseP = Promise.all([
     db.account.count({ where: { mergedIntoId: null } }),
     db.account.count({ where: { mergedIntoId: null, createdAt: { gte: new Date(now.getTime() - 7 * DAY) } } }),
     db.account.groupBy({ by: ["stage"], where: { mergedIntoId: null }, _count: true }),
@@ -117,6 +102,30 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
       select: { id: true, name: true, domain: true, pipelineStatus: true, updatedAt: true, owner: { select: { name: true } }, contacts: { select: { drafts: { where: { status: { in: ["pending_review", "approved"] }, message: null }, select: { status: true } } } } },
     }),
   ]);
+  const centerP = openDecisions("all", 30);
+  const meP = getMe();
+  // Awaited further down; a failure surfaces there, not as an unhandled rejection.
+  for (const q of [ccP, wkP, datesP, baseP, centerP, meP]) q.catch(() => {});
+  const [cc, flow] = await ccP;
+  // Two weeks of dates: the last 7 days are charted, the 7 before give "vs last week".
+    const [wkAccounts, wkSent] = await wkP;
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  const addedDaily = daily(wkAccounts.map((a) => a.createdAt), 7, now);
+  const sentDaily = daily(wkSent.map((m) => m.sentAt).filter((d): d is Date => Boolean(d)), 7, now);
+  const days = dayLabels(7, now);
+  const added30 = daily(wkAccounts.map((a) => a.createdAt), 30, now);
+  const added30Data = dayLabels(30, now).map((label, i) => ({ label, value: added30[i] }));
+  const dayKey = (i: number, n: number) => new Date(now.getTime() - (n - 1 - i) * DAY).toISOString().slice(0, 10);
+
+  // 28 days of each tile's events: the last 14 drawn as a sparkline, the 14 before for the change.
+  const [rvDates, fitDates, briefDates, oppDates] = await datesP;
+  const trend = (dates: { createdAt: Date }[]) => {
+    const all = daily(dates.map((x) => x.createdAt), 28, now);
+    const last = all.slice(14), prev = all.slice(0, 14);
+    return { points: last, total: sum(last), pct: change(sum(last), sum(prev)) };
+  };
+  const tiles = { decisions: trend(rvDates), qualified: trend(fitDates), research: trend(briefDates), opps: trend(oppDates) };
+  const [companies, importedWeek, byStage, recent] = await baseP;
   const statusOf = (a: (typeof recent)[number]): Status => {
     const drafts = a.contacts.flatMap((c) => c.drafts);
     if (a.pipelineStatus === "running" || a.pipelineStatus === "queued") return "Researching";
@@ -151,7 +160,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const secret = authSecret();
   const session = secret ? await verify<Session>((await cookies()).get(SESSION_COOKIE)?.value, secret) : null;
   // The signed-in user's own name from the team list; the email's first part only as a fallback.
-  const me = await getMe();
+  const me = await meP;
   const first = session?.email.split("@")[0].split(/[._-]/)[0] ?? "";
   const userName = me?.name.split(/\s+/)[0] || process.env.APP_USER_NAME?.trim() || (first ? first[0].toUpperCase() + first.slice(1) : "");
   const dateLine = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: process.env.APP_TIMEZONE || "Asia/Kolkata" }).format(now);
@@ -187,7 +196,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
     return <GetStarted steps={steps} left={left} />;
   })();
 
-  const center = await openDecisions("all", 30);
+  const center = await centerP;
   const queue = center.items.map((d) => ({ id: d.id, kind: d.kind, label: d.label, title: d.title, description: d.description, href: peekTo("d", d.id), ago: ago(d.createdAt) }));
   const STAGE_WORD: Record<string, string> = { UNAWARE: "Not contacted", AWARE: "Aware", ENGAGED: "Engaged", MQA: "Ready for sales", OPPORTUNITY: "Opportunity", CUSTOMER: "Customer", WATCH: "Watching", DISQUALIFIED: "Ruled out", RECYCLED: "Recycled" };
   const stageData = byStage.map((b) => ({ label: STAGE_WORD[b.stage] ?? b.stage, value: b._count, href: `/accounts?stage=${b.stage}` }));
