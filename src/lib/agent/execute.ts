@@ -55,8 +55,11 @@ export async function runAgentTool(name: string, rawInput: unknown, ctx: AgentCo
       new Promise((_, rej) => setTimeout(() => rej(new Error("took longer than 20 s")), 20_000)),
     ]);
     const evidenceIds = collectEvidenceIds(result);
-    await baseDb.agentAction.update({ where: { id: row.id }, data: { status: "done", doneAt: new Date(), evidenceIds, result: summarise(result) } });
-    return { actionId: row.id, tool: name, status: "done", result };
+    // A tool hands back what Undo needs as __undo; it is stored apart from the result.
+    const undo = result && typeof result === "object" && "__undo" in result ? (result as { __undo: unknown }).__undo : undefined;
+    const shown = undo === undefined ? result : Object.fromEntries(Object.entries(result as object).filter(([k]) => k !== "__undo"));
+    await baseDb.agentAction.update({ where: { id: row.id }, data: { status: "done", doneAt: new Date(), evidenceIds, result: summarise(shown), ...(undo !== undefined ? { undo: undo as Prisma.InputJsonValue } : {}), costUsd: tool.estimateCostUsd?.(input as never) ?? 0 } });
+    return { actionId: row.id, tool: name, status: "done", result: shown };
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 300) : "unknown error";
     await baseDb.agentAction.update({ where: { id: row.id }, data: { status: "failed", doneAt: new Date(), error: msg } }).catch(() => undefined);
@@ -74,4 +77,26 @@ function collectEvidenceIds(result: unknown): string[] {
 function summarise(result: unknown): Prisma.InputJsonValue {
   const s = JSON.stringify(result ?? null);
   return (s.length <= 4000 ? JSON.parse(s) : { truncated: true, preview: s.slice(0, 4000) }) as Prisma.InputJsonValue;
+}
+
+/**
+ * Undo one finished action, if its tool allows it and its effect can still be reversed.
+ * The original row only changes status; the undo itself is logged as its own row.
+ */
+export async function undoAgentAction(actionId: string, actor: string): Promise<{ ok: boolean; message: string }> {
+  const a = await baseDb.agentAction.findUnique({ where: { id: actionId } });
+  if (!a) return { ok: false, message: "Action not found" };
+  if (a.status !== "done") return { ok: false, message: a.status === "undone" ? "Already undone" : "Only finished actions can be undone" };
+  const tool = REGISTRY[a.tool];
+  if (!a.reversible || !tool?.undo || a.undo == null) return { ok: false, message: "This action can't be undone" };
+  try {
+    await withScope({ ids: [a.sellerId], active: a.sellerId, choices: [], all: false }, () => tool.undo!(a.undo, { sellerId: a.sellerId, actor, origin: "chat", maxLevel: 1 }));
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Undo failed" };
+  }
+  await baseDb.$transaction([
+    baseDb.agentAction.update({ where: { id: a.id }, data: { status: "undone" } }),
+    baseDb.agentAction.create({ data: { sellerId: a.sellerId, accountId: a.accountId, contactId: a.contactId, tool: `undo:${a.tool}`, level: a.level, actor, origin: "chat", reason: `Undid: ${a.reason}`.slice(0, 500), evidenceIds: [], input: { actionId: a.id }, result: { reverses: a.id }, status: "done", idempotencyKey: `undo:${a.id}`, startedAt: new Date(), doneAt: new Date() } }),
+  ]);
+  return { ok: true, message: "Undone" };
 }

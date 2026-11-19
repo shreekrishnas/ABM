@@ -8,6 +8,7 @@ import { contactStatuses, roleCoverage } from "@/lib/buying-group/coverage";
 import { isStale } from "@/lib/pipeline/gates";
 import { freshnessKindFor } from "@/lib/pipeline/stages/research";
 import type { AgentTool } from "./types";
+import { LEVEL1 } from "./actions-l1";
 
 export type FactLabel = "verified" | "inferred" | "stale" | "outdated";
 
@@ -98,7 +99,7 @@ const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
   run: async (input) => redact(await t.run(input as never)),
 }));
 
-export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, ...lookups].map((t) => [t.name, t]));
+export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, ...lookups, ...LEVEL1].map((t) => [t.name, t]));
 
 export function catalog(maxLevel: number): string {
   return Object.values(REGISTRY)

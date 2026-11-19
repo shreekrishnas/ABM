@@ -7,6 +7,7 @@ import { SYSTEM_ACTOR, type AgentContext } from "@/lib/agent/types";
 import { ago } from "@/components/ui";
 import { humanize } from "@/lib/labels";
 import { JarvisChat } from "./chat";
+import { AutonomyCard, UndoButton } from "./autonomy";
 import { loadJarvisConversation } from "./actions";
 
 export const metadata = { title: "JARVIS" };
@@ -47,6 +48,13 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
       db.pipelineEvent.findMany({ where: { account: { sellerId: client.id } }, orderBy: { createdAt: "desc" }, take: 8, select: { id: true, step: true, outcome: true, createdAt: true, account: { select: { id: true, name: true } } } }),
     ]),
   );
+  const dayStart = new Date();
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const [setting, acted, spentToday] = await Promise.all([
+    db.agentSetting.findUnique({ where: { sellerId: client.id } }),
+    db.agentAction.findMany({ where: { sellerId: client.id, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 15, select: { id: true, tool: true, status: true, reason: true, reversible: true, undo: true, error: true, costUsd: true, createdAt: true, accountId: true } }),
+    db.agentAction.aggregate({ where: { sellerId: client.id, level: { gt: 0 }, createdAt: { gte: dayStart } }, _sum: { costUsd: true } }),
+  ]);
   const budget = (await db.client.findUnique({ where: { id: client.id }, select: { monthlyBudgetUsd: true } }))?.monthlyBudgetUsd ?? null;
   const history = sp.conv ? await loadJarvisConversation(client.id, sp.conv) : null;
   const href = (q: Record<string, string | undefined>) => `/jarvis?${new URLSearchParams(Object.entries({ c: client.id, ...q }).filter(([, v]) => v) as [string, string][])}`;
@@ -56,7 +64,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
     <div className="page-enter jv">
       <header className="jv-head">
         <div>
-          <div className="page-eyebrow">Assistant · read-only preview</div>
+          <div className="page-eyebrow">Assistant · answers questions, does safe internal work when switched on</div>
           <h1 className="page-title">JARVIS</h1>
         </div>
         <form className="jv-client" action="/jarvis">
@@ -81,8 +89,23 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
               <ul className="jv-list">{convos.map((c) => <li key={c.id}><Link prefetch={false} href={href({ conv: c.id, a: sp.a })} className={sp.conv === c.id ? "on" : undefined}>{c.title}<small>{ago(c.updatedAt)}</small></Link></li>)}</ul>
             )}
           </div>
+          <AutonomyCard clientId={client.id} setting={{ enabled: setting?.enabled ?? false, paused: setting?.paused ?? false, allowedTools: Array.isArray(setting?.allowedTools) ? (setting.allowedTools as string[]) : [], dailyCapUsd: setting?.dailyCapUsd ?? 3, spentTodayUsd: spentToday._sum.costUsd ?? 0 }} />
           <div className="jv-card">
-            <div className="jv-card-h"><h2>Activity</h2></div>
+            <div className="jv-card-h"><h2>What JARVIS did</h2></div>
+            {acted.length === 0 ? <p className="muted text-xs">Nothing yet. Switch it on above, or press Run now.</p> : (
+              <ul className="jv-feed">{acted.map((x) => (
+                <li key={x.id} className={x.status === "failed" ? "bad" : x.status === "undone" ? "undone" : undefined}>
+                  <span><b>{humanize(x.tool.replace("undo:", "undo "))}</b>{x.accountId && <> · <Link prefetch={false} href={href({ a: x.accountId, conv: sp.conv })}>open</Link></>}</span>
+                  <span>{x.reason}</span>
+                  <small>{x.status === "done" ? "Done" : humanize(x.status)}{x.costUsd ? ` · $${x.costUsd.toFixed(2)}` : ""} · {ago(x.createdAt)}{x.error ? ` · ${x.error}` : ""}</small>
+                  {x.status === "done" && x.reversible && x.undo != null && <UndoButton clientId={client.id} actionId={x.id} />}
+                  {x.status === "done" && !x.reversible && <small className="muted">Cannot be undone</small>}
+                </li>
+              ))}</ul>
+            )}
+          </div>
+          <div className="jv-card">
+            <div className="jv-card-h"><h2>Pipeline activity</h2></div>
             <ul className="jv-feed">{feed.map((e) => (
               <li key={e.id} className={e.outcome === "block" || e.outcome === "error" ? "bad" : undefined}>
                 <span>{humanize(e.step.replaceAll(".", " · "))}{e.account && <> · <Link prefetch={false} href={href({ a: e.account.id, conv: sp.conv })}>{e.account.name}</Link></>}</span>

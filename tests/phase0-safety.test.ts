@@ -41,7 +41,7 @@ describe("webhook signatures", () => {
 });
 
 describe("daily check steps", () => {
-  it("runs in four short steps, core first", () => {
-    expect(TICK_STEPS).toEqual(["core", "intel", "intent", "market"]);
+  it("runs in short steps, core first, JARVIS last", () => {
+    expect(TICK_STEPS).toEqual(["core", "intel", "intent", "market", "agent"]);
   });
 });

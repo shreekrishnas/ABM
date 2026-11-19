@@ -64,7 +64,7 @@ export function JarvisChat({ clientId, clientName, accountId, accountName, conve
 
   return (
     <section className="jv-chat jv-card" aria-label="Conversation with JARVIS">
-      <div className="jv-card-h"><h2>Ask JARVIS</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · looks things up, changes nothing</span></div>
+      <div className="jv-card-h"><h2>Ask JARVIS</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · chat looks things up and changes nothing</span></div>
       <div className="jv-msgs" aria-live="polite">
         {messages.length === 0 && (
           <div className="jv-empty">

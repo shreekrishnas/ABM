@@ -394,7 +394,7 @@ async function tickUnscoped(ctx: RunContext) {
  * The daily check split into steps that each fit well inside one request (the single run
  * timed out at 300s on busy days). The tick route runs one step, then calls itself for the next.
  */
-export const TICK_STEPS = ["core", "intel", "intent", "market"] as const;
+export const TICK_STEPS = ["core", "intel", "intent", "market", "agent"] as const;
 export type TickStep = (typeof TICK_STEPS)[number];
 
 export async function tickStep(step: TickStep, ctx: RunContext = newContext()) {
@@ -416,6 +416,11 @@ export async function tickStep(step: TickStep, ctx: RunContext = newContext()) {
       return { watchlist: watch.length, insights };
     }
     if (step === "intent") return { intentReruns: (await processIntent(ctx)).length };
+    if (step === "agent") {
+      // JARVIS Level 1, for clients that switched it on.
+      const reports = await (await import("@/lib/agent/loop")).runLoop(ctx.now);
+      return { jarvis: reports.map((r) => ({ client: r.sellerId, ran: r.ran.length, skipped: r.skipped ?? null })) };
+    }
     const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
     return { market };
   });

@@ -76,3 +76,45 @@ export async function askJarvis(input: { clientId: string; conversationId: strin
     return { ok: false, error: aiOff ? "JARVIS can't answer while the AI is paused, not connected or out of credits. Check Super Admin → System health." : `JARVIS couldn't answer right now (${msg.slice(0, 160)}). Your question is saved; try again.` };
   }
 }
+
+const refresh = async () => (await import("next/cache")).revalidatePath("/jarvis");
+
+/** Level 1 controls for one client. Every change is in the audit log. */
+export async function saveJarvisSettings(input: { clientId: string; enabled: boolean; paused: boolean; allowedTools: string[]; dailyCapUsd: number }): Promise<{ ok: boolean; message: string }> {
+  const me = await allowed(input.clientId);
+  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  const { L1_TOOLS } = await import("@/lib/agent/loop");
+  const tools = input.allowedTools.filter((t) => (L1_TOOLS as readonly string[]).includes(t));
+  const cap = Math.max(0, Math.min(50, Number(input.dailyCapUsd) || 0));
+  const before = await db.agentSetting.findUnique({ where: { sellerId: input.clientId } });
+  const after = { enabled: input.enabled, paused: input.paused, allowedTools: tools, dailyCapUsd: cap };
+  await db.agentSetting.upsert({ where: { sellerId: input.clientId }, create: { sellerId: input.clientId, ...after }, update: after });
+  await audit(me.email, "jarvis.settings", { target: input.clientId, clientId: input.clientId, before: before ? { enabled: before.enabled, paused: before.paused, allowedTools: before.allowedTools, dailyCapUsd: before.dailyCapUsd } : null, after });
+  await refresh();
+  return { ok: true, message: input.enabled ? (input.paused ? "Saved. JARVIS is paused." : "Saved. JARVIS will do the allowed work on its own for this client.") : "Saved. JARVIS won't act on its own." };
+}
+
+/** Run one Level 1 pass now for this client (same rules and limits as the scheduled run). */
+export async function runJarvisNow(clientId: string): Promise<{ ok: boolean; message: string }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  const { runClientLoop } = await import("@/lib/agent/loop");
+  const r = await runClientLoop(clientId);
+  await audit(me.email, "jarvis.run_now", { target: clientId, clientId });
+  await refresh();
+  if (r.skipped) return { ok: false, message: r.skipped };
+  const done = r.ran.filter((x) => x.status === "done").length;
+  return { ok: true, message: r.ran.length ? `Did ${done} thing${done === 1 ? "" : "s"}${r.ran.length > done ? `; ${r.ran.length - done} didn't go through` : ""}. $${r.capLeftUsd.toFixed(2)} of today's limit left.` : "Nothing needed doing right now." };
+}
+
+export async function undoJarvisAction(clientId: string, actionId: string): Promise<{ ok: boolean; message: string }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  const row = await db.agentAction.findFirst({ where: { id: actionId, sellerId: clientId }, select: { id: true } });
+  if (!row) return { ok: false, message: "Action not found." };
+  const { undoAgentAction } = await import("@/lib/agent/execute");
+  const r = await undoAgentAction(actionId, me.email);
+  if (r.ok) await audit(me.email, "jarvis.undo", { target: actionId, clientId });
+  await refresh();
+  return r;
+}
