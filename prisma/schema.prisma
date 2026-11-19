@@ -1314,6 +1314,9 @@ model AssistantConversation {
   id        String             @id @default(cuid())
   userEmail String
   title     String
+  /// JARVIS conversations belong to one client (and optionally one company); older admin chats have none.
+  sellerId  String?
+  accountId String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   messages  AssistantMessage[]
@@ -1331,6 +1334,8 @@ model AssistantMessage {
   content        String
   /// Assistant answers: { answer, toolCalls: [{ tool, args, rows }], ms }
   evidence       Json?
+  /// JARVIS actions this answer ran or refers to.
+  actionIds      String[]
   createdAt      DateTime              @default(now())
 
   @@index([conversationId, createdAt])
@@ -1750,4 +1755,68 @@ model BackgroundJob {
   @@index([createdBy, createdAt])
   @@index([status])
   @@index([kind, sellerId, status])
+}
+
+// ── JARVIS: one log of every action the assistant takes, whether a person asked in chat or it
+// acted on its own. Rows are written once and only change status; a later undo is a new row.
+
+model AgentAction {
+  id             String    @id @default(cuid())
+  sellerId       String
+  accountId      String?
+  contactId      String?
+  conversationId String?
+  tool           String
+  /// 0 read · 1 acts freely · 2 acts then tells · 3 asks first
+  level          Int
+  /// user email, or jarvis@system for background work
+  actor          String
+  /// chat | loop | event
+  origin         String
+  reason         String
+  evidenceIds    String[]
+  input          Json
+  result         Json?
+  undo           Json?
+  reversible     Boolean   @default(false)
+  costUsd        Float     @default(0)
+  /// planned | awaiting_approval | running | done | failed | cancelled | undone
+  status         String
+  idempotencyKey String    @unique
+  runAt          DateTime?
+  retries        Int       @default(0)
+  error          String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  doneAt         DateTime?
+
+  @@index([sellerId, createdAt])
+  @@index([accountId, createdAt])
+  @@index([status, runAt])
+  @@index([conversationId])
+}
+
+/// Things that happened (a reply, a bounce, a budget threshold) waiting for JARVIS to react. Used from Level 2.
+model AgentEvent {
+  id          String    @id @default(cuid())
+  sellerId    String
+  type        String
+  payload     Json
+  dedupeKey   String    @unique
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([sellerId, processedAt])
+}
+
+/// JARVIS controls for one client. Safe defaults: autonomy off.
+model AgentSetting {
+  sellerId     String   @id
+  enabled      Boolean  @default(false)
+  paused       Boolean  @default(false)
+  allowedTools Json     @default("[]")
+  dailyCapUsd  Float    @default(3)
+  quietHours   Json?
+  notify       Json?
+  updatedAt    DateTime @updatedAt
 }

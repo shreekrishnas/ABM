@@ -1,0 +1,112 @@
+// Every action JARVIS can take, in one list. Step 1 holds read-only (level 0) tools: the
+// assistant's existing lookups plus three for the JARVIS page. Later levels add tools here.
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { TOOLS as LOOKUPS, redact } from "@/lib/assistant/tools";
+import { openDecisions } from "@/lib/decisions";
+import { contactStatuses, roleCoverage } from "@/lib/buying-group/coverage";
+import { isStale } from "@/lib/pipeline/gates";
+import { freshnessKindFor } from "@/lib/pipeline/stages/research";
+import type { AgentTool } from "./types";
+
+export type FactLabel = "verified" | "inferred" | "stale" | "outdated";
+
+/** How much a fact can be relied on: what the answer must say alongside it. */
+export function factLabel(e: { status: string; key: string; publishedAt: Date; supersededById?: string | null; flagged?: boolean }, now = new Date()): FactLabel {
+  if (e.supersededById || e.flagged || e.status === "invalid" || e.status === "conflicting") return "outdated";
+  if (e.status === "stale" || isStale(e.publishedAt, freshnessKindFor(e.key), now)) return "stale";
+  return e.status === "verified" ? "verified" : "inferred";
+}
+
+const define = <S extends z.ZodTypeAny>(t: AgentTool<S>): AgentTool => t as unknown as AgentTool;
+
+const accountOverview = define({
+  name: "account_overview",
+  description: "One company as JARVIS sees it: scores (fit, intent, priority), stage and tier, research facts each labelled verified / inferred / stale / outdated with its source, buying-group coverage by role (missing roles named), open approvals for it, and its last pipeline steps. Use it to explain why a company is (or isn't) a priority.",
+  input: z.object({ accountId: z.string().min(5).max(40) }),
+  level: 0,
+  minRole: "viewer",
+  reversible: false,
+  target: ({ accountId }) => ({ accountId }),
+  run: async ({ accountId }) => {
+    const a = await db.account.findUnique({
+      where: { id: accountId },
+      select: { id: true, name: true, domain: true, tier: true, stage: true, fitScore: true, intentScore: true, priorityScore: true, intentReading: true, pipelineStatus: true, disqualifyReason: true, relationship: true, updatedAt: true },
+    });
+    if (!a) return { found: false, accountId };
+    const now = new Date();
+    const [facts, people, approvals, steps] = await Promise.all([
+      db.evidence.findMany({ where: { accountId }, orderBy: { publishedAt: "desc" }, take: 25, select: { id: true, key: true, claim: true, status: true, publishedAt: true, sourceUrl: true, publisher: true, supersededById: true, flagged: true } }),
+      contactStatuses([accountId]),
+      db.reviewItem.findMany({ where: { accountId, status: "open" }, orderBy: { createdAt: "desc" }, take: 10, select: { id: true, type: true, reason: true, createdAt: true } }),
+      db.pipelineEvent.findMany({ where: { accountId }, orderBy: { createdAt: "desc" }, take: 10, select: { step: true, outcome: true, reason: true, createdAt: true } }),
+    ]);
+    const coverage = roleCoverage(people.get(accountId) ?? []);
+    return {
+      found: true,
+      account: a,
+      facts: facts.map((f) => ({ id: f.id, topic: f.key, claim: f.claim, label: factLabel(f, now), date: f.publishedAt, source: f.publisher ?? f.sourceUrl, url: f.sourceUrl })),
+      buyingGroup: coverage.map((r) => ({ role: r.label, status: r.status, people: r.people.map((p) => p.fullName) })),
+      missingRoles: coverage.filter((r) => r.status === "missing").map((r) => r.label),
+      openApprovals: approvals,
+      recentSteps: steps,
+      link: `/accounts/${a.id}`,
+    };
+  },
+});
+
+const openApprovals = define({
+  name: "open_approvals",
+  description: "What is waiting for a person in Approvals (emails to approve and exceptions), newest first, with counts by kind and a link to each.",
+  input: z.object({ kind: z.enum(["all", "approval", "exception"]).optional(), limit: z.number().int().min(1).max(30).optional() }),
+  level: 0,
+  minRole: "viewer",
+  reversible: false,
+  run: async ({ kind, limit }) => {
+    const r = await openDecisions(kind ?? "all", limit ?? 10);
+    return { counts: r.counts, items: r.items.map((d) => ({ id: d.id, kind: d.kind, label: d.label, title: d.title, description: d.description, since: d.createdAt, link: d.href })) };
+  },
+});
+
+const recentActions = define({
+  name: "recent_actions",
+  description: "What happened recently, for one company (accountId) or the whole client: JARVIS actions (what, why, status) and pipeline steps (research, scoring, drafting) with their outcome. Use for 'what changed', 'what did you do', 'what failed'.",
+  input: z.object({ accountId: z.string().min(5).max(40).optional(), hours: z.number().int().min(1).max(24 * 30).optional() }),
+  level: 0,
+  minRole: "viewer",
+  reversible: false,
+  target: ({ accountId }) => ({ accountId }),
+  run: async ({ accountId, hours }) => {
+    const since = new Date(Date.now() - (hours ?? 24) * 3_600_000);
+    const where = { createdAt: { gte: since }, ...(accountId ? { accountId } : {}) };
+    const [actions, steps] = await Promise.all([
+      db.agentAction.findMany({ where: { ...where, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 30, select: { id: true, tool: true, level: true, status: true, reason: true, accountId: true, createdAt: true, error: true } }),
+      db.pipelineEvent.findMany({ where, orderBy: { createdAt: "desc" }, take: 40, select: { step: true, outcome: true, reason: true, accountId: true, createdAt: true, account: { select: { name: true } } } }),
+    ]);
+    return { since, actions, steps: steps.map((s) => ({ step: s.step, outcome: s.outcome, reason: s.reason, company: s.account?.name ?? null, accountId: s.accountId, at: s.createdAt })) };
+  },
+});
+
+/** The assistant's existing lookups, unchanged, as level-0 tools. */
+const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
+  name,
+  description: t.description,
+  input: t.args,
+  level: 0,
+  minRole: "viewer",
+  reversible: false,
+  run: async (input) => redact(await t.run(input as never)),
+}));
+
+export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, ...lookups].map((t) => [t.name, t]));
+
+export function catalog(maxLevel: number): string {
+  return Object.values(REGISTRY)
+    .filter((t) => t.level <= maxLevel)
+    .map((t) => {
+      const shape = (t.input as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodTypeAny> | undefined;
+      const args = shape ? `{ ${Object.entries(shape).map(([k, v]) => `${k}${v.isOptional() ? "?" : ""}`).join(", ")} }` : "{}";
+      return `- ${t.name}: ${t.description} Args (JSON): ${args}`;
+    })
+    .join("\n");
+}

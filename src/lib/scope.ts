@@ -108,6 +108,9 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "DiscoverySearch":
     case "VisitorEnrichment":
     case "DailyRecommendation":
+    case "AgentAction":
+    case "AgentEvent":
+    case "AgentSetting":
     case "CareersFeed":
     case "BackgroundJob":
       return acct;
