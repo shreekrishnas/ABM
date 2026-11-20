@@ -257,6 +257,7 @@ export async function recordReplyAction(_: ActionState, fd: FormData): Promise<A
   const p = z.object({ contactId: z.string().min(1), body: z.string().min(2).max(5000) }).safeParse({ contactId: str(fd, "contactId"), body: str(fd, "body") });
   if (!p.success) return { ok: false, message: "Choose a contact and paste the reply" };
   const cls = await recordReply(p.data.contactId, p.data.body);
+  await (await import("@/lib/agent/events")).processEvents().catch(() => undefined);
   refresh("/outreach", "/review", "/handoffs", "/signals");
   return { ok: true, message: `Classified as ${cls.replace("_", " ")} and routed` };
 }

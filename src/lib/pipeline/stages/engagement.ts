@@ -243,7 +243,7 @@ export async function recordReply(contactId: string, body: string, ctx: RunConte
     : await db.message.findFirst({ where: { contactId, status: "delivered" }, orderBy: { sentAt: "desc" } });
   await charge(contact.accountId, contact.account.tier, "llm", CONFIG.costsUsd.llmCheap, "Classify reply", S).catch(() => undefined);
   const cls = (await ctx.adapters.llm.classifyReply(body)) as ReplyClass;
-  await db.reply.create({ data: { contactId, messageId: lastMsg?.id ?? null, body, class: cls, route: REPLY_ROUTES[cls] } });
+  const reply = await db.reply.create({ data: { contactId, messageId: lastMsg?.id ?? null, body, class: cls, route: REPLY_ROUTES[cls] }, select: { id: true } });
   await logEvent(ctx, { accountId: contact.accountId, contactId, stage: S, step: "sequence_send.classify_reply", outcome: "info", reason: `${cls}: ${REPLY_ROUTES[cls]}` });
 
   const pauseAll = (reason: string) => db.enrollment.updateMany({ where: { contactId, status: "active" }, data: { status: "paused", pausedReason: reason } });
@@ -295,6 +295,9 @@ export async function recordReply(contactId: string, body: string, ctx: RunConte
       await openReview({ type: "needs_human_reply", stage: S, accountId: contact.accountId, contactId, reason: `Unclear reply from ${contact.fullName}`, payload: { body } });
       break;
   }
+  // JARVIS Level 2 reacts to the reply after the pipeline has (once per reply, whatever retries).
+  const { emitEvent } = await import("@/lib/agent/events");
+  await emitEvent(contact.account.sellerId, "reply", { replyId: reply.id, class: cls, contactId, accountId: contact.accountId, name: contact.fullName, excerpt: body.slice(0, 300) }, `reply:${reply.id}`);
   return cls;
 }
 
@@ -305,6 +308,9 @@ export async function recordBounce(messageId: string, type: "hard" | "soft", ctx
     if (m.contact.email) await db.suppression.upsert({ where: { value: m.contact.email.toLowerCase() }, create: { value: m.contact.email.toLowerCase(), reason: "hard_bounce" }, update: {} });
     await db.contact.update({ where: { id: m.contactId }, data: { state: "suppressed" } });
     await db.enrollment.updateMany({ where: { contactId: m.contactId }, data: { status: "stopped", pausedReason: "hard bounce" } });
+    const acct = await db.account.findUnique({ where: { id: m.contact.accountId }, select: { sellerId: true } });
+    const { emitEvent } = await import("@/lib/agent/events");
+    await emitEvent(acct?.sellerId, "hard_bounce", { messageId, contactId: m.contactId, accountId: m.contact.accountId, name: m.contact.fullName }, `bounce:${messageId}`);
   }
   await logEvent(ctx, { accountId: m.contact.accountId, contactId: m.contactId, stage: 12, step: "sequence_send.bounce", outcome: "block", reason: `${type} bounce` });
   const breaker = await breakerState(ctx.now);

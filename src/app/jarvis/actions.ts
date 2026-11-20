@@ -84,7 +84,8 @@ export async function saveJarvisSettings(input: { clientId: string; enabled: boo
   const me = await allowed(input.clientId);
   if (!me) return { ok: false, message: "Super Admins covering this client only." };
   const { L1_TOOLS } = await import("@/lib/agent/loop");
-  const tools = input.allowedTools.filter((t) => (L1_TOOLS as readonly string[]).includes(t));
+  const { L2_OPTIONAL } = await import("@/lib/agent/events");
+  const tools = input.allowedTools.filter((t) => (L1_TOOLS as readonly string[]).includes(t) || (L2_OPTIONAL as readonly string[]).includes(t));
   const cap = Math.max(0, Math.min(50, Number(input.dailyCapUsd) || 0));
   const before = await db.agentSetting.findUnique({ where: { sellerId: input.clientId } });
   const after = { enabled: input.enabled, paused: input.paused, allowedTools: tools, dailyCapUsd: cap };

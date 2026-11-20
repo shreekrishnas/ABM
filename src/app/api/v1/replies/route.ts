@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { checkSignature } from "@/lib/webhook-signature";
 import { z } from "zod";
 import { baseDb } from "@/lib/db-base";
@@ -55,5 +56,7 @@ export async function POST(req: Request) {
     contactId = people[0].id;
   }
   const cls = await withSeller(sellerId, () => recordReply(contactId!, b.data.body, newContext(), { messageId }));
+  // JARVIS reacts right away (opt-outs on every channel, owner tasks); the daily loop catches anything missed.
+  after(async () => { await (await import("@/lib/agent/events")).processEvents(sellerId).catch(() => undefined); });
   return json({ contactId, messageId, class: cls }, 202);
 }

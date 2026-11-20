@@ -59,6 +59,15 @@ export async function recordActivities(journeyId: string, activities: Activity[]
     const { logEvent, newContext } = await import("@/lib/pipeline/context");
     await logEvent(newContext(), { accountId: null, stage: 12, step: "linkedin.bridge", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 300) : String(e) });
   });
+  // A booked call or demo: JARVIS prepares the owner (once per journey and stage).
+  const to = result.journey.stage as Stage;
+  if ((to === "call_scheduled" || to === "demo_scheduled") && result.from !== to) {
+    const c = await db.contact.findUnique({ where: { id: result.journey.contactId }, select: { fullName: true, accountId: true, account: { select: { sellerId: true } } } });
+    if (c) {
+      const { emitEvent } = await import("@/lib/agent/events");
+      await emitEvent(c.account.sellerId, "meeting", { contactId: result.journey.contactId, accountId: c.accountId, name: c.fullName, stage: to }, `meeting:${journeyId}:${to}`);
+    }
+  }
   return { journey: result.journey, changed: result.changed };
 }
 

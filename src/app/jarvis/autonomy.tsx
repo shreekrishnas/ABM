@@ -12,6 +12,14 @@ const LABEL: Record<string, { name: string; help: string; cost: string }> = {
   follow_up_task: { name: "Follow-up reminders", help: "A task for the owner when an email got no reply in 7 days", cost: "free" },
 };
 
+const EVENTS: Record<string, { name: string; help: string; cost: string }> = {
+  hot_reply_handoff: { name: "Interested reply → owner task", help: "A task to reply within 24h, with the reply quoted", cost: "free" },
+  question_task: { name: "Objection or unclear reply → owner task", help: "Follow-ups are already paused; the owner gets a task to answer", cost: "free" },
+  ooo_reschedule: { name: "Out of office → reschedule", help: "Moves the next step to the day after they return", cost: "free" },
+  find_replacement: { name: "Bounce or wrong person → find someone else", help: "Runs the buying-group step again for the same role", cost: "about $0.20 each" },
+  meeting_prep: { name: "Call or demo booked → prep task", help: "A task with what to read before the meeting", cost: "free" },
+};
+
 export function AutonomyCard({ clientId, setting }: { clientId: string; setting: { enabled: boolean; paused: boolean; allowedTools: string[]; dailyCapUsd: number; spentTodayUsd: number } }) {
   const [enabled, setEnabled] = useState(setting.enabled);
   const [paused, setPaused] = useState(setting.paused);
@@ -35,6 +43,16 @@ export function AutonomyCard({ clientId, setting }: { clientId: string; setting:
             <span>{l.name} <small className="muted">· {l.cost}</small></span>
           </label>
         ))}
+      </fieldset>
+      <fieldset className="jv-tools-set" disabled={!enabled}>
+        <legend className="muted text-xs">React to events, then tell you</legend>
+        {Object.entries(EVENTS).map(([k, l]) => (
+          <label key={k} className="jv-check" title={l.help}>
+            <input type="checkbox" checked={tools.includes(k)} onChange={(e) => setTools((t) => (e.target.checked ? [...t, k] : t.filter((x) => x !== k)))} />
+            <span>{l.name} <small className="muted">· {l.cost}</small></span>
+          </label>
+        ))}
+        <p className="jv-always">Always on, for every client: an opt-out or hard bounce stops LinkedIn and tasks too, and at 90% of the monthly budget JARVIS pauses its own paid work.</p>
       </fieldset>
       <label className="jv-cap">Daily limit $<input type="number" min={0} max={50} step={0.5} value={cap} onChange={(e) => setCap(e.target.value)} disabled={!enabled} /><small className="muted">${setting.spentTodayUsd.toFixed(2)} used today</small></label>
       <p className="muted text-xs">It never sends anything, never goes over the client&apos;s budget and never rules a company out. Every action is listed below with its reason.</p>

@@ -2318,3 +2318,5 @@ a.jv-stat:hover { border-color: var(--border-2); }
 .jv-undo { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text-2); font-size: var(--fs-12); cursor: pointer; }
 .jv-undo:hover { border-color: var(--accent); color: var(--accent); }
 .jv-undo-msg { color: var(--muted); }
+.jv-always { margin: 2px 0 0; font-size: var(--fs-12); color: var(--text-2); padding: 6px 8px; border-radius: var(--r-sm); background: var(--subtle); }
+.jv-lv { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-full); font-size: var(--fs-12); background: var(--info-bg); color: var(--info); font-weight: var(--fw-regular); }

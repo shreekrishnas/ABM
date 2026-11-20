@@ -52,7 +52,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
   dayStart.setUTCHours(0, 0, 0, 0);
   const [setting, acted, spentToday] = await Promise.all([
     db.agentSetting.findUnique({ where: { sellerId: client.id } }),
-    db.agentAction.findMany({ where: { sellerId: client.id, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 15, select: { id: true, tool: true, status: true, reason: true, reversible: true, undo: true, error: true, costUsd: true, createdAt: true, accountId: true } }),
+    db.agentAction.findMany({ where: { sellerId: client.id, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 15, select: { id: true, tool: true, level: true, status: true, reason: true, reversible: true, undo: true, error: true, costUsd: true, createdAt: true, accountId: true } }),
     db.agentAction.aggregate({ where: { sellerId: client.id, level: { gt: 0 }, createdAt: { gte: dayStart } }, _sum: { costUsd: true } }),
   ]);
   const budget = (await db.client.findUnique({ where: { id: client.id }, select: { monthlyBudgetUsd: true } }))?.monthlyBudgetUsd ?? null;
@@ -95,7 +95,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
             {acted.length === 0 ? <p className="muted text-xs">Nothing yet. Switch it on above, or press Run now.</p> : (
               <ul className="jv-feed">{acted.map((x) => (
                 <li key={x.id} className={x.status === "failed" ? "bad" : x.status === "undone" ? "undone" : undefined}>
-                  <span><b>{humanize(x.tool.replace("undo:", "undo "))}</b>{x.accountId && <> · <Link prefetch={false} href={href({ a: x.accountId, conv: sp.conv })}>open</Link></>}</span>
+                  <span><b>{humanize(x.tool.replace("undo:", "undo "))}</b>{x.level === 2 && <span className="jv-lv">reacted · told you</span>}{x.accountId && <> · <Link prefetch={false} href={href({ a: x.accountId, conv: sp.conv })}>open</Link></>}</span>
                   <span>{x.reason}</span>
                   <small>{x.status === "done" ? "Done" : humanize(x.status)}{x.costUsd ? ` · $${x.costUsd.toFixed(2)}` : ""} · {ago(x.createdAt)}{x.error ? ` · ${x.error}` : ""}</small>
                   {x.status === "done" && x.reversible && x.undo != null && <UndoButton clientId={client.id} actionId={x.id} />}

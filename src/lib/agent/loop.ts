@@ -92,8 +92,19 @@ export async function runClientLoop(sellerId: string, now = new Date(), opts: { 
   return { sellerId, ran, capLeftUsd: Math.max(0, Math.round(capLeft * 100) / 100) };
 }
 
-/** Every client with JARVIS on. */
+/** Budget brake check: the first time this month a client passes 90% of its monthly budget. */
+async function checkBudgets(now: Date) {
+  const { monthlyStatus } = await import("@/lib/budget");
+  const { emitEvent } = await import("./events");
+  const status = await monthlyStatus(now).catch(() => new Map());
+  for (const [sellerId, s] of status) if (s.share != null && s.share >= 0.9) await emitEvent(sellerId, "budget90", { share: s.share }, `budget90:${sellerId}:${now.toISOString().slice(0, 7)}`);
+}
+
+/** Every client with JARVIS on. Events are handled first (opt-outs and the budget brake for every client). */
 export async function runLoop(now = new Date()): Promise<LoopReport[]> {
+  await checkBudgets(now);
+  const { processEvents } = await import("./events");
+  await processEvents().catch(() => undefined);
   const on = await baseDb.agentSetting.findMany({ where: { enabled: true, paused: false }, select: { sellerId: true } });
   const out: LoopReport[] = [];
   for (const s of on) out.push(await runClientLoop(s.sellerId, now).catch((e) => ({ sellerId: s.sellerId, skipped: `Failed: ${e instanceof Error ? e.message : e}`, ran: [], capLeftUsd: 0 })));
