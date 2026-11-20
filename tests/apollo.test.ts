@@ -71,7 +71,7 @@ describe("Apollo website visitors", () => {
     expect(calls.find((x) => x.url.endsWith("/accounts/search"))!.body).toMatchObject({ account_label_ids: ["lbl1"] });
   });
 
-  it("daily sync: known companies get a visit signal, new ones go to Discover, once a day", async () => {
+  it("daily sync: known companies get a visit signal, new ones are listed as visitors (approval only with 2+ signals), once a day", async () => {
     const r = await ingestRows([{ "Company Name": "Kaveri Foods", "Company Website": "kaverifoods.in" }], { source: "csv" });
     process.env.APOLLO_API_KEY = "k";
     process.env.APOLLO_VISITOR_LIST = "Website Visitors";
@@ -84,8 +84,8 @@ describe("Apollo website visitors", () => {
     expect(sig).toHaveLength(1);
     expect(sig[0]).toMatchObject({ type: "site_visit", source: "apollo" });
     expect((await unknownVisitors()).map((v) => v.name)).toEqual(["Nilgiri Dairy"]);
-    const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Nilgiri Dairy" } });
-    expect(s.origin).toBe("website_visitor");
+    // One plain visit is not a buying signal on its own: Nilgiri stays a visitor, not a suggestion.
+    expect(await db.prospectSuggestion.count({ where: { name: "Nilgiri Dairy" } })).toBe(0);
     expect(await syncApolloVisitors(newContext())).toBeNull(); // already ran today
     if (mode !== undefined) process.env.ADAPTER_MODE = mode;
   });

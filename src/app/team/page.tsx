@@ -413,10 +413,12 @@ async function AuditTab({ clients, who, what, account, from, to, sensitive }: { 
         <select name="account" defaultValue={account ?? ""} className="glass-input" aria-label="Account"><option value="">Any account</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         <label className="tm-date"><span>From</span><input type="date" name="from" defaultValue={from ?? ""} className="glass-input" /></label>
         <label className="tm-date"><span>To</span><input type="date" name="to" defaultValue={to ?? ""} className="glass-input" /></label>
-        <label className="tm-pick"><input type="checkbox" name="sensitive" value="1" defaultChecked={sensitive === "1"} /> Sensitive only</label>
-        <button type="submit" className="btn btn-secondary btn-sm">Filter</button>
-        {qs && <Link href="/team?tab=audit" className="btn btn-ghost btn-sm">Clear</Link>}
-        <a href={`/team/audit.csv${qs ? `?${qs}` : ""}`} className="btn btn-secondary btn-sm"><Download size={14} /> Export CSV</a>
+        <div className="tm-actions">
+          <label className="tm-pick"><input type="checkbox" name="sensitive" value="1" defaultChecked={sensitive === "1"} /> Sensitive only</label>
+          <button type="submit" className="btn btn-primary btn-sm">Filter</button>
+          {qs && <Link href="/team?tab=audit" className="btn btn-ghost btn-sm">Clear</Link>}
+          <a href={`/team/audit.csv${qs ? `?${qs}` : ""}`} className="btn btn-secondary btn-sm" style={{ marginLeft: "auto" }}><Download size={14} /> Export CSV</a>
+        </div>
       </form>
       {log.length === 0 ? <p className="muted px-5 py-4 text-sm">Nothing recorded{qs ? " for this filter" : " yet"}.</p> : (
         <div className="table-wrap">

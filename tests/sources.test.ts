@@ -42,27 +42,28 @@ describe("source 2: companies similar to a website", () => {
 });
 
 describe("source 3: website visitors", () => {
-  it("unknown visiting companies become suggestions; the targeting rule does not apply to visitors", async () => {
+  it("visiting companies with 2+ buying signals become suggestions (targeting rule not applied); a single plain visit stays a visitor", async () => {
     await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
     await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
     await recordVisit({ url: "https://seller.example/", companyName: "Marina Retail Group", source: "apollo" });
     const r = await suggestFromVisitors(newContext());
-    // Website visitors pass through: the company outside the rule is suggested too, not excluded.
-    expect(r).toEqual({ suggested: 2, excluded: 0 });
-    expect((await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Marina Retail Group" } })).status).toBe("new");
+    // Lotus looked at pricing and a case study (two signals); Marina only opened the home page once.
+    expect(r).toEqual({ suggested: 1, excluded: 0, justVisitors: 1 });
+    expect(await db.prospectSuggestion.count({ where: { name: "Marina Retail Group" } })).toBe(0);
     const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Lotus Consumer Brands" } });
     expect(s).toMatchObject({ origin: "website_visitor", status: "new", country: "IN" });
-    expect(s.whyNow).toMatch(/Visited your website 2 times.*pricing/i);
+    expect(s.whyNow).toMatch(/Visited your website and .*pricing/i);
   });
 
   it("approving starts the normal flow and the earlier visits move to the new company", async () => {
     await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
+    await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
     await suggestFromVisitors(newContext());
     const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Lotus Consumer Brands" } });
     const id = await addSuggestion(s.id);
     const acc = await db.account.findUniqueOrThrow({ where: { id: id! } });
     expect(acc).toMatchObject({ source: "website-visitor", pipelineStatus: "queued" });
-    expect(await db.webVisit.count({ where: { accountId: id } })).toBe(1);
+    expect(await db.webVisit.count({ where: { accountId: id } })).toBe(2);
     expect((await db.prospectSuggestion.findUniqueOrThrow({ where: { id: s.id } })).status).toBe("added");
   });
 });

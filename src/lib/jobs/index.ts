@@ -188,7 +188,7 @@ const HANDLERS: Record<JobKind, Handler> = {
     const r = await syncApolloVisitors(ctx, { force: true });
     if (!r) return { ok: false, message: "Apollo isn't on: add its key in Admin → Integrations", href: "/admin/integrations" };
     if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies. Press Check Apollo connection to see why.", href: "/import/apollo" };
-    return { ok: true, message: `Website visitors: ${r.companies} compan${r.companies === 1 ? "y" : "ies"}, ${r.recorded} new visit${r.recorded === 1 ? "" : "s"}${r.suggested ? `, ${r.suggested} new waiting for approval` : ""}`, href: "/import/apollo" };
+    return { ok: true, message: `Website visitors: ${r.companies} compan${r.companies === 1 ? "y" : "ies"}, ${r.recorded} new visit${r.recorded === 1 ? "" : "s"}${r.suggested ? `, ${r.suggested} with 2+ buying signals sent for approval` : ""}${"justVisitors" in r && r.justVisitors ? `, ${r.justVisitors} kept as visitors` : ""}`, href: "/import/apollo" };
   },
 
   async reindex(job) {

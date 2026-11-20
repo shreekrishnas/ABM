@@ -2423,3 +2423,15 @@ a.jv-stat:hover { border-color: var(--border-2); }
 .jo-rec { max-height: 38vh; overflow-y: auto; }
 .jv-always { margin: 2px 0 0; font-size: var(--fs-12); color: var(--text-2); padding: 6px 8px; border-radius: var(--r-sm); background: var(--subtle); }
 .jv-lv { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-full); font-size: var(--fs-12); background: var(--info-bg); color: var(--info); font-weight: var(--fw-regular); }
+
+/* Audit log filters: one row of equal-height controls; dropdown text never clipped. */
+.tm-filter { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto; gap: var(--sp-2) !important; align-items: center; }
+.tm-filter select, .tm-filter input[type="date"] { height: 36px !important; min-height: 36px; max-width: none !important; width: 100%; padding: 0 var(--sp-3) !important; line-height: 34px !important; font-size: var(--fs-13) !important; border-radius: var(--r-sm) !important; }
+.tm-filter select { padding-right: var(--sp-8) !important; text-overflow: ellipsis; }
+.tm-filter .tm-date { display: grid; grid-template-columns: auto 150px; gap: var(--sp-2); align-items: center; }
+.tm-filter .tm-date span { font-size: var(--fs-12); color: var(--muted); }
+.tm-filter .tm-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.tm-filter .tm-pick { height: 36px; border-radius: var(--r-sm); border-color: var(--border-2); background: var(--surface); }
+.tm-filter .btn { height: 36px; }
+@media (max-width: 1100px) { .tm-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tm-filter .tm-date { grid-template-columns: auto minmax(0, 1fr); } }
+@media (max-width: 640px) { .tm-filter { grid-template-columns: 1fr; } }
