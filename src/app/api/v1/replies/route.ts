@@ -57,6 +57,11 @@ export async function POST(req: Request) {
   }
   const cls = await withSeller(sellerId, () => recordReply(contactId!, b.data.body, newContext(), { messageId }));
   // JARVIS reacts right away (opt-outs on every channel, owner tasks); the daily loop catches anything missed.
-  after(async () => { await (await import("@/lib/agent/events")).processEvents(sellerId).catch(() => undefined); });
+  const react = async () => { await (await import("@/lib/agent/events")).processEvents(sellerId).catch(() => undefined); };
+  try {
+    after(react);
+  } catch {
+    await react(); // outside a request (tests, scripts): handle it now
+  }
   return json({ contactId, messageId, class: cls }, 202);
 }

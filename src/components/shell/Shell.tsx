@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, Bot, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Plug, Search, Send, Settings2, ShieldCheck, Users, X } from "lucide-react";
+import { BarChart3, Building2, Check, ChevronDown, Handshake, Home as HomeIcon, LayoutGrid, LogOut, MoreHorizontal, Plug, Search, Send, Settings2, ShieldCheck, Users, X } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { signOutAction, switchClientAction, switchModeAction } from "@/app/login/actions";
 import { Toggle } from "@/components/toggle";
@@ -56,7 +56,6 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
           <div className="sh-rail-foot">
             {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
             {sup && <JarvisKey />}
-            {sup && <Link href="/jarvis" className={`sh-item${path.startsWith("/jarvis") ? " on" : ""}`} data-tip="JARVIS" aria-label="JARVIS"><Bot size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">JARVIS</span></Link>}
             <Link href="/admin" className={`sh-item${active === "admin" ? " on" : ""}`} data-tip="Admin" aria-label="Admin"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Admin</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
           </div>

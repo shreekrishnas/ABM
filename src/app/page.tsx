@@ -12,6 +12,7 @@ import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { DecisionPanel, ExportView, JourneyPanel } from "@/components/home/workspace";
+import { JarvisOrb } from "@/components/home/jarvis-orb";
 import { openDecisions } from "@/lib/decisions";
 import { SearchPill, ThemePill } from "@/components/home/client";
 import { NotificationBell } from "@/components/shell/NotificationBell";
@@ -210,6 +211,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const rows = recent.map((a, i) => ({ a, e: lastEvents[i] })).filter((r) => ev !== "stopped" || r.e?.outcome === "block");
   const exportRows: [string, number, string][] = flow.steps.map((st, i) => [st.label, reachedN[i], i === 0 ? "Entry point" : reachedN[i - 1] ? `${Math.round((reachedN[i] / reachedN[i - 1]) * 100)}% of ${lower(flow.steps[i - 1].label)}` : "No conversions yet"]);
   const firstName = userName ? `, ${userName}` : "";
+  // JARVIS lives on Home (Super Admins for now): a live core that opens the conversation in place.
+  const jarvis = me?.superAdmin
+    ? await (async () => {
+        const { activeSellerId } = await import("@/lib/scope");
+        const cid = await activeSellerId();
+        const dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
+        const [setting, doneToday, recentActs] = await Promise.all([
+          db.agentSetting.findUnique({ where: { sellerId: cid }, select: { enabled: true, paused: true } }),
+          db.agentAction.count({ where: { sellerId: cid, level: { gt: 0 }, status: "done", createdAt: { gte: dayStart } } }),
+          db.agentAction.findMany({ where: { sellerId: cid, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, reason: true, status: true, createdAt: true } }),
+        ]);
+        return { cid, on: Boolean(setting?.enabled && !setting.paused), doneToday, actions: recentActs.map((a) => ({ id: a.id, reason: a.reason, status: a.status, at: a.createdAt.toISOString() })) };
+      })().catch(() => null)
+    : null;
 
   return (
     <div className="hm-main ws">
@@ -231,7 +246,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <h1>{greeting(now)}{firstName}</h1>
             <p className="ws-subtle">A sharper view of account progress, decisions and what needs to happen next.</p>
           </div>
-          <ExportView rows={exportRows} />
+          <div className="ws-heading-side">
+            {jarvis && <JarvisOrb clientId={jarvis.cid} clientName={p.name} doneToday={jarvis.doneToday} waiting={waiting} actions={jarvis.actions} on={jarvis.on} />}
+            <ExportView rows={exportRows} />
+          </div>
         </section>
 
         <div className="ws-meta">
