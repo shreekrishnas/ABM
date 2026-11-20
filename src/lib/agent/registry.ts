@@ -89,6 +89,20 @@ const recentActions = define({
   },
 });
 
+const recommendedApprovalsTool = define({
+  name: "recommended_approvals",
+  description: "Emails waiting for approval, each with JARVIS's strength (strong / fair / weak), recommendation (approve / edit / reject) and reasons, strongest first. Use for 'show me the strongest drafts', 'what should I approve'. You cannot approve; the person approves with the buttons shown next to the conversation.",
+  input: z.object({ limit: z.number().int().min(1).max(30).optional() }),
+  level: 0,
+  minRole: "viewer",
+  reversible: false,
+  run: async ({ limit }) => {
+    const { recommendedApprovals } = await import("./approvals");
+    const items = await recommendedApprovals(limit ?? 10);
+    return { counts: { strong: items.filter((i) => i.strength === "strong").length, fair: items.filter((i) => i.strength === "fair").length, weak: items.filter((i) => i.strength === "weak").length }, items: items.map((i) => ({ draftId: i.draftId, person: i.person, company: i.company, accountId: i.accountId, subject: i.subject, strength: i.strength, recommendation: i.recommendation, reasons: i.reasons, waitingDays: i.waitingDays, link: i.reviewId ? `/review?pick=${i.reviewId}` : "/review?type=draft_approval" })) };
+  },
+});
+
 /** The assistant's existing lookups, unchanged, as level-0 tools. */
 const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
   name,
@@ -100,7 +114,7 @@ const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
   run: async (input) => redact(await t.run(input as never)),
 }));
 
-export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, ...lookups, ...LEVEL1, ...LEVEL2].map((t) => [t.name, t]));
+export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, recommendedApprovalsTool, ...lookups, ...LEVEL1, ...LEVEL2].map((t) => [t.name, t]));
 
 export function catalog(maxLevel: number): string {
   return Object.values(REGISTRY)

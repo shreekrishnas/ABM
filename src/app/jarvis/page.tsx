@@ -8,6 +8,7 @@ import { ago } from "@/components/ui";
 import { humanize } from "@/lib/labels";
 import { JarvisChat } from "./chat";
 import { AutonomyCard, UndoButton } from "./autonomy";
+import { RecommendedApprovals } from "./approvals";
 import { loadJarvisConversation } from "./actions";
 
 export const metadata = { title: "JARVIS" };
@@ -55,6 +56,8 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
     db.agentAction.findMany({ where: { sellerId: client.id, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 15, select: { id: true, tool: true, level: true, status: true, reason: true, reversible: true, undo: true, error: true, costUsd: true, createdAt: true, accountId: true } }),
     db.agentAction.aggregate({ where: { sellerId: client.id, level: { gt: 0 }, createdAt: { gte: dayStart } }, _sum: { costUsd: true } }),
   ]);
+  const { recommendedApprovals, agreement } = await import("@/lib/agent/approvals");
+  const [recs, agreed] = await Promise.all([withScope(scope, () => recommendedApprovals(15)).catch(() => []), agreement(client.id).catch(() => ({ decisions: 0, agreedShare: null }))]);
   const budget = (await db.client.findUnique({ where: { id: client.id }, select: { monthlyBudgetUsd: true } }))?.monthlyBudgetUsd ?? null;
   const history = sp.conv ? await loadJarvisConversation(client.id, sp.conv) : null;
   const href = (q: Record<string, string | undefined>) => `/jarvis?${new URLSearchParams(Object.entries({ c: client.id, ...q }).filter(([, v]) => v) as [string, string][])}`;
@@ -120,6 +123,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
         </main>
 
         <aside className="jv-ctx" aria-label="Company in focus">
+          <RecommendedApprovals clientId={client.id} items={recs.map((r) => ({ draftId: r.draftId, reviewId: r.reviewId, person: r.person, company: r.company, subject: r.subject, strength: r.strength, recommendation: r.recommendation, reasons: r.reasons, waitingDays: r.waitingDays }))} agreement={agreed} />
           <div className="jv-card">
             <div className="jv-card-h"><h2>Company in focus</h2>{acc && <Link prefetch={false} href={href({ conv: sp.conv })} className="ws-link">Clear</Link>}</div>
             {!acc ? (

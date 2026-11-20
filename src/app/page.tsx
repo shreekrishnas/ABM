@@ -222,7 +222,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
           db.agentAction.count({ where: { sellerId: cid, level: { gt: 0 }, status: "done", createdAt: { gte: dayStart } } }),
           db.agentAction.findMany({ where: { sellerId: cid, level: { gt: 0 } }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, reason: true, status: true, createdAt: true } }),
         ]);
-        return { cid, on: Boolean(setting?.enabled && !setting.paused), doneToday, actions: recentActs.map((a) => ({ id: a.id, reason: a.reason, status: a.status, at: a.createdAt.toISOString() })) };
+        const { recommendedApprovals, agreement } = await import("@/lib/agent/approvals");
+        const [recs, agreed] = await Promise.all([recommendedApprovals(10).catch(() => []), agreement(cid).catch(() => ({ decisions: 0, agreedShare: null }))]);
+        return { cid, on: Boolean(setting?.enabled && !setting.paused), doneToday, agreed, recs: recs.map((r) => ({ draftId: r.draftId, reviewId: r.reviewId, person: r.person, company: r.company, subject: r.subject, strength: r.strength, recommendation: r.recommendation, reasons: r.reasons, waitingDays: r.waitingDays })), actions: recentActs.map((a) => ({ id: a.id, reason: a.reason, status: a.status, at: a.createdAt.toISOString() })) };
       })().catch(() => null)
     : null;
 
@@ -247,7 +249,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <p className="ws-subtle">A sharper view of account progress, decisions and what needs to happen next.</p>
           </div>
           <div className="ws-heading-side">
-            {jarvis && <JarvisOrb clientId={jarvis.cid} clientName={p.name} doneToday={jarvis.doneToday} waiting={waiting} actions={jarvis.actions} on={jarvis.on} />}
+            {jarvis && <JarvisOrb clientId={jarvis.cid} clientName={p.name} doneToday={jarvis.doneToday} waiting={waiting} actions={jarvis.actions} on={jarvis.on} recs={jarvis.recs} agreement={jarvis.agreed} />}
             <ExportView rows={exportRows} />
           </div>
         </section>

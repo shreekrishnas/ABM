@@ -2372,5 +2372,23 @@ a.jv-stat:hover { border-color: var(--border-2); }
 @keyframes jo-fade { from { opacity: 0; } }
 @keyframes jo-slide { from { transform: translateX(24px); opacity: 0; } }
 @media (max-width: 640px) { .jo { width: 100%; } .jo-panel { padding: var(--sp-3); } }
+.jv-rec { display: grid; gap: var(--sp-3); }
+.jv-rec-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); max-height: 420px; overflow-y: auto; }
+.jv-rec-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: var(--sp-2); align-items: start; padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.jv-rec-list li input { margin-top: 3px; }
+.jv-rec-gap { width: 14px; }
+.jv-rec-top { font-size: var(--fs-13); display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.jv-rec-subj { font-size: var(--fs-13); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jv-rec-why { font-size: var(--fs-12); color: var(--muted); }
+.jv-rec-fail { font-size: var(--fs-12); color: var(--danger); }
+.jv-rec-open { font-size: var(--fs-12); color: var(--accent); }
+.jv-str { margin-left: auto; padding: 0 8px; border-radius: var(--r-full); font-size: var(--fs-12); }
+.jv-str.strong { background: var(--success-bg); color: var(--success); }
+.jv-str.fair { background: var(--warning-bg); color: var(--warning); }
+.jv-str.weak { background: var(--danger-bg); color: var(--danger); }
+.jv-rec-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.jv-rec-confirm { display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--r-md); background: var(--warning-bg); }
+.jv-rec-confirm p { margin: 0; font-size: var(--fs-13); color: var(--text); }
+.jo-rec { max-height: 38vh; overflow-y: auto; }
 .jv-always { margin: 2px 0 0; font-size: var(--fs-12); color: var(--text-2); padding: 6px 8px; border-radius: var(--r-sm); background: var(--subtle); }
 .jv-lv { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-full); font-size: var(--fs-12); background: var(--info-bg); color: var(--info); font-weight: var(--fw-regular); }

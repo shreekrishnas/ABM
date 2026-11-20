@@ -119,3 +119,32 @@ export async function undoJarvisAction(clientId: string, actionId: string): Prom
   await refresh();
   return r;
 }
+
+/**
+ * Level 3: approve the emails the person ticked. JARVIS only prepared the list; each draft goes
+ * through the normal approval path on its own (still pending, evidence still current, compliance
+ * footer), so one failing item never approves or blocks the others. At most 25 at a time.
+ */
+export async function approveDrafts(clientId: string, draftIds: string[]): Promise<{ ok: boolean; message: string; results: { draftId: string; ok: boolean; message: string }[] }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false, message: "Super Admins covering this client only.", results: [] };
+  const ids = [...new Set(draftIds)].slice(0, 25);
+  if (!ids.length) return { ok: false, message: "Tick at least one email.", results: [] };
+  const { withScope } = await import("@/lib/scope");
+  const { reviewDraftAction } = await import("@/app/actions");
+  const results: { draftId: string; ok: boolean; message: string }[] = [];
+  await withScope({ ids: [clientId], active: clientId, choices: [], all: false }, async () => {
+    for (const id of ids) {
+      const d = await db.draft.findUnique({ where: { id }, select: { id: true, subject: true, body: true, status: true } });
+      if (!d) { results.push({ draftId: id, ok: false, message: "Not found in this client" }); continue; }
+      const fd = new FormData();
+      fd.set("draftId", d.id); fd.set("decision", "approve"); fd.set("subject", d.subject); fd.set("body", d.body); fd.set("note", "Approved from JARVIS's recommended list");
+      const r = await reviewDraftAction({ ok: true, message: "" }, fd).catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : "Failed" }));
+      results.push({ draftId: id, ok: Boolean(r?.ok), message: r?.message ?? "" });
+    }
+  });
+  await audit(me.email, "jarvis.approve_batch", { target: clientId, clientId, after: { approved: results.filter((r) => r.ok).length, asked: ids.length } });
+  await refresh();
+  const okN = results.filter((r) => r.ok).length;
+  return { ok: okN > 0, message: `Approved ${okN} of ${ids.length}.${okN < ids.length ? " The others stayed in Approvals with the reason shown." : " They go out with the next send, within the sending limits."}`, results };
+}

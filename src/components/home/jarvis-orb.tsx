@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, X } from "lucide-react";
 import { JarvisChat } from "@/app/jarvis/chat";
+import { RecommendedApprovals, type RecItem } from "@/app/jarvis/approvals";
 
 export interface OrbAction { id: string; reason: string; status: string; at: string }
 
@@ -32,7 +33,7 @@ function Core({ size = 88, busy = false }: { size?: number; busy?: boolean }) {
   );
 }
 
-export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, on }: { clientId: string; clientName: string; doneToday: number; waiting: number; actions: OrbAction[]; on: boolean }) {
+export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, on, recs = [], agreement = { decisions: 0, agreedShare: null } }: { clientId: string; clientName: string; doneToday: number; waiting: number; actions: OrbAction[]; on: boolean; recs?: RecItem[]; agreement?: { decisions: number; agreedShare: number | null } }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -51,7 +52,7 @@ export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, o
         <span className="jo-text">
           <b>JARVIS</b>
           <span>{status}</span>
-          {waiting > 0 && <span className="jo-wait">{waiting} waiting for you</span>}
+          {waiting > 0 && <span className="jo-wait">{waiting} waiting for you{recs.filter((r) => r.strength === "strong").length ? ` · ${recs.filter((r) => r.strength === "strong").length} strong emails ready` : ""}</span>}
           <span className="jo-ask">Ask me anything about {clientName} →</span>
         </span>
       </button>
@@ -74,6 +75,7 @@ export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, o
                 <ul>{actions.map((a) => <li key={a.id} className={a.status}><span>{a.reason}</span><small>{a.status === "done" ? "done" : a.status} · {new Date(a.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></li>)}</ul>
               </section>
             )}
+            {recs.length > 0 && <div className="jo-rec"><RecommendedApprovals clientId={clientId} items={recs} agreement={agreement} /></div>}
             <div className="jo-chat"><JarvisChat clientId={clientId} clientName={clientName} accountId={null} accountName={null} conversationId={null} initial={[]} /></div>
           </aside>
         </div>,

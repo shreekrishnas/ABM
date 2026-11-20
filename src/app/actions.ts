@@ -133,6 +133,7 @@ export async function sendApprovedAction(): Promise<ActionState> {
 
 // ── Review ──
 
+import { recordDraftDecision } from "@/lib/agent/approvals";
 export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<ActionState> {
   await logAction("email.review", { draftId: str(fd, "draftId"), detail: str(fd, "decision") });
   const p = z.object({ draftId: z.string(), decision: z.enum(["approve", "reject"]), subject: z.string().min(1).max(200), body: z.string().min(1).max(5000), note: z.string().max(500).optional() }).safeParse({
@@ -171,6 +172,8 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
     },
   });
   await db.reviewItem.updateMany({ where: { draftId: d.id, status: "open" }, data: { status: "resolved", resolution: p.data.decision === "approve" ? (edited ? "approved with edits" : "approved") : "rejected", resolvedAt: new Date() } });
+  // JARVIS keeps each decision next to what it would have recommended (Level 3 learning; never blocks).
+  await recordDraftDecision(d, p.data.decision, edited).catch(() => undefined);
   // The writer learns from what the team changed or rejected (never blocks the review).
   if (edited || p.data.decision === "reject" || p.data.note) {
     try {
