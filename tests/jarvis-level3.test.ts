@@ -25,11 +25,14 @@ describe("JARVIS Level 3: how strong each email is", () => {
 });
 
 describe("JARVIS Level 3: it never approves by itself", () => {
-  it("has no tool that approves or sends; the approvals list is read-only", () => {
+  it("can only approve through a confirmed proposal, and has no send or reject tool", async () => {
     const names = Object.keys(REGISTRY);
-    expect(names.some((n) => /approve_|send_|reject_/.test(n))).toBe(false);
+    expect(names.some((n) => /^send_|^reject_/.test(n))).toBe(false);
+    expect(REGISTRY.approve_drafts).toMatchObject({ level: 3, reversible: false });
     expect(REGISTRY.recommended_approvals.level).toBe(0);
-    expect(Object.values(REGISTRY).every((t) => !t.contactsPeople)).toBe(true);
+    const { runAgentTool } = await import("@/lib/agent/execute");
+    const out = await runAgentTool("approve_drafts", { draftIds: ["draft-12345"] }, { sellerId: "x", actor: "sa@example.com", origin: "chat", me: { superAdmin: true, superAdminClients: null, clients: [] }, maxLevel: 0 }, "t");
+    expect(out.status).toBe("refused");
   });
 });
 

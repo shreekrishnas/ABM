@@ -42,11 +42,12 @@ describe("JARVIS conversation", () => {
     expect(logged.some((a) => a.tool === "open_approvals" && a.status === "done")).toBe(true);
   });
 
-  it("tells the model it is read-only, marks outside text and lists only read tools", async () => {
+  it("tells the model it only proposes changes, marks outside text and lists the tools", async () => {
     replies.push(JSON.stringify({ tools: [], answer: { title: "x", summary: "y", facts: [], confirmed: [], possible: [], unknown: [], recommendedAction: null, references: [] } }));
     await jarvisAsk(conversationId, "Research Acme", ctx(), { clientName: "Test" });
     const sys = (globalThis as { lastSystem?: string }).lastSystem ?? "";
-    expect(sys).toMatch(/READ-ONLY/);
+    expect(sys).toMatch(/never run by you/);
+    expect(sys).toMatch(/NEVER say it is done/);
     expect(sys).toMatch(/<untrusted_source>/);
     expect(sys).toMatch(/account_overview/);
   });

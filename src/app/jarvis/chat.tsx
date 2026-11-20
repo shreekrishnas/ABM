@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import type { Answer } from "@/lib/assistant/run";
-import { askJarvis, type JarvisMessage } from "./actions";
+import { askJarvis, confirmJarvisProposal, dismissJarvisProposal, type JarvisMessage } from "./actions";
+import type { Proposal } from "@/lib/agent/proposals";
 
 const STARTERS = (company: string | null) =>
   company
-    ? [`Why is ${company} a priority?`, `Who is in ${company}'s buying group, and who is missing?`, `What changed at ${company} recently?`]
-    : ["What changed in the last 24 hours?", "What is waiting for a person?", "Which companies should we focus on this week, and why?"];
+    ? [`Why is ${company} a priority?`, `Who is in ${company}'s buying group, and who is missing?`, `Research ${company} again`]
+    : ["What changed in the last 24 hours?", "Show me the strongest emails to approve", "Which companies should we focus on this week, and why?"];
 
 function refHref(r: Answer["references"][number]) {
   if (r.type === "company") return `/accounts/${r.id}`;
@@ -35,6 +36,25 @@ function AnswerView({ a }: { a: Answer }) {
   );
 }
 
+/** A change JARVIS proposed. Nothing happens until the person confirms; the result is the real outcome. */
+function ProposalCard({ p, clientId }: { p: Proposal; clientId: string }) {
+  const [state, setState] = useState<{ status: string; outcome: string | null }>({ status: p.status, outcome: p.outcome ?? null });
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  const open = state.status === "awaiting_approval";
+  return (
+    <div className={`jv-prop ${state.status}`}>
+      <div className="jv-prop-what"><b>{p.summary}</b><small>{p.costUsd ? `about $${p.costUsd.toFixed(2)}` : "free"} · {p.reversible ? "can be undone" : "can't be undone"}</small></div>
+      {open ? (
+        <div className="jv-prop-btns">
+          <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => start(async () => { const r = await confirmJarvisProposal(clientId, p.id); setState({ status: r.ok ? "done" : r.status === "refused" ? "cancelled" : "failed", outcome: r.message }); router.refresh(); })}>{pending ? "Working…" : "Confirm"}</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={pending} onClick={() => start(async () => { await dismissJarvisProposal(clientId, p.id); setState({ status: "cancelled", outcome: "Dismissed" }); })}>Dismiss</button>
+        </div>
+      ) : <span className="jv-prop-out">{state.outcome ?? (state.status === "cancelled" ? "Dismissed" : state.status)}</span>}
+    </div>
+  );
+}
+
 export function JarvisChat({ clientId, clientName, accountId, accountName, conversationId, initial }: { clientId: string; clientName: string; accountId: string | null; accountName: string | null; conversationId: string | null; initial: JarvisMessage[] }) {
   const [messages, setMessages] = useState<JarvisMessage[]>(initial);
   const [conv, setConv] = useState(conversationId);
@@ -50,7 +70,7 @@ export function JarvisChat({ clientId, clientName, accountId, accountName, conve
     if (!question || pending) return;
     setError(null);
     setText("");
-    setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", content: question, answer: null, tools: [], ms: null, at: new Date().toISOString() }]);
+    setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", content: question, answer: null, tools: [], proposals: [], ms: null, at: new Date().toISOString() }]);
     start(async () => {
       const r = await askJarvis({ clientId, conversationId: conv, accountId, question });
       if (!r.ok) { setError(r.error); return; }
@@ -64,7 +84,7 @@ export function JarvisChat({ clientId, clientName, accountId, accountName, conve
 
   return (
     <section className="jv-chat jv-card" aria-label="Conversation with JARVIS">
-      <div className="jv-card-h"><h2>Ask JARVIS</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · chat looks things up and changes nothing</span></div>
+      <div className="jv-card-h"><h2>Ask JARVIS</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · looks things up; changes need your Confirm</span></div>
       <div className="jv-msgs" aria-live="polite">
         {messages.length === 0 && (
           <div className="jv-empty">
@@ -75,6 +95,7 @@ export function JarvisChat({ clientId, clientName, accountId, accountName, conve
         {messages.map((m) => (
           <div key={m.id} className={`jv-msg ${m.role}`}>
             {m.role === "user" ? <p>{m.content}</p> : m.answer ? <AnswerView a={m.answer} /> : <p>{m.content}</p>}
+            {m.role === "assistant" && m.proposals.length > 0 && <div className="jv-props">{m.proposals.map((p) => <ProposalCard key={p.id} p={p} clientId={clientId} />)}</div>}
             {m.role === "assistant" && m.tools.length > 0 && <small className="jv-tools">Looked at: {[...new Set(m.tools.map((t) => t.tool.replaceAll("_", " ")))].join(", ")}{m.ms ? ` · ${(m.ms / 1000).toFixed(1)} s` : ""}</small>}
           </div>
         ))}

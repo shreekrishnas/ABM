@@ -69,7 +69,7 @@ describe("JARVIS Level 1", () => {
 
   it("registers Level 1 actions as internal-only: none contacts people", () => {
     const l1 = Object.values(REGISTRY).filter((t) => t.level === 1);
-    expect(l1.map((t) => t.name).sort()).toEqual(["follow_up_task", "prepare_drafts", "refresh_research", "rescore"]);
+    expect(l1.map((t) => t.name).sort()).toEqual(["find_people", "follow_up_task", "prepare_drafts", "refresh_research", "rescore"]);
     expect(l1.every((t) => !t.contactsPeople)).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import { freshnessKindFor } from "@/lib/pipeline/stages/research";
 import type { AgentTool } from "./types";
 import { LEVEL1 } from "./actions-l1";
 import { LEVEL2 } from "./actions-l2";
+import { LEVEL3 } from "./actions-l3";
 
 export type FactLabel = "verified" | "inferred" | "stale" | "outdated";
 
@@ -114,15 +115,18 @@ const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
   run: async (input) => redact(await t.run(input as never)),
 }));
 
-export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, recommendedApprovalsTool, ...lookups, ...LEVEL1, ...LEVEL2].map((t) => [t.name, t]));
+export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOverview, openApprovals, recentActions, recommendedApprovalsTool, ...lookups, ...LEVEL1, ...LEVEL2, ...LEVEL3].map((t) => [t.name, t]));
 
-export function catalog(maxLevel: number): string {
+/** What chat may propose (a person confirms each one). Event reactions (level 2) are never proposed. */
+export const CHAT_PROPOSABLE = new Set(["refresh_research", "rescore", "prepare_drafts", "follow_up_task", "find_people", "approve_drafts"]);
+
+export function catalog(maxLevel: number, opts: { proposals?: boolean } = {}): string {
   return Object.values(REGISTRY)
-    .filter((t) => t.level <= maxLevel)
+    .filter((t) => t.level <= maxLevel || (opts.proposals && CHAT_PROPOSABLE.has(t.name)))
     .map((t) => {
       const shape = (t.input as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodTypeAny> | undefined;
       const args = shape ? `{ ${Object.entries(shape).map(([k, v]) => `${k}${v.isOptional() ? "?" : ""}`).join(", ")} }` : "{}";
-      return `- ${t.name}: ${t.description} Args (JSON): ${args}`;
+      return `- ${t.name}${t.level > 0 ? " (PROPOSAL: the person must confirm it)" : ""}: ${t.description} Args (JSON): ${args}`;
     })
     .join("\n");
 }

@@ -95,4 +95,17 @@ export const followUpTask = define({
   },
 });
 
-export const LEVEL1 = [refreshResearch, prepareDrafts, rescore, followUpTask];
+
+export const findPeople = define({
+  name: "find_people",
+  description: "Look for (more) people at a company for its buying group, e.g. a missing finance or procurement role. Queues the company from the buying-group step; costs a data lookup.",
+  input: AccountInput,
+  level: 1,
+  minRole: "manager",
+  reversible: true,
+  estimateCostUsd: () => 0.2,
+  target: ({ accountId }) => ({ accountId }),
+  run: ({ accountId }) => queueFrom(accountId, 8),
+  undo: (undo) => unqueue(undo),
+});
+export const LEVEL1 = [refreshResearch, prepareDrafts, rescore, followUpTask, findPeople];

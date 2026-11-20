@@ -22,7 +22,7 @@ describe("tool registry", () => {
       expect([0, 1, 2, 3]).toContain(tool.level);
       expect(tool.description.length).toBeGreaterThan(10);
     }
-    expect(Object.values(REGISTRY).every((x) => x.level <= 2)).toBe(true);
+    expect(Object.values(REGISTRY).every((x) => x.level <= 3)).toBe(true);
     expect(REGISTRY.account_overview && REGISTRY.open_approvals && REGISTRY.recent_actions).toBeTruthy();
   });
 });

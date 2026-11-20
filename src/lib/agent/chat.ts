@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { fetchJson } from "@/lib/adapters/live/http";
 import { UNTRUSTED_RULE, fenceUntrusted } from "@/lib/llm/fence";
 import { parseStep, type Answer, type ToolCallRecord } from "@/lib/assistant/run";
-import { catalog } from "./registry";
+import { REGISTRY, catalog } from "./registry";
+import { proposeAction, type Proposal } from "./proposals";
 import { runAgentTool } from "./execute";
 import { focusContext } from "./context";
 import type { AgentContext } from "./types";
@@ -16,12 +17,12 @@ const MAX_TOOLS_PER_ROUND = 5;
 const HISTORY = 12;
 const BUDGET_MS = 100_000;
 
-export interface JarvisReply { answer: Answer; toolCalls: ToolCallRecord[]; actionIds: string[]; ms: number; costUsd: number }
+export interface JarvisReply { answer: Answer; toolCalls: ToolCallRecord[]; actionIds: string[]; proposals: Proposal[]; ms: number; costUsd: number }
 
 function system(today: string, client: string, focus: string): string {
   return [
     `You are JARVIS, the account-intelligence assistant of an account-based marketing app, working for the client "${client}".`,
-    "RIGHT NOW YOU ARE READ-ONLY: you can look things up and explain them. You cannot research, re-score, draft, send, approve, reject, change stages or settings. If asked to, say plainly that you can't do that yet, say what it would involve, and point to the page where a person can do it (company page /accounts/<id>, Approvals /review, Import /import, People /people/<id>).",
+    "YOU LOOK THINGS UP FREELY, AND YOU PROPOSE CHANGES. Tools marked PROPOSAL (research again, re-score, write drafts, follow-up task, find people, approve emails) are never run by you: calling one creates a proposal the person confirms with a button under your answer. Say what you proposed, its cost and whether it can be undone, and NEVER say it is done, queued or sent. To approve emails, first call recommended_approvals to get the draft ids, then propose approve_drafts with exactly the ones the person asked for. Anything else (rejecting, ruling a company out, changing settings, stages or the Account Brain) you cannot do: point to the page where a person can (company page /accounts/<id>, Approvals /review, Settings /settings).",
     "EVIDENCE RULES (mandatory):",
     "1. Every statement about accounts, people, scores, signals or activity must come from tool results in this conversation. Never invent a buying signal, a decision maker, a number, a date or an event.",
     "2. Facts carry a label: verified, inferred, stale or outdated. Say which. confirmed = verified and current; possible = inferred, or needs checking; unknown = what the records don't show.",
@@ -33,7 +34,7 @@ function system(today: string, client: string, focus: string): string {
     "In references, use type company (id = accountId), review (id = review item id), fact (id = fact id) or action (id = action id).",
     `Today is ${today}.`,
     focus,
-    `TOOLS:\n${catalog(0)}`,
+    `TOOLS:\n${catalog(0, { proposals: true })}`,
     'Return JSON only: {"tools":[{"tool":"<name>","args":{...}}],"answer":null} to look things up, or {"tools":[],"answer":{"title":"...","summary":"plain, specific explanation","facts":[{"label":"...","value":"..."}],"confirmed":["..."],"possible":["..."],"unknown":["..."],"recommendedAction":"... or null","references":[{"type":"company|review|fact|action","id":"...","label":"..."}]}} to answer.',
     UNTRUSTED_RULE,
   ].join("\n");
@@ -70,6 +71,7 @@ export async function jarvisAsk(conversationId: string, question: string, ctx: A
 
   const toolCalls: ToolCallRecord[] = [];
   const actionIds: string[] = [];
+  const proposals: Proposal[] = [];
   let costUsd = 0;
   for (let round = 0; round <= MAX_ROUNDS; round++) {
     const last = round === MAX_ROUNDS || Date.now() - started > BUDGET_MS * 0.7;
@@ -85,17 +87,26 @@ export async function jarvisAsk(conversationId: string, question: string, ctx: A
     }
     if (step.answer && (!step.tools.length || last)) {
       await recordChatCost(ctx.sellerId, costUsd);
-      return { answer: step.answer, toolCalls, actionIds, ms: Date.now() - started, costUsd };
+      return { answer: step.answer, toolCalls, actionIds, proposals, ms: Date.now() - started, costUsd };
     }
     const calls = step.tools.slice(0, MAX_TOOLS_PER_ROUND);
     if (!calls.length) {
       messages.push({ role: "assistant", content: call.text.slice(0, 2000) }, { role: "user", content: "Call a tool from the list, or answer." });
       continue;
     }
-    const results = await Promise.all(calls.map(async (c) => ({ ...c, out: await runAgentTool(c.tool, c.args, ctx, `Asked: ${question.slice(0, 200)}`) })));
+    // Changing tools are never run from chat: they become proposals the person confirms.
+    const results = await Promise.all(calls.map(async (c) => {
+      const t = REGISTRY[c.tool];
+      if (t && t.level > 0) {
+        const p = await proposeAction(c.tool, c.args, ctx, `Asked: ${question.slice(0, 200)}`);
+        if (p.ok) proposals.push(p.proposal);
+        return { ...c, out: { actionId: p.ok ? p.proposal.id : null, tool: c.tool, status: p.ok ? "proposed" : "refused", result: p.ok ? { proposed: p.proposal.summary, needs: "the person's confirmation (a Confirm button is shown under your answer)", costUsd: p.proposal.costUsd, canBeUndone: p.proposal.reversible } : p.message } };
+      }
+      return { ...c, out: await runAgentTool(c.tool, c.args, ctx, `Asked: ${question.slice(0, 200)}`) };
+    }));
     for (const r of results) {
       if (r.out.actionId) actionIds.push(r.out.actionId);
-      toolCalls.push({ tool: r.tool, args: r.args, ok: r.out.status === "done", rows: Array.isArray(r.out.result) ? r.out.result.length : 1, result: r.out.result });
+      toolCalls.push({ tool: r.tool, args: r.args, ok: r.out.status === "done" || r.out.status === "proposed", rows: Array.isArray(r.out.result) ? r.out.result.length : 1, result: r.out.result });
     }
     messages.push(
       { role: "assistant", content: JSON.stringify({ tools: calls, answer: null }) },
@@ -105,7 +116,7 @@ export async function jarvisAsk(conversationId: string, question: string, ctx: A
   await recordChatCost(ctx.sellerId, costUsd);
   return {
     answer: { title: "No answer", summary: "I couldn't answer that from the records I looked up. Try naming a company, a date or what you want to know.", facts: [], confirmed: [], possible: [], unknown: ["The question could not be resolved within the lookup limit."], recommendedAction: null, references: [] },
-    toolCalls, actionIds, ms: Date.now() - started, costUsd,
+    toolCalls, actionIds, proposals, ms: Date.now() - started, costUsd,
   };
 }
 

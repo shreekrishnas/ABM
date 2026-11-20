@@ -9,6 +9,7 @@ import { audit, coversClient, getMe } from "@/lib/me";
 import { hit } from "@/lib/rate-limit";
 import type { Answer } from "@/lib/assistant/run";
 import type { AgentContext } from "@/lib/agent/types";
+import type { Proposal } from "@/lib/agent/proposals";
 
 export interface JarvisMessage {
   id: string;
@@ -16,13 +17,15 @@ export interface JarvisMessage {
   content: string;
   answer: Answer | null;
   tools: { tool: string; ok: boolean }[];
+  /** Changes JARVIS proposed in this answer, with their live status. */
+  proposals: Proposal[];
   ms: number | null;
   at: string;
 }
 
-const toMessage = (m: { id: string; role: string; content: string; evidence: Prisma.JsonValue; createdAt: Date }): JarvisMessage => {
-  const ev = m.evidence as { answer?: Answer; toolCalls?: { tool: string; ok: boolean }[]; ms?: number } | null;
-  return { id: m.id, role: m.role === "assistant" ? "assistant" : "user", content: m.content, answer: ev?.answer ?? null, tools: (ev?.toolCalls ?? []).map((t) => ({ tool: t.tool, ok: t.ok })), ms: ev?.ms ?? null, at: m.createdAt.toISOString() };
+const toMessage = (m: { id: string; role: string; content: string; evidence: Prisma.JsonValue; createdAt: Date }, live: Map<string, Proposal> = new Map()): JarvisMessage => {
+  const ev = m.evidence as { answer?: Answer; toolCalls?: { tool: string; ok: boolean }[]; ms?: number; proposals?: Proposal[] } | null;
+  return { id: m.id, role: m.role === "assistant" ? "assistant" : "user", content: m.content, answer: ev?.answer ?? null, tools: (ev?.toolCalls ?? []).map((t) => ({ tool: t.tool, ok: t.ok })), proposals: (ev?.proposals ?? []).map((p) => live.get(p.id) ?? p), ms: ev?.ms ?? null, at: m.createdAt.toISOString() };
 };
 
 async function allowed(clientId: string) {
@@ -38,7 +41,10 @@ export async function loadJarvisConversation(clientId: string, id: string): Prom
   const c = await db.assistantConversation.findFirst({ where: { id, userEmail: me.email, sellerId: clientId }, select: { id: true } });
   if (!c) return null;
   const rows = await db.assistantMessage.findMany({ where: { conversationId: id }, orderBy: { createdAt: "asc" }, take: 200 });
-  return rows.map(toMessage);
+  const { proposalsByIds } = await import("@/lib/agent/proposals");
+  const ids = rows.flatMap((r) => ((r.evidence as { proposals?: Proposal[] } | null)?.proposals ?? []).map((p) => p.id));
+  const live = new Map((await proposalsByIds(ids)).map((p) => [p.id, p]));
+  return rows.map((r) => toMessage(r, live));
 }
 
 export async function askJarvis(input: { clientId: string; conversationId: string | null; accountId: string | null; question: string }): Promise<{ ok: true; conversationId: string; message: JarvisMessage } | { ok: false; error: string }> {
@@ -64,7 +70,7 @@ export async function askJarvis(input: { clientId: string; conversationId: strin
   try {
     const r = await jarvisAsk(convo.id, q, ctx, { clientName: client.name, accountId: input.accountId });
     const saved = await db.assistantMessage.create({
-      data: { conversationId: convo.id, role: "assistant", content: answerText(r.answer), actionIds: r.actionIds, evidence: { answer: r.answer, toolCalls: r.toolCalls.map((t) => ({ tool: t.tool, args: t.args, ok: t.ok, rows: t.rows })), ms: r.ms, costUsd: r.costUsd } as unknown as Prisma.InputJsonValue },
+      data: { conversationId: convo.id, role: "assistant", content: answerText(r.answer), actionIds: r.actionIds, evidence: { answer: r.answer, toolCalls: r.toolCalls.map((t) => ({ tool: t.tool, args: t.args, ok: t.ok, rows: t.rows })), ms: r.ms, costUsd: r.costUsd, proposals: r.proposals } as unknown as Prisma.InputJsonValue },
     });
     await db.assistantConversation.update({ where: { id: convo.id }, data: { updatedAt: new Date() } });
     return { ok: true, conversationId: convo.id, message: toMessage(saved) };
@@ -147,4 +153,25 @@ export async function approveDrafts(clientId: string, draftIds: string[]): Promi
   await refresh();
   const okN = results.filter((r) => r.ok).length;
   return { ok: okN > 0, message: `Approved ${okN} of ${ids.length}.${okN < ids.length ? " The others stayed in Approvals with the reason shown." : " They go out with the next send, within the sending limits."}`, results };
+}
+
+/** The person confirms a change JARVIS proposed in chat. Everything is checked again now. */
+export async function confirmJarvisProposal(clientId: string, proposalId: string): Promise<{ ok: boolean; message: string; status: string }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false, message: "Super Admins covering this client only.", status: "refused" };
+  const { confirmProposal } = await import("@/lib/agent/proposals");
+  const { withScope } = await import("@/lib/scope");
+  const r = await withScope({ ids: [clientId], active: clientId, choices: [], all: false }, () => confirmProposal(proposalId, { sellerId: clientId, actor: me.email, me }));
+  await audit(me.email, "jarvis.confirm", { target: proposalId, clientId, after: { status: r.status } });
+  await refresh();
+  return r;
+}
+
+export async function dismissJarvisProposal(clientId: string, proposalId: string): Promise<{ ok: boolean }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false };
+  const { dismissProposal } = await import("@/lib/agent/proposals");
+  const ok = await dismissProposal(proposalId, clientId);
+  if (ok) await audit(me.email, "jarvis.dismiss", { target: proposalId, clientId });
+  return { ok };
 }
