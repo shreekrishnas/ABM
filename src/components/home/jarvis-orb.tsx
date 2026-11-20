@@ -3,7 +3,7 @@
 // with the conversation and what JARVIS did today; the full workspace stays one link away.
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, X } from "lucide-react";
 import { JarvisChat } from "@/app/jarvis/chat";
@@ -11,24 +11,34 @@ import { RecommendedApprovals, type RecItem } from "@/app/jarvis/approvals";
 
 export interface OrbAction { id: string; reason: string; status: string; at: string }
 
-function Core({ size = 88, busy = false }: { size?: number; busy?: boolean }) {
+/** The JARVIS core: a dark device with a tick bezel, a sweeping scan, counter-rotating rings and a glowing centre. */
+function Core({ size = 48, busy = false, live = false }: { size?: number; busy?: boolean; live?: boolean }) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   return (
-    <svg className={`jo-core${busy ? " busy" : ""}`} width={size} height={size} viewBox="0 0 120 120" aria-hidden>
+    <svg className={`jo-core${busy ? " busy" : ""}${live ? " live" : ""}`} width={size} height={size} viewBox="0 0 120 120" aria-hidden>
       <defs>
-        <radialGradient id="jo-glow" cx="50%" cy="50%" r="50%">
+        <radialGradient id={`${id}-glow`} cx="50%" cy="50%" r="50%">
           <stop offset="0%" className="jo-g0" />
-          <stop offset="60%" className="jo-g1" />
+          <stop offset="45%" className="jo-g1" />
           <stop offset="100%" className="jo-g2" />
         </radialGradient>
+        <linearGradient id={`${id}-sweep`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" className="jo-s0" />
+          <stop offset="100%" className="jo-s1" />
+        </linearGradient>
+        <filter id={`${id}-bloom`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" /></filter>
       </defs>
-      <circle cx="60" cy="60" r="56" className="jo-halo" />
-      <g className="jo-ring r1"><circle cx="60" cy="60" r="50" className="jo-dash d1" /></g>
-      <g className="jo-ring r2"><circle cx="60" cy="60" r="41" className="jo-dash d2" /></g>
+      <circle cx="60" cy="60" r="58" className="jo-disc" />
+      <circle cx="60" cy="60" r="57" className="jo-rim" />
       <g className="jo-ring r3">
-        {Array.from({ length: 12 }, (_, i) => <rect key={i} x="58.5" y="23" width="3" height="7" rx="1.5" className="jo-tick" transform={`rotate(${i * 30} 60 60)`} />)}
+        {Array.from({ length: 24 }, (_, i) => <rect key={i} x="59.25" y="6" width="1.5" height={i % 6 === 0 ? 7 : 4} rx=".75" className={`jo-tick${i % 6 === 0 ? " major" : ""}`} transform={`rotate(${i * 15} 60 60)`} />)}
       </g>
-      <circle cx="60" cy="60" r="24" fill="url(#jo-glow)" className="jo-pulse" />
-      <circle cx="60" cy="60" r="11" className="jo-eye" />
+      <g className="jo-ring scan"><path d="M60 60 L60 14 A46 46 0 0 1 99.8 37 Z" fill={`url(#${id}-sweep)`} className="jo-scan" /></g>
+      <g className="jo-ring r1"><circle cx="60" cy="60" r="40" className="jo-arc a1" /></g>
+      <g className="jo-ring r2"><circle cx="60" cy="60" r="31" className="jo-arc a2" /></g>
+      <circle cx="60" cy="60" r="22" fill={`url(#${id}-glow)`} filter={`url(#${id}-bloom)`} className="jo-bloom" />
+      <circle cx="60" cy="60" r="15" className="jo-lens" />
+      <circle cx="60" cy="60" r="7" className="jo-eye" />
     </svg>
   );
 }
@@ -43,25 +53,31 @@ export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, o
     return () => { window.removeEventListener("keydown", esc); document.body.style.overflow = ""; };
   }, [open]);
 
-  const status = !on ? "Standing by · not acting on its own for this client" : doneToday ? `${doneToday} thing${doneToday === 1 ? "" : "s"} done today` : "Watching · nothing needed doing yet";
+  const status = !on ? "Standing by · not acting on its own yet" : doneToday ? `${doneToday} thing${doneToday === 1 ? "" : "s"} done today` : "Watching · nothing needed doing yet";
+  const strong = recs.filter((r) => r.strength === "strong").length;
 
   return (
     <>
-      <button type="button" className={`jo${on ? " on" : ""}`} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label="Open JARVIS">
-        <Core />
-        <span className="jo-text">
+      <span className="jo-wrap">
+        <button type="button" className={`jo ${on ? "on" : "off"}`} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`Open JARVIS. ${status}.${waiting ? ` ${waiting} waiting for you.` : ""}`} aria-describedby="jo-tip">
+          <Core live={on && doneToday > 0} />
+          <i className={`jo-dot ${on ? (waiting ? "warn" : "ok") : "idle"}`} aria-hidden />
+          {strong > 0 && <span className="jo-badge tnum" aria-hidden>{strong}</span>}
+        </button>
+        <span className="jo-tip" id="jo-tip" role="tooltip">
           <b>JARVIS</b>
-          <span>{status}</span>
-          {waiting > 0 && <span className="jo-wait">{waiting} waiting for you{recs.filter((r) => r.strength === "strong").length ? ` · ${recs.filter((r) => r.strength === "strong").length} strong emails ready` : ""}</span>}
-          <span className="jo-ask">Ask me anything about {clientName} →</span>
+          <span className="jo-tip-what">Watches {clientName}&apos;s accounts, does safe work on its own, and asks before anything goes out.</span>
+          <span className="jo-tip-row"><i className={`jo-dot inline ${on ? "ok" : "idle"}`} />{status}</span>
+          {waiting > 0 && <span className="jo-tip-row"><i className="jo-dot inline warn" />{waiting} waiting for you{strong ? ` · ${strong} strong email${strong === 1 ? "" : "s"} ready` : ""}</span>}
+          <span className="jo-tip-cta">Click to talk</span>
         </span>
-      </button>
+      </span>
 
       {open && createPortal(
         <div className="jo-overlay" role="presentation" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
           <aside className="jo-panel" role="dialog" aria-modal="true" aria-label="JARVIS">
             <header className="jo-head">
-              <Core size={44} busy />
+              <Core size={40} busy />
               <div className="min-w-0">
                 <b>JARVIS</b>
                 <span>{clientName} · {status}</span>

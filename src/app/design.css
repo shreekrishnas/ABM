@@ -40,6 +40,7 @@
   --info: #1D5FB8;    --info-bg: #E6EFFA;
   --neutral: #3E5059; --neutral-bg: #ECF0F2;
   --badge-amber: #D98A1C; --live: #13B888; --live-ring: rgba(17, 184, 141, 0.13);
+  --jo-shadow: rgba(13, 116, 128, 0.28); --jo-shadow-h: rgba(13, 116, 128, 0.45);
   --brand-mark: #1F3038; --glow-1: rgba(13, 116, 128, 0.07); --glow-2: rgba(31, 48, 56, 0.05);
   --shadow-card-2: 0 1px 2px rgba(31, 48, 56, 0.07); --shadow-lift: 0 1px 2px rgba(31, 48, 56, 0.08), 0 4px 12px rgba(31, 48, 56, 0.08);
   --sheen: rgba(255, 255, 255, 0.9);
@@ -2319,37 +2320,58 @@ a.jv-stat:hover { border-color: var(--border-2); }
 .jv-undo:hover { border-color: var(--accent); color: var(--accent); }
 .jv-undo-msg { color: var(--muted); }
 /* JARVIS on Home: a live core (arc-reactor rings) that opens the conversation in a side panel. */
-.ws-heading-side { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; justify-content: flex-end; }
-.jo { display: flex; align-items: center; gap: var(--sp-3); padding: 6px var(--sp-4) 6px 6px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); box-shadow: var(--shadow-card-2); color: var(--text); text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s; }
-.jo:hover { border-color: var(--accent); box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+.ws-heading { position: relative; z-index: 6; }
+.ws-heading-side { display: flex; align-items: center; gap: var(--sp-3); justify-content: flex-end; }
+/* The core: a 48px device. All text lives in the hover card. */
+.jo-wrap { position: relative; display: inline-flex; }
+.jo { position: relative; display: grid; place-items: center; width: 52px; height: 52px; padding: 2px; border: 0; border-radius: var(--r-full); background: transparent; cursor: pointer; transition: transform .25s cubic-bezier(.2,.8,.2,1), filter .25s; filter: drop-shadow(0 4px 10px var(--jo-shadow)); }
+.jo:hover { transform: scale(1.08); filter: drop-shadow(0 6px 18px var(--jo-shadow-h)); }
+.jo:active { transform: scale(.96); }
 .jo:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.jo-text { display: grid; gap: 1px; min-width: 0; }
-.jo-text b { font-size: var(--fs-14); letter-spacing: .12em; }
-.jo-text span { font-size: var(--fs-12); color: var(--muted); }
-.jo-text .jo-wait { color: var(--warning); }
-.jo-text .jo-ask { color: var(--accent); }
-.jo-core { flex: none; overflow: visible; }
-.jo-halo { fill: var(--accent-subtle); opacity: .55; }
-.jo-dash { fill: none; stroke: var(--accent); stroke-linecap: round; }
-.jo-dash.d1 { stroke-width: 2; stroke-dasharray: 46 18 8 18; opacity: .75; }
-.jo-dash.d2 { stroke-width: 3; stroke-dasharray: 14 10; opacity: .5; }
-.jo-tick { fill: var(--accent); opacity: .45; }
-.jo-g0 { stop-color: var(--surface); stop-opacity: 1; }
-.jo-g1 { stop-color: var(--accent); stop-opacity: .55; }
-.jo-g2 { stop-color: var(--accent); stop-opacity: 0; }
-.jo-eye { fill: var(--accent); }
-.jo-ring { transform-origin: 60px 60px; }
-.jo-ring.r1 { animation: jo-spin 14s linear infinite; }
-.jo-ring.r2 { animation: jo-spin 9s linear infinite reverse; }
-.jo-ring.r3 { animation: jo-spin 24s linear infinite; }
-.jo-pulse { transform-origin: 60px 60px; animation: jo-breathe 3.2s ease-in-out infinite; }
-.jo-eye { transform-origin: 60px 60px; animation: jo-breathe 3.2s ease-in-out infinite reverse; }
-.jo:not(.on) .jo-ring.r1, .jo:not(.on) .jo-ring.r2 { animation-duration: 28s, 20s; }
+.jo-core { flex: none; overflow: visible; display: block; }
+.jo-disc { fill: var(--hero-1); }
+.jo-rim { fill: none; stroke: var(--accent); stroke-opacity: .35; stroke-width: 1; }
+.jo-tick { fill: var(--hero-kicker); opacity: .35; }
+.jo-tick.major { opacity: .9; }
+.jo-s0 { stop-color: var(--hero-kicker); stop-opacity: 0; }
+.jo-s1 { stop-color: var(--hero-kicker); stop-opacity: .45; }
+.jo-arc { fill: none; stroke-linecap: round; }
+.jo-arc.a1 { stroke: var(--hero-kicker); stroke-width: 2.5; stroke-dasharray: 62 14 22 14 38 101; }
+.jo-arc.a2 { stroke: var(--accent-h); stroke-width: 1.5; stroke-dasharray: 3 6; opacity: .9; }
+.jo-g0 { stop-color: var(--on-hero); stop-opacity: 1; }
+.jo-g1 { stop-color: var(--hero-kicker); stop-opacity: .9; }
+.jo-g2 { stop-color: var(--hero-kicker); stop-opacity: 0; }
+.jo-lens { fill: var(--hero-2); stroke: var(--hero-kicker); stroke-width: 1.5; stroke-opacity: .8; }
+.jo-eye { fill: var(--on-hero); }
+.jo-ring, .jo-bloom, .jo-eye { transform-origin: 60px 60px; }
+.jo-ring.r3 { animation: jo-spin 60s linear infinite; }
+.jo-ring.scan { animation: jo-spin 6s linear infinite; }
+.jo-ring.r1 { animation: jo-spin 12s linear infinite; }
+.jo-ring.r2 { animation: jo-spin 8s linear infinite reverse; }
+.jo-bloom { animation: jo-breathe 3.4s ease-in-out infinite; }
+.jo-eye { animation: jo-breathe 3.4s ease-in-out infinite reverse; }
+.jo.off .jo-ring.scan { animation-duration: 14s; opacity: .5; }
+.jo.off .jo-arc.a1 { stroke: var(--on-hero-2); }
+.jo-core.live .jo-bloom { animation-duration: 2.2s; }
+.jo-core.busy .jo-ring.scan { animation-duration: 2s; }
 .jo-core.busy .jo-ring.r1 { animation-duration: 4s; }
 .jo-core.busy .jo-ring.r2 { animation-duration: 3s; }
 @keyframes jo-spin { to { transform: rotate(360deg); } }
-@keyframes jo-breathe { 0%, 100% { transform: scale(.92); opacity: .8; } 50% { transform: scale(1.06); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .jo-ring, .jo-pulse, .jo-eye { animation: none !important; } }
+@keyframes jo-breathe { 0%, 100% { transform: scale(.9); opacity: .75; } 50% { transform: scale(1.08); opacity: 1; } }
+.jo-dot { position: absolute; right: 3px; bottom: 4px; width: 11px; height: 11px; border-radius: var(--r-full); border: 2px solid var(--canvas); background: var(--muted); }
+.jo-dot.ok { background: var(--live); }
+.jo-dot.warn { background: var(--badge-amber); }
+.jo-dot.inline { position: static; display: inline-block; width: 8px; height: 8px; border: 0; margin-right: 6px; vertical-align: middle; }
+.jo-badge { position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: var(--fs-12); font-weight: var(--fw-semibold); line-height: 18px; text-align: center; border: 2px solid var(--canvas); }
+/* Hover card */
+.jo-tip { position: absolute; top: calc(100% + 12px); right: -8px; z-index: var(--z-popover); width: 280px; display: grid; gap: 6px; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); border: 1px solid var(--hero-line); background: var(--hero-1); color: var(--on-hero-2); box-shadow: var(--shadow-xl); font-size: var(--fs-12); line-height: 1.45; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .18s, transform .18s; }
+.jo-tip::before { content: ""; position: absolute; top: -6px; right: 26px; width: 12px; height: 12px; background: var(--hero-1); transform: rotate(45deg); border-radius: 2px; }
+.jo-tip b { color: var(--on-hero); font-size: var(--fs-13); letter-spacing: .18em; }
+.jo-tip-what { color: var(--on-hero); }
+.jo-tip-row { display: block; }
+.jo-tip-cta { color: var(--hero-kicker); font-weight: var(--fw-semibold); }
+.jo-wrap:hover .jo-tip, .jo:focus-visible + .jo-tip { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .jo-ring, .jo-bloom, .jo-eye { animation: none !important; } .jo, .jo-tip { transition: none; } }
 
 .jo-overlay { position: fixed; inset: 0; z-index: var(--z-modal); background: var(--scrim); display: flex; justify-content: flex-end; animation: jo-fade .18s ease-out; }
 .jo-panel { width: min(560px, 100vw); height: 100%; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--canvas); box-shadow: var(--shadow-xl); animation: jo-slide .24s cubic-bezier(.2,.8,.2,1); overflow: hidden; }
@@ -2371,7 +2393,7 @@ a.jv-stat:hover { border-color: var(--border-2); }
 .jo-chat .jv-msgs { max-height: none; }
 @keyframes jo-fade { from { opacity: 0; } }
 @keyframes jo-slide { from { transform: translateX(24px); opacity: 0; } }
-@media (max-width: 640px) { .jo { width: 100%; } .jo-panel { padding: var(--sp-3); } }
+@media (max-width: 640px) { .jo-tip { right: -4px; width: min(280px, calc(100vw - 32px)); } .jo-panel { padding: var(--sp-3); } }
 .jv-rec { display: grid; gap: var(--sp-3); }
 .jv-rec-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); max-height: 420px; overflow-y: auto; }
 .jv-rec-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: var(--sp-2); align-items: start; padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
