@@ -27,6 +27,7 @@ import { CLIENT_STATUS_LABEL, isClientStatus } from "@/lib/admin/client-status";
 import { runHistory, stoppedGroups } from "@/lib/admin/ops";
 import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
+import { AddClient, ClientChip, RowMenu } from "./people-controls";
 import { reResearchAllAction } from "@/app/actions";
 
 export const metadata = { title: "Team & Access" };
@@ -75,7 +76,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         ))}
       </nav>
       {tab === "overview" && health && <OverviewTab health={health} />}
-      {tab === "people" && <PeopleTab me={me} clients={clients} />}
+      {tab === "people" && <PeopleTab me={me} clients={clients} filter={(sp as { pf?: string }).pf} />}
       {tab === "accounts" && <AccountsTab clients={clients} canAdd={full} />}
       {tab === "system" && health && <SystemTab health={health} clients={clients} />}
       {tab === "data" && <DataTab clients={clients} />}
@@ -94,64 +95,65 @@ function inReach(me: Me, u: { superAdmin: boolean; superAdminClients: string[]; 
   return theirs !== null && theirs.every((c) => coversClient(me, c)) && u.clients.every((c) => coversClient(me, c.clientId));
 }
 
-async function PeopleTab({ me: actor, clients }: { me: Me; clients: Clients }) {
+async function PeopleTab({ me: actor, clients, filter }: { me: Me; clients: Clients; filter?: string }) {
   const me = actor.email;
   const names = new Map((await db.client.findMany({ select: { id: true, name: true } })).map((c) => [c.id, c.name]));
-  const users = await db.user.findMany({ where: { OR: allowedDomains().map((d) => ({ email: { endsWith: `@${d}` } })) }, orderBy: [{ status: "asc" }, { name: "asc" }], include: { clients: true } });
+  const all = await db.user.findMany({ where: { OR: allowedDomains().map((d) => ({ email: { endsWith: `@${d}` } })) }, orderBy: [{ status: "asc" }, { name: "asc" }], include: { clients: true } });
+  const active = all.filter((u) => u.status === "active");
+  const counts = { all: all.length, super: active.filter((u) => u.superAdmin).length, unassigned: active.filter((u) => !u.superAdmin && u.clients.length === 0).length, never: active.filter((u) => !u.lastSignInAt).length };
+  const f = filter === "super" || filter === "unassigned" || filter === "never" ? filter : "all";
+  const users = all.filter((u) => f === "all" || (u.status === "active" && (f === "super" ? u.superAdmin : f === "unassigned" ? !u.superAdmin && u.clients.length === 0 : !u.lastSignInAt)));
+  const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const FILTERS = [["all", "Everyone", counts.all], ["super", "Super Admins", counts.super], ["unassigned", "No client yet", counts.unassigned], ["never", "Never signed in", counts.never]] as const;
   return (
     <>
-      <Card title="People" sub={`${users.filter((u) => u.status === "active").length} active. Click an account to assign or unassign. Super Admin access can cover every client or only the ones you pick.`} pad={false}>
-        <div className="table-wrap">
-          <table className="data">
-            <thead><tr><th>Name</th><th>Access</th><th>Clients and role</th><th>Last sign-in</th><th className="text-right">Sign-in</th></tr></thead>
-            <tbody>
-              {users.map((u) => {
-                const assigned = new Set(u.clients.map((c) => c.clientId));
-                const roleOf = new Map(u.clients.map((c) => [c.clientId, c.role]));
-                const removed = u.status !== "active";
-                const reach = inReach(actor, u);
-                const covers = superAdminClientsOf(u);
-                return (
-                  <tr key={u.id} style={removed ? { opacity: 0.55 } : undefined}>
-                    <td className="strong">{u.name}<div className="muted mono text-xs font-normal">{u.email}</div></td>
-                    <td>
-                      {u.superAdmin ? <span className="tm-role super">Super Admin</span> : <span className="tm-role">User</span>}
-                      {u.superAdmin && <div className="muted mt-1 text-xs">{covers === null ? "All clients" : covers.map((c) => names.get(c) ?? c).join(", ")}</div>}
-                      {u.email !== me && !removed && (reach || !u.superAdmin) && <SuperAdminControl user={u} covers={covers} clients={clients} full={actor.fullSuperAdmin} reach={reach} />}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap gap-1.5">
-                        {clients.map((c) => assigned.has(c.id) ? (
-                          <span key={c.id} className="tm-chip on tm-rolechip">
-                            <ActionButton action={setAssignmentAction.bind(null, u.id, c.id, false)} className="tm-x" confirm={`Remove ${u.name} from ${c.name}?`} title="Unassign">{c.name}</ActionButton>
-                            {!u.superAdmin && (
-                              <ActionForm action={setRoleAction} className="tm-roleform">
-                                <input type="hidden" name="userId" value={u.id} /><input type="hidden" name="clientId" value={c.id} />
-                                <select name="role" defaultValue={roleOf.get(c.id) ?? "manager"} aria-label={`${u.name}'s role in ${c.name}`} title={ROLES.map((r) => `${ROLE_LABEL[r]}: ${ROLE_HELP[r]}`).join("\n")}>
-                                  {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-                                </select>
-                                <SubmitButton className="tm-set">Set</SubmitButton>
-                              </ActionForm>
-                            )}
-                          </span>
-                        ) : (
-                          <ActionButton key={c.id} action={setAssignmentAction.bind(null, u.id, c.id, true)} className="tm-chip" title="Click to assign" disabled={removed}>+ {c.name}</ActionButton>
-                        ))}
-                        {assigned.size === 0 && <span className="muted text-xs">No account yet</span>}
-                      </div>
-                    </td>
-                    <td className="muted text-xs">{u.lastSignInAt ? ago(u.lastSignInAt) : "Never"}{!removed && u.email !== me && u.lastSignInAt && reach && <div><ActionButton action={signOutEverywhereAction.bind(null, u.id)} className="tm-link" confirm={`Sign ${u.name} out on every device?`}>Sign out everywhere</ActionButton></div>}</td>
-                    <td className="text-right">
-                      {u.email === me ? <span className="muted text-xs">You</span> : !reach ? null : removed
-                        ? <ActionButton action={setUserStatusAction.bind(null, u.id, "active")} className="btn btn-secondary btn-sm">Restore</ActionButton>
-                        : <ActionButton action={setUserStatusAction.bind(null, u.id, "removed")} className="btn btn-secondary btn-sm" confirm={`Remove ${u.name}? They won't be able to sign in. Their history is kept.`}>Remove</ActionButton>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <Card title="People" sub={`${active.length} active · ${counts.super} Super Admin${counts.super === 1 ? "" : "s"}. Assign each person to the clients they work on and pick their role there.`} pad={false}>
+        <nav className="pp-filters" aria-label="Filter people">
+          {FILTERS.map(([k, l, n]) => <Link key={k} href={`/team?tab=people${k === "all" ? "" : `&pf=${k}`}`} className={f === k ? "on" : undefined} scroll={false}>{l}<b className="tnum">{n}</b></Link>)}
+        </nav>
+        <ul className="pp-list">
+          {users.map((u) => {
+            const roleOf = new Map(u.clients.map((c) => [c.clientId, c.role]));
+            const removed = u.status !== "active";
+            const reach = inReach(actor, u);
+            const covers = superAdminClientsOf(u);
+            const mine = clients.filter((c) => roleOf.has(c.id));
+            const others = clients.filter((c) => !roleOf.has(c.id));
+            const isMe = u.email === me;
+            return (
+              <li key={u.id} className={`pp-row${removed ? " removed" : ""}`}>
+                <div className="pp-who">
+                  <span className={`pp-av${u.superAdmin ? " sa" : ""}`} aria-hidden>{initials(u.name)}</span>
+                  <div className="min-w-0">
+                    <div className="pp-name">{u.name}{isMe && <span className="pp-you">You</span>}{removed && <span className="pp-tag off">Removed</span>}</div>
+                    <div className="pp-email">{u.email}</div>
+                  </div>
+                </div>
+                <div className="pp-access">
+                  {u.superAdmin ? <span className="pp-tag sa">Super Admin · {covers === null ? "all clients" : covers.map((c) => names.get(c) ?? c).join(", ")}</span> : <span className="pp-tag">Team member</span>}
+                </div>
+                <div className="pp-clients">
+                  {u.superAdmin && covers === null ? <span className="muted text-xs">Sees every client</span> : (
+                    <>
+                      {mine.map((c) => <ClientChip key={c.id} userId={u.id} userName={u.name} clientId={c.id} clientName={c.name} role={roleOf.get(c.id) ?? "manager"} superAdmin={u.superAdmin} />)}
+                      {!mine.length && !u.superAdmin && <span className="pp-tag warn">No client yet</span>}
+                      {!removed && <AddClient userId={u.id} options={others} />}
+                    </>
+                  )}
+                </div>
+                <div className="pp-seen">{u.lastSignInAt ? <span title={u.lastSignInAt.toISOString()}>{ago(u.lastSignInAt)}</span> : <span className="pp-tag off">Never signed in</span>}</div>
+                <div className="pp-act">
+                  {isMe || !reach ? null : (
+                    <RowMenu userId={u.id} userName={u.name} removed={removed} canSignOut={Boolean(u.lastSignInAt)}>
+                      {!removed && <SuperAdminControl user={u} covers={covers} clients={clients} full={actor.fullSuperAdmin} reach={reach} />}
+                    </RowMenu>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+          {!users.length && <li className="pp-empty muted">Nobody here.</li>}
+        </ul>
       </Card>
       <Card title={<span className="inline-flex items-center gap-2"><UserPlus size={18} /> Add a person</span>} sub="They sign in with this email. Assign their clients and role in the table above; new assignments start as Rep.">
         <ActionForm action={addUserAction} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
