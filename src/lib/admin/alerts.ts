@@ -8,7 +8,7 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 export interface SystemAlert {
-  key: "ai_blocked" | "daily_missed" | "visitors_quiet" | "chain_broken";
+  key: "ai_blocked" | "daily_missed" | "visitors_quiet" | "chain_broken" | "sending_stopped";
   tone: "bad" | "warn";
   title: string;
   detail: string;
@@ -68,6 +68,10 @@ export async function systemAlerts(now = new Date()): Promise<SystemAlert[]> {
     });
   }
   out.push(...(await chainAlerts(now)));
+  // The bounce pause stops sending for every client. Its review item is platform-wide (no company),
+  // so only full Super Admins see it in Approvals; this keeps it in front of them everywhere.
+  const pause = await baseDb.reviewItem.findFirst({ where: { type: "bounce_breaker", status: "open" }, orderBy: { createdAt: "desc" }, select: { reason: true, createdAt: true } });
+  if (pause) out.push({ key: "sending_stopped", tone: "bad", title: "Email sending is paused: too many bounces", detail: pause.reason.slice(0, 220), fix: "Check the mailbox and the addresses that bounced. Sending resumes on its own once the 7-day hard-bounce rate is back under the limit; resolve the item in Approvals once you have looked.", href: "/review?type=bounce_breaker", at: pause.createdAt });
   return out;
 }
 

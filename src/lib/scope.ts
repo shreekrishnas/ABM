@@ -91,7 +91,13 @@ export function clearScopeCache() {
 }
 
 /** The filter that keeps a model's rows inside the given clients; null = not client data. */
-export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<string, unknown> | null {
+/**
+ * `platformAdmin`: a full Super Admin (Super Admin mode, every client). Only they see platform-wide
+ * records that belong to no client, such as review items with no company and no person (the bounce
+ * pause, AI learning proposals). Everyone else neither sees nor changes them: updates and deletes get
+ * the same filter, so a client user cannot dismiss a platform-wide item for every client.
+ */
+export function scopeWhere(model: Prisma.ModelName, ids: string[], opts: { platformAdmin?: boolean } = {}): Record<string, unknown> | null {
   const acct = { sellerId: { in: ids } };
   const viaContact = { contact: { account: acct } };
   switch (model) {
@@ -144,6 +150,7 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[]): Record<strin
     case "Note":
     case "FieldState":
     case "ReviewItem":
+      if (model === "ReviewItem") return { OR: [{ account: acct }, { accountId: null, ...viaContact }, ...(opts.platformAdmin ? [{ accountId: null, contactId: null }] : [])] };
       return { OR: [{ account: acct }, { accountId: null, ...viaContact }, { accountId: null, contactId: null }] };
     case "LedgerEntry":
       // Company costs follow the company; account-level costs (lookalike research) carry the account.

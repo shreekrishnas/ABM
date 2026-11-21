@@ -192,6 +192,9 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
 }
 
 export async function resolveReviewAction(id: string, resolution: "resolved" | "dismissed", note?: string): Promise<ActionState> {
+  // Only items in the person's own clients (platform-wide items: full Super Admins only); the
+  // update below carries the same filter, this just says so plainly instead of failing.
+  if (!(await db.reviewItem.findFirst({ where: { id }, select: { id: true } }))) return { ok: false, message: "That item isn't in your workspace." };
   await logAction("decision.resolve", { reviewId: id, detail: resolution });
   await db.reviewItem.update({ where: { id }, data: { status: resolution, resolution: note ?? resolution, resolvedAt: new Date() } });
   refresh("/review");

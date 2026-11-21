@@ -114,7 +114,10 @@ export async function openReview(r: {
   dueInHours?: number;
 }) {
   // One open item per (type, account, contact, draft) — re-runs don't duplicate the queue.
-  const existing = await db.reviewItem.findFirst({
+  // Platform-wide items (no company, no person) are hidden from client users' scoped reads, so
+  // look for those without the client filter, or a client user's click would open a duplicate.
+  const platformWide = !r.accountId && !r.contactId;
+  const existing = await (platformWide ? baseDb : db).reviewItem.findFirst({
     where: { type: r.type, status: "open", accountId: r.accountId ?? null, contactId: r.contactId ?? null, draftId: r.draftId ?? null },
   });
   if (existing) return existing;

@@ -36,7 +36,7 @@ export const db = baseDb.$extends({
           if (scope.ids && !scope.ids.includes(data.sellerId as string)) throw new Error("You are not assigned to that client");
         }
         if (scope.ids && READ_WRITE.has(operation)) {
-          const extra = scopeWhere(model as Prisma.ModelName, scope.ids);
+          const extra = scopeWhere(model as Prisma.ModelName, scope.ids, { platformAdmin: scope.all });
           if (extra) a.where = andWhere(a.where as Record<string, unknown> | undefined, extra);
         }
         return query(a as typeof args);
