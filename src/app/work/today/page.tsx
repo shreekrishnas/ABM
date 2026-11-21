@@ -31,7 +31,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
   const [replies, approvalRefs, repliesCount, hotRaw, followCandidates, decisions, sentWeek, repliesWeek, liveConversations] = await Promise.all([
     db.journey.findMany({ where: { stage: { in: ["details_requested", "interested", "replied_neutral", "referred"] }, contact: { mergedIntoId: null } }, orderBy: { lastEngagementAt: "desc" }, take: 6, include: { contact: { include: { account: { select: { name: true } } } }, sender: { select: { name: true } }, events: { where: { type: "reply" }, orderBy: { occurredAt: "desc" }, take: 1 } } }),
     // The email drafts behind open draft-approval items: exactly what Approvals lists as "Emails to approve".
-    db.reviewItem.findMany({ where: { status: "open", type: "draft_approval", draftId: { not: null } }, orderBy: { createdAt: "asc" }, take: 5, select: { draftId: true } }),
+    db.reviewItem.findMany({ where: { status: "open", type: "draft_approval", draftId: { not: null } }, orderBy: { createdAt: "asc" }, take: 5, select: { id: true, draftId: true } }),
     // Tab totals are counted in full, not from the short lists shown.
     db.journey.count({ where: { stage: { in: ["details_requested", "interested", "replied_neutral", "referred"] }, contact: { mergedIntoId: null } } }),
     db.account.findMany({ where: { mergedIntoId: null, stage: { notIn: ["CUSTOMER", "DISQUALIFIED"] }, intentReading: { path: ["level"], equals: "hot" } }, select: { id: true, name: true, tier: true, intentReading: true, _count: { select: { contacts: true } } }, take: 30 }),
@@ -42,7 +42,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
     db.journey.count({ where: { stage: { in: ["replied_neutral", "details_requested", "details_shared", "interested", "call_scheduled", "demo_scheduled"] } } }),
   ]);
   const approvalDrafts = await db.draft.findMany({ where: { id: { in: approvalRefs.map((r) => r.draftId!) } }, include: { contact: { include: { account: { select: { name: true, tier: true } } } } } });
-  const approvals = approvalRefs.map((r) => approvalDrafts.find((d) => d.id === r.draftId)).filter((d): d is (typeof approvalDrafts)[number] => Boolean(d));
+  const approvals = approvalRefs.flatMap((r) => { const d = approvalDrafts.find((x) => x.id === r.draftId); return d ? [{ ...d, reviewId: r.id }] : []; });
   const hot = hotRaw.map((a) => ({ ...a, r: a.intentReading as unknown as Reading })).sort((x, y) => y.r.score - x.r.score).slice(0, 6);
   const dueFollowUps = followCandidates
     .map((j) => ({ j, n: nextAction({ stage: j.stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement }, now, { disqualifyReason: j.contact.account.stage === "DISQUALIFIED" ? j.contact.account.disqualifyReason : null }) }))
@@ -141,7 +141,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<{ 
             )))}
             {active === "approvals" && (approvals.length === 0 ? <EmptyState title="Nothing to approve" /> : <>
               {approvals.map((d) => (
-                <Row key={d.id} href="/review" title={`${d.contact.fullName} · ${d.contact.account.name}`} sub={`“${d.subject}”${d.painPoint ? ` — ${d.painPoint}` : ""}`}
+                <Row key={d.id} href={`/review?type=draft_approval&pick=${d.reviewId}`} title={`${d.contact.fullName} · ${d.contact.account.name}`} sub={`“${d.subject}”${d.painPoint ? ` — ${d.painPoint}` : ""}`}
                   tags={d.rewrites ? <Badge tone="accent">Rewritten {d.rewrites}× by the brain</Badge> : undefined} action="Review" />
               ))}
               {w.emails > approvals.length && <Link href="/review?type=draft_approval" className="td3-more">All {w.emails} emails to approve <ArrowRight size={14} /></Link>}

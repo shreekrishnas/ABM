@@ -225,3 +225,100 @@ describe("8. Vega", () => {
     await p.close();
   });
 });
+
+// Runs last: these journeys make real decisions on the seeded items.
+describe("9. One Approvals workspace for every decision", () => {
+  const pick = (p: Page) => new URL(p.url()).searchParams.get("pick");
+  const decidedCount = async () => {
+    const p = await open("/review?status=decided");
+    const n = Number((await p.locator('nav[aria-label="Status"] a', { hasText: "Recently decided" }).innerText()).match(/\d+/)?.[0]);
+    await p.close();
+    return n;
+  };
+  const waitingIds = async (path: string) => {
+    const p = await open(path);
+    const ids = await p.locator(".dz-item").evaluateAll((as: Element[]) => as.map((a) => new URL((a as HTMLAnchorElement).href).searchParams.get("pick")));
+    await p.close();
+    return ids;
+  };
+
+  it("Home → Approvals: a Home item opens that exact item, and the decision is recorded", async () => {
+    const before = await decidedCount();
+    const p = await open("/");
+    const link = p.locator('a[href*="/review?type="][href*="pick="]').first();
+    const target = new URL(BASE + (await link.getAttribute("href"))).searchParams.get("pick");
+    await link.click();
+    await p.waitForURL(/\/review\?/);
+    expect(pick(p)).toBe(target);
+    expect(await p.locator(".dz-item.on").getAttribute("href")).toContain(`pick=${target}`);
+    await p.locator(".dz-actions button").first().click(); // the item's main decision
+    await p.waitForTimeout(9500); // one-click decisions wait 8 s behind Undo before they run
+    await p.close();
+    expect(await decidedCount()).toBe(before + 1);
+    expect(await waitingIds("/review")).not.toContain(target);
+  }, 60_000);
+
+  it("Today → Approvals: an email from Today opens in Approvals, is rejected, and the next one opens", async () => {
+    const before = await decidedCount();
+    const p = await open("/work/today?q=approvals");
+    const row = p.locator('a[href*="type=draft_approval&pick="]').first();
+    const target = new URL(BASE + (await row.getAttribute("href"))).searchParams.get("pick");
+    await row.click();
+    await p.waitForURL(/\/review\?/);
+    expect(pick(p)).toBe(target);
+    await p.locator('form.dz-form button[name="decision"][value="reject"]').click();
+    await expect.poll(() => pick(p), { timeout: 15_000 }).not.toBe(target);
+    await p.close();
+    expect(await decidedCount()).toBe(before + 1);
+    expect(await waitingIds("/review?type=draft_approval")).not.toContain(target);
+  }, 60_000);
+
+  it("Vega → Approvals: Vega's recommendation links to the email, which is approved in Approvals", async () => {
+    const p = await open("/vega");
+    expect(await p.getByRole("button", { name: /Approve .* selected/ }).count(), "no separate approve button in Vega").toBe(0);
+    const link = p.locator("a.jv-rec-open").first();
+    const target = new URL(BASE + (await link.getAttribute("href"))).searchParams.get("pick");
+    await link.click();
+    await p.waitForURL(/\/review\?/);
+    expect(pick(p)).toBe(target);
+    await p.locator('form.dz-form button[name="decision"][value="approve"]').click();
+    await expect.poll(() => pick(p), { timeout: 15_000 }).not.toBe(target);
+    await p.close();
+    expect(await waitingIds("/review?type=draft_approval")).not.toContain(target);
+  }, 60_000);
+
+  it("Edit a draft → approve: the edited email is approved and shows as decided", async () => {
+    const p = await open("/review?type=draft_approval");
+    const target = pick(p) ?? new URL((await p.locator(".dz-item.on").evaluate((a: Element) => (a as HTMLAnchorElement).href))).searchParams.get("pick");
+    const form = p.locator("form.dz-form").first();
+    await form.locator('[name="subject"]').fill("Edited in the approvals journey");
+    await form.locator('[name="note"]').fill("tightened the subject");
+    await form.locator('button[name="decision"][value="approve"]').click();
+    await expect.poll(async () => (await waitingIds("/review?type=draft_approval")).includes(target), { timeout: 15_000 }).toBe(false);
+    await p.close();
+    const d = await open(`/review?status=decided&type=draft_approval&pick=${target}`);
+    expect(await d.locator(".dz-pane").innerText()).toMatch(/Resolved|Dismissed/);
+    expect(await d.locator(".dz-pane button").count(), "decided items are read-only").toBe(0);
+    await d.close();
+  }, 60_000);
+
+  it("Resolve an item → the next pending item opens straight away", async () => {
+    const ids = await waitingIds("/review?type=contradiction");
+    expect(ids.length).toBeGreaterThan(1);
+    const p = await open(`/review?type=contradiction&pick=${ids[0]}`);
+    await p.locator(".dz-actions button", { hasText: "Resolve" }).click();
+    await expect.poll(() => pick(p), { timeout: 5_000 }).toBe(ids[1]);
+    await p.waitForTimeout(9500);
+    await p.close();
+    expect(await waitingIds("/review?type=contradiction")).not.toContain(ids[0]);
+  }, 60_000);
+
+  it("filters by Checks and Sign-offs, with counts that match the shared totals", async () => {
+    const p = await open("/review?kind=approval");
+    const seg = await p.locator('nav[aria-label="Show"] a').allInnerTexts();
+    const n = (s: string) => Number(s.match(/\d+/)?.[0]);
+    expect(n(seg[0])).toBe(n(seg[1]) + n(seg[2]));
+    expect(await p.locator(".dz-item").count()).toBe(Math.min(n(seg[2]), 50));
+    await p.close();
+  });
+});

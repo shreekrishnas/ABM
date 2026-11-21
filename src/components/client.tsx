@@ -1,8 +1,9 @@
 "use client";
 import { deniedMessage } from "@/lib/roles";
 
-import { useActionState, useEffect, useState, useTransition, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 import type { ActionState } from "@/app/actions";
 
@@ -73,7 +74,12 @@ export function ActionButton({ action, children, className = "btn btn-secondary"
 }
 
 /** Form wired to a server action with useActionState; shows the result as a toast. */
-export function ActionForm({ action, children, className, resetOnSuccess = true }: { action: (s: ActionState, fd: FormData) => Promise<ActionState>; children: ReactNode; className?: string; resetOnSuccess?: boolean }) {
+/** `successHref`: where to go after a successful submit (Approvals moves on to the next item). */
+export function ActionForm({ action, children, className, resetOnSuccess = true, successHref }: { action: (s: ActionState, fd: FormData) => Promise<ActionState>; children: ReactNode; className?: string; resetOnSuccess?: boolean; successHref?: string }) {
+  const router = useRouter();
+  const hrefRef = useRef(successHref);
+  hrefRef.current = successHref;
+  const handled = useRef<ActionState | null>(null);
   // Toast as soon as the action resolves: the form itself may unmount in the
   // same render (e.g. an approved draft leaves the queue).
   const [state, formAction] = useActionState(async (s: ActionState, fd: FormData) => {
@@ -93,7 +99,10 @@ export function ActionForm({ action, children, className, resetOnSuccess = true 
     if (!state) return;
     if (state.ok) window.dispatchEvent(new Event("abm:form-success"));
     if (state.ok && resetOnSuccess) setKey((k) => k + 1);
-  }, [state, resetOnSuccess]);
+    // Once per result: the next item may reuse this form, and must not move on again by itself.
+    if (state.ok && hrefRef.current && handled.current !== state) router.replace(hrefRef.current, { scroll: false });
+    handled.current = state;
+  }, [state, resetOnSuccess, router]);
   return (
     <>
       <form key={key} action={formAction} className={className}>

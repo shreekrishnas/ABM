@@ -16,7 +16,7 @@ import { SESSION_COOKIE, sessionToken } from "@/lib/auth";
 import { clearScopeCache } from "@/lib/scope";
 import { waitingForYou } from "@/lib/decisions";
 import { systemAlerts } from "@/lib/admin/alerts";
-import { resolveReviewAction } from "@/app/actions";
+import { resolveReviewAction, reviewDraftAction } from "@/app/actions";
 import { openReview } from "@/lib/pipeline/context";
 
 const SECRET = "test-secret-for-global-review-scope";
@@ -125,6 +125,41 @@ describe("who can change which review items", () => {
     await signIn("full@trilliantdigital.com", { superMode: true, client: "test" });
     expect(await resolveReviewAction(ids.global, "resolved")).toMatchObject({ ok: true });
     expect(await statusOf(ids.global)).toBe("resolved");
+  });
+});
+
+describe("email drafts in the Approvals workspace", () => {
+  const form = (draftId: string, decision: "approve" | "reject") => {
+    const fd = new FormData();
+    fd.set("draftId", draftId); fd.set("decision", decision); fd.set("subject", "Hello"); fd.set("body", "Body text\n\nUnsubscribe");
+    return fd;
+  };
+  const draftIn = async (sellerId: string) => {
+    const acc = await baseDb.account.findFirst({ where: { sellerId } });
+    const c = await baseDb.contact.create({ data: { fullName: `Draft person ${sellerId}`, accountId: acc!.id } });
+    return (await baseDb.draft.create({ data: { contactId: c.id, subject: "Hello", body: "Body text\n\nUnsubscribe", claims: [] } })).id;
+  };
+
+  it("a Viewer cannot approve or reject an email; it stays waiting", async () => {
+    const id = await draftIn("test");
+    await signIn("viewa@trilliantdigital.com");
+    await expect(reviewDraftAction(null as never, form(id, "approve"))).rejects.toThrow();
+    await expect(reviewDraftAction(null as never, form(id, "reject"))).rejects.toThrow();
+    expect((await baseDb.draft.findUnique({ where: { id } }))!.status).toBe("pending_review");
+  });
+
+  it("a Rep in Client A cannot decide Client B's email, even with its id", async () => {
+    const id = await draftIn("test-b");
+    await signIn("repa@trilliantdigital.com");
+    await expect(reviewDraftAction(null as never, form(id, "reject"))).rejects.toThrow();
+    expect((await baseDb.draft.findUnique({ where: { id } }))!.status).toBe("pending_review");
+  });
+
+  it("a Rep can reject their own client's email", async () => {
+    const id = await draftIn("test");
+    await signIn("repa@trilliantdigital.com");
+    expect(await reviewDraftAction(null as never, form(id, "reject"))).toMatchObject({ ok: true });
+    expect((await baseDb.draft.findUnique({ where: { id } }))!.status).toBe("rejected");
   });
 });
 

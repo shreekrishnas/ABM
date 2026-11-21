@@ -3,7 +3,7 @@ import { TIER_LABEL, tierLabel } from "@/lib/tier-label";
 import { WhyThisEmail } from "@/components/why-this-email";
 import type { DraftBrief } from "@/lib/outreach/brief";
 import Link from "next/link";
-import type { ReviewType } from "@prisma/client";
+import type { ReviewStatus, ReviewType } from "@prisma/client";
 import { Check, ClipboardCheck, ExternalLink, UserCheck, UserX, X } from "lucide-react";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
@@ -25,12 +25,12 @@ function wordLimit(sellerId: string | null | undefined): number | null {
   }
 }
 import { reviewLabel } from "@/lib/review-labels";
-import { DECISION_FILTER_LABEL, DECISION_KIND, summarizeWaiting, typesFor, waitingNote } from "@/lib/decisions";
+import { DECISION_FILTER_HELP, DECISION_FILTER_LABEL, DECISION_KIND, summarizeWaiting, typesFor, waitingNote } from "@/lib/decisions";
 
 export const metadata = { title: "Approvals" };
 
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; kind?: string; view?: string; pick?: string }> }) {
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; kind?: string; status?: string; view?: string; pick?: string }> }) {
   const sp = await searchParams;
   // ?type= takes one type or a comma list (each count's own list); ?kind= is a Decision Center filter.
   const kind = sp.kind === "exception" || sp.kind === "approval" ? sp.kind : undefined;
@@ -38,14 +38,25 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const types = typeList.length ? typeList : kind ? typesFor(kind) : undefined;
   const type = typeList.length === 1 ? typeList[0] : undefined;
   const typeWhere = types ? { type: { in: types } } : {};
-  const [counts, items, companies, lookalikes, handoffs] = await Promise.all([
+  // Waiting (default) or the last 14 days' decisions, read-only.
+  const decided = sp.status === "decided";
+  const since = new Date(Date.now() - 14 * 86_400_000);
+  const statusWhere = decided ? { status: { in: ["resolved", "dismissed"] as ReviewStatus[] }, resolvedAt: { gte: since } } : { status: "open" as const };
+  const include = { account: true, contact: { include: { fieldStates: true } } } as const;
+  const [counts, items, companies, lookalikes, handoffs, decidedCount] = await Promise.all([
     db.reviewItem.groupBy({ by: ["type"], where: { status: "open" }, _count: true }),
-    db.reviewItem.findMany({ where: { status: "open", ...typeWhere }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
+    db.reviewItem.findMany({ where: { ...statusWhere, ...typeWhere }, orderBy: decided ? [{ resolvedAt: "desc" }] : [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include }),
     // Waiting elsewhere, so everything a person must decide is listed here.
     db.prospectSuggestion.count({ where: { status: "new", origin: { not: "lookalike" } } }),
     db.prospectSuggestion.count({ where: { status: "new", origin: "lookalike", researchStatus: { in: ["done", "failed"] } } }),
     db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
+    db.reviewItem.count({ where: { status: { in: ["resolved", "dismissed"] }, resolvedAt: { gte: since } } }),
   ]);
+  // A link to one item (Home, Today, Vega) always opens that item, even past the first 50.
+  if (sp.pick && !items.some((i) => i.id === sp.pick)) {
+    const picked = await db.reviewItem.findFirst({ where: { id: sp.pick, ...statusWhere, ...typeWhere }, include });
+    if (picked) items.unshift(picked);
+  }
   const draftIds = items.map((i) => i.draftId).filter(Boolean) as string[];
   const drafts = await db.draft.findMany({ where: { id: { in: draftIds } } });
   const evidenceIds = drafts.flatMap((d) => (d.claims as { factIds: string[] }[]).flatMap((c) => c.factIds));
@@ -63,11 +74,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
     db.reviewItem.count({ where: { ...base, createdAt: { lt: threeAgo } } }),
   ]);
   const aAll = aToday + aFew + aOld;
-  const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type: sp.type, kind, ...q }).filter(([, v]) => v) as [string, string][])}`;
+  const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type: sp.type, kind, status: decided ? "decided" : undefined, ...q }).filter(([, v]) => v) as [string, string][])}`;
   const idx = Math.max(0, items.findIndex((i) => i.id === sp.pick));
   const r = items[idx];
   const prev = idx > 0 ? href({ pick: items[idx - 1].id }) : undefined;
   const next = idx < items.length - 1 ? href({ pick: items[idx + 1].id }) : undefined;
+  // Where a decision lands you: the next item, else the one before, else the same filtered list.
+  const after = next ?? prev ?? href({});
   const draft = r?.draftId ? drafts.find((d) => d.id === r.draftId) : undefined;
   // The version this draft replaced (the research changed before it was approved).
   const earlier = draft?.replacesId ? await db.draft.findUnique({ where: { id: draft.replacesId }, select: { subject: true, body: true, reviewerNote: true, createdAt: true } }) : null;
@@ -101,9 +114,22 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         );
       })()}
 
+      <div className="rv-views">
+        <nav className="k-seg sg-seg" aria-label="Show">
+          {([["all", "All", total], ["exception", DECISION_FILTER_LABEL.exception, waiting.checks], ["approval", DECISION_FILTER_LABEL.approval, waiting.signOffs]] as const).map(([k, label, n]) => {
+            const on = !typeList.length && (k === "all" ? !kind : kind === k);
+            return <Link key={k} href={`/review?${new URLSearchParams({ ...(k === "all" ? {} : { kind: k }), ...(decided ? { status: "decided" } : {}) })}`} className={on ? "on" : undefined} aria-current={on ? "page" : undefined} title={DECISION_FILTER_HELP[k]}>{label} <span className="tnum dc-n">{n}</span></Link>;
+          })}
+        </nav>
+        <nav className="k-seg sg-seg" aria-label="Status">
+          <Link href={href({ status: undefined, pick: undefined })} className={!decided ? "on" : undefined} aria-current={!decided ? "page" : undefined}>Waiting <span className="tnum dc-n">{total}</span></Link>
+          <Link href={href({ status: "decided", pick: undefined })} className={decided ? "on" : undefined} aria-current={decided ? "page" : undefined} title="Decided in the last 14 days, read-only">Recently decided <span className="tnum dc-n">{decidedCount}</span></Link>
+        </nav>
+      </div>
+
       <div className="dz-chips" role="group" aria-label="Filter by kind">
         <Link href="/review" className={`dz-chip${!types ? " on" : ""}`}>All · {total}</Link>
-        {types && !type && <span className="dz-chip on" aria-current="true">{kind ? DECISION_FILTER_LABEL[kind] : typeList.map((t) => reviewLabel(t)).join(" + ")} · {shownTotal}</span>}
+        {typeList.length > 1 && <span className="dz-chip on" aria-current="true">{typeList.map((t) => reviewLabel(t)).join(" + ")} · {shownTotal}</span>}
         {counts.sort((a, b) => b._count - a._count).map((c) => (
           <Link key={c.type} href={`/review?type=${c.type}`} className={`dz-chip${type === c.type ? " on" : ""}`}>{reviewLabel(c.type)} · {c._count}</Link>
         ))}
@@ -112,7 +138,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         {handoffs > 0 && <Link href="/handoffs" className="dz-chip out">Hand-offs to accept · {handoffs} <ExternalLink size={12} aria-hidden /></Link>}
       </div>
 
-      {aAll > 0 && (
+      {!decided && aAll > 0 && (
         <div className="ws-ages rv-ages" aria-label={`How long these have waited: ${aToday} from today, ${aFew} from 1 to 3 days, ${aOld} older`}>
           <div className="ws-ages-bar" aria-hidden>
             {aToday > 0 && <i className="a0" style={{ flex: aToday }} />}
@@ -124,10 +150,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
       )}
 
       {items.length === 0 ? (
-        <div className="k-table-wrap"><EmptyState icon={<ClipboardCheck size={20} />} title="Nothing waiting" text="When the pipeline needs a decision, it lands here with its reason." /></div>
+        <div className="k-table-wrap"><EmptyState icon={<ClipboardCheck size={20} />}
+          title={decided ? "Nothing decided in the last 14 days" : types ? "Nothing waiting here" : "Nothing waiting for you"}
+          text={decided ? "Decisions made here show up for 14 days, with what was decided." : types ? `No open ${kind ? DECISION_FILTER_LABEL[kind].toLowerCase() : typeList.map((t) => reviewLabel(t).toLowerCase()).join(" or ")} right now.` : "When the pipeline needs a decision, it lands here with its reason and evidence."}
+          action={types || decided ? <Link href="/review" className="btn btn-secondary btn-sm">See everything waiting</Link> : undefined} /></div>
       ) : (
         <div className="dz">
-          <KeyNav prev={prev} next={next} />
+          <KeyNav prev={prev} next={after} />
           <nav className="dz-list" aria-label="Decisions">
             <p className="dz-count">{idx + 1} of {items.length}{items.length === 50 ? "+" : ""}</p>
             {items.map((it) => (
@@ -154,6 +183,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                 <p className="dz-keys"><kbd>J</kbd> next · <kbd>K</kbd> previous</p>
               </header>
 
+              {decided ? (
+                <div className="dz-body">
+                  <p className="dz-explain"><b>{r.status === "resolved" ? "Resolved" : "Dismissed"}</b>{r.resolvedAt ? ` ${ago(r.resolvedAt)}` : ""}{r.resolution ? ` · ${r.resolution}` : ""}</p>
+                  <p className="dz-meta">Read-only: this decision is already made.{r.account ? <> <Link href={`/accounts/${r.account.id}`}>Open {r.account.name}</Link> to see what happened next.</> : ""}</p>
+                </div>
+              ) : (<>
+
               {(r.type === "possible_blocker" || r.type === "proposed_rejection") && (
                 <div className="dz-body">
                   <p className="dz-explain">{r.type === "possible_blocker" ? "The research found news that might rule this company out, but only one source reports it. Nothing is ruled out until you decide." : "A rule would rule this company out. It stays paused, not rejected, until you decide. Keep it and the rule no longer stops it."}</p>
@@ -168,9 +204,9 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     ))}
                   </ul>
                   <div className="dz-actions">
-                    <DecideButton action={keepCompanyAction.bind(null, r.id)} label="Keep company" done="Kept" kind="primary" next={next} />
-                    <DecideButton action={moreResearchAction.bind(null, r.id)} label="Research again" done="Researching again" next={next} />
-                    <DecideButton action={approveRejectionAction.bind(null, r.id)} label="Approve rejection" done="Ruled out" kind="danger" next={next} />
+                    <DecideButton action={keepCompanyAction.bind(null, r.id)} label="Keep company" done="Kept" kind="primary" next={after} />
+                    <DecideButton action={moreResearchAction.bind(null, r.id)} label="Research again" done="Researching again" next={after} />
+                    <DecideButton action={approveRejectionAction.bind(null, r.id)} label="Approve rejection" done="Ruled out" kind="danger" next={after} />
                   </div>
                 </div>
               )}
@@ -185,8 +221,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                     {(r.payload as { providerEmployer?: string } | null)?.providerEmployer && <div><dt>Provider says employer</dt><dd className="mono">{(r.payload as { providerEmployer: string }).providerEmployer}</dd></div>}
                   </dl>
                   <div className="dz-actions">
-                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "confirm")} label={<><UserCheck size={14} /> Confirm identity</>} done="Identity confirmed" kind="primary" next={next} />
-                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "drop")} label={<><UserX size={14} /> Drop contact</>} done="Contact dropped" next={next} />
+                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "confirm")} label={<><UserCheck size={14} /> Confirm identity</>} done="Identity confirmed" kind="primary" next={after} />
+                    <DecideButton action={resolveIdentityAction.bind(null, r.id, "drop")} label={<><UserX size={14} /> Drop contact</>} done="Contact dropped" next={after} />
                   </div>
                 </div>
               )}
@@ -202,7 +238,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
                   </details>
                 )}
                 <div className="dz-body dz-draft">
-                  <ActionForm action={reviewDraftAction} className="dz-form" resetOnSuccess={false}>
+                  <ActionForm action={reviewDraftAction} className="dz-form" resetOnSuccess={false} successHref={after}>
                     <input type="hidden" name="draftId" value={draft.id} />
                     <p className="dz-meta">To {r.contact ? <Link href={`/people/${r.contact.id}`}>{r.contact.fullName}</Link> : null} · {r.contact?.titleNormalized} · <span className="mono">{r.contact?.email}</span></p>
                     <FormField label="Subject"><input name="subject" defaultValue={draft.subject} className="glass-input" /></FormField>
@@ -238,10 +274,11 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
 
               {!["possible_blocker", "proposed_rejection", "identity_conflict", "draft_approval"].includes(r.type) && (
                 <div className="dz-actions">
-                  <DecideButton action={resolveReviewAction.bind(null, r.id, "resolved", undefined)} label={<><Check size={14} /> Resolve</>} done="Resolved" kind="primary" next={next} />
-                  <DecideButton action={resolveReviewAction.bind(null, r.id, "dismissed", undefined)} label="Dismiss" done="Dismissed" kind="ghost" next={next} />
+                  <DecideButton action={resolveReviewAction.bind(null, r.id, "resolved", undefined)} label={<><Check size={14} /> Resolve</>} done="Resolved" kind="primary" next={after} />
+                  <DecideButton action={resolveReviewAction.bind(null, r.id, "dismissed", undefined)} label="Dismiss" done="Dismissed" kind="ghost" next={after} />
                 </div>
               )}
+              </>)}
             </section>
           )}
         </div>

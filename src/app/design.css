@@ -460,6 +460,8 @@ a.k-dc-title:hover { color: var(--accent); }
 
 /* ═══ Decisions / Approvals: list + detail pane ═══ */
 .dz-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+/* Approvals: All / Checks / Sign-offs and Waiting / Recently decided */
+.rv-views { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .dz-chip { display: inline-flex; align-items: center; height: 30px; padding: 0 var(--sp-3); border-radius: var(--r-full); font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--text-2); background: var(--surface); border: 1px solid var(--border); }
 .dz-chip:hover { border-color: var(--border-2); }
 .dz-chip.on { color: var(--accent); background: var(--accent-subtle); border-color: transparent; }
