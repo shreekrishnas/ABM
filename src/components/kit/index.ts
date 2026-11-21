@@ -6,4 +6,5 @@ export { DataTable, type Column } from "./data-table";
 export { FilterBar, Drawer } from "./filter-bar";
 export { UndoProvider, useUndo, UNDO_MS } from "./undo";
 export { DecisionCard, type DecisionAction } from "./decision-card";
-export { FormField, StickySaveBar } from "./form-field";
+export { FormField } from "./form-field";
+export { StickySaveBar } from "./sticky-save-bar";

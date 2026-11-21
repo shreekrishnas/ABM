@@ -111,6 +111,62 @@ describe("5. Approving an email", () => {
   });
 });
 
+describe("5b. Approvals renders every kind of item", () => {
+  const types = ["draft_approval", "proposed_rejection", "identity_conflict", "contradiction", "needs_human_reply", "no_usable_person"];
+  it("opens each item type without an error, with no 'couldn't load' card", async () => {
+    for (const t of types) {
+      const p = await open(`/review?type=${t}`);
+      expect(await p.getByText("This page couldn't load").count(), `${t} renders`).toBe(0);
+      await p.close();
+    }
+  });
+
+  it("an open email draft shows labelled fields, a live word count, and working Approve / Reject buttons", async () => {
+    const p = await open("/review?type=draft_approval");
+    const form = p.locator("form.dz-form").first();
+    await expect(form.count()).resolves.toBe(1);
+    for (const [label, name] of [["Subject", "subject"], ["Body", "body"], ["Note", "note"]] as const) {
+      const field = form.locator(`[name="${name}"]`);
+      const id = await field.getAttribute("id");
+      expect(id, `${name} has an id`).toBeTruthy();
+      expect(await form.locator(`label[for="${id}"]`).innerText(), `${name} label`).toContain(label);
+    }
+    // Editing the body updates the word count (the editor is interactive, not just rendered).
+    const words = form.locator(".dz-words");
+    const before = await words.innerText();
+    const body = form.locator('[name="body"]');
+    // The count stops at the unsubscribe/footer lines, so add words at the top.
+    await body.fill(`One two three four five six seven eight nine ten.\n\n${await body.inputValue()}`);
+    await expect.poll(() => words.innerText()).not.toBe(before);
+    for (const v of ["approve", "reject"]) {
+      const b = form.locator(`button[name="decision"][value="${v}"]`);
+      await expect(b.count()).resolves.toBe(1);
+      expect(await b.isEnabled(), `${v} enabled`).toBe(true);
+    }
+    await p.close();
+  });
+
+  it("Companies filters still filter, and Add company keeps its labelled fields", async () => {
+    const p = await open("/accounts");
+    // The filter panel on the page (FilterPanel, not FormField): choosing a value changes the address.
+    const filter = p.locator("select:visible").first();
+    const before = p.url();
+    const value = await filter.locator("option").nth(1).getAttribute("value");
+    expect(value, "a filter option to pick").toBeTruthy();
+    await filter.selectOption(value!);
+    await expect.poll(() => p.url(), { timeout: 10_000 }).not.toBe(before);
+    // Add company is the client-side FormField user: each label must point at its input.
+    await p.goto(BASE + "/accounts", { waitUntil: "networkidle" });
+    await p.locator("button", { hasText: "Add company" }).first().click();
+    const name = p.locator('input[name="name"]').first();
+    await name.waitFor();
+    const nid = await name.getAttribute("id");
+    expect(nid, "company name has an id").toBeTruthy();
+    expect(await p.locator(`label[for="${nid}"]`).innerText()).toContain("Company name");
+    await p.close();
+  });
+});
+
 describe("4. Daily work", () => {
   it("Home, Today, Approvals and Insights open", async () => {
     for (const path of ["/", "/work/today", "/review", "/pipeline", "/analytics"]) (await open(path)).close();

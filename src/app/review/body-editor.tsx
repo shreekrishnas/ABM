@@ -10,7 +10,7 @@ export function readWords(body: string): number {
 }
 
 /** The draft body, tall enough to read in full, with a live word count against the account's limit. */
-export function BodyEditor({ name, initial, limit }: { name: string; initial: string; limit: number | null }) {
+export function BodyEditor({ name, initial, limit, id, "aria-describedby": describedBy }: { name: string; initial: string; limit: number | null; id?: string; "aria-describedby"?: string }) {
   const [value, setValue] = useState(initial);
   const words = readWords(value);
   const over = limit != null && words > limit;
@@ -18,7 +18,7 @@ export function BodyEditor({ name, initial, limit }: { name: string; initial: st
   const rows = Math.min(36, Math.max(8, value.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 60)), 0) + 1));
   return (
     <>
-      <textarea name={name} value={value} onChange={(e) => setValue(e.target.value)} className="glass-textarea dz-body-text" rows={rows} aria-describedby="dz-words" />
+      <textarea name={name} value={value} onChange={(e) => setValue(e.target.value)} className="glass-textarea dz-body-text" rows={rows} id={id} aria-describedby={[describedBy, "dz-words"].filter(Boolean).join(" ")} />
       <span id="dz-words" className={`dz-words${over ? " over" : ""}`}>{words} words{limit != null ? (over ? ` · over the ${limit}-word limit in the tone rules` : ` · limit ${limit}`) : ""}</span>
     </>
   );
