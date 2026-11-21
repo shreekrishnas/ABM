@@ -29,7 +29,7 @@ afterAll(async () => {
   await baseDb.client.deleteMany({ where: { id: sellerId } });
 });
 
-describe("JARVIS Level 2: events", () => {
+describe("Vega Level 2: events", () => {
   it("records an event once, however often it is sent", async () => {
     const a = await emitEvent(sellerId, "reply", { class: "unsubscribe", contactId, accountId, name: "Ravi Test" }, `reply:test-${sellerId}`);
     const b = await emitEvent(sellerId, "reply", { class: "unsubscribe", contactId, accountId, name: "Ravi Test" }, `reply:test-${sellerId}`);
@@ -37,7 +37,7 @@ describe("JARVIS Level 2: events", () => {
     expect(await baseDb.agentEvent.count({ where: { sellerId } })).toBe(1);
   });
 
-  it("stops LinkedIn too after an opt-out, even with JARVIS off, and that can't be undone", async () => {
+  it("stops LinkedIn too after an opt-out, even with Vega off, and that can't be undone", async () => {
     const r = await processEvents(sellerId);
     expect(r.handled).toBe(1);
     expect((await baseDb.journey.findUniqueOrThrow({ where: { id: journeyId } })).stage).toBe("not_interested");
@@ -74,7 +74,7 @@ describe("JARVIS Level 2: events", () => {
     expect(await baseDb.agentAction.count({ where: { sellerId, tool: "find_replacement", status: "done" } })).toBe(1);
   });
 
-  it("pauses JARVIS's own paid work at 90% of the budget, once", async () => {
+  it("pauses Vega's own paid work at 90% of the budget, once", async () => {
     await baseDb.agentSetting.update({ where: { sellerId }, data: { paused: false } });
     await emitEvent(sellerId, "budget90", { share: 0.93 }, `budget90:${sellerId}:2026-11`);
     await emitEvent(sellerId, "budget90", { share: 0.95 }, `budget90:${sellerId}:2026-11`);

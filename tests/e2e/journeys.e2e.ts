@@ -132,11 +132,11 @@ describe("4. Daily work", () => {
   });
 });
 
-describe("8. JARVIS", () => {
+describe("8. Vega", () => {
   it("opens for a Super Admin with the briefing, chat and company focus, and settles", async () => {
-    const p = await open("/jarvis");
+    const p = await open("/vega");
     const text = await p.locator("body").innerText();
-    expect(text).toMatch(/Ask JARVIS/);
+    expect(text).toMatch(/Ask Vega/);
     expect(text).toMatch(/waiting for a person/);
     expect(await p.locator(".jv-ctx").count()).toBe(1);
     await p.close();

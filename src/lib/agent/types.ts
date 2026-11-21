@@ -1,4 +1,4 @@
-// The shared vocabulary of the JARVIS engine: every way in (chat, the background loop, events)
+// The shared vocabulary of the Vega engine: every way in (chat, the background loop, events)
 // describes work as a tool call with a context, and every call is decided by the same policy.
 import type { z } from "zod";
 import type { Role } from "@/lib/roles";

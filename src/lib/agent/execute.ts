@@ -1,4 +1,4 @@
-// Runs one JARVIS tool call: decide (policy), log, run scoped to the client, record the real
+// Runs one Vega tool call: decide (policy), log, run scoped to the client, record the real
 // outcome. The same call twice (same client, tool, input and trigger) runs once.
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";

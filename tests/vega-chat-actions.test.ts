@@ -5,7 +5,7 @@ vi.mock("@/lib/adapters/live/http", () => ({
   fetchJson: vi.fn(async () => ({ choices: [{ message: { content: replies.shift() ?? "{}" } }], usage: { cost: 0 } })),
 }));
 
-import { jarvisAsk } from "@/lib/agent/chat";
+import { vegaAsk } from "@/lib/agent/chat";
 import { confirmProposal, dismissProposal, proposeAction, outcomeText } from "@/lib/agent/proposals";
 import { baseDb } from "@/lib/db-base";
 import { withScope } from "@/lib/scope";
@@ -34,10 +34,10 @@ afterAll(async () => {
   await baseDb.client.deleteMany({ where: { id: sellerId } });
 });
 
-describe("JARVIS chat that acts after you confirm", () => {
+describe("Vega chat that acts after you confirm", () => {
   it("turns 'research Gamma' into a proposal and runs nothing", async () => {
     replies.push(JSON.stringify({ tools: [{ tool: "refresh_research", args: { accountId } }], answer: null }), answer("Proposed"));
-    const r = await scope(() => jarvisAsk(conversationId, "Research Gamma again", ctx(), { clientName: "T" }));
+    const r = await scope(() => vegaAsk(conversationId, "Research Gamma again", ctx(), { clientName: "T" }));
     expect(r.proposals).toHaveLength(1);
     expect(r.proposals[0]).toMatchObject({ tool: "refresh_research", status: "awaiting_approval", reversible: true });
     expect(r.proposals[0].summary).toMatch(/Research again Gamma Co/);

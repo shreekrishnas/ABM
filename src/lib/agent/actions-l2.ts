@@ -1,4 +1,4 @@
-// Level 2: JARVIS reacts to an event at once, then tells the team. These add to what the
+// Level 2: Vega reacts to an event at once, then tells the team. These add to what the
 // pipeline already does on a reply or bounce (pause, suppress, hand off); nothing here sends.
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -19,7 +19,7 @@ const cancelTask = async (undo: unknown) => {
   if (!r.count) throw new Error("The task was already picked up, so it was left as it is");
 };
 
-/** An opt-out reaches every channel. Never reversible by JARVIS: only a person with a documented reason may lift an opt-out, outside JARVIS. */
+/** An opt-out reaches every channel. Never reversible by Vega: only a person with a documented reason may lift an opt-out, outside Vega. */
 export const optOutEverywhere = define({
   name: "opt_out_everywhere",
   description: "After an unsubscribe, complaint or hard bounce: stop this person's LinkedIn journeys and open outreach tasks too (email is already stopped and suppressed).",
@@ -31,7 +31,7 @@ export const optOutEverywhere = define({
   run: async ({ contactId, why }) => {
     const journeys = await db.journey.findMany({ where: { contactId, stage: { notIn: ["not_interested", "disqualified", "closed_won", "closed_lost"] } }, select: { id: true, stage: true } });
     for (const j of journeys) {
-      await db.journey.update({ where: { id: j.id }, data: { stage: "not_interested", stageReason: `Opted out (${why}) — stopped by JARVIS` } });
+      await db.journey.update({ where: { id: j.id }, data: { stage: "not_interested", stageReason: `Opted out (${why}) — stopped by Vega` } });
       await db.journeyEvent.create({ data: { journeyId: j.id, type: "stage_set", fromStage: j.stage, toStage: "not_interested", source: "system", detail: `Opted out: ${why}`, occurredAt: new Date() } });
     }
     const tasks = await db.task.updateMany({ where: { contactId, status: { in: ["todo", "in_progress"] }, origin: { in: ["sequence", "jarvis"] } }, data: { status: "cancelled" } });
@@ -50,7 +50,7 @@ export const hotReplyHandoff = define({
   target: ({ contactId, accountId }) => ({ contactId, accountId }),
   run: async ({ contactId, accountId, excerpt }) => {
     const c = await db.contact.findUnique({ where: { id: contactId }, select: { fullName: true, account: { select: { name: true } } } });
-    const taskId = await ownerTask({ title: `Reply to ${c?.fullName ?? "the prospect"} (${c?.account.name ?? ""}) within 24h`, body: `They replied with interest${excerpt ? `: "${excerpt}"` : "."} A hand-off has been opened. Added by JARVIS.`, accountId, contactId, dueInDays: 1, origin: "jarvis" });
+    const taskId = await ownerTask({ title: `Reply to ${c?.fullName ?? "the prospect"} (${c?.account.name ?? ""}) within 24h`, body: `They replied with interest${excerpt ? `: "${excerpt}"` : "."} A hand-off has been opened. Added by Vega.`, accountId, contactId, dueInDays: 1, origin: "jarvis" });
     const handoff = await db.handoff.findFirst({ where: { accountId, acknowledgedAt: null }, select: { id: true } });
     return { taskId, handoffOpen: Boolean(handoff), __undo: { taskId } };
   },
@@ -67,7 +67,7 @@ export const questionTask = define({
   target: ({ contactId, accountId }) => ({ contactId, accountId }),
   run: async ({ contactId, accountId, excerpt, kind }) => {
     const c = await db.contact.findUnique({ where: { id: contactId }, select: { fullName: true } });
-    const taskId = await ownerTask({ title: `Answer ${c?.fullName ?? "the prospect"}'s ${kind === "objection" ? "objection" : "reply"}`, body: `${excerpt ? `They wrote: "${excerpt}". ` : ""}Follow-ups are paused until someone answers. The full reply is in Approvals. Added by JARVIS.`, accountId, contactId, dueInDays: 1, origin: "jarvis" });
+    const taskId = await ownerTask({ title: `Answer ${c?.fullName ?? "the prospect"}'s ${kind === "objection" ? "objection" : "reply"}`, body: `${excerpt ? `They wrote: "${excerpt}". ` : ""}Follow-ups are paused until someone answers. The full reply is in Approvals. Added by Vega.`, accountId, contactId, dueInDays: 1, origin: "jarvis" });
     return { taskId, __undo: { taskId } };
   },
   undo: cancelTask,
@@ -149,7 +149,7 @@ export const meetingPrep = define({
   target: ({ contactId, accountId }) => ({ contactId, accountId }),
   run: async ({ contactId, accountId, stage }) => {
     const c = await db.contact.findUnique({ where: { id: contactId }, select: { fullName: true, account: { select: { name: true } } } });
-    const taskId = await ownerTask({ title: `Prepare for the ${stage === "demo_scheduled" ? "demo" : "call"} with ${c?.fullName ?? "the prospect"} (${c?.account.name ?? ""})`, body: `Before the meeting: read the company's "What we know" summary and buying group, and the last messages. JARVIS can brief you: open /jarvis?a=${accountId}. Added by JARVIS.`, accountId, contactId, dueInDays: 0, origin: "jarvis" });
+    const taskId = await ownerTask({ title: `Prepare for the ${stage === "demo_scheduled" ? "demo" : "call"} with ${c?.fullName ?? "the prospect"} (${c?.account.name ?? ""})`, body: `Before the meeting: read the company's "What we know" summary and buying group, and the last messages. Vega can brief you: open /vega?a=${accountId}. Added by Vega.`, accountId, contactId, dueInDays: 0, origin: "jarvis" });
     return { taskId, __undo: { taskId } };
   },
   undo: cancelTask,
@@ -157,14 +157,14 @@ export const meetingPrep = define({
 
 export const budgetBrake = define({
   name: "budget_brake",
-  description: "When monthly spend passes 90% of the client's budget: pause JARVIS's own paid work for the client. People can still run things by hand.",
+  description: "When monthly spend passes 90% of the client's budget: pause Vega's own paid work for the client. People can still run things by hand.",
   input: z.object({ share: z.number() }),
   level: 2,
   minRole: "viewer",
   reversible: true,
   run: async (_input, ctx) => {
     const s = await db.agentSetting.findUnique({ where: { sellerId: ctx.sellerId } });
-    if (!s || s.paused) return { paused: false, note: s ? "Already paused" : "JARVIS isn't set up for this client" };
+    if (!s || s.paused) return { paused: false, note: s ? "Already paused" : "Vega isn't set up for this client" };
     await db.agentSetting.update({ where: { sellerId: ctx.sellerId }, data: { paused: true } });
     return { paused: true, __undo: { sellerId: ctx.sellerId } };
   },

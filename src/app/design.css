@@ -2232,7 +2232,7 @@ a.pv-link:hover { color: var(--accent); }
 .se-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
 .se-box small { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-12); }
 
-/* JARVIS workspace: briefing strip, then conversations · chat · company in focus. */
+/* Vega workspace: briefing strip, then conversations · chat · company in focus. */
 .jv-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); margin-bottom: var(--sp-4); }
 .jv-client { display: flex; align-items: center; gap: var(--sp-2); }
 .jv-brief { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
@@ -2319,7 +2319,7 @@ a.jv-stat:hover { border-color: var(--border-2); }
 .jv-undo { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text-2); font-size: var(--fs-12); cursor: pointer; }
 .jv-undo:hover { border-color: var(--accent); color: var(--accent); }
 .jv-undo-msg { color: var(--muted); }
-/* JARVIS on Home: a live core (arc-reactor rings) that opens the conversation in a side panel. */
+/* Vega on Home: a live core (arc-reactor rings) that opens the conversation in a side panel. */
 .ws-heading { position: relative; z-index: 6; }
 .ws-heading-side { display: flex; align-items: center; gap: var(--sp-3); justify-content: flex-end; }
 /* The core: a 48px device. All text lives in the hover card. */

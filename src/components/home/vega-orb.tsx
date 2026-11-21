@@ -1,17 +1,17 @@
 "use client";
-// JARVIS on Home: a live animated core you click to talk to it. Opens a panel on the same page
-// with the conversation and what JARVIS did today; the full workspace stays one link away.
+// Vega on Home: a live animated core you click to talk to it. Opens a panel on the same page
+// with the conversation and what Vega did today; the full workspace stays one link away.
 
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, X } from "lucide-react";
-import { JarvisChat } from "@/app/jarvis/chat";
-import { RecommendedApprovals, type RecItem } from "@/app/jarvis/approvals";
+import { VegaChat } from "@/app/vega/chat";
+import { RecommendedApprovals, type RecItem } from "@/app/vega/approvals";
 
 export interface OrbAction { id: string; reason: string; status: string; at: string }
 
-/** The JARVIS core: a dark device with a tick bezel, a sweeping scan, counter-rotating rings and a glowing centre. */
+/** The Vega core: a dark device with a tick bezel, a sweeping scan, counter-rotating rings and a glowing centre. */
 function Core({ size = 48, busy = false, live = false }: { size?: number; busy?: boolean; live?: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   return (
@@ -43,7 +43,7 @@ function Core({ size = 48, busy = false, live = false }: { size?: number; busy?:
   );
 }
 
-export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, on, recs = [], agreement = { decisions: 0, agreedShare: null } }: { clientId: string; clientName: string; doneToday: number; waiting: number; actions: OrbAction[]; on: boolean; recs?: RecItem[]; agreement?: { decisions: number; agreedShare: number | null } }) {
+export function VegaOrb({ clientId, clientName, doneToday, waiting, actions, on, recs = [], agreement = { decisions: 0, agreedShare: null } }: { clientId: string; clientName: string; doneToday: number; waiting: number; actions: OrbAction[]; on: boolean; recs?: RecItem[]; agreement?: { decisions: number; agreedShare: number | null } }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -59,13 +59,13 @@ export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, o
   return (
     <>
       <span className="jo-wrap">
-        <button type="button" className={`jo ${on ? "on" : "off"}`} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`Open JARVIS. ${status}.${waiting ? ` ${waiting} waiting for you.` : ""}`} aria-describedby="jo-tip">
+        <button type="button" className={`jo ${on ? "on" : "off"}`} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={`Open Vega. ${status}.${waiting ? ` ${waiting} waiting for you.` : ""}`} aria-describedby="jo-tip">
           <Core live={on && doneToday > 0} />
           <i className={`jo-dot ${on ? (waiting ? "warn" : "ok") : "idle"}`} aria-hidden />
           {strong > 0 && <span className="jo-badge tnum" aria-hidden>{strong}</span>}
         </button>
         <span className="jo-tip" id="jo-tip" role="tooltip">
-          <b>JARVIS</b>
+          <b>Vega</b>
           <span className="jo-tip-what">Watches {clientName}&apos;s accounts, does safe work on its own, and asks before anything goes out.</span>
           <span className="jo-tip-row"><i className={`jo-dot inline ${on ? "ok" : "idle"}`} />{status}</span>
           {waiting > 0 && <span className="jo-tip-row"><i className="jo-dot inline warn" />{waiting} waiting for you{strong ? ` · ${strong} strong email${strong === 1 ? "" : "s"} ready` : ""}</span>}
@@ -75,24 +75,24 @@ export function JarvisOrb({ clientId, clientName, doneToday, waiting, actions, o
 
       {open && createPortal(
         <div className="jo-overlay" role="presentation" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <aside className="jo-panel" role="dialog" aria-modal="true" aria-label="JARVIS">
+          <aside className="jo-panel" role="dialog" aria-modal="true" aria-label="Vega">
             <header className="jo-head">
               <Core size={40} busy />
               <div className="min-w-0">
-                <b>JARVIS</b>
+                <b>Vega</b>
                 <span>{clientName} · {status}</span>
               </div>
-              <Link href={`/jarvis?c=${clientId}`} className="jo-full" prefetch={false}>Full workspace <ArrowUpRight size={13} /></Link>
-              <button type="button" className="jo-x" onClick={() => setOpen(false)} aria-label="Close JARVIS (Esc)"><X size={16} /></button>
+              <Link href={`/vega?c=${clientId}`} className="jo-full" prefetch={false}>Full workspace <ArrowUpRight size={13} /></Link>
+              <button type="button" className="jo-x" onClick={() => setOpen(false)} aria-label="Close Vega (Esc)"><X size={16} /></button>
             </header>
             {actions.length > 0 && (
-              <section className="jo-did" aria-label="What JARVIS did">
+              <section className="jo-did" aria-label="What Vega did">
                 <h3>What I did recently</h3>
                 <ul>{actions.map((a) => <li key={a.id} className={a.status}><span>{a.reason}</span><small>{a.status === "done" ? "done" : a.status} · {new Date(a.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></li>)}</ul>
               </section>
             )}
             {recs.length > 0 && <div className="jo-rec"><RecommendedApprovals clientId={clientId} items={recs} agreement={agreement} /></div>}
-            <div className="jo-chat"><JarvisChat clientId={clientId} clientName={clientName} accountId={null} accountName={null} conversationId={null} initial={[]} /></div>
+            <div className="jo-chat"><VegaChat clientId={clientId} clientName={clientName} accountId={null} accountName={null} conversationId={null} initial={[]} /></div>
           </aside>
         </div>,
         document.body,

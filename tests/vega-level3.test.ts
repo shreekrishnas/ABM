@@ -6,7 +6,7 @@ import { baseDb } from "@/lib/db-base";
 const passAll = [{ critic: "facts", pass: true }, { critic: "compliance", pass: true }, { critic: "style (model)", pass: true }];
 const base = { critique: passAll, rewrites: 0, claimsCount: 2, leadEvidence: true, fresh: { ok: true }, tier: "T1", readiness: "ready" };
 
-describe("JARVIS Level 3: how strong each email is", () => {
+describe("Vega Level 3: how strong each email is", () => {
   it("calls a clean, sourced, current draft strong and recommends approving it", () => {
     const s = scoreDraft(base);
     expect(s.strength).toBe("strong");
@@ -24,7 +24,7 @@ describe("JARVIS Level 3: how strong each email is", () => {
   });
 });
 
-describe("JARVIS Level 3: it never approves by itself", () => {
+describe("Vega Level 3: it never approves by itself", () => {
   it("can only approve through a confirmed proposal, and has no send or reject tool", async () => {
     const names = Object.keys(REGISTRY);
     expect(names.some((n) => /^send_|^reject_/.test(n))).toBe(false);
@@ -36,7 +36,7 @@ describe("JARVIS Level 3: it never approves by itself", () => {
   });
 });
 
-describe("JARVIS Level 3: learning how often people agree", () => {
+describe("Vega Level 3: learning how often people agree", () => {
   const sellerId = `l3-test-${Date.now()}`;
   afterAll(async () => { await baseDb.agentAction.deleteMany({ where: { sellerId } }); });
   it("counts an unedited approval of a strong draft as agreement, and an edit of a strong one as not", async () => {

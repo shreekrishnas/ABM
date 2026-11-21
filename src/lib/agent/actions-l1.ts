@@ -1,4 +1,4 @@
-// Level 1: work JARVIS does on its own. Each action changes only data inside the app, is
+// Level 1: work Vega does on its own. Each action changes only data inside the app, is
 // logged with its reason, and records what Undo needs. Nothing here contacts anyone.
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -84,7 +84,7 @@ export const followUpTask = define({
     const c = await db.contact.findUnique({ where: { id: contactId }, select: { fullName: true, account: { select: { name: true, ownerId: true } } } });
     if (!c) throw new Error("Person not found");
     const t = await db.task.create({
-      data: { title: `Follow up with ${c.fullName} (${c.account.name})`, body: `Emailed ${days} days ago with no reply. Suggested: a short, useful follow-up, or a LinkedIn touch. Added by JARVIS.`, accountId, contactId, assigneeId: c.account.ownerId, dueAt: new Date(Date.now() + 86_400_000), origin: "jarvis" },
+      data: { title: `Follow up with ${c.fullName} (${c.account.name})`, body: `Emailed ${days} days ago with no reply. Suggested: a short, useful follow-up, or a LinkedIn touch. Added by Vega.`, accountId, contactId, assigneeId: c.account.ownerId, dueAt: new Date(Date.now() + 86_400_000), origin: "jarvis" },
       select: { id: true },
     });
     return { taskId: t.id, __undo: { taskId: t.id } };

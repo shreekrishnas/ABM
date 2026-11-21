@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Play, RotateCcw } from "lucide-react";
-import { runJarvisNow, saveJarvisSettings, undoJarvisAction } from "./actions";
+import { runVegaNow, saveVegaSettings, undoVegaAction } from "./actions";
 
 const LABEL: Record<string, { name: string; help: string; cost: string }> = {
   rescore: { name: "Re-score after new signals", help: "Re-reads intent and priority when signals arrive", cost: "free" },
@@ -28,12 +28,12 @@ export function AutonomyCard({ clientId, setting }: { clientId: string; setting:
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
-  const save = () => start(async () => { const r = await saveJarvisSettings({ clientId, enabled, paused, allowedTools: tools, dailyCapUsd: Number(cap) }); setMsg(r.message); router.refresh(); });
-  const run = () => start(async () => { const r = await runJarvisNow(clientId); setMsg(r.message); router.refresh(); });
+  const save = () => start(async () => { const r = await saveVegaSettings({ clientId, enabled, paused, allowedTools: tools, dailyCapUsd: Number(cap) }); setMsg(r.message); router.refresh(); });
+  const run = () => start(async () => { const r = await runVegaNow(clientId); setMsg(r.message); router.refresh(); });
   return (
     <div className="jv-card jv-auto">
       <div className="jv-card-h"><h2>Acts on its own</h2><span className={`jv-pill${enabled && !paused ? " on" : ""}`}>{enabled ? (paused ? "Paused" : "On") : "Off"}</span></div>
-      <label className="jv-check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Let JARVIS do safe internal work for this client</label>
+      <label className="jv-check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Let Vega do safe internal work for this client</label>
       {enabled && <label className="jv-check"><input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> Pause for now</label>}
       <fieldset className="jv-tools-set" disabled={!enabled}>
         <legend className="muted text-xs">Allowed</legend>
@@ -52,7 +52,7 @@ export function AutonomyCard({ clientId, setting }: { clientId: string; setting:
             <span>{l.name} <small className="muted">· {l.cost}</small></span>
           </label>
         ))}
-        <p className="jv-always">Always on, for every client: an opt-out or hard bounce stops LinkedIn and tasks too, and at 90% of the monthly budget JARVIS pauses its own paid work.</p>
+        <p className="jv-always">Always on, for every client: an opt-out or hard bounce stops LinkedIn and tasks too, and at 90% of the monthly budget Vega pauses its own paid work.</p>
       </fieldset>
       <label className="jv-cap">Daily limit $<input type="number" min={0} max={50} step={0.5} value={cap} onChange={(e) => setCap(e.target.value)} disabled={!enabled} /><small className="muted">${setting.spentTodayUsd.toFixed(2)} used today</small></label>
       <p className="muted text-xs">It never sends anything, never goes over the client&apos;s budget and never rules a company out. Every action is listed below with its reason.</p>
@@ -70,5 +70,5 @@ export function UndoButton({ clientId, actionId }: { clientId: string; actionId:
   const [msg, setMsg] = useState<string | null>(null);
   const router = useRouter();
   if (msg) return <small className="jv-undo-msg">{msg}</small>;
-  return <button type="button" className="jv-undo" disabled={pending} onClick={() => start(async () => { const r = await undoJarvisAction(clientId, actionId); setMsg(r.message); router.refresh(); })}><RotateCcw size={12} /> Undo</button>;
+  return <button type="button" className="jv-undo" disabled={pending} onClick={() => start(async () => { const r = await undoVegaAction(clientId, actionId); setMsg(r.message); router.refresh(); })}><RotateCcw size={12} /> Undo</button>;
 }

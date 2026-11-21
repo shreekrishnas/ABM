@@ -1,4 +1,4 @@
-// The one gate every JARVIS action passes, whatever started it. Later levels add checks here,
+// The one gate every Vega action passes, whatever started it. Later levels add checks here,
 // never around it.
 import { atLeast } from "@/lib/roles";
 import type { AgentContext, AgentTool } from "./types";
@@ -12,11 +12,11 @@ export interface PolicyDeps {
   suppressed?: (input: unknown) => Promise<boolean>;
 }
 
-/** Step 1 rule: only Super Admins who cover the client use JARVIS; background work is the system's own. */
+/** Step 1 rule: only Super Admins who cover the client use Vega; background work is the system's own. */
 export async function authorize(tool: AgentTool, input: unknown, ctx: AgentContext, deps: PolicyDeps): Promise<Verdict> {
   if (ctx.actor !== SYSTEM_ACTOR) {
     const me = ctx.me;
-    if (!me?.superAdmin) return { ok: false, code: "not_allowed_user", reason: "JARVIS is open to Super Admins only for now." };
+    if (!me?.superAdmin) return { ok: false, code: "not_allowed_user", reason: "Vega is open to Super Admins only for now." };
     if (me.superAdminClients !== null && !me.superAdminClients.includes(ctx.sellerId)) return { ok: false, code: "other_client", reason: "That client isn't one you cover." };
   }
   if (tool.level > ctx.maxLevel) return { ok: false, code: "level", reason: tool.level === 0 ? "Not allowed here." : "I can only look things up for now; this would change data, so it isn't switched on yet." };

@@ -1,4 +1,4 @@
-// Conversational JARVIS. The model plans which tools to use; every tool call goes through the
+// Conversational Vega. The model plans which tools to use; every tool call goes through the
 // shared engine (policy gate, client scope, action log), the same path background work will use.
 // Step 1 is read-only: a request that would change data gets an honest "not yet" and a link.
 import { db } from "@/lib/db";
@@ -17,11 +17,11 @@ const MAX_TOOLS_PER_ROUND = 5;
 const HISTORY = 12;
 const BUDGET_MS = 100_000;
 
-export interface JarvisReply { answer: Answer; toolCalls: ToolCallRecord[]; actionIds: string[]; proposals: Proposal[]; ms: number; costUsd: number }
+export interface VegaReply { answer: Answer; toolCalls: ToolCallRecord[]; actionIds: string[]; proposals: Proposal[]; ms: number; costUsd: number }
 
 function system(today: string, client: string, focus: string): string {
   return [
-    `You are JARVIS, the account-intelligence assistant of an account-based marketing app, working for the client "${client}".`,
+    `You are Vega, the account-intelligence assistant of an account-based marketing app, working for the client "${client}".`,
     "YOU LOOK THINGS UP FREELY, AND YOU PROPOSE CHANGES. Tools marked PROPOSAL (research again, re-score, write drafts, follow-up task, find people, approve emails) are never run by you: calling one creates a proposal the person confirms with a button under your answer. Say what you proposed, its cost and whether it can be undone, and NEVER say it is done, queued or sent. To approve emails, first call recommended_approvals to get the draft ids, then propose approve_drafts with exactly the ones the person asked for. Anything else (rejecting, ruling a company out, changing settings, stages or the Account Brain) you cannot do: point to the page where a person can (company page /accounts/<id>, Approvals /review, Settings /settings).",
     "EVIDENCE RULES (mandatory):",
     "1. Every statement about accounts, people, scores, signals or activity must come from tool results in this conversation. Never invent a buying signal, a decision maker, a number, a date or an event.",
@@ -42,20 +42,20 @@ function system(today: string, client: string, focus: string): string {
 
 async function callModel(sys: string, messages: { role: "user" | "assistant"; content: string }[], maxTokens: number): Promise<{ text: string; costUsd: number }> {
   const key = env("OPENROUTER_API_KEY");
-  if (!key) throw new Error("JARVIS's AI isn't connected (OPENROUTER_API_KEY is not set)");
+  if (!key) throw new Error("Vega's AI isn't connected (OPENROUTER_API_KEY is not set)");
   const { assertAiAllowed } = await import("@/lib/admin/ai-pause");
   await assertAiAllowed();
   const res = await fetchJson<{ choices?: { message?: { content?: string } }[]; usage?: { cost?: number } }>("OpenRouter", `${env("OPENROUTER_BASE_URL") ?? "https://openrouter.ai/api/v1"}/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}`, "HTTP-Referer": env("APP_URL") ?? "https://abm-chi.vercel.app", "X-Title": "ABM Intelligence JARVIS" },
-    body: JSON.stringify({ model: env("JARVIS_MODEL") ?? env("ASSISTANT_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini", temperature: 0, max_tokens: maxTokens, usage: { include: true }, response_format: { type: "json_object" }, messages: [{ role: "system", content: `${sys}\nRespond with a single JSON object only.` }, ...messages] }),
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}`, "HTTP-Referer": env("APP_URL") ?? "https://abm-chi.vercel.app", "X-Title": "ABM Intelligence Vega" },
+    body: JSON.stringify({ model: env("Vega_MODEL") ?? env("ASSISTANT_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini", temperature: 0, max_tokens: maxTokens, usage: { include: true }, response_format: { type: "json_object" }, messages: [{ role: "system", content: `${sys}\nRespond with a single JSON object only.` }, ...messages] }),
     timeoutMs: 60_000,
   });
   return { text: res.choices?.[0]?.message?.content ?? "", costUsd: Number(res.usage?.cost ?? 0) || 0 };
 }
 
-/** One question in a JARVIS conversation, for the client (and company) in ctx. */
-export async function jarvisAsk(conversationId: string, question: string, ctx: AgentContext, opts: { clientName: string; accountId?: string | null; now?: Date } ): Promise<JarvisReply> {
+/** One question in a Vega conversation, for the client (and company) in ctx. */
+export async function vegaAsk(conversationId: string, question: string, ctx: AgentContext, opts: { clientName: string; accountId?: string | null; now?: Date } ): Promise<VegaReply> {
   const started = Date.now();
   const now = opts.now ?? new Date();
   const history = await db.assistantMessage.findMany({ where: { conversationId }, orderBy: { createdAt: "desc" }, take: HISTORY, select: { role: true, content: true, evidence: true } });
@@ -123,5 +123,5 @@ export async function jarvisAsk(conversationId: string, question: string, ctx: A
 async function recordChatCost(sellerId: string, usd: number) {
   if (usd <= 0) return;
   const { recordAccountCost } = await import("@/lib/pipeline/context");
-  await recordAccountCost(sellerId, "llm", usd, "JARVIS conversation").catch(() => undefined);
+  await recordAccountCost(sellerId, "llm", usd, "Vega conversation").catch(() => undefined);
 }

@@ -12,7 +12,7 @@ import { activeSeller } from "@/lib/scope";
 import { ago } from "@/components/ui";
 import { commandCenter, companyFlow } from "@/lib/command-center";
 import { DecisionPanel, ExportView, JourneyPanel } from "@/components/home/workspace";
-import { JarvisOrb } from "@/components/home/jarvis-orb";
+import { VegaOrb } from "@/components/home/vega-orb";
 import { openDecisions } from "@/lib/decisions";
 import { SearchPill, ThemePill } from "@/components/home/client";
 import { NotificationBell } from "@/components/shell/NotificationBell";
@@ -211,8 +211,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
   const rows = recent.map((a, i) => ({ a, e: lastEvents[i] })).filter((r) => ev !== "stopped" || r.e?.outcome === "block");
   const exportRows: [string, number, string][] = flow.steps.map((st, i) => [st.label, reachedN[i], i === 0 ? "Entry point" : reachedN[i - 1] ? `${Math.round((reachedN[i] / reachedN[i - 1]) * 100)}% of ${lower(flow.steps[i - 1].label)}` : "No conversions yet"]);
   const firstName = userName ? `, ${userName}` : "";
-  // JARVIS lives on Home (Super Admins for now): a live core that opens the conversation in place.
-  const jarvis = me?.superAdmin
+  // Vega lives on Home (Super Admins for now): a live core that opens the conversation in place.
+  const vega = me?.superAdmin
     ? await (async () => {
         const { activeSellerId } = await import("@/lib/scope");
         const cid = await activeSellerId();
@@ -224,7 +224,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
         ]);
         const { recommendedApprovals, agreement } = await import("@/lib/agent/approvals");
         const [recs, agreed] = await Promise.all([recommendedApprovals(10).catch(() => []), agreement(cid).catch(() => ({ decisions: 0, agreedShare: null }))]);
-        return { cid, on: Boolean(setting?.enabled && !setting.paused), doneToday, agreed, recs: recs.map((r) => ({ draftId: r.draftId, reviewId: r.reviewId, person: r.person, company: r.company, subject: r.subject, strength: r.strength, recommendation: r.recommendation, reasons: r.reasons, waitingDays: r.waitingDays })), actions: recentActs.map((a) => ({ id: a.id, reason: a.reason, status: a.status, at: a.createdAt.toISOString() })) };
+        // The client's own name: the brain pack falls back to the default client while a new client's brain is incomplete.
+        const name = (await db.client.findUnique({ where: { id: cid }, select: { name: true } }).catch(() => null))?.name ?? p.name;
+        return { cid, name, on: Boolean(setting?.enabled && !setting.paused), doneToday, agreed, recs: recs.map((r) => ({ draftId: r.draftId, reviewId: r.reviewId, person: r.person, company: r.company, subject: r.subject, strength: r.strength, recommendation: r.recommendation, reasons: r.reasons, waitingDays: r.waitingDays })), actions: recentActs.map((a) => ({ id: a.id, reason: a.reason, status: a.status, at: a.createdAt.toISOString() })) };
       })().catch(() => null)
     : null;
 
@@ -249,7 +251,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
             <p className="ws-subtle">A sharper view of account progress, decisions and what needs to happen next.</p>
           </div>
           <div className="ws-heading-side">
-            {jarvis && <JarvisOrb clientId={jarvis.cid} clientName={p.name} doneToday={jarvis.doneToday} waiting={waiting} actions={jarvis.actions} on={jarvis.on} recs={jarvis.recs} agreement={jarvis.agreed} />}
+            {vega && <VegaOrb clientId={vega.cid} clientName={vega.name} doneToday={vega.doneToday} waiting={waiting} actions={vega.actions} on={vega.on} recs={vega.recs} agreement={vega.agreed} />}
             <ExportView rows={exportRows} />
           </div>
         </section>

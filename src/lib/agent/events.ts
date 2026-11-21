@@ -1,4 +1,4 @@
-// JARVIS Level 2 intake: things that happened (a reply, a bounce, a booked meeting, a budget
+// Vega Level 2 intake: things that happened (a reply, a bounce, a booked meeting, a budget
 // threshold) are written once as AgentEvents, then each is handled once through the shared
 // engine. The dedupe key makes webhook retries and double clicks harmless.
 import type { Prisma } from "@prisma/client";

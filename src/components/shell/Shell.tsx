@@ -9,7 +9,7 @@ import { signOutAction, switchClientAction, switchModeAction } from "@/app/login
 import { Toggle } from "@/components/toggle";
 import { AccountLogo } from "@/components/account-logo";
 import { isOn, locate, type Counts } from "@/lib/nav";
-import { JarvisKey } from "./JarvisKey";
+import { VegaKey } from "./VegaKey";
 
 // Rail entries: Home, then the modules (Admin sits at the foot). Active state follows the
 // nav map, so every page inside a section lights its rail icon.
@@ -55,7 +55,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
           </div>
           <div className="sh-rail-foot">
             {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
-            {sup && <JarvisKey />}
+            {sup && <VegaKey />}
             <Link href="/admin" className={`sh-item${active === "admin" ? " on" : ""}`} data-tip="Admin" aria-label="Admin"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Admin</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}
           </div>

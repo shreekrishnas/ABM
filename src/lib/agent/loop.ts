@@ -1,4 +1,4 @@
-// The Level 1 loop: for each client with JARVIS switched on, find work worth doing, rank it,
+// The Level 1 loop: for each client with Vega switched on, find work worth doing, rank it,
 // keep within the client's daily cap and cooldowns, and run it through the shared engine.
 // Rules decide; nothing here asks a model what to do.
 import { baseDb } from "@/lib/db-base";
@@ -64,8 +64,8 @@ export interface LoopReport { sellerId: string; skipped?: string; ran: { tool: s
 /** One pass for one client. Respects the switch, allowed actions, the daily cap and a per-run limit. */
 export async function runClientLoop(sellerId: string, now = new Date(), opts: { maxActions?: number } = {}): Promise<LoopReport> {
   const setting = await baseDb.agentSetting.findUnique({ where: { sellerId } });
-  if (!setting?.enabled) return { sellerId, skipped: "JARVIS is off for this client", ran: [], capLeftUsd: 0 };
-  if (setting.paused) return { sellerId, skipped: "JARVIS is paused for this client", ran: [], capLeftUsd: 0 };
+  if (!setting?.enabled) return { sellerId, skipped: "Vega is off for this client", ran: [], capLeftUsd: 0 };
+  if (setting.paused) return { sellerId, skipped: "Vega is paused for this client", ran: [], capLeftUsd: 0 };
   const allowed = new Set(Array.isArray(setting.allowedTools) ? (setting.allowedTools as string[]) : []);
   const dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
   const spent = await baseDb.agentAction.aggregate({ where: { sellerId, createdAt: { gte: dayStart }, level: { gt: 0 } }, _sum: { costUsd: true } });
@@ -100,7 +100,7 @@ async function checkBudgets(now: Date) {
   for (const [sellerId, s] of status) if (s.share != null && s.share >= 0.9) await emitEvent(sellerId, "budget90", { share: s.share }, `budget90:${sellerId}:${now.toISOString().slice(0, 7)}`);
 }
 
-/** Every client with JARVIS on. Events are handled first (opt-outs and the budget brake for every client). */
+/** Every client with Vega on. Events are handled first (opt-outs and the budget brake for every client). */
 export async function runLoop(now = new Date()): Promise<LoopReport[]> {
   await checkBudgets(now);
   const { processEvents } = await import("./events");

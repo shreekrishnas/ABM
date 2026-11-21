@@ -1,5 +1,5 @@
 "use client";
-// Level 3 in the interface: JARVIS's ranked list of emails waiting for approval. Strong ones are
+// Level 3 in the interface: Vega's ranked list of emails waiting for approval. Strong ones are
 // ticked for you; nothing happens until you confirm. Weak ones open in Approvals instead.
 
 import Link from "next/link";
@@ -19,7 +19,7 @@ export function RecommendedApprovals({ clientId, items, agreement }: { clientId:
   const [failed, setFailed] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
   const router = useRouter();
-  if (!items.length) return <div className="jv-card"><div className="jv-card-h"><h2>Emails to approve</h2></div><p className="muted text-xs">Nothing waiting. New drafts appear here with JARVIS&apos;s recommendation.</p></div>;
+  if (!items.length) return <div className="jv-card"><div className="jv-card-h"><h2>Emails to approve</h2></div><p className="muted text-xs">Nothing waiting. New drafts appear here with Vega&apos;s recommendation.</p></div>;
 
   const go = () => start(async () => {
     const r = await approveDrafts(clientId, picked);
@@ -34,7 +34,7 @@ export function RecommendedApprovals({ clientId, items, agreement }: { clientId:
     <div className="jv-card jv-rec">
       <div className="jv-card-h">
         <h2>Emails to approve</h2>
-        <span className="muted text-xs">{items.length} waiting{agreement.decisions >= 5 && agreement.agreedShare != null ? ` · you agreed with JARVIS ${Math.round(agreement.agreedShare * 100)}% of ${agreement.decisions} times` : ""}</span>
+        <span className="muted text-xs">{items.length} waiting{agreement.decisions >= 5 && agreement.agreedShare != null ? ` · you agreed with Vega ${Math.round(agreement.agreedShare * 100)}% of ${agreement.decisions} times` : ""}</span>
       </div>
       <ul className="jv-rec-list">
         {items.map((i) => (

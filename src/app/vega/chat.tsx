@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import type { Answer } from "@/lib/assistant/run";
-import { askJarvis, confirmJarvisProposal, dismissJarvisProposal, type JarvisMessage } from "./actions";
+import { askVega, confirmVegaProposal, dismissVegaProposal, type VegaMessage } from "./actions";
 import type { Proposal } from "@/lib/agent/proposals";
 
 const STARTERS = (company: string | null) =>
@@ -36,7 +36,7 @@ function AnswerView({ a }: { a: Answer }) {
   );
 }
 
-/** A change JARVIS proposed. Nothing happens until the person confirms; the result is the real outcome. */
+/** A change Vega proposed. Nothing happens until the person confirms; the result is the real outcome. */
 function ProposalCard({ p, clientId }: { p: Proposal; clientId: string }) {
   const [state, setState] = useState<{ status: string; outcome: string | null }>({ status: p.status, outcome: p.outcome ?? null });
   const [pending, start] = useTransition();
@@ -47,16 +47,16 @@ function ProposalCard({ p, clientId }: { p: Proposal; clientId: string }) {
       <div className="jv-prop-what"><b>{p.summary}</b><small>{p.costUsd ? `about $${p.costUsd.toFixed(2)}` : "free"} · {p.reversible ? "can be undone" : "can't be undone"}</small></div>
       {open ? (
         <div className="jv-prop-btns">
-          <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => start(async () => { const r = await confirmJarvisProposal(clientId, p.id); setState({ status: r.ok ? "done" : r.status === "refused" ? "cancelled" : "failed", outcome: r.message }); router.refresh(); })}>{pending ? "Working…" : "Confirm"}</button>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={pending} onClick={() => start(async () => { await dismissJarvisProposal(clientId, p.id); setState({ status: "cancelled", outcome: "Dismissed" }); })}>Dismiss</button>
+          <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => start(async () => { const r = await confirmVegaProposal(clientId, p.id); setState({ status: r.ok ? "done" : r.status === "refused" ? "cancelled" : "failed", outcome: r.message }); router.refresh(); })}>{pending ? "Working…" : "Confirm"}</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={pending} onClick={() => start(async () => { await dismissVegaProposal(clientId, p.id); setState({ status: "cancelled", outcome: "Dismissed" }); })}>Dismiss</button>
         </div>
       ) : <span className="jv-prop-out">{state.outcome ?? (state.status === "cancelled" ? "Dismissed" : state.status)}</span>}
     </div>
   );
 }
 
-export function JarvisChat({ clientId, clientName, accountId, accountName, conversationId, initial }: { clientId: string; clientName: string; accountId: string | null; accountName: string | null; conversationId: string | null; initial: JarvisMessage[] }) {
-  const [messages, setMessages] = useState<JarvisMessage[]>(initial);
+export function VegaChat({ clientId, clientName, accountId, accountName, conversationId, initial }: { clientId: string; clientName: string; accountId: string | null; accountName: string | null; conversationId: string | null; initial: VegaMessage[] }) {
+  const [messages, setMessages] = useState<VegaMessage[]>(initial);
   const [conv, setConv] = useState(conversationId);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -72,19 +72,19 @@ export function JarvisChat({ clientId, clientName, accountId, accountName, conve
     setText("");
     setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", content: question, answer: null, tools: [], proposals: [], ms: null, at: new Date().toISOString() }]);
     start(async () => {
-      const r = await askJarvis({ clientId, conversationId: conv, accountId, question });
+      const r = await askVega({ clientId, conversationId: conv, accountId, question });
       if (!r.ok) { setError(r.error); return; }
       setMessages((m) => [...m, r.message]);
       if (!conv) {
         setConv(r.conversationId);
-        router.replace(`/jarvis?${new URLSearchParams({ c: clientId, conv: r.conversationId, ...(accountId ? { a: accountId } : {}) })}`, { scroll: false });
+        router.replace(`/vega?${new URLSearchParams({ c: clientId, conv: r.conversationId, ...(accountId ? { a: accountId } : {}) })}`, { scroll: false });
       }
     });
   };
 
   return (
-    <section className="jv-chat jv-card" aria-label="Conversation with JARVIS">
-      <div className="jv-card-h"><h2>Ask JARVIS</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · looks things up; changes need your Confirm</span></div>
+    <section className="jv-chat jv-card" aria-label="Conversation with Vega">
+      <div className="jv-card-h"><h2>Ask Vega</h2><span className="muted text-xs">{clientName}{accountName ? ` · ${accountName}` : ""} · looks things up; changes need your Confirm</span></div>
       <div className="jv-msgs" aria-live="polite">
         {messages.length === 0 && (
           <div className="jv-empty">

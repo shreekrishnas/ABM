@@ -1,4 +1,4 @@
-// Level 3: JARVIS prepares the decision, a person makes it. Each email waiting for approval gets
+// Level 3: Vega prepares the decision, a person makes it. Each email waiting for approval gets
 // a strength (strong / fair / weak), a recommendation and the reasons, from what the pipeline
 // already checked. Approving still goes through the existing guarded approval path.
 import { db } from "@/lib/db";
@@ -48,7 +48,7 @@ export async function recommendedApprovals(limit = 30, now = new Date()): Promis
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-/** How often people agreed with JARVIS's recommendation, from recorded decisions. */
+/** How often people agreed with Vega's recommendation, from recorded decisions. */
 export async function agreement(sellerId: string, days = 30) {
   const rows = await db.agentAction.findMany({ where: { sellerId, tool: "decide_draft", createdAt: { gte: new Date(Date.now() - days * 86_400_000) } }, select: { result: true } });
   const r = rows.map((x) => x.result as { recommendation?: string; decision?: string; edited?: boolean } | null).filter((x): x is { recommendation: string; decision: string; edited?: boolean } => Boolean(x?.recommendation && x?.decision));
@@ -57,7 +57,7 @@ export async function agreement(sellerId: string, days = 30) {
   return { decisions: r.length, agreedShare: r.length ? agreed.length / r.length : null, strongApprovedUnedited: strongApproved.length ? strongApproved.filter((x) => x.decision === "approve" && !x.edited).length / strongApproved.length : null, strongCount: strongApproved.length };
 }
 
-/** Keep a person's decision on a draft next to what JARVIS would have recommended. */
+/** Keep a person's decision on a draft next to what Vega would have recommended. */
 export async function recordDraftDecision(d: { id: string; contactId: string; critique: unknown; rewrites: number; claims: unknown; leadEvidenceId: string | null; sellerId: string | null }, decision: "approve" | "reject", edited: boolean) {
   const c = await db.contact.findUnique({ where: { id: d.contactId }, select: { readiness: true, accountId: true, account: { select: { tier: true, sellerId: true } } } });
   if (!c) return;
@@ -67,7 +67,7 @@ export async function recordDraftDecision(d: { id: string; contactId: string; cr
   await baseDb.agentAction.create({
     data: {
       sellerId: d.sellerId ?? c.account.sellerId, accountId: c.accountId, contactId: d.contactId, tool: "decide_draft", level: 3, actor: (await decider()) ?? "unknown", origin: "chat",
-      reason: `${decision === "approve" ? (edited ? "Approved with edits" : "Approved") : "Rejected"} a ${s.strength} draft (JARVIS recommended: ${s.recommendation})`,
+      reason: `${decision === "approve" ? (edited ? "Approved with edits" : "Approved") : "Rejected"} a ${s.strength} draft (Vega recommended: ${s.recommendation})`,
       evidenceIds: [], input: { draftId: d.id }, result: { recommendation: s.recommendation, strength: s.strength, decision, edited }, status: "done", idempotencyKey: `decide:${d.id}`, startedAt: new Date(), doneAt: new Date(),
     },
   }).catch(() => undefined);

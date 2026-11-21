@@ -10,13 +10,13 @@ vi.mock("@/lib/adapters/live/http", () => ({
   }),
 }));
 
-import { jarvisAsk } from "@/lib/agent/chat";
+import { vegaAsk } from "@/lib/agent/chat";
 import { db } from "@/lib/db";
 import { baseDb } from "@/lib/db-base";
 import type { AgentContext } from "@/lib/agent/types";
 
-describe("JARVIS conversation", () => {
-  const sellerId = `jarvis-chat-${Date.now()}`;
+describe("Vega conversation", () => {
+  const sellerId = `vega-chat-${Date.now()}`;
   let conversationId = "";
   beforeEach(async () => {
     process.env.OPENROUTER_API_KEY = "test";
@@ -34,7 +34,7 @@ describe("JARVIS conversation", () => {
       JSON.stringify({ tools: [{ tool: "open_approvals", args: { limit: 3 } }], answer: null }),
       JSON.stringify({ tools: [], answer: { title: "Waiting", summary: "Nothing is waiting.", facts: [], confirmed: ["0 open"], possible: [], unknown: [], recommendedAction: null, references: [] } }),
     );
-    const r = await jarvisAsk(conversationId, "What is waiting?", ctx(), { clientName: "Test" });
+    const r = await vegaAsk(conversationId, "What is waiting?", ctx(), { clientName: "Test" });
     expect(r.answer.title).toBe("Waiting");
     expect(r.toolCalls.map((t) => t.tool)).toEqual(["open_approvals"]);
     expect(r.actionIds.length).toBe(1);
@@ -44,7 +44,7 @@ describe("JARVIS conversation", () => {
 
   it("tells the model it only proposes changes, marks outside text and lists the tools", async () => {
     replies.push(JSON.stringify({ tools: [], answer: { title: "x", summary: "y", facts: [], confirmed: [], possible: [], unknown: [], recommendedAction: null, references: [] } }));
-    await jarvisAsk(conversationId, "Research Acme", ctx(), { clientName: "Test" });
+    await vegaAsk(conversationId, "Research Acme", ctx(), { clientName: "Test" });
     const sys = (globalThis as { lastSystem?: string }).lastSystem ?? "";
     expect(sys).toMatch(/never run by you/);
     expect(sys).toMatch(/NEVER say it is done/);
@@ -57,7 +57,7 @@ describe("JARVIS conversation", () => {
       JSON.stringify({ tools: [{ tool: "start_research", args: {} }], answer: null }),
       JSON.stringify({ tools: [], answer: { title: "Not yet", summary: "I can't do that yet.", facts: [], confirmed: [], possible: [], unknown: [], recommendedAction: null, references: [] } }),
     );
-    const r = await jarvisAsk(conversationId, "Research Acme", ctx(), { clientName: "Test" });
+    const r = await vegaAsk(conversationId, "Research Acme", ctx(), { clientName: "Test" });
     expect(r.toolCalls[0]).toMatchObject({ tool: "start_research", ok: false });
     expect(r.answer.title).toBe("Not yet");
   });

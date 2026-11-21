@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     contactId = people[0].id;
   }
   const cls = await withSeller(sellerId, () => recordReply(contactId!, b.data.body, newContext(), { messageId }));
-  // JARVIS reacts right away (opt-outs on every channel, owner tasks); the daily loop catches anything missed.
+  // Vega reacts right away (opt-outs on every channel, owner tasks); the daily loop catches anything missed.
   const react = async () => { await (await import("@/lib/agent/events")).processEvents(sellerId).catch(() => undefined); };
   try {
     after(react);

@@ -295,7 +295,7 @@ export async function recordReply(contactId: string, body: string, ctx: RunConte
       await openReview({ type: "needs_human_reply", stage: S, accountId: contact.accountId, contactId, reason: `Unclear reply from ${contact.fullName}`, payload: { body } });
       break;
   }
-  // JARVIS Level 2 reacts to the reply after the pipeline has (once per reply, whatever retries).
+  // Vega Level 2 reacts to the reply after the pipeline has (once per reply, whatever retries).
   const { emitEvent } = await import("@/lib/agent/events");
   await emitEvent(contact.account.sellerId, "reply", { replyId: reply.id, class: cls, contactId, accountId: contact.accountId, name: contact.fullName, excerpt: body.slice(0, 300) }, `reply:${reply.id}`);
   return cls;

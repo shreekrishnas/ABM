@@ -417,9 +417,9 @@ export async function tickStep(step: TickStep, ctx: RunContext = newContext()) {
     }
     if (step === "intent") return { intentReruns: (await processIntent(ctx)).length };
     if (step === "agent") {
-      // JARVIS Level 1, for clients that switched it on.
+      // Vega Level 1, for clients that switched it on.
       const reports = await (await import("@/lib/agent/loop")).runLoop(ctx.now);
-      return { jarvis: reports.map((r) => ({ client: r.sellerId, ran: r.ran.length, skipped: r.skipped ?? null })) };
+      return { vega: reports.map((r) => ({ client: r.sellerId, ran: r.ran.length, skipped: r.skipped ?? null })) };
     }
     const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
     return { market };

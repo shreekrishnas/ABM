@@ -22,7 +22,7 @@ afterAll(async () => {
   await baseDb.client.deleteMany({ where: { id: sellerId } });
 });
 
-describe("JARVIS Level 1", () => {
+describe("Vega Level 1", () => {
   it("does nothing until it is switched on for the client", async () => {
     const r = await runClientLoop(sellerId);
     expect(r.skipped).toMatch(/off/);

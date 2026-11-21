@@ -1,4 +1,4 @@
-// What JARVIS knows before it answers: the company in focus (if any), what waits for people,
+// What Vega knows before it answers: the company in focus (if any), what waits for people,
 // and what happened recently. Built from the same tools a person could call, so the context and
 // the answers rest on one set of facts.
 import type { AgentContext } from "./types";

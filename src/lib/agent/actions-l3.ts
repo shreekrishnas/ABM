@@ -1,4 +1,4 @@
-// Level 3 tools: consequential work that only ever runs after a person confirms it in JARVIS.
+// Level 3 tools: consequential work that only ever runs after a person confirms it in Vega.
 import { z } from "zod";
 import type { AgentTool } from "./types";
 
@@ -24,7 +24,7 @@ export const approveDraftsTool = define({
       const d = await db.draft.findUnique({ where: { id }, select: { id: true, subject: true, body: true, contact: { select: { fullName: true, account: { select: { name: true } } } } } });
       if (!d) { results.push({ draftId: id, who: "?", ok: false, message: "Not found in this client" }); continue; }
       const fd = new FormData();
-      fd.set("draftId", d.id); fd.set("decision", "approve"); fd.set("subject", d.subject); fd.set("body", d.body); fd.set("note", "Approved through JARVIS");
+      fd.set("draftId", d.id); fd.set("decision", "approve"); fd.set("subject", d.subject); fd.set("body", d.body); fd.set("note", "Approved through Vega");
       const r = await reviewDraftAction({ ok: true, message: "" }, fd).catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : "Failed" }));
       results.push({ draftId: id, who: `${d.contact.fullName} (${d.contact.account.name})`, ok: Boolean(r?.ok), message: r?.message ?? "" });
     }

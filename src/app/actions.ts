@@ -172,7 +172,7 @@ export async function reviewDraftAction(_: ActionState, fd: FormData): Promise<A
     },
   });
   await db.reviewItem.updateMany({ where: { draftId: d.id, status: "open" }, data: { status: "resolved", resolution: p.data.decision === "approve" ? (edited ? "approved with edits" : "approved") : "rejected", resolvedAt: new Date() } });
-  // JARVIS keeps each decision next to what it would have recommended (Level 3 learning; never blocks).
+  // Vega keeps each decision next to what it would have recommended (Level 3 learning; never blocks).
   await recordDraftDecision(d, p.data.decision, edited).catch(() => undefined);
   // The writer learns from what the team changed or rejected (never blocks the review).
   if (edited || p.data.decision === "reject" || p.data.note) {

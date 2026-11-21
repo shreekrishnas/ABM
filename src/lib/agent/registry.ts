@@ -1,5 +1,5 @@
-// Every action JARVIS can take, in one list. Step 1 holds read-only (level 0) tools: the
-// assistant's existing lookups plus three for the JARVIS page. Later levels add tools here.
+// Every action Vega can take, in one list. Step 1 holds read-only (level 0) tools: the
+// assistant's existing lookups plus three for the Vega page. Later levels add tools here.
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { TOOLS as LOOKUPS, redact } from "@/lib/assistant/tools";
@@ -25,7 +25,7 @@ const define = <S extends z.ZodTypeAny>(t: AgentTool<S>): AgentTool => t as unkn
 
 const accountOverview = define({
   name: "account_overview",
-  description: "One company as JARVIS sees it: scores (fit, intent, priority), stage and tier, research facts each labelled verified / inferred / stale / outdated with its source, buying-group coverage by role (missing roles named), open approvals for it, and its last pipeline steps. Use it to explain why a company is (or isn't) a priority.",
+  description: "One company as Vega sees it: scores (fit, intent, priority), stage and tier, research facts each labelled verified / inferred / stale / outdated with its source, buying-group coverage by role (missing roles named), open approvals for it, and its last pipeline steps. Use it to explain why a company is (or isn't) a priority.",
   input: z.object({ accountId: z.string().min(5).max(40) }),
   level: 0,
   minRole: "viewer",
@@ -73,7 +73,7 @@ const openApprovals = define({
 
 const recentActions = define({
   name: "recent_actions",
-  description: "What happened recently, for one company (accountId) or the whole client: JARVIS actions (what, why, status) and pipeline steps (research, scoring, drafting) with their outcome. Use for 'what changed', 'what did you do', 'what failed'.",
+  description: "What happened recently, for one company (accountId) or the whole client: Vega actions (what, why, status) and pipeline steps (research, scoring, drafting) with their outcome. Use for 'what changed', 'what did you do', 'what failed'.",
   input: z.object({ accountId: z.string().min(5).max(40).optional(), hours: z.number().int().min(1).max(24 * 30).optional() }),
   level: 0,
   minRole: "viewer",
@@ -92,7 +92,7 @@ const recentActions = define({
 
 const recommendedApprovalsTool = define({
   name: "recommended_approvals",
-  description: "Emails waiting for approval, each with JARVIS's strength (strong / fair / weak), recommendation (approve / edit / reject) and reasons, strongest first. Use for 'show me the strongest drafts', 'what should I approve'. You cannot approve; the person approves with the buttons shown next to the conversation.",
+  description: "Emails waiting for approval, each with Vega's strength (strong / fair / weak), recommendation (approve / edit / reject) and reasons, strongest first. Use for 'show me the strongest drafts', 'what should I approve'. You cannot approve; the person approves with the buttons shown next to the conversation.",
   input: z.object({ limit: z.number().int().min(1).max(30).optional() }),
   level: 0,
   minRole: "viewer",

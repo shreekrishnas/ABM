@@ -1314,7 +1314,7 @@ model AssistantConversation {
   id        String             @id @default(cuid())
   userEmail String
   title     String
-  /// JARVIS conversations belong to one client (and optionally one company); older admin chats have none.
+  /// Vega conversations belong to one client (and optionally one company); older admin chats have none.
   sellerId  String?
   accountId String?
   createdAt DateTime           @default(now())
@@ -1334,7 +1334,7 @@ model AssistantMessage {
   content        String
   /// Assistant answers: { answer, toolCalls: [{ tool, args, rows }], ms }
   evidence       Json?
-  /// JARVIS actions this answer ran or refers to.
+  /// Vega actions this answer ran or refers to.
   actionIds      String[]
   createdAt      DateTime              @default(now())
 
@@ -1757,7 +1757,7 @@ model BackgroundJob {
   @@index([kind, sellerId, status])
 }
 
-// ── JARVIS: one log of every action the assistant takes, whether a person asked in chat or it
+// ── Vega: one log of every action the assistant takes, whether a person asked in chat or it
 // acted on its own. Rows are written once and only change status; a later undo is a new row.
 
 model AgentAction {
@@ -1796,7 +1796,7 @@ model AgentAction {
   @@index([conversationId])
 }
 
-/// Things that happened (a reply, a bounce, a budget threshold) waiting for JARVIS to react. Used from Level 2.
+/// Things that happened (a reply, a bounce, a budget threshold) waiting for Vega to react. Used from Level 2.
 model AgentEvent {
   id          String    @id @default(cuid())
   sellerId    String
@@ -1809,7 +1809,7 @@ model AgentEvent {
   @@index([sellerId, processedAt])
 }
 
-/// JARVIS controls for one client. Safe defaults: autonomy off.
+/// Vega controls for one client. Safe defaults: autonomy off.
 model AgentSetting {
   sellerId     String   @id
   enabled      Boolean  @default(false)

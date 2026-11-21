@@ -47,7 +47,7 @@ describe("policy gate", () => {
 });
 
 describe("executor", () => {
-  const sellerId = `jarvis-test-${Date.now()}`;
+  const sellerId = `vega-test-${Date.now()}`;
   afterAll(async () => { await baseDb.agentAction.deleteMany({ where: { sellerId } }); delete REGISTRY.__write_test; });
 
   it("logs a read with its real outcome", async () => {

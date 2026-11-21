@@ -6,32 +6,35 @@ import { REGISTRY } from "@/lib/agent/registry";
 import { SYSTEM_ACTOR, type AgentContext } from "@/lib/agent/types";
 import { ago } from "@/components/ui";
 import { humanize } from "@/lib/labels";
-import { JarvisChat } from "./chat";
+import { VegaChat } from "./chat";
 import { AutonomyCard, UndoButton } from "./autonomy";
 import { RecommendedApprovals } from "./approvals";
-import { loadJarvisConversation } from "./actions";
+import { loadVegaConversation } from "./actions";
 
-export const metadata = { title: "JARVIS" };
+export const metadata = { title: "Vega" };
 export const maxDuration = 120;
 
 type Overview = { found: boolean; account?: { id: string; name: string; domain: string | null; tier: string | null; stage: string; fitScore: number | null; intentScore: number; priorityScore: number | null }; facts?: { id: string; topic: string; claim: string; label: string; url: string }[]; missingRoles?: string[]; buyingGroup?: { role: string; status: string; people: string[] }[] };
 
-export default async function JarvisPage({ searchParams }: { searchParams: Promise<{ c?: string; a?: string; conv?: string }> }) {
+export default async function VegaPage({ searchParams }: { searchParams: Promise<{ c?: string; a?: string; conv?: string }> }) {
   const sp = await searchParams;
   const me = await getMe();
   if (!me?.superAdmin) {
     return (
       <div className="page-enter jv-gate">
-        <h1 className="page-title">JARVIS</h1>
-        <p className="secondary">JARVIS is open to Super Admins for now. Switch to Super Admin mode from your account menu to use it.</p>
+        <h1 className="page-title">Vega</h1>
+        <p className="secondary">Vega is open to Super Admins for now. Switch to Super Admin mode from your account menu to use it.</p>
       </div>
     );
   }
   const clients = await db.client.findMany({ where: me.superAdminClients === null ? {} : { id: { in: me.superAdminClients } }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   // Opened on a company (Ctrl/Cmd+J) without a client: use that company's client.
   const fromAccount = !sp.c && sp.a ? (await unscoped(() => db.account.findUnique({ where: { id: sp.a! }, select: { sellerId: true } })))?.sellerId : null;
-  const client = clients.find((c) => c.id === (sp.c ?? fromAccount)) ?? clients[0];
-  if (!client) return <div className="page-enter"><h1 className="page-title">JARVIS</h1><p className="secondary">No client to work with yet.</p></div>;
+  // Default to the client you're working in (the switcher), not the first client alphabetically.
+  const { activeSellerId } = await import("@/lib/scope");
+  const current = await activeSellerId().catch(() => null);
+  const client = clients.find((c) => c.id === (sp.c ?? fromAccount ?? current)) ?? clients[0];
+  if (!client) return <div className="page-enter"><h1 className="page-title">Vega</h1><p className="secondary">No client to work with yet.</p></div>;
 
   const scope = { ids: [client.id], active: client.id, choices: [], all: false };
   const DAY = 86_400_000;
@@ -59,8 +62,8 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
   const { recommendedApprovals, agreement } = await import("@/lib/agent/approvals");
   const [recs, agreed] = await Promise.all([withScope(scope, () => recommendedApprovals(15)).catch(() => []), agreement(client.id).catch(() => ({ decisions: 0, agreedShare: null }))]);
   const budget = (await db.client.findUnique({ where: { id: client.id }, select: { monthlyBudgetUsd: true } }))?.monthlyBudgetUsd ?? null;
-  const history = sp.conv ? await loadJarvisConversation(client.id, sp.conv) : null;
-  const href = (q: Record<string, string | undefined>) => `/jarvis?${new URLSearchParams(Object.entries({ c: client.id, ...q }).filter(([, v]) => v) as [string, string][])}`;
+  const history = sp.conv ? await loadVegaConversation(client.id, sp.conv) : null;
+  const href = (q: Record<string, string | undefined>) => `/vega?${new URLSearchParams(Object.entries({ c: client.id, ...q }).filter(([, v]) => v) as [string, string][])}`;
   const acc = overview?.found ? overview.account! : null;
 
   return (
@@ -68,9 +71,9 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
       <header className="jv-head">
         <div>
           <div className="page-eyebrow">Assistant · answers questions, does safe internal work when switched on</div>
-          <h1 className="page-title">JARVIS</h1>
+          <h1 className="page-title">Vega</h1>
         </div>
-        <form className="jv-client" action="/jarvis">
+        <form className="jv-client" action="/vega">
           <label htmlFor="jv-c" className="muted text-xs">Client</label>
           <select id="jv-c" name="c" defaultValue={client.id} className="glass-select">{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <button className="btn btn-secondary btn-sm" type="submit">Switch</button>
@@ -94,7 +97,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
           </div>
           <AutonomyCard clientId={client.id} setting={{ enabled: setting?.enabled ?? false, paused: setting?.paused ?? false, allowedTools: Array.isArray(setting?.allowedTools) ? (setting.allowedTools as string[]) : [], dailyCapUsd: setting?.dailyCapUsd ?? 3, spentTodayUsd: spentToday._sum.costUsd ?? 0 }} />
           <div className="jv-card">
-            <div className="jv-card-h"><h2>What JARVIS did</h2></div>
+            <div className="jv-card-h"><h2>What Vega did</h2></div>
             {acted.length === 0 ? <p className="muted text-xs">Nothing yet. Switch it on above, or press Run now.</p> : (
               <ul className="jv-feed">{acted.map((x) => (
                 <li key={x.id} className={x.status === "failed" ? "bad" : x.status === "undone" ? "undone" : undefined}>
@@ -119,7 +122,7 @@ export default async function JarvisPage({ searchParams }: { searchParams: Promi
         </aside>
 
         <main className="jv-main">
-          <JarvisChat key={`${client.id}:${sp.conv ?? "new"}:${sp.a ?? ""}`} clientId={client.id} clientName={client.name} accountId={acc?.id ?? null} accountName={acc?.name ?? null} conversationId={sp.conv ?? null} initial={history ?? []} />
+          <VegaChat key={`${client.id}:${sp.conv ?? "new"}:${sp.a ?? ""}`} clientId={client.id} clientName={client.name} accountId={acc?.id ?? null} accountName={acc?.name ?? null} conversationId={sp.conv ?? null} initial={history ?? []} />
         </main>
 
         <aside className="jv-ctx" aria-label="Company in focus">

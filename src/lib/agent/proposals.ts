@@ -63,7 +63,7 @@ export async function confirmProposal(id: string, ctx: Omit<AgentContext, "maxLe
   if (p.status !== "awaiting_approval") return { ok: p.status === "done", message: p.status === "done" ? "Already done" : `This proposal is ${p.status}`, status: p.status };
   if (now.getTime() - p.createdAt.getTime() > PROPOSAL_TTL_MS) {
     await baseDb.agentAction.update({ where: { id }, data: { status: "cancelled", error: "Expired before it was confirmed" } });
-    return { ok: false, message: "This proposal is more than a day old. Ask again so JARVIS checks the latest data.", status: "cancelled" };
+    return { ok: false, message: "This proposal is more than a day old. Ask again so Vega checks the latest data.", status: "cancelled" };
   }
   const claimed = await baseDb.agentAction.updateMany({ where: { id, status: "awaiting_approval" }, data: { status: "running", startedAt: now } });
   if (!claimed.count) return { ok: false, message: "Already being handled", status: "running" };

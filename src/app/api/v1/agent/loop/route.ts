@@ -1,7 +1,7 @@
 import { authorize, json } from "@/lib/api";
 import { runLoop } from "@/lib/agent/loop";
 
-// JARVIS Level 1 pass for every client that switched it on. The daily check runs it as its
+// Vega Level 1 pass for every client that switched it on. The daily check runs it as its
 // last step; an outside scheduler may call it more often (same keys as /api/v1/tick).
 export const maxDuration = 300;
 
@@ -10,7 +10,7 @@ async function run() {
   const startedAt = new Date();
   const reports = await runLoop();
   const { recordRun } = await import("@/lib/admin/ops");
-  await recordRun("JARVIS loop", startedAt, { ok: true, note: `${reports.reduce((n, r) => n + r.ran.length, 0)} actions across ${reports.length} client(s)` });
+  await recordRun("Vega loop", startedAt, { ok: true, note: `${reports.reduce((n, r) => n + r.ran.length, 0)} actions across ${reports.length} client(s)` });
   return json({ reports });
 }
 
