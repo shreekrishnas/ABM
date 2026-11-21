@@ -113,3 +113,33 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} with 2+ buying signals sent for approval, ${s.justVisitors} kept as visitors only · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${unknownDate ? `, ${unknownDate} with no visit date (shown as date unknown)` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""}`, data: { companies: companies.length, recorded, corrected, realDates, otherSite, unknownDate, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
   return { companies: companies.length, recorded, ...s };
 }
+
+/** The client whose website the Apollo visitor list tracks: by the configured site, else the client that last fetched visitors, else the default. */
+export async function apolloOwnerClient(): Promise<string> {
+  const bySite = await clientForSite(env("APOLLO_VISITOR_SITE"));
+  if (bySite) return bySite;
+  const { baseDb } = await import("@/lib/db-base");
+  const last = await baseDb.backgroundJob.findFirst({ where: { kind: "apollo_fetch" }, orderBy: { createdAt: "desc" }, select: { sellerId: true } });
+  const { DEFAULT_SELLER_ID } = await import("@/lib/seller");
+  return last?.sellerId ?? DEFAULT_SELLER_ID;
+}
+
+/**
+ * The daily run's visitor pull. Runs inside the owning client (the button does the same) and
+ * always says what happened: a result, or the reason it didn't pull. Never fails silently.
+ */
+export async function dailyVisitorPull(ctx: RunContext): Promise<{ client?: string; companies?: number; recorded?: number; suggested?: number; skipped?: string; error?: string }> {
+  if (!env("APOLLO_API_KEY")) return { skipped: "Apollo key is not set on the server (Admin → Integrations → Apollo)" };
+  if (process.env.ADAPTER_MODE === "mock") return { skipped: "sample data mode" };
+  let client = "";
+  try {
+    client = await apolloOwnerClient();
+    const { withSeller } = await import("@/lib/seller");
+    const r = await withSeller(client, () => syncApolloVisitors(ctx));
+    return r ? { client, companies: r.companies, recorded: r.recorded, suggested: r.suggested } : { client, skipped: "already pulled in the last day" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message.slice(0, 300) : String(e);
+    await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: `Daily visitor pull failed${client ? ` for ${client}` : ""}: ${msg}` }).catch(() => undefined);
+    return { client, error: msg };
+  }
+}

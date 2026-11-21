@@ -25,7 +25,12 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   const need = await needs(["apollo"]);
   // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
   const ready = need.ok;
-  const [companies, fresh] = await Promise.all([listVisitorCompanies(from, to), visitorFreshness()]);
+  const [companies, fresh, pullError] = await Promise.all([
+    listVisitorCompanies(from, to),
+    visitorFreshness(),
+    // The daily automatic pull's last problem, so a silent stop is visible here.
+    (await import("@/lib/db-base")).baseDb.pipelineEvent.findFirst({ where: { step: "apollo.visitors", outcome: "error", createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } }, orderBy: { createdAt: "desc" }, select: { reason: true, createdAt: true } }).catch(() => null),
+  ]);
   const DAY = 86_400_000;
   const stale = fresh.newestVisit ? (Date.now() - fresh.newestVisit.getTime()) / DAY > 7 : false;
   const rows: VisitorRow[] = await Promise.all(
@@ -66,6 +71,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         <p className="muted mb-3 text-xs">
           {fresh.lastFetch ? <>Last fetched from Apollo {short(fresh.lastFetch)}, {fresh.lastFetch.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST · </> : <>Not fetched from Apollo yet · </>}
           {fresh.newestVisit ? <>newest visit we have: <b className={stale ? "text-[var(--warning,#B45309)]" : undefined}>{short(fresh.newestVisit)}</b></> : "no dated visits yet"}
+          {pullError && (!fresh.lastFetch || pullError.createdAt > fresh.lastFetch) && <><br /><b className="text-[var(--danger)]">The automatic pull failed {short(pullError.createdAt)}:</b> {pullError.reason}</>}
           {stale && <> · nothing newer has come from Apollo for over a week. If people are visiting the site, check that Apollo&apos;s tracking script on the website is recording visits.</>}
         </p>
         {rows.length ? (

@@ -386,7 +386,7 @@ async function tickUnscoped(ctx: RunContext) {
   // Daily prospecting for every client with live research on (news scan, careers job lists,
   // re-checks), ranked into "Recommended today". Replaces the scan that only ran for the default client.
   const market = paused ? false : await (await import("@/lib/discover/daily")).runDailyProspecting(ctx).catch(() => false);
-  const visitors = await syncApolloVisitors(ctx).catch(() => null);
+  const visitors = await (await import("@/lib/web/apollo-sync")).dailyVisitorPull(ctx);
   return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, watchlist: watch.length, escalated, insights, market, visitors };
 }
 
@@ -407,7 +407,7 @@ export async function tickStep(step: TickStep, ctx: RunContext = newContext()) {
       const sequences = await tickSequences(ctx);
       const sent = await sendApproved(ctx);
       const escalated = await escalateOverdue(ctx);
-      const visitors = await syncApolloVisitors(ctx).catch(() => null);
+      const visitors = await (await import("@/lib/web/apollo-sync")).dailyVisitorPull(ctx);
       return { queue: { processed: queue.processed, remaining: queue.remaining }, sequences, sent, escalated, visitors };
     }
     if (step === "intel") {
