@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Download, LayoutGrid, Table2 } from "lucide-react";
 import type { FlowAccount } from "@/lib/command-center";
+import { DECISION_FILTER_HELP, DECISION_FILTER_LABEL } from "@/lib/decision-labels";
 
 export interface QueueItem { id: string; kind: "exception" | "approval"; label: string; title: string; description: string | null; href: string; ago: string }
 
@@ -25,7 +26,7 @@ export function DecisionPanel({ items, counts, ages }: { items: QueueItem[]; cou
         </div>
         <div className="k-seg" role="group" aria-label="Filter decisions">
           {(["all", "exception", "approval"] as const).map((k) => (
-            <button key={k} type="button" aria-pressed={f === k} onClick={() => setF(k)}>{k === "all" ? "All" : k === "exception" ? "Exceptions" : "Approvals"}</button>
+            <button key={k} type="button" aria-pressed={f === k} title={DECISION_FILTER_HELP[k]} onClick={() => setF(k)}>{DECISION_FILTER_LABEL[k]}</button>
           ))}
         </div>
       </div>

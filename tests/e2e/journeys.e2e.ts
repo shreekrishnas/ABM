@@ -167,6 +167,33 @@ describe("5b. Approvals renders every kind of item", () => {
   });
 });
 
+describe("5c. One count for what's waiting", () => {
+  it("the Engage badge, Home, Today and Approvals show the same total, and every Approvals tile opens a list of that size", async () => {
+    const num = (t: string) => Number((t.match(/\d+/) ?? ["NaN"])[0]);
+    const home = await open("/");
+    const badge = num(await home.locator('nav[aria-label="Main"] a:has-text("Engage")').first().innerText());
+    const homeCard = num(await home.locator(".ws-metric.m0 .ws-metric-v").innerText());
+    await home.close();
+    const today = await open("/work/today");
+    const todayTab = num(await today.locator(".td3-tabs a").first().innerText());
+    await today.close();
+    const review = await open("/review");
+    const all = num(await review.locator(".dz-chip.on").first().innerText());
+    const tiles: { href: string; n: number }[] = await review.evaluate(() => [...document.querySelectorAll("a")].filter((a) => /^(Right person\?|Rule out a company\?|Emails to approve|Everything else)/.test(a.textContent ?? "")).map((a) => ({ href: a.getAttribute("href")!, n: Number((a.textContent!.match(/\?(\d+)|approve(\d+)|else(\d+)/) ?? []).slice(1).find(Boolean)) })));
+    await review.close();
+    expect(badge).toBeGreaterThan(0);
+    expect([homeCard, todayTab, all]).toEqual([badge, badge, badge]);
+    expect(tiles).toHaveLength(4);
+    expect((tiles as { n: number }[]).reduce((t, x) => t + x.n, 0)).toBe(badge);
+    for (const t of tiles) {
+      if (!t.n) continue;
+      const p = await open(t.href);
+      expect(await p.locator(".dz-item").count(), `${t.href} lists what its tile counts`).toBe(Math.min(t.n, 50));
+      await p.close();
+    }
+  });
+});
+
 describe("4. Daily work", () => {
   it("Home, Today, Approvals and Insights open", async () => {
     for (const path of ["/", "/work/today", "/review", "/pipeline", "/analytics"]) (await open(path)).close();
@@ -193,7 +220,7 @@ describe("8. Vega", () => {
     const p = await open("/vega");
     const text = await p.locator("body").innerText();
     expect(text).toMatch(/Ask Vega/);
-    expect(text).toMatch(/waiting for a person/);
+    expect(text).toMatch(/waiting for you/);
     expect(await p.locator(".jv-ctx").count()).toBe(1);
     await p.close();
   });

@@ -25,16 +25,22 @@ function wordLimit(sellerId: string | null | undefined): number | null {
   }
 }
 import { reviewLabel } from "@/lib/review-labels";
+import { DECISION_FILTER_LABEL, DECISION_KIND, summarizeWaiting, typesFor, waitingNote } from "@/lib/decisions";
 
 export const metadata = { title: "Approvals" };
 
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; view?: string; pick?: string }> }) {
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ type?: string; kind?: string; view?: string; pick?: string }> }) {
   const sp = await searchParams;
-  const type = sp.type as ReviewType | undefined;
+  // ?type= takes one type or a comma list (each count's own list); ?kind= is a Decision Center filter.
+  const kind = sp.kind === "exception" || sp.kind === "approval" ? sp.kind : undefined;
+  const typeList = (sp.type ?? "").split(",").filter((t) => t in DECISION_KIND) as ReviewType[];
+  const types = typeList.length ? typeList : kind ? typesFor(kind) : undefined;
+  const type = typeList.length === 1 ? typeList[0] : undefined;
+  const typeWhere = types ? { type: { in: types } } : {};
   const [counts, items, companies, lookalikes, handoffs] = await Promise.all([
     db.reviewItem.groupBy({ by: ["type"], where: { status: "open" }, _count: true }),
-    db.reviewItem.findMany({ where: { status: "open", ...(type ? { type } : {}) }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
+    db.reviewItem.findMany({ where: { status: "open", ...typeWhere }, orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }], take: 50, include: { account: true, contact: { include: { fieldStates: true } } } }),
     // Waiting elsewhere, so everything a person must decide is listed here.
     db.prospectSuggestion.count({ where: { status: "new", origin: { not: "lookalike" } } }),
     db.prospectSuggestion.count({ where: { status: "new", origin: "lookalike", researchStatus: { in: ["done", "failed"] } } }),
@@ -45,17 +51,19 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   const evidenceIds = drafts.flatMap((d) => (d.claims as { factIds: string[] }[]).flatMap((c) => c.factIds));
   const evidence = await db.evidence.findMany({ where: { id: { in: evidenceIds } } });
   const evById = new Map(evidence.map((e) => [e.id, e]));
-  const total = counts.reduce((a, c) => a + c._count, 0);
+  const waiting = summarizeWaiting(counts as { type: ReviewType; _count: number }[]);
+  const total = waiting.total;
+  const shownTotal = types ? types.reduce((t, k) => t + (waiting.byType[k] ?? 0), 0) : total;
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const threeAgo = new Date(dayStart.getTime() - 3 * 86_400_000);
-  const base = { status: "open" as const, ...(type ? { type } : {}) };
+  const base = { status: "open" as const, ...typeWhere };
   const [aToday, aFew, aOld] = await Promise.all([
     db.reviewItem.count({ where: { ...base, createdAt: { gte: dayStart } } }),
     db.reviewItem.count({ where: { ...base, createdAt: { gte: threeAgo, lt: dayStart } } }),
     db.reviewItem.count({ where: { ...base, createdAt: { lt: threeAgo } } }),
   ]);
   const aAll = aToday + aFew + aOld;
-  const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type, ...q }).filter(([, v]) => v) as [string, string][])}`;
+  const href = (q: Record<string, string | undefined>) => `/review?${new URLSearchParams(Object.entries({ type: sp.type, kind, ...q }).filter(([, v]) => v) as [string, string][])}`;
   const idx = Math.max(0, items.findIndex((i) => i.id === sp.pick));
   const r = items[idx];
   const prev = idx > 0 ? href({ pick: items[idx - 1].id }) : undefined;
@@ -67,22 +75,22 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page-enter">
-      <PageHeader title="Approvals" description={(() => {
-        const emails = counts.find((c) => c.type === "draft_approval")?._count ?? 0;
-        return `${total} waiting: ${total - emails} decision${total - emails === 1 ? "" : "s"} and ${emails} email${emails === 1 ? "" : "s"} to approve. Only a person can decide these; pick one on the left and its evidence and actions open on the right.`;
-      })()} />
+      <PageHeader title="Approvals" description={`${waiting.total ? `${waiting.total} waiting for you: ${waitingNote(waiting)}.` : "Nothing waiting for you."}${types ? ` Showing ${shownTotal} of them.` : ""} Only a person can decide these; pick one on the left and its evidence and actions open on the right.`} />
       {(() => {
-        const n = (ts: string[]) => counts.filter((c) => ts.includes(c.type)).reduce((t, c) => t + c._count, 0);
-        const person = n(["identity_conflict", "no_usable_person"]);
-        const ruleOut = n(["proposed_rejection", "possible_blocker"]);
-        const emails = n(["draft_approval", "draft_refresh", "guardrail_failed", "needs_human_reply"]);
-        const other = total - person - ruleOut - emails;
+        const n = (ts: ReviewType[]) => ts.reduce((t, k) => t + (waiting.byType[k] ?? 0), 0);
+        const PERSON: ReviewType[] = ["identity_conflict", "no_usable_person"];
+        const RULE_OUT: ReviewType[] = ["proposed_rejection", "possible_blocker"];
+        const person = n(PERSON);
+        const ruleOut = n(RULE_OUT);
+        const restTypes = (Object.keys(waiting.byType) as ReviewType[]).filter((t) => ![...PERSON, ...RULE_OUT, "draft_approval"].includes(t));
+        const other = n(restTypes);
+        const list = (ts: ReviewType[]) => `/review?${new URLSearchParams({ type: ts.join(",") })}`;
         return (
           <div className="mb-5"><KpiRow>
-            <KpiTile tint={0} label="Right person?" value={person} note="job or company doesn't match" href="/review?type=identity_conflict" />
-            <KpiTile tint={1} label="Rule out a company?" value={ruleOut} note="a rule or bad news says so" href="/review?type=proposed_rejection" />
-            <KpiTile tint={2} label="Emails to approve" value={emails} note="drafts and replies to check" href="/review?type=draft_approval" />
-            <KpiTile tint={3} label="Other" value={other} note="budget, data and hand-offs" href="/review" />
+            <KpiTile tint={0} label="Right person?" value={person} note="job or company doesn't match, or no usable contact" href={list(PERSON)} />
+            <KpiTile tint={1} label="Rule out a company?" value={ruleOut} note="a rule or bad news says so" href={list(RULE_OUT)} />
+            <KpiTile tint={2} label="Emails to approve" value={waiting.emails} note="email drafts waiting for your sign-off" href="/review?type=draft_approval" />
+            <KpiTile tint={3} label="Everything else" value={other} note="replies, refreshed drafts, budget and data checks" href={other ? list(restTypes) : "/review"} />
           </KpiRow>
           {n(["identity_conflict"]) > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -94,7 +102,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
       })()}
 
       <div className="dz-chips" role="group" aria-label="Filter by kind">
-        <Link href="/review" className={`dz-chip${!type ? " on" : ""}`}>All · {total}</Link>
+        <Link href="/review" className={`dz-chip${!types ? " on" : ""}`}>All · {total}</Link>
+        {types && !type && <span className="dz-chip on" aria-current="true">{kind ? DECISION_FILTER_LABEL[kind] : typeList.map((t) => reviewLabel(t)).join(" + ")} · {shownTotal}</span>}
         {counts.sort((a, b) => b._count - a._count).map((c) => (
           <Link key={c.type} href={`/review?type=${c.type}`} className={`dz-chip${type === c.type ? " on" : ""}`}>{reviewLabel(c.type)} · {c._count}</Link>
         ))}

@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   await ensureSellerPacks();
   const [reviews, handoffs, tasks, discover] = await Promise.all([
-    db.reviewItem.count({ where: { status: "open" } }),
+    import("@/lib/decisions").then((d) => d.waitingForYou()).then((w) => w.total),
     db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
     db.task.count({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lte: new Date() } } }),
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),

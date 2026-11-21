@@ -109,7 +109,7 @@ export async function DecisionPeek({ id, close }: { id: string; close: string })
   return (
     <Shell title={reviewLabel(r.type)} sub={[r.account?.name, r.contact?.fullName].filter(Boolean).join(" · ") || undefined} close={close} open={`/review?type=${r.type}&pick=${r.id}`} openLabel="Open in Approvals">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="chip">{kind === "exception" ? "Exception" : "Approval"}</span>
+        <span className="chip">{kind === "exception" ? "Check" : "Sign-off"}</span>
         <span className="chip">{r.status === "open" ? `Open ${ago(r.createdAt)}` : `Closed ${ago(r.resolvedAt ?? r.createdAt)}`}</span>
         {r.account && <TierBadge tier={r.account.tier} />}
       </div>

@@ -43,7 +43,7 @@ export default async function VegaPage({ searchParams }: { searchParams: Promise
   const [steps, approvals, failedJobs, spend, convos, companies, overview, feed] = await withScope(scope, () =>
     Promise.all([
       db.pipelineEvent.count({ where: { createdAt: { gte: since }, account: { sellerId: client.id } } }),
-      db.reviewItem.count({ where: { status: "open" } }),
+      import("@/lib/decisions").then((d) => d.waitingForYou()).then((w) => w.total),
       db.backgroundJob.count({ where: { sellerId: client.id, status: "failed", createdAt: { gte: since } } }),
       import("@/lib/budget").then(({ monthSpendUsd }) => monthSpendUsd(client.id)).catch(() => 0),
       db.assistantConversation.findMany({ where: { userEmail: me.email, sellerId: client.id }, orderBy: { updatedAt: "desc" }, take: 12, select: { id: true, title: true, updatedAt: true } }),
@@ -82,7 +82,7 @@ export default async function VegaPage({ searchParams }: { searchParams: Promise
 
       <section className="jv-brief" aria-label="Briefing">
         <Link prefetch={false} href="/pipeline" className="jv-stat"><b className="tnum">{steps}</b><span>pipeline steps in the last 24 hours</span></Link>
-        <Link prefetch={false} href="/review" className="jv-stat"><b className="tnum">{approvals}</b><span>waiting for a person</span></Link>
+        <Link prefetch={false} href="/review" className="jv-stat"><b className="tnum">{approvals}</b><span>waiting for you</span></Link>
         <span className="jv-stat"><b className="tnum">{failedJobs}</b><span>background jobs failed today</span></span>
         <span className="jv-stat"><b className="tnum">${spend.toFixed(2)}</b><span>{budget ? `of $${budget} spent this month` : "spent this month (no cap)"}</span></span>
       </section>

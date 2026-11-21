@@ -52,7 +52,7 @@ export function WhatsWorking({ w }: { w: Working }) {
         <KpiTile tint={0} label="Approval rate" value={decided ? pct(d.approved, decided) : "—"} note={decided ? `${d.approved} approved, ${d.rejected} rejected` : "nothing reviewed yet"} href="/review?type=draft_approval" />
         <KpiTile tint={1} label="Approved without edits" value={d.approved ? pct(d.approvedAsIs, d.approved) : "—"} note={`${d.edited} needed edits first`} />
         <KpiTile tint={2} label="Cost per approved email" value={usd(w.cost.perApproved)} note={`${usd(w.cost.total)} spent in total`} />
-        <KpiTile tint={3} label="Approval wait" value={hours(w.wait.medianHours)} note={w.wait.oldestPendingDays != null ? `oldest waiting ${w.wait.oldestPendingDays.toFixed(1)} days` : "none waiting"} />
+        <KpiTile tint={3} label="Typical time to decide" value={hours(w.wait.medianHours)} note={`median for emails already decided · ${w.wait.oldestPendingDays != null ? `oldest still waiting ${w.wait.oldestPendingDays.toFixed(1)} days` : "none waiting"}`} />
       </KpiRow>
       <div className="grid gap-5 xl:grid-cols-2">
         <Card title="From company to approved email" sub={drop ? `Biggest drop: ${drop.lost} between "${drop.from}" and "${drop.to}". Start there.` : "Each step, for companies added or worked on in this period"}>
