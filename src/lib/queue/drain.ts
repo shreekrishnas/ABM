@@ -9,6 +9,7 @@
 // outlives its run (crashed function) expires and the next kick takes over. The daily
 // tick also kicks the drain, so a broken chain resumes within a day at worst.
 
+import { selfBaseUrl, selfHeaders, selfToken as handoffSelfToken } from "@/lib/pipeline/handoff";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { newContext } from "@/lib/pipeline/context";
@@ -91,7 +92,7 @@ export function shouldContinue(r: DrainResult) {
 
 /** The secret the drain uses to call its own route. */
 export function selfToken() {
-  return process.env.ABM_API_KEY?.trim() || process.env.CRON_SECRET?.trim() || "";
+  return handoffSelfToken();
 }
 
 /**
@@ -99,14 +100,13 @@ export function selfToken() {
  * of view: the queue route answers 202 immediately and does the work after responding.
  * `APP_URL` overrides the origin (e.g. when preview deployments are password-protected).
  */
-export async function kickDrain(origin: string | null | undefined): Promise<boolean> {
-  const base = (process.env.APP_URL?.trim() || origin || "").replace(/\/$/, "");
+export async function kickDrain(origin: string | null | undefined, runId?: string): Promise<boolean> {
+  const base = selfBaseUrl(origin, "origin");
   if (!base) return false;
-  const token = selfToken();
   try {
     const res = await fetch(`${base}/api/v1/queue`, {
       method: "POST",
-      headers: token ? { authorization: `Bearer ${token}` } : {},
+      headers: selfHeaders(runId),
       signal: AbortSignal.timeout(10_000),
       cache: "no-store",
     });

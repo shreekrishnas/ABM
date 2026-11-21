@@ -1,7 +1,9 @@
 import { after } from "next/server";
 import { newContext } from "@/lib/pipeline/context";
-import { kickDrain, selfToken } from "@/lib/queue/drain";
+import { kickDrain } from "@/lib/queue/drain";
 import { TICK_STEPS, tickStep, type TickStep } from "@/lib/pipeline/orchestrator";
+import { beginStep, continueChain, executeStep, type ChainDeps } from "@/lib/pipeline/daily-chain";
+import { handOff, runIdFrom } from "@/lib/pipeline/handoff";
 import { authorize, json } from "@/lib/api";
 
 // The backend brain's heartbeat. Vercel Cron calls GET with `Authorization: Bearer
@@ -9,34 +11,57 @@ import { authorize, json } from "@/lib/api";
 // either method. In production, with neither secret set, the route refuses to run:
 // every tick spends search and LLM credits.
 //
-// The daily check runs as a chain of steps (?step=core → intel → intent → market), one per
-// request, so no single request comes near the time limit. Each step records its own run and
-// starts the next; after the last, the background queue continues whatever is left.
+// The daily check runs as a chain of steps (core → intel → intent → market → agent), one per
+// request (src/lib/pipeline/daily-chain.ts):
+// - core runs inside the scheduler's request, as before, then hands off to intel;
+// - later steps take their per-day lease, record "started", answer 202 and run in after()
+//   (still inside this function's 300s limit). A "started" row with no outcome row means the
+//   platform stopped the work; the per-day lease then expires so a re-run can pick it up.
+// - every hand-off reads the answer and records failures; one run id ties a day together.
+
+async function deps(): Promise<ChainDeps> {
+  const [{ recordRun }, { recordError }, { aiPause }, lease] = await Promise.all([
+    import("@/lib/admin/ops"),
+    import("@/lib/admin/errors"),
+    import("@/lib/admin/ai-pause"),
+    import("@/lib/pipeline/step-lease"),
+  ]);
+  return {
+    runTick: (step) => tickStep(step, newContext()),
+    claim: lease.claimStep,
+    finish: lease.finishStep,
+    record: recordRun,
+    recordError,
+    aiPaused: async () => Boolean(await aiPause()),
+    handOff,
+    kickDrain: (origin, runId) => kickDrain(origin, runId),
+  };
+}
+
 async function run(req: Request) {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const url = new URL(req.url);
   const asked = url.searchParams.get("step");
   const step: TickStep = (TICK_STEPS as readonly string[]).includes(asked ?? "") ? (asked as TickStep) : "core";
-  const startedAt = new Date();
-  const { recordRun } = await import("@/lib/admin/ops");
-  const label = step === "core" ? "Daily check" : `Daily check · ${step}`;
-  let result: Awaited<ReturnType<typeof tickStep>>;
-  try {
-    result = await tickStep(step, newContext());
-  } catch (e) {
-    await recordRun(label, startedAt, { ok: false, note: e instanceof Error ? e.message : String(e) });
-    throw e;
-  }
-  await recordRun(label, startedAt, { ok: true, note: JSON.stringify(result).slice(0, 180) });
-  const next = TICK_STEPS[TICK_STEPS.indexOf(step) + 1];
-  after(async () => { if (next) await kickStep(url.origin, next); else await kickDrain(url.origin); });
-  return json({ step, next: next ?? null, ...result });
-}
+  const runId = runIdFrom(req);
+  const d = await deps();
 
-async function kickStep(origin: string, step: TickStep) {
-  const base = (process.env.APP_URL?.trim() || origin).replace(/\/$/, "");
-  const token = selfToken();
-  await fetch(`${base}/api/v1/tick?step=${step}`, { method: "POST", headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(10_000), cache: "no-store" }).catch(() => undefined);
+  const begun = await beginStep(step, runId, d);
+  if (begun.status === "skipped") return json({ step, runId, status: "skipped", reason: begun.reason });
+
+  if (step === "core") {
+    (await import("@/lib/pipeline/step-lease")).pruneStepLeases().catch(() => undefined);
+    const r = await executeStep(step, runId, begun.claimedAt, d);
+    after(() => continueChain(step, runId, url.origin, d).then(() => undefined));
+    return json({ step, runId, status: r.ok ? "completed" : "failed", next: "intel", ...(r.result && typeof r.result === "object" ? r.result : {}) }, r.ok ? 200 : 500);
+  }
+
+  // Later steps: accepted now, worked on after the reply (within maxDuration).
+  after(async () => {
+    await executeStep(step, runId, begun.claimedAt, d);
+    await continueChain(step, runId, url.origin, d);
+  });
+  return json({ step, runId, status: "started" }, 202);
 }
 
 // One step can still take a few minutes of live research on a busy day.

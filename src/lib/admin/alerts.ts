@@ -8,7 +8,7 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 export interface SystemAlert {
-  key: "ai_blocked" | "daily_missed" | "visitors_quiet";
+  key: "ai_blocked" | "daily_missed" | "visitors_quiet" | "chain_broken";
   tone: "bad" | "warn";
   title: string;
   detail: string;
@@ -67,5 +67,33 @@ export async function systemAlerts(now = new Date()): Promise<SystemAlert[]> {
       href: "/import/apollo", at: newestVisit?.occurredAt ?? now,
     });
   }
+  out.push(...(await chainAlerts(now)));
   return out;
+}
+
+/**
+ * The daily check's later steps (intel → intent → market → agent) each record an outcome row.
+ * 45 minutes after core, any missing outcome or a failed hand-off means the chain broke.
+ */
+export async function chainAlerts(now = new Date()): Promise<SystemAlert[]> {
+  const core = await baseDb.runLog.findFirst({ where: { job: "Daily check", startedAt: { gte: new Date(now.getTime() - 30 * HOUR) } }, orderBy: { startedAt: "desc" }, select: { startedAt: true } });
+  if (!core || now.getTime() - core.startedAt.getTime() < 45 * 60_000) return [];
+  const later = ["intel", "intent", "market", "agent"];
+  const [rows, handoff] = await Promise.all([
+    baseDb.runLog.findMany({ where: { job: { in: later.map((s) => `Daily check · ${s}`) }, startedAt: { gte: core.startedAt } }, select: { job: true } }),
+    baseDb.runLog.findFirst({ where: { job: "Daily check · handoff", ok: false, startedAt: { gte: core.startedAt } }, orderBy: { startedAt: "desc" }, select: { note: true, startedAt: true } }),
+  ]);
+  const seen = new Set(rows.map((r) => r.job));
+  const missing = later.filter((s) => !seen.has(`Daily check · ${s}`));
+  if (!missing.length && !handoff) return [];
+  const protectedPage = /protected/.test(handoff?.note ?? "");
+  return [{
+    key: "chain_broken", tone: "bad",
+    title: missing.length ? `The daily check stopped before: ${missing.join(", ")}` : "A step of the daily check couldn't start the next",
+    detail: handoff?.note?.slice(0, 220) ?? "No hand-off failure was recorded; the step may have been stopped by the platform.",
+    fix: protectedPage
+      ? "Vercel deployment protection blocked the app calling itself. Set APP_URL to the public production address, or turn on Protection Bypass for Automation (Settings → Deployment Protection) and redeploy."
+      : "Check System health → recent runs for the run id, and the APP_URL / ABM_API_KEY / CRON_SECRET settings in Vercel.",
+    href: "/team?tab=system", at: handoff?.startedAt ?? core.startedAt,
+  }];
 }

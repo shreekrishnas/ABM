@@ -20,7 +20,7 @@ const SAMPLE_CLIENT = "test";
 export const JOB_STALE_MS = 6 * 60_000;
 
 /** Same key the queue uses to call its own route. */
-const selfToken = () => process.env.ABM_API_KEY?.trim() || process.env.CRON_SECRET?.trim() || "";
+import { selfBaseUrl, selfHeaders, selfToken } from "@/lib/pipeline/handoff";
 
 /**
  * Save a job and start it after the reply. Refuses a duplicate while the same kind of job for the
@@ -53,10 +53,10 @@ export async function startJob(kind: JobKind, o: { sellerId: string; accountId?:
 /** Run the job in its own server request; without a key, right here after the reply. */
 export async function kickJob(origin: string | null, id: string) {
   const token = selfToken();
-  const base = (process.env.APP_URL?.trim() || origin || "").replace(/\/$/, "");
+  const base = selfBaseUrl(origin, "origin");
   if (base && token) {
     try {
-      const res = await fetch(`${base}/api/v1/jobs`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ id }), signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(`${base}/api/v1/jobs`, { method: "POST", headers: { ...selfHeaders(), "content-type": "application/json" }, body: JSON.stringify({ id }), signal: AbortSignal.timeout(10_000) });
       if (res.ok) return;
     } catch {
       /* fall through: run here */

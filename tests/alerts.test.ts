@@ -12,6 +12,8 @@ beforeEach(async () => {
   const tables = await db.$queryRaw<{ tablename: string }[]>`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`;
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
   await baseDb.runLog.create({ data: { job: "Daily check", startedAt: new Date(now.getTime() - 10 * H), finishedAt: new Date(now.getTime() - 10 * H), ok: true } });
+  // The later steps of the daily check each record their outcome.
+  for (const s of ["intel", "intent", "market", "agent"]) await baseDb.runLog.create({ data: { job: `Daily check · ${s}`, startedAt: new Date(now.getTime() - 9 * H), ok: true } });
 });
 afterEach(() => { if (prevKey === undefined) delete process.env.APOLLO_API_KEY; else process.env.APOLLO_API_KEY = prevKey; });
 
@@ -28,6 +30,14 @@ describe("system alerts", () => {
     const acct = await baseDb.account.create({ data: { name: "Test Co", domain: "testco.in", sellerId: "test" } });
     for (let i = 0; i < 3; i++) await baseDb.ledgerEntry.create({ data: { accountId: acct.id, kind: "llm", amountMicros: 1000, description: "call", stage: 6, createdAt: new Date(err.lastSeen.getTime() + (i + 2) * 60_000) } as never });
     expect((await systemAlerts(now)).some((x) => x.key === "ai_blocked")).toBe(false);
+  });
+
+  it("a chain that stopped after core is flagged, naming the protection fix when Vercel blocked the hand-off", async () => {
+    await baseDb.runLog.deleteMany({ where: { job: { in: ["Daily check · market", "Daily check · agent"] } } });
+    await baseDb.runLog.create({ data: { job: "Daily check · handoff", startedAt: new Date(now.getTime() - 9 * H), ok: false, note: "→ market protected 401 host=app.example.com attempts=1 run=run_abcdef" } });
+    const a = (await systemAlerts(now)).find((x) => x.key === "chain_broken");
+    expect(a?.title).toMatch(/market, agent/);
+    expect(a?.fix).toMatch(/APP_URL|Protection Bypass/);
   });
 
   it("a daily check that hasn't run for over a day is flagged", async () => {
