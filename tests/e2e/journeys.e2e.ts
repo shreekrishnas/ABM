@@ -322,3 +322,53 @@ describe("9. One Approvals workspace for every decision", () => {
     await p.close();
   });
 });
+
+describe("10. One Vega everywhere", () => {
+  it("the old robot button is gone; the Vega button is on other pages and Home keeps its core", async () => {
+    const accounts = await open("/accounts");
+    expect(await accounts.locator(".assistant-fab").count()).toBe(0);
+    expect(await accounts.locator(".vg-fab").count()).toBe(1);
+    await accounts.close();
+    const home = await open("/");
+    expect(await home.locator(".vg-fab").count(), "Home uses its core instead").toBe(0);
+    await home.locator("button.jo").click();
+    await home.waitForSelector(".jo-panel");
+    expect(await home.locator(".jo-panel .jo-hist").count()).toBe(1);
+    expect(await home.locator(".jo-panel").innerText()).toMatch(/Ask Vega/);
+    await home.keyboard.press("Escape");
+    await home.close();
+  });
+
+  it("on a company page, Ctrl+J opens Vega focused on that company, with a link to the full workspace", async () => {
+    const list = await open("/accounts");
+    const link = list.locator(".dir-table tbody a.dir-co").first();
+    const peek = new URL(BASE + (await link.getAttribute("href"))).searchParams.get("peek")!; // a_<id>
+    const name = (await link.locator("b, strong").first().innerText().catch(async () => (await link.innerText()).split("\n")[0])).trim();
+    await list.close();
+    const id = peek.slice(2);
+    const p = await open(`/accounts/${id}`);
+    await p.keyboard.press("Control+j");
+    await p.waitForSelector(".jo-panel");
+    await expect.poll(() => p.locator(".jo-focus").innerText().catch(() => ""), { timeout: 10_000 }).toContain(name);
+    expect(await p.locator(".jo-full").getAttribute("href")).toContain(`a=${id}`);
+    await p.close();
+    // A company previewed in the side panel of the list counts too.
+    const prev = await open(`/accounts?peek=${peek}`);
+    await prev.locator(".vg-fab").click();
+    await expect.poll(() => prev.locator(".jo-focus").innerText().catch(() => ""), { timeout: 10_000 }).toContain(name);
+    await prev.close();
+  });
+
+  it('"This week" answers from the records inside the panel, without leaving the page', async () => {
+    const p = await open("/analytics");
+    const before = p.url();
+    await p.locator(".vg-fab").click();
+    await p.waitForSelector(".jo-panel");
+    await p.locator(".jo-panel .jv-week").click();
+    await expect.poll(() => p.locator(".jo-panel .jv-a-title").first().innerText().catch(() => ""), { timeout: 20_000 }).toMatch(/^This week/);
+    expect(p.url()).toBe(before);
+    await p.locator(".jo-panel .jo-hist").click();
+    expect(await p.locator(".jo-history").innerText()).toMatch(/New conversation/);
+    await p.close();
+  });
+});

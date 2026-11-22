@@ -4,7 +4,7 @@ import { atLeast } from "@/lib/roles";
 import type { AgentContext, AgentTool } from "./types";
 import { SYSTEM_ACTOR } from "./types";
 
-export type Verdict = { ok: true } | { ok: false; code: "not_allowed_user" | "other_client" | "level" | "ai_paused" | "budget" | "suppressed" | "role"; reason: string };
+export type Verdict = { ok: true } | { ok: false; code: "not_allowed_user" | "other_client" | "platform_only" | "level" | "ai_paused" | "budget" | "suppressed" | "role"; reason: string };
 
 export interface PolicyDeps {
   aiPaused: () => Promise<boolean>;
@@ -18,6 +18,7 @@ export async function authorize(tool: AgentTool, input: unknown, ctx: AgentConte
     const me = ctx.me;
     if (!me?.superAdmin) return { ok: false, code: "not_allowed_user", reason: "Vega is open to Super Admins only for now." };
     if (me.superAdminClients !== null && !me.superAdminClients.includes(ctx.sellerId)) return { ok: false, code: "other_client", reason: "That client isn't one you cover." };
+    if (tool.platformOnly && me.superAdminClients !== null) return { ok: false, code: "platform_only", reason: "Platform-wide records (errors, audit log, jobs) are for Super Admins covering every client." };
   }
   if (tool.level > ctx.maxLevel) return { ok: false, code: "level", reason: tool.level === 0 ? "Not allowed here." : "I can only look things up for now; this would change data, so it isn't switched on yet." };
   if (tool.minRole !== "viewer" && ctx.actor !== SYSTEM_ACTOR && !ctx.me?.superAdmin) {

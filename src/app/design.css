@@ -2485,3 +2485,27 @@ a.jv-stat:hover { border-color: var(--border-2); }
 @media (max-width: 1100px) { .pp-row { grid-template-columns: minmax(0, 1fr) auto; } .pp-access, .pp-clients, .pp-seen { grid-column: 1 / -1; } .pp-act { grid-row: 1; grid-column: 2; } }
 .glass-card-static:has(.pp-list) { overflow: visible !important; position: relative; z-index: 3; }
 .pp-menu-pop { z-index: var(--z-popover); }
+
+/* One Vega everywhere: the launcher, the panel's history and page focus, "This week" and saved questions */
+.vg-fab { position: fixed; right: var(--sp-5); bottom: var(--sp-5); z-index: 60; width: 52px; height: 52px; border-radius: var(--r-full); display: grid; place-items: center; padding: 0; background: transparent; border: 0; box-shadow: var(--shadow-md); cursor: pointer; transition: transform .15s ease; }
+.vg-fab:hover { transform: scale(1.06); }
+.vg-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.jo-hist { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-full); border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; }
+.jo-hist[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.jo-focus { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); font-size: var(--fs-13); color: var(--text-2); }
+.jo-focus-x { margin-left: var(--sp-1); color: var(--accent); background: none; border: 0; padding: 0; font-size: var(--fs-12); cursor: pointer; }
+.jo-history { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.jo-history button { display: flex; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); background: none; border: 0; text-align: left; font-size: var(--fs-13); color: var(--text); cursor: pointer; }
+.jo-history button:hover, .jo-history button[aria-current="true"] { background: var(--subtle); }
+.jo-history small { color: var(--muted); white-space: nowrap; }
+.jv-week { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.jv-saved { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+.jv-saved-q { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); }
+.jv-saved-q button { background: none; border: 0; padding: 4px 10px; font-size: var(--fs-12); color: var(--text-2); cursor: pointer; }
+.jv-saved-q button:first-child:hover { color: var(--accent); }
+.jv-saved-q .jv-saved-x { padding: 4px 8px 4px 0; color: var(--muted); }
+.jv-star { margin-left: var(--sp-1); vertical-align: middle; background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; }
+.jv-star:hover { color: var(--accent); }
+.jv-prop-alt { align-self: center; font-size: var(--fs-12); color: var(--accent); }
+.jv-chat .jv-card-h h2 { white-space: nowrap; }
+.jv-chat .jv-card-h > span { flex: 1; min-width: 0; }

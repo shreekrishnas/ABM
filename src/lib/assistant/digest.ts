@@ -8,12 +8,18 @@ const DAY = 86_400_000;
 const pct = (now: number, before: number) => (before ? `${now >= before ? "+" : ""}${Math.round(((now - before) / before) * 100)}%` : now ? "new" : "no change");
 const trend = (now: number, before: number) => `${now.toLocaleString()} (${pct(now, before)} vs the week before)`;
 
-export async function weeklyDigest(now = new Date()): Promise<Answer> {
+/**
+ * `clientIds`: the clients to cover (null = every client). `platform`: include platform-wide
+ * records (errors, failed runs, sensitive changes, failed sign-ins), for Super Admins covering
+ * every client only.
+ */
+export async function weeklyDigest(now = new Date(), opts: { clientIds?: string[] | null; platform?: boolean } = {}): Promise<Answer> {
+  const platform = opts.platform ?? opts.clientIds == null;
   const wk = new Date(now.getTime() - 7 * DAY);
   const prev = new Date(now.getTime() - 14 * DAY);
   const inWeek = { gte: wk, lt: now };
   const inPrev = { gte: prev, lt: wk };
-  const clients = await baseDb.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, status: true } });
+  const clients = await baseDb.client.findMany({ where: opts.clientIds ? { id: { in: opts.clientIds } } : {}, orderBy: { name: "asc" }, select: { id: true, name: true, status: true } });
   const { monthlyStatus } = await import("@/lib/budget");
   const { stoppedGroups } = await import("@/lib/admin/ops");
   const { SENSITIVE, ACTION_WORD } = await import("@/lib/admin/audit");
@@ -64,11 +70,12 @@ export async function weeklyDigest(now = new Date()): Promise<Answer> {
     if (overdue) attention.push(`${c.name}: ${overdue} overdue task${overdue === 1 ? "" : "s"}.`);
   }
 
+  const none = Promise.resolve([] as never[]);
   const [errors, failedRuns, sensitive, signInFails] = await Promise.all([
-    baseDb.errorLog.findMany({ where: { resolvedAt: null, lastSeen: inWeek }, orderBy: { lastSeen: "desc" }, take: 3, select: { id: true, message: true, count: true } }),
-    baseDb.runLog.count({ where: { ok: false, finishedAt: inWeek } }).catch(() => 0),
-    baseDb.auditEntry.findMany({ where: { action: { in: [...SENSITIVE] }, createdAt: inWeek }, orderBy: { createdAt: "desc" }, take: 5 }),
-    baseDb.signInEvent.count({ where: { ok: false, createdAt: inWeek } }).catch(() => 0),
+    platform ? baseDb.errorLog.findMany({ where: { resolvedAt: null, lastSeen: inWeek }, orderBy: { lastSeen: "desc" }, take: 3, select: { id: true, message: true, count: true } }) : none,
+    platform ? baseDb.runLog.count({ where: { ok: false, finishedAt: inWeek } }).catch(() => 0) : Promise.resolve(0),
+    platform ? baseDb.auditEntry.findMany({ where: { action: { in: [...SENSITIVE] }, createdAt: inWeek }, orderBy: { createdAt: "desc" }, take: 5 }) : none,
+    platform ? baseDb.signInEvent.count({ where: { ok: false, createdAt: inWeek } }).catch(() => 0) : Promise.resolve(0),
   ]);
   for (const e of errors) {
     attention.push(`Error ${e.count > 1 ? `(${e.count}×) ` : ""}not yet resolved: ${e.message.slice(0, 100)}`);
@@ -81,8 +88,8 @@ export async function weeklyDigest(now = new Date()): Promise<Answer> {
     { label: "Companies added", value: trend(totals.added, totals.addedPrev) },
     { label: "Emails sent", value: trend(totals.sent, totals.sentPrev) },
     { label: "Replies", value: trend(totals.replies, totals.repliesPrev) },
-    { label: "Spend this month", value: `$${[...month.values()].reduce((t, m) => t + m.spent, 0).toFixed(2)}` },
-    { label: "Sensitive changes", value: String(sensitive.length) },
+    { label: "Spend this month", value: `$${clients.reduce((t, c) => t + (month.get(c.id)?.spent ?? 0), 0).toFixed(2)}` },
+    ...(platform ? [{ label: "Sensitive changes", value: String(sensitive.length) }] : []),
   );
   const changes = sensitive.map((s) => `${s.actorEmail} ${ACTION_WORD[s.action] ?? s.action}${s.target ? `: ${s.target}` : ""}`);
 

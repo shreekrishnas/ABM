@@ -34,6 +34,9 @@ export interface AgentTool<S extends z.ZodTypeAny = z.ZodTypeAny> {
   estimateCostUsd?: (input: z.infer<S>) => number;
   /** Can be reversed by a later undo action. Anything sent outside the app never is. */
   reversible: boolean;
+  /** Reads platform-wide records that belong to no client (error log, audit log, job leases):
+   *  full Super Admins only, never a Super Admin limited to some clients. */
+  platformOnly?: boolean;
   /** Reaches a person outside (email, LinkedIn): suppression is always checked. */
   contactsPeople?: boolean;
   /** Which company / person the call is about, for the log and the account context. */

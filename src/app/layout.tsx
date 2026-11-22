@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller, resolveScope } from "@/lib/scope";
@@ -13,7 +14,7 @@ import { ToastHost } from "@/components/client";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { QuickTask } from "@/components/shell/QuickTask";
 import { UndoProvider } from "@/components/kit/undo";
-import { AdminAssistant } from "@/components/assistant/AdminAssistant";
+import { VegaLauncher } from "@/components/vega/panel";
 import { AssistantBoundary } from "@/components/assistant/AssistantBoundary";
 
 export const metadata: Metadata = {
@@ -52,6 +53,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const access = me
     ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const), choices: scope?.choices ?? [], picked: scope?.active && scope.ids?.length === 1 ? scope.active : null, everyClient: Boolean(scope?.all) }
     : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const, choices: [], picked: null, everyClient: false } : null;
+  // The client Vega works on: the one picked, else the first the Super Admin covers.
+  // (Without sign-in, as in local previews, there is no scope: use the active client, as Home does.)
+  const vegaClient = me?.superAdmin
+    ? (scope?.choices.find((c) => c.id === scope.active) ?? scope?.choices[0] ?? (!scope ? await (async () => { const { activeSellerId } = await import("@/lib/scope"); const id = await activeSellerId(); const c = await db.client.findUnique({ where: { id }, select: { id: true, name: true } }).catch(() => null); return c; })() : null))
+    : null;
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -70,8 +76,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>by an admin. Research and sending are stopped for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
-        {/* Super Admin only (re-checked on the server for every request it makes). */}
-        {me?.fullSuperAdmin && <AssistantBoundary><AdminAssistant /></AssistantBoundary>}
+        {/* Vega on every page: Super Admins covering the client in view (re-checked on the server for every request it makes). */}
+        {vegaClient && <AssistantBoundary><Suspense fallback={null}><VegaLauncher clientId={vegaClient.id} clientName={vegaClient.name} /></Suspense></AssistantBoundary>}
         <CommandPalette extras={extras} canAct={Boolean(access && access.state === "ok")} />
         <QuickTask users={team} />
       </body>

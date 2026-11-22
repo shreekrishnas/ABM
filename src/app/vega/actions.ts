@@ -83,6 +83,91 @@ export async function askVega(input: { clientId: string; conversationId: string 
   }
 }
 
+/** Recent conversations with Vega for this client (the panel's history list). */
+export async function listVegaConversations(clientId: string): Promise<{ id: string; title: string; updatedAt: string }[]> {
+  const me = await allowed(clientId);
+  if (!me) return [];
+  const rows = await db.assistantConversation.findMany({ where: { userEmail: me.email, sellerId: clientId }, orderBy: { updatedAt: "desc" }, take: 12, select: { id: true, title: true, updatedAt: true } });
+  return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
+}
+
+/**
+ * "This week": counted straight from the records, no AI (works while AI is paused, costs nothing).
+ * Covers the clients this Super Admin covers; platform-wide items only for those covering every client.
+ */
+export async function vegaThisWeek(input: { clientId: string; conversationId: string | null }): Promise<{ ok: true; conversationId: string; message: VegaMessage } | { ok: false; error: string }> {
+  const me = await allowed(input.clientId);
+  if (!me) return { ok: false, error: "Vega is open to Super Admins covering this client (switch to Super Admin first)." };
+  let convo = input.conversationId ? await db.assistantConversation.findFirst({ where: { id: input.conversationId, userEmail: me.email, sellerId: input.clientId } }) : null;
+  if (input.conversationId && !convo) return { ok: false, error: "Conversation not found." };
+  if (!convo) convo = await db.assistantConversation.create({ data: { userEmail: me.email, title: `This week (${new Date().toISOString().slice(0, 10)})`, sellerId: input.clientId } });
+  const { weeklyDigest } = await import("@/lib/assistant/digest");
+  const { answerText } = await import("@/lib/assistant/run");
+  const started = Date.now();
+  const answer = await weeklyDigest(new Date(), { clientIds: me.superAdminClients, platform: me.superAdminClients === null });
+  await db.assistantMessage.create({ data: { conversationId: convo.id, role: "user", content: "This week" } });
+  const saved = await db.assistantMessage.create({ data: { conversationId: convo.id, role: "assistant", content: answerText(answer), evidence: { answer, toolCalls: [], ms: Date.now() - started } as unknown as Prisma.InputJsonValue } });
+  await db.assistantConversation.update({ where: { id: convo.id }, data: { updatedAt: new Date() } });
+  await audit(me.email, "vega.digest", { target: convo.id, clientId: input.clientId });
+  return { ok: true, conversationId: convo.id, message: toMessage(saved) };
+}
+
+/** Questions a person keeps for reuse (theirs only, up to 20). */
+export async function listVegaSavedQuestions(clientId: string): Promise<{ id: string; text: string }[]> {
+  const me = await allowed(clientId);
+  if (!me) return [];
+  return db.assistantSavedQuestion.findMany({ where: { userEmail: me.email }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, text: true } }).catch(() => []);
+}
+
+export async function saveVegaQuestion(clientId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  const me = await allowed(clientId);
+  if (!me) return { ok: false, error: "Super Admins only" };
+  const t = text.trim().slice(0, 500);
+  if (!t) return { ok: false, error: "Nothing to save" };
+  if ((await db.assistantSavedQuestion.count({ where: { userEmail: me.email } })) >= 20) return { ok: false, error: "You can keep up to 20 saved questions; remove one first." };
+  await db.assistantSavedQuestion.upsert({ where: { userEmail_text: { userEmail: me.email, text: t } }, create: { userEmail: me.email, text: t }, update: {} });
+  return { ok: true };
+}
+
+export async function removeVegaSavedQuestion(clientId: string, id: string): Promise<void> {
+  const me = await allowed(clientId);
+  if (!me) return;
+  await db.assistantSavedQuestion.deleteMany({ where: { id, userEmail: me.email } });
+}
+
+/**
+ * The company behind the page the person is on, so Vega answers about it: a company page, a
+ * person's page (their company) or an item opened in Approvals. Read within the client only;
+ * anything else (or another client's record) gives no focus.
+ */
+export async function vegaFocus(clientId: string, path: string, pick: string | null, peek: string | null = null): Promise<{ accountId: string; accountName: string; from: "company" | "person" | "approval" } | null> {
+  const me = await allowed(clientId);
+  if (!me) return null;
+  const { withScope } = await import("@/lib/scope");
+  return withScope({ ids: [clientId], active: clientId, choices: [], all: false }, async () => {
+    // A company or decision previewed in a side panel (?peek=a_<id> / d_<id>) counts as the page.
+    const peekedCompany = peek?.startsWith("a_") ? peek.slice(2) : null;
+    const peekedReview = peek?.startsWith("d_") ? peek.slice(2) : null;
+    const company = peekedCompany ?? path.match(/^\/accounts\/([^/?#]+)$/)?.[1];
+    if (company && company !== "coverage") {
+      const a = await db.account.findFirst({ where: { id: decodeURIComponent(company) }, select: { id: true, name: true } });
+      return a ? { accountId: a.id, accountName: a.name, from: "company" as const } : null;
+    }
+    const person = path.match(/^\/people\/([^/?#]+)$/)?.[1];
+    if (person) {
+      const c = await db.contact.findFirst({ where: { id: decodeURIComponent(person) }, select: { account: { select: { id: true, name: true } } } });
+      return c?.account ? { accountId: c.account.id, accountName: c.account.name, from: "person" as const } : null;
+    }
+    const reviewId = peekedReview ?? (path === "/review" ? pick : null);
+    if (reviewId) {
+      const r = await db.reviewItem.findFirst({ where: { id: reviewId }, select: { account: { select: { id: true, name: true } }, contact: { select: { account: { select: { id: true, name: true } } } } } });
+      const a = r?.account ?? r?.contact?.account;
+      return a ? { accountId: a.id, accountName: a.name, from: "approval" as const } : null;
+    }
+    return null;
+  });
+}
+
 const refresh = async () => (await import("next/cache")).revalidatePath("/vega");
 
 /** Level 1 controls for one client. Every change is in the audit log. */

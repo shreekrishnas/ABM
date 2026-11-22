@@ -100,12 +100,16 @@ const recommendedApprovalsTool = define({
   run: async ({ limit }) => {
     const { recommendedApprovals } = await import("./approvals");
     const items = await recommendedApprovals(limit ?? 10);
-    return { counts: { strong: items.filter((i) => i.strength === "strong").length, fair: items.filter((i) => i.strength === "fair").length, weak: items.filter((i) => i.strength === "weak").length }, items: items.map((i) => ({ draftId: i.draftId, person: i.person, company: i.company, accountId: i.accountId, subject: i.subject, strength: i.strength, recommendation: i.recommendation, reasons: i.reasons, waitingDays: i.waitingDays, link: i.reviewId ? `/review?pick=${i.reviewId}` : "/review?type=draft_approval" })) };
+    return { counts: { strong: items.filter((i) => i.strength === "strong").length, fair: items.filter((i) => i.strength === "fair").length, weak: items.filter((i) => i.strength === "weak").length }, items: items.map((i) => ({ draftId: i.draftId, person: i.person, company: i.company, accountId: i.accountId, subject: i.subject, strength: i.strength, recommendation: i.recommendation, reasons: i.reasons, waitingDays: i.waitingDays, link: i.reviewId ? `/review?type=draft_approval&pick=${i.reviewId}` : "/review?type=draft_approval" })) };
   },
 });
 
+/** Lookups over platform-wide tables (no client column): full Super Admins only. */
+export const PLATFORM_ONLY = new Set(["errors", "audit_log", "jobs"]);
+
 /** The assistant's existing lookups, unchanged, as level-0 tools. */
 const lookups: AgentTool[] = Object.entries(LOOKUPS).map(([name, t]) => ({
+  platformOnly: PLATFORM_ONLY.has(name),
   name,
   description: t.description,
   input: t.args,
@@ -120,9 +124,10 @@ export const REGISTRY: Record<string, AgentTool> = Object.fromEntries([accountOv
 /** What chat may propose (a person confirms each one). Event reactions (level 2) are never proposed. */
 export const CHAT_PROPOSABLE = new Set(["refresh_research", "rescore", "prepare_drafts", "follow_up_task", "find_people", "approve_drafts"]);
 
-export function catalog(maxLevel: number, opts: { proposals?: boolean } = {}): string {
+export function catalog(maxLevel: number, opts: { proposals?: boolean; platform?: boolean } = {}): string {
   return Object.values(REGISTRY)
     .filter((t) => t.level <= maxLevel || (opts.proposals && CHAT_PROPOSABLE.has(t.name)))
+    .filter((t) => !t.platformOnly || opts.platform)
     .map((t) => {
       const shape = (t.input as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodTypeAny> | undefined;
       const args = shape ? `{ ${Object.entries(shape).map(([k, v]) => `${k}${v.isOptional() ? "?" : ""}`).join(", ")} }` : "{}";
