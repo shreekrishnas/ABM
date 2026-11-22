@@ -45,7 +45,7 @@ export function WhatsWorking({ w }: { w: Working }) {
   return (
     <section className="mb-6 space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">What&apos;s working, last {w.days} days</h2>
+        <h2 className="text-lg font-semibold">The last {w.days} days</h2>
         <p className="secondary text-sm">Research and email drafting for the client in view: what happens to companies, what the team approves, rejects or rewrites, and what it costs.</p>
       </div>
       <KpiRow>

@@ -11,7 +11,7 @@ import { Avatar, Badge, Card, Empty, Kpi, PageHeader, StageBadge, ago } from "@/
 import { decideHandoffAction } from "../actions";
 import { AddTaskButton } from "@/components/shell/QuickTask";
 
-export const metadata = { title: "Sales hand-offs" };
+export const metadata = { title: "Hand-offs" };
 
 type Brief = { whyNow: string; facts: { text: string; factId: string }[]; unknowns: string[]; engaged: { name: string; title: string | null; signals: string[] }[]; anonymousSignals?: number };
 
@@ -61,7 +61,7 @@ export default async function HandoffsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="CRM" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
+      <PageHeader eyebrow="Pipeline" title="Hand-offs" sub={`When an account is ready (a positive reply, or engagement of ${CONFIG.engagement.stages.MQA}), its owner gets this packet, outreach pauses, and a response is due within ${CONFIG.handoff.ackSlaHours} hours. Accept it, or send it back to nurture with a reason.`} />
       <div className="stagger grid grid-cols-2 gap-4 xl:grid-cols-4">
         {card("waiting", <Kpi label="Waiting for a decision" value={open.length} accent="var(--accent)" />)}
         {card("overdue", <Kpi label="Overdue" value={overdue.length} accent={overdue.length ? "var(--danger)" : "var(--success)"} meta={`${CONFIG.handoff.ackSlaHours}h to respond`} />)}

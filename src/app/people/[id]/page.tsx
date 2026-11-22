@@ -36,6 +36,12 @@ const TABS = [["activity", "Activity"], ["journey", "Research & drafting log"], 
 // Drafting and reply analysis call the AI inside the request.
 export const maxDuration = 120;
 
+/** The browser tab names the person (looked up within the clients in view, like the page). */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const c = await db.contact.findUnique({ where: { id: (await params).id }, select: { fullName: true } }).catch(() => null);
+  return { title: c?.fullName ?? "Person" };
+}
+
 export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ journey?: string; sender?: string; campaign?: string; edit?: string; track?: string; tab?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;

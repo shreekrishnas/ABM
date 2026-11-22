@@ -9,7 +9,7 @@ import { LookalikeReview } from "./review";
 import { ensureSellerPacks } from "@/lib/seller";
 import { findLookalikesAction } from "@/app/discover/actions";
 
-export const metadata = { title: "Lookalikes · Import" };
+export const metadata = { title: "Lookalikes" };
 export const maxDuration = 300;
 
 export default async function LookalikesPage({ searchParams }: { searchParams: Promise<{ seed?: string; view?: string }> }) {
@@ -23,7 +23,7 @@ export default async function LookalikesPage({ searchParams }: { searchParams: P
   ]);
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Import data · Lookalikes" title="Find companies like one website" sub="Enter a customer or a good-fit company. The AI finds companies like it, researches each one and lists them for your approval." />
+      <PageHeader eyebrow="Prospecting · Lookalikes" title="Find companies like one website" sub="Enter a customer or a good-fit company. The AI finds companies like it, researches each one and lists them for your approval." />
       <NeedsStrip list={need.list} />
       <JobNote sellerId={await (await import("@/lib/scope")).activeSellerId()} kinds={["lookalikes"]} />
       <Card className="mb-5">

@@ -11,7 +11,7 @@ import { Donut, GroupedBars, KpiRow, KpiTile, change, dayLabels, daily } from "@
 import { STAGE_SHORT } from "@/lib/stage-docs";
 import { Card, PageHeader, money } from "@/components/ui";
 
-export const metadata = { title: "Analytics" };
+export const metadata = { title: "What's working" };
 
 import { LinkedInPerformance } from "./linkedin-card";
 import { WhatsWorking } from "./working";
@@ -80,7 +80,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Learning loop" title="Analytics" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
+      <PageHeader eyebrow="Learning loop" title="What's working" sub={`Leading indicators you can act on from day one. Scoring weights only retune after ${CONFIG.handoff.retuneMinClosedDeals} closed deals (${closed} so far) and a baseline test.`} />
       <WhatsWorking w={await working(now)} />
       <KpiRow>
         <KpiTile tint={0} label={metric("spend_total").label} period="All time" value={`$${totalSpend.toFixed(2)}`} pct={change(wkSpend(thisWeek), wkSpend(lastWeek))} goodWhenUp={false} note="this week vs last" />

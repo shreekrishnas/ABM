@@ -17,7 +17,7 @@ const defs = [
   // Home KPIs
   { key: "qualified", label: "Qualified companies", define: "Passed the targeting rule and fit check, not ruled out", href: "/accounts" },
   { key: "engaged_groups", label: "Engaged buying groups", define: "At least one person replied, engaged after our email, or is in a logged LinkedIn conversation", href: "/accounts/coverage" },
-  { key: "open_opps", label: "Open opportunities", define: "Opportunities not yet won or lost. Value only where a person entered it", href: "/crm/opportunities" },
+  { key: "open_opps", label: "Open deals", define: "Deals not yet won or lost. Value only where a person entered it", href: "/crm/opportunities" },
   { key: "at_risk", label: "At risk", define: "Companies with outreach paused (objection, not now) or research stopped on an error that retries didn't fix", href: "#attention" },
   { key: "emails_to_approve", label: "Emails to approve", define: "Drafts that passed every check and wait for a person", href: "/review" },
   { key: "waiting_for_you", label: "Waiting for you", define: "Everything on the Approvals page that only a person can settle: checks (the right person, conflicting facts, a company to rule out) and sign-offs (emails to approve, refreshed drafts, replies that need a person). Same number as the Engage badge, Today and Vega.", href: "/review" },

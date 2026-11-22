@@ -10,7 +10,7 @@ import type { DiscoveryCriteria } from "@/lib/discover/describe";
 import { LookalikeReview } from "../lookalikes/review";
 import { draftDiscoveryAction, runDiscoveryAction } from "./actions";
 
-export const metadata = { title: "Describe companies · Import" };
+export const metadata = { title: "Describe companies" };
 export const maxDuration = 300;
 
 const EXAMPLES = [
@@ -43,7 +43,7 @@ export default async function DescribePage({ searchParams }: { searchParams: Pro
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="Import data · Describe companies"
+        eyebrow="Prospecting · Describe companies"
         title="Find companies from a description"
         sub="Say what you want in plain words. The AI drafts criteria for you to check, searches the web, and lists the companies it finds for your approval. Nothing is researched until you approve."
       />

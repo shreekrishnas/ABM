@@ -6,7 +6,7 @@ import { activeSellerId } from "@/lib/scope";
 import { IMPORT_PAGES } from "@/lib/nav";
 import { Hub } from "@/components/hub";
 
-export const metadata = { title: "Import data" };
+export const metadata = { title: "All ways in" };
 
 const TEXT: Record<string, string> = {
   "/import/upload": "Your own list of companies and people. See what each column needs, map your columns, preview what will be used, then import.",
@@ -43,7 +43,7 @@ export default async function ImportHub() {
   ].filter((w) => w.n > 0);
   return (
     <Hub
-      eyebrow="Import data"
+      eyebrow="Prospecting"
       title="How do you want to bring companies in?"
       sub="Every way in ends at the same place: companies you approve are researched, scored and drafted for automatically."
       // A page added to the Import menu without its own text still renders (from its menu blurb).

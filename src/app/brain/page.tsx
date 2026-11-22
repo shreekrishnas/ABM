@@ -48,11 +48,11 @@ export default async function BrainPage({ searchParams }: { searchParams: Promis
   return (
     <div className="page-enter br">
       <PageHeader
-        eyebrow="Account Brain"
-        title={pack.name || current.name}
+        eyebrow={pack.name || current.name}
+        title="Account Brain"
         sub="Everything the research, scoring and writing rely on. Change anything: add, edit, replace or remove items, upload files, or let the AI suggest from the website and files. Every save is kept as a version."
         actions={choices.length > 1 ? (
-          <nav className="br-clients" aria-label="Accounts">{choices.map((c) => <Link key={c.id} href={`/brain?client=${c.id}`} className={c.id === current.id ? "on" : ""}>{c.name}</Link>)}</nav>
+          <nav className="br-clients" aria-label="Clients">{choices.map((c) => <Link key={c.id} href={`/brain?client=${c.id}`} className={c.id === current.id ? "on" : ""} aria-current={c.id === current.id ? "true" : undefined}>{c.name}</Link>)}</nav>
         ) : undefined}
       />
 

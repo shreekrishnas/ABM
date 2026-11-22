@@ -38,7 +38,7 @@ export const maxDuration = 60;
 const TABS = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "people", label: "People", icon: ShieldCheck },
-  { key: "accounts", label: "Accounts", icon: Building2 },
+  { key: "accounts", label: "Clients", icon: Building2 },
   { key: "system", label: "System health", icon: Activity },
   { key: "data", label: "Data", icon: Trash2 },
   { key: "security", label: "Security", icon: Lock },
@@ -50,7 +50,7 @@ const SCOPED_TABS: Tab[] = ["people", "accounts"];
 
 const usd = (n: number) => (n < 0.01 && n > 0 ? "<$0.01" : `$${n.toFixed(n >= 100 ? 0 : 2)}`);
 
-/** Super Admin only: people, accounts, system health, data and the audit log, one tab each. */
+/** Super Admin only: people, clients, system health, data and the audit log, one tab each. */
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ tab?: string; who?: string; what?: string; account?: string; from?: string; to?: string; sensitive?: string; result?: string }> }) {
   const me = await getMe();
   const gate = superAdminGate(me);
@@ -66,7 +66,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page-enter space-y-5">
-      <PageHeader eyebrow="Super Admin" title="Super Admin" sub={full ? "Every client at a glance, who can sign in and to what, how the system is doing, and every Super Admin action." : `Super Admin for ${clients.map((c) => c.name).join(", ") || "no client yet"}: who works on them, their roles and their settings.`} />
+      <PageHeader eyebrow="Super Admin" title="Team & Access" sub={full ? "Every client at a glance, who can sign in and to what, how the system is doing, and every Super Admin action." : `Super Admin for ${clients.map((c) => c.name).join(", ") || "no client yet"}: who works on them, their roles and their settings.`} />
       <nav className="k-seg tm-tabs" aria-label="Team & Access sections">
         {tabs.map((t) => (
           <Link key={t.key} href={`/team?tab=${t.key}`} className={tab === t.key ? "on" : undefined} aria-current={tab === t.key ? "page" : undefined}>
@@ -230,9 +230,9 @@ async function AccountsTab({ clients, canAdd }: { clients: Clients; canAdd: bool
       </Card>
       {canAdd && <Card title={<span className="inline-flex items-center gap-2"><Building2 size={18} /> Add a client</span>} sub="You go straight to its settings page, with a checklist of what to set up next.">
         <ActionForm action={addClientAction} className="grid gap-3">
-          <label className="grid gap-1.5"><span className="text-xs font-semibold">Account name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
+          <label className="grid gap-1.5"><span className="text-xs font-semibold">Client name</span><input name="name" className="glass-input" placeholder="e.g. Acme Logistics" required /></label>
           <label className="grid gap-1.5"><span className="text-xs font-semibold">Logo <span className="muted font-normal">(optional)</span></span><input name="logo" className="glass-input" placeholder="Logo image link, or the website (e.g. acme.com)" /></label>
-          <fieldset className="grid gap-1.5"><legend className="mb-1 text-xs font-semibold">People on this account</legend>
+          <fieldset className="grid gap-1.5"><legend className="mb-1 text-xs font-semibold">People on this client</legend>
             <div className="flex flex-wrap gap-2">{users.map((u) => <label key={u.id} className="tm-pick"><input type="checkbox" name="users" value={u.id} /> {u.name}</label>)}</div>
           </fieldset>
           <SubmitButton className="btn btn-primary justify-self-start">Add client</SubmitButton>
@@ -343,9 +343,9 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
           <tbody>{health.services.map((s) => <tr key={s.key}><td className="strong">{s.label}</td><td><span className={`tm-svc ${s.mode}`}>{SERVICE_MODE_LABEL[s.mode]}</span></td><td className="muted text-xs">{s.via}</td></tr>)}</tbody>
         </table>
       </Card>
-      <Card title="Spend by account" sub="Search, AI and contact lookups, including lookalike research. Set a monthly cap per account on the Accounts tab: research pauses for that account when it is reached." pad={false}>
+      <Card title="Spend by client" sub="Search, AI and contact lookups, including lookalike research. Set a monthly cap per client on the Clients tab: research pauses for that client when it is reached." pad={false}>
         <table className="data compact">
-          <thead><tr><th>Account</th><th className="text-right">This month</th><th className="text-right">Monthly cap</th><th className="text-right">Last 30 days</th><th className="text-right">All time</th></tr></thead>
+          <thead><tr><th>Client</th><th className="text-right">This month</th><th className="text-right">Monthly cap</th><th className="text-right">Last 30 days</th><th className="text-right">All time</th></tr></thead>
           <tbody>{clients.map((c) => {
             const s = spend.get(c.id);
             const mo = month.get(c.id);
@@ -374,7 +374,7 @@ function DataTab({ clients }: { clients: Clients }) {
       <Card title="Accept every email address" sub="People used to be held back when their email wasn't on the company's own domain (gmail.com, another domain). Any address is fine now. This closes the 'Is this the right person?' items that were only about the email; ones where the job title or employer also disagree stay open.">
         <ActionButton action={clearEmailConflictsAction} className="btn btn-secondary">Close email-only identity items</ActionButton>
       </Card>
-      <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Clear one account</span>} sub="Removes that account's companies and everything attached (research, people, drafts, emails, tasks, opportunities), its imports and suggestions. Its team, brain and the other accounts are untouched. Can't be undone.">
+      <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Clear one client</span>} sub="Removes that client's companies and everything attached (research, people, drafts, emails, tasks, deals), its imports and suggestions. Its team, brain and the other clients are untouched. Can't be undone.">
         <ul className="tm-danger">
           {clients.map((c) => (
             <li key={c.id}>
@@ -387,7 +387,7 @@ function DataTab({ clients }: { clients: Clients }) {
           ))}
         </ul>
       </Card>
-      <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Clear every account</span>} sub="Removes every company in every account, plus mailboxes and demo logins. Team, accounts, brains, knowledge files and sequences are kept. Can't be undone.">
+      <Card title={<span className="inline-flex items-center gap-2"><Trash2 size={18} /> Clear every client</span>} sub="Removes every company in every client, plus mailboxes and demo logins. Team, clients, brains, knowledge files and sequences are kept. Can't be undone.">
         <ActionForm action={clearWorkspaceDataAction} className="tm-confirm">
           <input name="confirm" className="glass-input" placeholder='Type "delete everything" to confirm' aria-label="Type delete everything to confirm" autoComplete="off" required />
           <SubmitButton className="btn btn-danger btn-sm">Clear everything</SubmitButton>
@@ -412,7 +412,7 @@ async function AuditTab({ clients, who, what, account, from, to, sensitive }: { 
         <input type="hidden" name="tab" value="audit" />
         <select name="who" defaultValue={who ?? ""} className="glass-input" aria-label="Who"><option value="">Anyone</option>{people.map((p) => <option key={p.actorEmail} value={p.actorEmail}>{p.actorEmail}</option>)}</select>
         <select name="what" defaultValue={what ?? ""} className="glass-input" aria-label="What"><option value="">Any action</option>{actions.map((a) => <option key={a.action} value={a.action}>{ACTION_WORD[a.action] ?? a.action}</option>)}</select>
-        <select name="account" defaultValue={account ?? ""} className="glass-input" aria-label="Account"><option value="">Any account</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select name="account" defaultValue={account ?? ""} className="glass-input" aria-label="Client"><option value="">Any client</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
         <label className="tm-date"><span>From</span><input type="date" name="from" defaultValue={from ?? ""} className="glass-input" /></label>
         <label className="tm-date"><span>To</span><input type="date" name="to" defaultValue={to ?? ""} className="glass-input" /></label>
         <div className="tm-actions">

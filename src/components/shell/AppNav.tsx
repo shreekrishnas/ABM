@@ -10,7 +10,7 @@ import { NotificationBell } from "./NotificationBell";
 import { JobsIndicator } from "./JobsIndicator";
 
 /**
- * Top bar: breadcrumb (module › page), the module's pages underneath, search, Discover,
+ * Top bar: breadcrumb (module › page), the module's pages underneath, search, Market signals,
  * theme and notifications. The modules themselves are in the sidebar.
  * Everything opens in this tab; only the URL changes.
  */
@@ -31,12 +31,14 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
   const at = locate(path);
   // Home draws its own shell (rail + topbar).
   if (at.area === "home" || path.startsWith("/login")) return null;
-  // One breadcrumb: module › page. The page's own header carries the title.
+  // One breadcrumb: module › page. The page's own header carries the title. Below a page (a
+  // company, a person, a settings section) the last step is a link back up, not the current page.
+  const below = Boolean(at.page && path !== at.page.href);
   const crumbs: { label: string; href: string }[] = [
     ...(at.section ? [{ label: at.section.label, href: sectionHref(at.section) }] : []),
     ...(at.page && at.page.label !== at.section?.label && at.page.href !== sectionHref(at.section!) ? [{ label: at.page.label, href: at.page.href }] : []),
   ];
-  const pages = at.section ? shown(at.section.items, extras, path) : [];
+  const pages = at.section ? shown(at.section.items, extras, path, superAdmin) : [];
   const siblings = pages.length > 1 ? pages : [];
 
   return (
@@ -53,7 +55,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
             {crumbs.map((c, i) => (
               <li key={c.href + i}>
                 <ChevronRight size={13} aria-hidden />
-                {i === crumbs.length - 1 ? <span aria-current="page" title={c.label}>{c.label}</span> : <Link href={c.href}>{c.label}</Link>}
+                {i === crumbs.length - 1 && !below ? <span aria-current="page" title={c.label}>{c.label}</span> : <Link href={c.href}>{c.label}</Link>}
               </li>
             ))}
           </ol>
@@ -66,7 +68,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
             <span className="hide-sm nav-search-ph">Search companies, contacts…</span>
             <kbd className="hide-sm">⌘K</kbd>
           </button>
-          {extras && <Link href="/discover" className={`nav-icon${path.startsWith("/discover") ? " on" : ""}`} aria-label={`Discover${discover ? ` (${discover} suggested)` : ""}`} title="Discover new companies">
+          {extras && <Link href="/discover" className={`nav-icon${path.startsWith("/discover") ? " on" : ""}`} aria-label={`Market signals${discover ? ` (${discover} suggested)` : ""}`} title="Market signals: new companies to consider">
             <Globe size={17} strokeWidth={1.75} />
             {discover > 0 && <span className="nav-dotcount tnum">{discover > 99 ? "99+" : discover}</span>}
           </Link>}
@@ -85,7 +87,7 @@ export function AppNav({ counts, discover, sellerName, account, extras = true, s
             const on = it === at.page;
             const n = it.count ? counts[it.count] : 0;
             return (
-              <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
+              <Link key={it.href} href={it.href} className={`nav-page${on ? " on" : ""}`} aria-current={on ? (below ? "true" : "page") : undefined}>
                 <it.icon size={15} strokeWidth={1.75} />
                 {it.label}
                 {n > 0 && <span className={`nav-count tnum${it.count === "review" ? " alert" : ""}`}>{n}</span>}

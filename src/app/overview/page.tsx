@@ -12,6 +12,8 @@ import { STAGE_STYLE, Avatar, Card, Empty, Meter, PageHeader, StageBadge, TierBa
 import { ActionButton } from "@/components/client";
 import { runAllAction, tickAction } from "../actions";
 
+export const metadata = { title: "Program overview" };
+
 const FUNNEL = ["UNAWARE", "AWARE", "ENGAGED", "MQA", "OPPORTUNITY", "CUSTOMER"] as const;
 
 export default async function ProgramOverview() {
@@ -85,7 +87,7 @@ export default async function ProgramOverview() {
         <Card title="Engagement points, last 30 days" sub="Daily total of all signals at target accounts, including anonymous visits">
           <AreaTrend data={days} unit="points" empty="No engagement recorded in the last 30 days. This fills once emails are sent or visits arrive." />
         </Card>
-        <Card title="Where companies stopped" sub="Each stop is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Pipeline <ArrowRight size={14} /></Link>}>
+        <Card title="Where companies stopped" sub="Each stop is logged with a reason" action={<Link href="/pipeline" className="btn btn-ghost btn-sm">Behind the scenes <ArrowRight size={14} /></Link>}>
           {blocksByStage.length ? <HBars data={blocksByStage} unit="blocks" height={Math.max(140, blocksByStage.length * 40)} /> : <Empty title="No blocks yet" sub="Every stop is logged here with its reason." />}
         </Card>
       </div>

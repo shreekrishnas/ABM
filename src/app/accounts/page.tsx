@@ -127,6 +127,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="dir dir-grid">
+      <h1 className="sr-only">Companies</h1>
       <FilterPanel filters={filters} />
       <section className="dir-main">
         <div className="dir-bar">

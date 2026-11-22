@@ -23,12 +23,12 @@ export function AccountSearch({ total, children }: { total: number; children: Re
       {total > 3 && (
         <label className="ac-search">
           <Search size={16} aria-hidden />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search accounts" aria-label="Search accounts" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search clients" aria-label="Search clients" />
           <span className="tnum">{shown} of {total}</span>
         </label>
       )}
       <ul ref={list} className="ac-grid">{children}</ul>
-      {shown === 0 && <p className="ac-none">No account matches “{q}”.</p>}
+      {shown === 0 && <p className="ac-none">No client matches “{q}”.</p>}
     </>
   );
 }

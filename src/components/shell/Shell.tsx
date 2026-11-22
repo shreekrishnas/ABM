@@ -16,7 +16,7 @@ import { VegaKey } from "./VegaKey";
 const RAIL = [
   { key: "home", href: "/", label: "Home", short: "Home", icon: HomeIcon },
   { key: "accounts", href: "/accounts", label: "Accounts", short: "Accounts", icon: Building2 },
-  { key: "prospecting", href: "/import", label: "Prospecting", short: "Prospect", icon: Search },
+  { key: "prospecting", href: "/import", label: "Prospecting", short: "Prospecting", icon: Search },
   { key: "engage", href: "/work/today", label: "Engage", short: "Engage", icon: Send, count: "review" as const },
   { key: "pipeline", href: "/handoffs", label: "Pipeline", short: "Pipeline", icon: Handshake, count: "handoffs" as const },
   { key: "insights", href: "/overview", label: "Insights", short: "Insights", icon: BarChart3 },
@@ -54,7 +54,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
             {access && (access.choices.length > 1 || sup || access.canSuperAdmin) && <AccountsNav choices={access.choices} picked={access.picked} on={active === "clients"} />}
           </div>
           <div className="sh-rail-foot">
-            {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every account is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
+            {sup && <span className="sh-mode-tag sh-desk" title="Super Admin mode: every client is visible"><ShieldCheck size={13} aria-hidden /><span className="sh-lbl">Super Admin mode</span></span>}
             {sup && <VegaKey />}
             <Link href="/admin" className={`sh-item${active === "admin" ? " on" : ""}`} data-tip="Admin" aria-label="Admin"><Settings2 size={20} strokeWidth={1.9} aria-hidden /><span className="sh-lbl">Admin</span></Link>
             {access && <AccountMenu access={access} sup={sup} />}

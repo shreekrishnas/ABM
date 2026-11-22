@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Building2, ChevronRight, CornerDownLeft, Loader2, Search, User, Zap } from "lucide-react";
-import { SECTIONS, IMPORT_PAGES } from "@/lib/nav";
+import { SECTIONS } from "@/lib/nav";
 import { assignToMeAction, manualHandoffAction, runAccountAction } from "@/app/actions";
 import { toast } from "@/components/client";
 import { openTask } from "./QuickTask";
@@ -16,21 +16,25 @@ const ACTIONS: Hit[] = [
   { id: "a-approve", kind: "action", label: "Approve emails", sub: "Open the approval queue", href: "/review" },
   { id: "a-task", kind: "action", label: "Add a task", sub: "Quick-add, due tomorrow by default", href: "#task" },
   { id: "a-brain", kind: "action", label: "Edit the Account Brain", sub: "Competitors, use cases, case studies…", href: "/brain" },
-  { id: "a-handoffs", kind: "action", label: "Pick up hand-offs", sub: "Sales → Hand-offs", href: "/handoffs" },
-  { id: "a-similar", kind: "action", label: "Find companies similar to a website", sub: "Import → Similar companies", href: "/import/lookalikes" },
+  { id: "a-handoffs", kind: "action", label: "Pick up hand-offs", sub: "Pipeline → Hand-offs", href: "/handoffs" },
+  { id: "a-similar", kind: "action", label: "Find companies similar to a website", sub: "Prospecting → Lookalikes", href: "/import/lookalikes" },
   { id: "a-import", kind: "action", label: "Import a file", sub: "CSV or Excel of companies and people", href: "/import/upload" },
-  { id: "a-scan", kind: "action", label: "Scan the market for new companies", sub: "Discover", href: "/discover" },
-  { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Discover → Website visitors", href: "/discover?origin=website_visitor" },
+  { id: "a-scan", kind: "action", label: "Scan the market for new companies", sub: "Prospecting → Market signals", href: "/discover" },
+  { id: "a-visitors", kind: "action", label: "Review website visitors", sub: "Prospecting → Website visitors", href: "/import/apollo" },
   { id: "a-priority", kind: "action", label: "Companies by priority", sub: "Who to work first", href: "/accounts?sort=priority" },
 ];
-const PAGE_EXTRA = new Set([...IMPORT_PAGES, ...SECTIONS.flatMap((g) => g.items)].filter((p) => p.extra).map((p) => p.href));
-const PAGES: Hit[] = [...IMPORT_PAGES.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: "Import data", href: it.href })), ...SECTIONS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label, href: it.href })))];
+// Every page once, under its module (the import pages are in Prospecting).
+const PAGE_EXTRA = new Set(SECTIONS.flatMap((g) => g.items).filter((p) => p.extra).map((p) => p.href));
+const PAGE_SUPER = new Set(SECTIONS.flatMap((g) => g.items).filter((p) => p.superAdmin).map((p) => p.href));
+const PAGES: Hit[] = SECTIONS.flatMap((g) => g.items.map((it) => ({ id: `p-${it.href}`, kind: "page" as const, label: it.label, sub: g.label, href: it.href })));
+/** The pages the palette offers: extras only when switched on, Super Admin pages only in Super Admin mode. */
+export const palettePages = (extras: boolean, superAdmin: boolean) => PAGES.filter((p) => (extras || !PAGE_EXTRA.has(p.href)) && (superAdmin || !PAGE_SUPER.has(p.href)));
 
 /**
  * ⌘K / Ctrl+K (or "/"): jump to any page, company or person, or start a common action.
  * On a company or person, → (or Tab) lists what you can do with it right here.
  */
-export function CommandPalette({ canAct = true, extras = true }: { canAct?: boolean; extras?: boolean }) {
+export function CommandPalette({ canAct = true, extras = true, superAdmin = false }: { canAct?: boolean; extras?: boolean; superAdmin?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -87,8 +91,8 @@ export function CommandPalette({ canAct = true, extras = true }: { canAct?: bool
   const hits = useMemo(() => {
     const t = q.trim().toLowerCase();
     const match = (h: Hit) => !t || `${h.label} ${h.sub ?? ""}`.toLowerCase().includes(t);
-    return [...found, ...ACTIONS.filter((a) => extras || !a.href?.startsWith("/discover")).filter(match), ...PAGES.filter((p) => extras || !PAGE_EXTRA.has(p.href ?? "")).filter(match)].slice(0, 14);
-  }, [q, found]);
+    return [...found, ...ACTIONS.filter((a) => extras || !a.href?.startsWith("/discover")).filter(match), ...palettePages(extras, superAdmin).filter(match)].slice(0, 14);
+  }, [q, found, extras, superAdmin]);
 
   const go = useCallback((h: Hit | undefined) => {
     if (!h) return;

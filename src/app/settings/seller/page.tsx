@@ -18,8 +18,8 @@ export default async function SellerPage() {
     <div className="page-enter">
       <Link href="/settings" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Settings</Link>
       <PageHeader
-        eyebrow="Seller profile · drives fit, research, buying groups and drafts"
-        title={sp.name}
+        eyebrow={`${sp.name} · drives fit, research, buying groups and drafts`}
+        title="Seller profile"
         sub={sp.summary}
         actions={
           <>

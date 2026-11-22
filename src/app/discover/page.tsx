@@ -17,7 +17,7 @@ import { addSuggestionAction, approveSuggestionsAction, dismissSuggestionAction,
 import { RecommendedToday } from "./recommended";
 import { JobNote } from "@/components/job-note";
 
-export const metadata = { title: "Discover" };
+export const metadata = { title: "Market signals" };
 
 const MOMENTUM: Record<Momentum, { word: string; color: string }> = {
   // Growth is opportunity, so blue, never red (red is for conflicts and blockers only).
@@ -68,8 +68,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Discover"
-        title="AI suggested prospects"
+        eyebrow="Prospecting"
+        title="Market signals"
         sub={<>The AI watches the market for buying events that fit your Account Brain and suggests companies you don&apos;t have yet. {lastScan ? `Last scan ${ago(lastScan.createdAt)}.` : "No scan yet."} Approving starts research only; emails still need your approval.</>}
         actions={<ActionButton action={scanMarketAction} className="btn btn-primary" disabled={!need.ok} title={need.blocker ?? undefined}><Globe size={16} /> Scan the market now</ActionButton>}
       />

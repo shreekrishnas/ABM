@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { integrations } from "@/lib/admin/integrations";
 
-export const metadata = { title: "Admin" };
+export const metadata = { title: "Admin overview" };
 export const dynamic = "force-dynamic";
 
 /** Admin: every workspace setting in one place. */
@@ -38,7 +38,7 @@ export default async function AdminHome() {
   ].filter((t) => t.show);
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Admin" title="Workspace settings" sub="Connections, the Account Brain, team and system health." />
+      <PageHeader eyebrow="Admin" title="Overview" sub="Connections, the Account Brain, team and system health." />
       <div className="ig-grid">
         {tiles.map((t) => (
           <Link key={t.title} href={t.href} className="glass-card ad-tile">

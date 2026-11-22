@@ -12,7 +12,7 @@ import { researchQuality } from "@/lib/brain/quality";
 import { humanize, READINESS_LABEL } from "@/lib/review-labels";
 import { Stat, StatRow } from "@/components/kit";
 
-export const metadata = { title: "Pipeline" };
+export const metadata = { title: "Behind the scenes" };
 
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ s?: string; peek?: string }> }) {
   const spp = await searchParams;

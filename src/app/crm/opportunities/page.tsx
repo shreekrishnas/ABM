@@ -9,7 +9,7 @@ import { Avatar, Kpi, PageHeader, date, money } from "@/components/ui";
 import { createOpportunityAction , setDealDetailsAction } from "../../actions";
 import { LIKELIHOOD, attention } from "@/lib/crm/opportunities";
 
-export const metadata = { title: "CRM · Opportunities" };
+export const metadata = { title: "Deals" };
 
 const COLUMNS: { id: OppStage; label: string; color: string }[] = [
   { id: "discovery", label: "Discovery", color: "var(--muted)" },
@@ -41,11 +41,11 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
     <div className="page-enter">
       <PeekPanel peek={peek} close={closeHref("/crm/opportunities", keep)} />
       <PageHeader
-        eyebrow="CRM"
-        title="Opportunities"
+        eyebrow="Pipeline"
+        title="Deals"
         sub="Opening a deal moves the account to Opportunity and pauses automated outreach. Closed-lost goes to the watchlist and is recycled after 90 days."
         actions={
-          <Modal trigger={<><Plus size={16} /> New opportunity</>} title="Create an opportunity" eyebrow="CRM" triggerClass="btn btn-brand">
+          <Modal trigger={<><Plus size={16} /> New deal</>} title="Create a deal" eyebrow="Pipeline" triggerClass="btn btn-brand">
               <ActionForm action={createOpportunityAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="oa">Account</label><select id="oa" name="accountId" required className="glass-select" defaultValue={account ?? ""}><option value="" disabled>Choose an account</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
                 <div><label className="field-label" htmlFor="on">Name</label><input id="on" name="name" required className="glass-input" placeholder="Platform — annual" /></div>

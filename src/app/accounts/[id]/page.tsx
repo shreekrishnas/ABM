@@ -48,6 +48,12 @@ function originLine(a: { addedBy: string | null; addedVia: string | null; origin
 // "Refresh" on the company profile researches in the request (a few searches and AI reads).
 export const maxDuration = 300;
 
+/** The browser tab names the company (looked up within the clients in view, like the page). */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const a = await db.account.findUnique({ where: { id: (await params).id }, select: { name: true } }).catch(() => null);
+  return { title: a?.name ?? "Company" };
+}
+
 export default async function AccountPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await ensureSellerPacks();
   const { id } = await params;
@@ -427,8 +433,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
 
       {tab === "crm" && (
         <div className="grid gap-5 xl:grid-cols-3">
-          <Card title="Opportunities" className="xl:col-span-2" action={<Link href={`/crm/opportunities?account=${a.id}`} className="btn btn-secondary btn-sm">Manage</Link>}>
-            {a.opportunities.length === 0 ? <Empty title="No opportunities" sub="Create one from CRM · Opportunities. Opening a deal pauses automated outreach." /> : (
+          <Card title="Deals" className="xl:col-span-2" action={<Link href={`/crm/opportunities?account=${a.id}`} className="btn btn-secondary btn-sm">Manage</Link>}>
+            {a.opportunities.length === 0 ? <Empty title="No deals" sub="Create one from Pipeline › Deals. Opening a deal pauses automated outreach." /> : (
               <ul className="grid gap-2">
                 {a.opportunities.map((o) => (
                   <li key={o.id} className="flex items-center justify-between rounded-xl px-3.5 py-3" style={{ background: "var(--surface-card-header)" }}>

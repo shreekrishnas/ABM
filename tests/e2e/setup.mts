@@ -33,6 +33,17 @@ const user = await baseDb.user.upsert({ where: { email: "e2e@trilliantdigital.co
 await baseDb.userClient.upsert({ where: { userId_clientId: { userId: user.id, clientId: DEFAULT_SELLER_ID } }, create: { userId: user.id, clientId: DEFAULT_SELLER_ID }, update: {} });
 const { sessionToken } = await import("@/lib/auth");
 const token = await sessionToken(user.email, process.env.AUTH_SECRET!);
-writeFileSync(new URL("./.session.json", import.meta.url), JSON.stringify({ token, client: DEFAULT_SELLER_ID }));
+// A second, empty client: switching to it must show none of the sample client's companies.
+await baseDb.client.upsert({ where: { id: "e2e-second" }, create: { id: "e2e-second", name: "Second client" }, update: {} });
+// One person per role for the navigation journey: a Rep, a Viewer and a Super Admin over this client only.
+const roles: Record<string, string> = {};
+for (const [key, name, role, superAdminClients] of [["rep", "E2E Rep", "rep", null], ["viewer", "E2E Viewer", "viewer", null], ["limited", "E2E Limited Admin", "manager", [DEFAULT_SELLER_ID]]] as const) {
+  const email = `e2e-${key}@trilliantdigital.com`;
+  const sa = superAdminClients ? { superAdmin: true, superAdminClients: [...superAdminClients] } : { superAdmin: false };
+  const u2 = await baseDb.user.upsert({ where: { email }, create: { name, email, ...sa }, update: sa });
+  await baseDb.userClient.upsert({ where: { userId_clientId: { userId: u2.id, clientId: DEFAULT_SELLER_ID } }, create: { userId: u2.id, clientId: DEFAULT_SELLER_ID, role }, update: { role } });
+  roles[key] = await sessionToken(email, process.env.AUTH_SECRET!);
+}
+writeFileSync(new URL("./.session.json", import.meta.url), JSON.stringify({ token, client: DEFAULT_SELLER_ID, roles }));
 console.log(`E2E database ready: ${await baseDb.account.count()} companies, signed in as ${user.email}`);
 await baseDb.$disconnect();

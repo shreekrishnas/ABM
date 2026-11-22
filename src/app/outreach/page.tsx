@@ -12,7 +12,7 @@ import { Avatar, Badge, Card, Empty, Kpi, Meter, PageHeader, TabLinks, TierBadge
 import { GroupedBars, KpiRow, KpiTile, change, daily } from "@/components/viz/cards";
 import { recordReplyAction, sendApprovedAction, tickAction } from "../actions";
 
-export const metadata = { title: "Outreach" };
+export const metadata = { title: "Emails" };
 
 const CH = { email: Mail, linkedin: Linkedin, call: Phone, task: Timer };
 

@@ -7,8 +7,11 @@ import {
 
 export type Counts = { review: number; handoffs: number; tasks: number };
 export type Icon = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-/** `extra` pages are hidden from menus until a Super Admin switches them on for the client; they still open by address. */
-export type NavPage = { href: string; label: string; blurb: string; icon: Icon; count?: keyof Counts; extra?: boolean };
+/**
+ * `extra` pages are hidden from menus until a Super Admin switches them on for the client; they still open by address.
+ * `superAdmin` pages are listed only in Super Admin mode (the page itself checks again on the server).
+ */
+export type NavPage = { href: string; label: string; blurb: string; icon: Icon; count?: keyof Counts; extra?: boolean; superAdmin?: boolean };
 export type NavSection = { key: string; label: string; blurb: string; icon: Icon; items: NavPage[] };
 
 export const IMPORT_PAGES: NavPage[] = [
@@ -68,15 +71,28 @@ export const SECTIONS: NavSection[] = [
       { href: "/admin/integrations", label: "Integrations", blurb: "Every connection, its status and last sync", icon: Plug },
       { href: "/brain", label: "Account Brain", blurb: "What the client sells and to whom", icon: Brain },
       { href: "/settings", label: "Settings", blurb: "Seller pack, senders, knowledge", icon: SlidersHorizontal },
-      { href: "/team", label: "Team & Access", blurb: "People, accounts, system health (Super Admin)", icon: ShieldCheck },
+      { href: "/team", label: "Team & Access", blurb: "People, clients, system health (Super Admin)", icon: ShieldCheck, superAdmin: true },
     ],
   },
 ];
 
-/** The pages to list: everything when extras are on, else the core pages (plus the one being viewed). */
-export const shown = (items: NavPage[], extras: boolean, path?: string) => (extras ? items : items.filter((p) => !p.extra || (path != null && (path === p.href || path.startsWith(`${p.href}/`)))));
-
 export const isOn = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
+
+/** Who is looking: whether they can switch Super Admin mode on, and whether it is on. */
+export type NavViewer = { can: boolean; on: boolean };
+
+/**
+ * The pages to list. Extras only when switched on for the client; Super Admin pages only in Super
+ * Admin mode. The page being viewed always stays listed (a Super Admin page only for someone who
+ * can switch the mode on), so the current tab never disappears under you.
+ */
+export const shown = (items: NavPage[], extras: boolean, path?: string, viewer?: NavViewer) =>
+  items.filter((p) => {
+    const here = path != null && isOn(path, p.href);
+    if (p.extra && !extras && !here) return false;
+    if (p.superAdmin && !viewer?.on && !(viewer?.can && here)) return false;
+    return true;
+  });
 
 /** Where a path sits in the map: the area, the section and the page, for the trail. */
 export function locate(path: string): { area: "home" | "import" | "work"; section?: NavSection; page?: NavPage } {

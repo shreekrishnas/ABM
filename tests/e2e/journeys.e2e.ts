@@ -14,16 +14,17 @@ const require = createRequire(import.meta.url);
 const { chromium } = require("playwright") as { chromium: any };
 const PORT = Number(process.env.E2E_PORT ?? 3200);
 const BASE = `http://localhost:${PORT}`;
-const session = JSON.parse(readFileSync(new URL("./.session.json", import.meta.url), "utf8")) as { token: string; client: string };
+const session = JSON.parse(readFileSync(new URL("./.session.json", import.meta.url), "utf8")) as { token: string; client: string; roles: Record<"rep" | "viewer" | "limited", string> };
 
 let server: ChildProcess;
 let browser: Browser;
 let ctx: BrowserContext;
 const errors: string[] = [];
 
-async function open(path: string): Promise<Page> {
+async function open(path: string, before?: (p: Page) => void): Promise<Page> {
   const p = await ctx.newPage();
   p.on("pageerror", (e: Error) => errors.push(`${path}: ${e.message}`));
+  before?.(p);
   const res = await p.goto(BASE + path, { waitUntil: "networkidle" });
   expect(res?.status(), `${path} loads`).toBeLessThan(400);
   return p;
@@ -371,4 +372,159 @@ describe("10. One Vega everywhere", () => {
     expect(await p.locator(".jo-history").innerText()).toMatch(/New conversation/);
     await p.close();
   });
+});
+
+describe("11. Navigation", () => {
+  // Every module page: the browser title, heading, trail, sub-tab and rail all name the same page.
+  const PAGES: { href: string; label: string; section: string; title?: string; h1?: RegExp | null }[] = [
+    { href: "/accounts", label: "Companies", section: "Accounts" },
+    { href: "/people", label: "People", section: "Accounts" },
+    { href: "/accounts/coverage", label: "Coverage", section: "Accounts", title: "Buying-group coverage", h1: /^Buying-group coverage$/ },
+    { href: "/signals", label: "Signals", section: "Accounts" },
+    { href: "/import", label: "All ways in", section: "Prospecting", h1: null },
+    { href: "/import/upload", label: "Upload CSV", section: "Prospecting", h1: null },
+    { href: "/import/describe", label: "Describe companies", section: "Prospecting", h1: null },
+    { href: "/import/lookalikes", label: "Lookalikes", section: "Prospecting", h1: null },
+    { href: "/import/apollo", label: "Website visitors", section: "Prospecting", h1: null },
+    { href: "/discover", label: "Market signals", section: "Prospecting" },
+    { href: "/work/today", label: "Today", section: "Engage", h1: /^Today/ },
+    { href: "/review", label: "Approvals", section: "Engage" },
+    { href: "/outreach", label: "Emails", section: "Engage" },
+    { href: "/handoffs", label: "Hand-offs", section: "Pipeline" },
+    { href: "/crm/opportunities", label: "Deals", section: "Pipeline" },
+    { href: "/crm/tasks", label: "Tasks", section: "Pipeline" },
+    { href: "/overview", label: "Program overview", section: "Insights" },
+    { href: "/analytics", label: "What's working", section: "Insights" },
+    { href: "/pipeline", label: "Behind the scenes", section: "Insights" },
+    { href: "/admin", label: "Overview", section: "Admin", title: "Admin overview" },
+    { href: "/admin/integrations", label: "Integrations", section: "Admin" },
+    { href: "/brain", label: "Account Brain", section: "Admin" },
+    { href: "/settings", label: "Settings", section: "Admin" },
+    { href: "/team", label: "Team & Access", section: "Admin" },
+  ];
+  const FIRST = new Set(["/accounts", "/import", "/work/today", "/handoffs", "/overview", "/admin"]);
+  const consoleErrors: string[] = [];
+  const watch = (p: Page, where: string) => p.on("console", (m: any) => m.type() === "error" && !/status of 404/.test(m.text()) && consoleErrors.push(`${where}: ${m.text().slice(0, 160)}`));
+  const tabs = async (p: Page) => (await p.locator(".nav-sub .nav-page").allInnerTexts()).map((t: string) => t.replace(/\d+$/, "").trim());
+  async function as(role: "rep" | "viewer" | "limited" | "full") {
+    const c = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await c.addCookies([
+      { name: "abm_session", value: role === "full" ? session.token : session.roles[role], url: BASE },
+      { name: "abm_mode", value: "super", url: BASE }, // asked for by everyone; only Super Admins get it
+      { name: "abm_client", value: session.client, url: BASE },
+    ]);
+    return c;
+  }
+
+  it("every module page: title, heading, trail, active tab and rail agree", async () => {
+    for (const pg of PAGES) {
+      const p = await open(pg.href, (x) => watch(x, pg.href));
+      expect(await p.title(), pg.href).toBe(`${pg.title ?? pg.label} · ABM Intelligence`);
+      if (pg.h1 !== null) expect((await p.locator("main h1").first().textContent())?.trim(), pg.href).toMatch(pg.h1 ?? new RegExp(`^${pg.label}$`));
+      expect((await p.locator('.nav-crumbs [aria-current="page"]').textContent())?.trim(), pg.href).toBe(FIRST.has(pg.href) ? pg.section : pg.label);
+      expect((await p.locator(".nav-sub .nav-page.on").innerText()).replace(/\d+$/, "").trim(), pg.href).toBe(pg.label);
+      expect(await p.locator(`.sh-rail .sh-item.on[aria-label="${pg.section}"]`).count(), pg.href).toBe(1);
+      await p.close();
+    }
+    const home = await open("/");
+    expect(await home.title()).toBe("Home · ABM Intelligence");
+    await home.close();
+  }, 180_000);
+
+  it("old addresses still redirect, and a company page names the company and links back up", async () => {
+    for (const [from, to] of [["/companies", "/accounts"], ["/crm", "/people"], ["/crm/contacts", "/people"], ["/work", "/work/today"], ["/jarvis", "/vega"]]) {
+      const p = await open(from);
+      expect(new URL(p.url()).pathname, from).toBe(to);
+      await p.close();
+    }
+    const list = await open("/accounts");
+    const id = (await list.locator(".dir-table tbody a.dir-co").first().getAttribute("href"))!.match(/a_([^&]+)/)![1];
+    await list.close();
+    const p = await open(`/accounts/${id}`, (x) => watch(x, "company"));
+    const name = (await p.locator("main h1").first().textContent())!.trim();
+    expect(await p.title()).toBe(`${name} · ABM Intelligence`);
+    expect(await p.locator('.nav-crumbs [aria-current="page"]').count()).toBe(0);
+    await p.locator('.nav-crumbs a[href="/accounts"]').click();
+    await p.waitForURL(/\/accounts$/);
+    await p.close();
+  });
+
+  it("works from the keyboard: skip link, tabs, and the command palette", async () => {
+    const p = await open("/crm/opportunities", (x) => watch(x, "keyboard"));
+    await p.keyboard.press("Tab");
+    expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Skip to content");
+    await p.locator('.nav-sub a[href="/crm/tasks"]').focus();
+    await p.keyboard.press("Enter");
+    await p.waitForURL(/\/crm\/tasks$/);
+    expect(await p.locator('.nav-sub a[href="/crm/tasks"]').getAttribute("aria-current")).toBe("page");
+    await p.keyboard.press("Control+k");
+    await p.locator(".palette-list").waitFor();
+    await p.keyboard.type("What's working");
+    await p.locator('.palette-list [role="option"]', { hasText: "What's working" }).first().waitFor();
+    await p.keyboard.press("Enter");
+    await p.waitForURL(/\/analytics$/);
+    await p.close();
+  });
+
+  it("shows each role only what it can open: Rep, Viewer, limited and full Super Admin", async () => {
+    const want = { rep: false, viewer: false, limited: true, full: true } as const;
+    for (const role of ["rep", "viewer", "limited", "full"] as const) {
+      const c = await as(role);
+      const p = await c.newPage();
+      p.on("pageerror", (e: Error) => errors.push(`${role}: ${e.message}`));
+      watch(p, role);
+      await p.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
+      expect((await tabs(p)).includes("Team & Access"), role).toBe(want[role]);
+      // Today → Approvals is open to everyone.
+      await p.goto(`${BASE}/work/today`, { waitUntil: "networkidle" });
+      await p.locator('.nav-sub a[href="/review"]').click();
+      await p.waitForURL(/\/review/);
+      expect((await p.locator("main h1").first().textContent())?.trim(), role).toBe("Approvals");
+      // Vega stays with Super Admins covering the client.
+      expect(await p.locator(".vg-fab").count(), role).toBe(want[role] ? 1 : 0);
+      // The palette offers Team & Access to Super Admins only.
+      await p.keyboard.press("Control+k");
+      await p.locator(".palette-list").waitFor();
+      await p.keyboard.type("Team & Access");
+      await p.waitForTimeout(400);
+      expect(await p.locator('.palette-list [role="option"]', { hasText: "Team & Access" }).count(), role).toBe(want[role] ? 1 : 0);
+      await p.keyboard.press("Escape");
+      await p.waitForLoadState("networkidle");
+      // The page itself still decides: no Super Admin, no Team & Access.
+      await p.goto(`${BASE}/team`, { waitUntil: "networkidle" });
+      if (want[role]) {
+        expect((await p.locator("main h1").first().textContent())?.trim(), role).toBe("Team & Access");
+        const sections = await p.locator(".tm-tabs").innerText();
+        expect(sections, role).toMatch(/Clients/);
+        expect(/System health/.test(sections), role).toBe(role === "full");
+      } else {
+        // Not found (streamed, so the status line is already sent): nothing of the page shows.
+        expect(await p.locator("main").innerText(), role).toMatch(/Page not found/);
+        expect(await p.locator(".tm-tabs").count(), role).toBe(0);
+      }
+      await c.close();
+    }
+  }, 120_000);
+
+  it("switching client changes the workspace and shows only that client's companies", async () => {
+    const c = await as("full");
+    const p = await c.newPage();
+    p.on("pageerror", (e: Error) => errors.push(`clients: ${e.message}`));
+    watch(p, "clients");
+    await p.goto(`${BASE}/clients`, { waitUntil: "networkidle" });
+    expect(await p.title()).toBe("Clients · ABM Intelligence");
+    expect((await p.locator("main h1").textContent())?.trim()).toBe("Clients");
+    await p.locator("li.ac-card", { hasText: "Second client" }).getByRole("button", { name: /Open client/ }).click();
+    await p.waitForURL(`${BASE}/`);
+    await p.goto(`${BASE}/accounts`, { waitUntil: "networkidle" });
+    expect(await p.locator(".nav-crumbs").innerText()).toMatch(/Clients[\s\S]*Second client[\s\S]*Accounts/);
+    expect(await p.locator(".dir-table tbody a.dir-co").count()).toBe(0);
+    await p.goto(`${BASE}/clients`, { waitUntil: "networkidle" });
+    await p.locator("li.ac-card", { hasText: "Sample client" }).getByRole("button", { name: /Open client/ }).click();
+    await p.waitForURL(`${BASE}/`);
+    await p.goto(`${BASE}/accounts`, { waitUntil: "networkidle" });
+    expect(await p.locator(".dir-table tbody a.dir-co").count()).toBeGreaterThan(0);
+    await c.close();
+    expect(consoleErrors, "no console errors").toEqual([]);
+  }, 60_000);
 });

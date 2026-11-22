@@ -9,7 +9,7 @@ import { SelectAllBox } from "@/app/accounts/filters";
 import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import { ListKeys } from "@/components/peek/list-keys";
 
-export const metadata = { title: "CRM · Tasks" };
+export const metadata = { title: "Tasks" };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; peek?: string; when?: string; who?: string }> }) {
   const sp = await searchParams;
@@ -49,11 +49,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       <ListKeys />
       <PeekPanel peek={sp.peek} close={closeHref("/crm/tasks", keep)} />
       <PageHeader
-        eyebrow="CRM"
+        eyebrow="Pipeline"
         title="Tasks"
         sub="Rep work in one list: LinkedIn and call steps from sequences, referral asks from replies, and anything added by hand."
         actions={
-          <Modal trigger={<><Plus size={16} /> New task</>} title="Create a task" eyebrow="CRM" triggerClass="btn btn-brand">
+          <Modal trigger={<><Plus size={16} /> New task</>} title="Create a task" eyebrow="Pipeline" triggerClass="btn btn-brand">
               <ActionForm action={createTaskAction} className="grid gap-3">
                 <div><label className="field-label" htmlFor="tt">Title</label><input id="tt" name="title" required className="glass-input" /></div>
                 <div><label className="field-label" htmlFor="tb">Details</label><textarea id="tb" name="body" className="glass-textarea" /></div>

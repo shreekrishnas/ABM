@@ -11,7 +11,7 @@ import { customerCheck, earliestVisit, listVisitorCompanies, parseRange, visitor
 import { VisitorsTable, type VisitorRow } from "./visitors-table";
 import { checkApolloAction } from "./actions";
 
-export const metadata = { title: "Website visitors · Import" };
+export const metadata = { title: "Website visitors" };
 export const maxDuration = 300;
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -49,7 +49,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   return (
     <div className="page-enter">
       <PageHeader
-        eyebrow="Import data · Website visitors"
+        eyebrow="Prospecting · Website visitors"
         title="Companies visiting your website"
         sub="Pick companies, find the right people at them with Apollo, then download them as Excel or add them to the ABM pipeline. Nothing is added until you choose."
         actions={ready ? <div className="flex flex-wrap gap-2"><ActionButton action={checkApolloAction} className="btn btn-secondary">Check Apollo connection</ActionButton><ActionButton action={fetchApolloVisitorsAction} className="btn btn-primary">Fetch visitors from Apollo now</ActionButton></div> : undefined}
