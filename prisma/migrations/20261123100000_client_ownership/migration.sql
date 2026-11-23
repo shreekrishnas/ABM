@@ -26,11 +26,11 @@ WITH uses AS (
 ), one AS (SELECT id, MIN("sellerId") AS "sellerId" FROM uses GROUP BY id HAVING COUNT(DISTINCT "sellerId") = 1)
 UPDATE "SenderProfile" s SET "sellerId" = one."sellerId" FROM one WHERE one.id = s."id" AND s."sellerId" IS NULL;
 
--- 3. Website visits: the company's client when the visit is matched to a company. Apollo's list of
---    visitors not matched to a company belongs to the client that pulls it (the latest Apollo fetch).
+-- 3. Website visits: the company's client when the visit is matched to a company. A visit not matched to a
+--    company stays without an owner (only a full Super Admin sees it): whose website Apollo's visitor list
+--    tracks is not guessed here, and never from who last fetched it. A person assigns those visits, with the
+--    evidence, as a separate step.
 UPDATE "WebVisit" v SET "sellerId" = a."sellerId" FROM "Account" a WHERE a."id" = v."accountId" AND v."sellerId" IS NULL;
-UPDATE "WebVisit" v SET "sellerId" = (SELECT j."sellerId" FROM "BackgroundJob" j WHERE j."kind" = 'apollo_fetch' ORDER BY j."createdAt" DESC LIMIT 1)
-  WHERE v."sellerId" IS NULL AND v."accountId" IS NULL AND v."source" = 'apollo';
 
 -- 4. Names unique per client instead of across all clients.
 CREATE UNIQUE INDEX "Campaign_sellerId_name_key" ON "Campaign"("sellerId", "name");
