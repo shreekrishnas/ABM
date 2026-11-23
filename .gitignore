@@ -15,3 +15,6 @@ shots/
 
 # Worktrees of parallel agents (never part of the app)
 .claude/worktrees/
+
+# Database backups made by scripts/backup-abm.sh: never commit them
+/backups/
