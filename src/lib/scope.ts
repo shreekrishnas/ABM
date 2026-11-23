@@ -5,7 +5,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Prisma } from "@prisma/client";
 import { baseDb } from "@/lib/db-base";
-import { SESSION_COOKIE, authRequired, authSecret, verify, type Session } from "@/lib/auth";
+import { GATE_HEADER, REQUEST_ID_HEADER, SESSION_COOKIE, authRequired, authSecret, domainAllowed, verify, type Session } from "@/lib/auth";
 
 export const CLIENT_COOKIE = "abm_client";
 const MODE_COOKIE = "abm_mode";
@@ -23,8 +23,13 @@ export type Scope = {
 };
 
 const override = new AsyncLocalStorage<{ scope: Scope | null }>();
-const cache = new Map<string, { scope: Scope; at: number }>();
-const TTL_MS = 10_000;
+/**
+ * Scopes worked out for requests now in progress, by the request id the gate (src/proxy.ts) gives
+ * every request: a scope is reused within one request (every query asks for it) and never across
+ * requests, so a removal, an ended session or a changed assignment counts from the next request.
+ */
+const perRequest = new Map<string, Promise<Scope>>();
+const PER_REQUEST_MAX = 1000;
 
 /** Run fn with a fixed scope (tests), or none (null: see every client). */
 export function withScope<T>(scope: Scope | null, fn: () => Promise<T>): Promise<T> {
@@ -37,9 +42,10 @@ export function unscoped<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * The scope for this request. null = not scoped: outside a request (cron, queue, tests),
- * sign-in switched off (local), or no session (only /api/v1 with its own key gets here).
- * A session whose person is removed or not on the team sees nothing.
+ * The scope for this request. null = not scoped: outside a request (cron, queue, tests), sign-in
+ * switched off (local), or the bearer-key API (/api/v1, which checks its own key and client).
+ * Nothing (no client) for: no session on any other request, a forged or expired session, a session
+ * ended since it was issued (Sign out everywhere), and a person removed or not on the team.
  */
 export async function resolveScope(): Promise<Scope | null> {
   const o = override.getStore();
@@ -47,31 +53,55 @@ export async function resolveScope(): Promise<Scope | null> {
   const secret = authSecret();
   if (!secret || !authRequired()) return null;
   let jar: Awaited<ReturnType<typeof import("next/headers").cookies>>;
+  let gate: string | null = null;
+  let requestId: string | null = null;
   try {
-    const { cookies } = await import("next/headers");
-    jar = await cookies();
+    const next = await import("next/headers");
+    jar = await next.cookies();
+    try {
+      const h = await next.headers();
+      gate = h.get(GATE_HEADER);
+      requestId = h.get(REQUEST_ID_HEADER);
+    } catch {
+      /* no request headers (some tests): no gate, no per-request reuse */
+    }
   } catch {
     return null;
   }
   const token = jar.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const key = `${token}|${jar.get(MODE_COOKIE)?.value ?? ""}|${jar.get(CLIENT_COOKIE)?.value ?? ""}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.scope;
-  const session = await verify<Session>(token, secret);
-  const scope = await scopeFor(session?.email ?? null, jar.get(MODE_COOKIE)?.value === "super", jar.get(CLIENT_COOKIE)?.value ?? null);
-  if (cache.size > 500) cache.clear();
-  cache.set(key, { scope, at: Date.now() });
-  return scope;
+  // No session: the bearer-key API is unscoped (it limits itself to the key's client); any other request
+  // that came through the gate gets nothing (the sign-in pages read nothing private).
+  if (!token) return gate && gate !== "api" ? NOTHING : null;
+  const superMode = jar.get(MODE_COOKIE)?.value === "super";
+  const picked = jar.get(CLIENT_COOKIE)?.value ?? null;
+  const work = async () => {
+    const session = await verify<Session>(token, secret);
+    if (!session || !domainAllowed(session.email)) return NOTHING;
+    return scopeFor(session.email, superMode, picked, session.v ?? 0);
+  };
+  if (!requestId) return work();
+  const key = `${requestId}|${token}|${superMode}|${picked ?? ""}`;
+  let p = perRequest.get(key);
+  if (!p) {
+    p = work();
+    p.catch(() => perRequest.delete(key));
+    if (perRequest.size >= PER_REQUEST_MAX) for (const k of [...perRequest.keys()].slice(0, PER_REQUEST_MAX / 2)) perRequest.delete(k);
+    perRequest.set(key, p);
+  }
+  return p;
 }
 
 const NOTHING: Scope = { ids: [], active: null, choices: [], all: false };
 
-/** Pure-ish: the scope for a person, their Super Admin mode and the client they picked. */
-export async function scopeFor(email: string | null, superMode: boolean, picked: string | null): Promise<Scope> {
+/**
+ * Pure-ish: the scope for a person, their Super Admin mode and the client they picked. With a session
+ * version, a session ended since it was issued sees nothing.
+ */
+export async function scopeFor(email: string | null, superMode: boolean, picked: string | null, sessionVersion?: number): Promise<Scope> {
   if (!email) return NOTHING;
   const user = await baseDb.user.findUnique({ where: { email }, include: { clients: { include: { client: true } } } });
   if (!user || user.status !== "active") return NOTHING;
+  if (sessionVersion !== undefined && sessionVersion !== user.sessionVersion) return NOTHING;
   const sup = user.superAdmin && superMode;
   // A Super Admin covers every client, or only the clients listed on them.
   const all = sup && !user.superAdminClients.length;
@@ -85,9 +115,9 @@ export async function scopeFor(email: string | null, superMode: boolean, picked:
   return { ids, active: pick ?? (choices.length === 1 ? choices[0].id : null), choices, all };
 }
 
-/** Forget cached scopes (after an assignment changes). */
+/** Forget scopes worked out for requests in progress (after an assignment changes mid-request). */
 export function clearScopeCache() {
-  cache.clear();
+  perRequest.clear();
 }
 
 /** The filter that keeps a model's rows inside the given clients; null = not client data. */
@@ -179,11 +209,19 @@ export async function requireClientId(explicit?: string | null): Promise<string>
   throw new Error(NO_CLIENT_MESSAGE);
 }
 
-/** The client pages show and add to: the picked one, else the first in view, else the default. */
+/** The client id used when a signed-in person has no client: matches no client, so nothing is shown. */
+export const NO_CLIENT_ID = "__no_client__";
+
+/**
+ * The client pages show and add to: the picked one, else the first in view. Without a scope (local
+ * previews, background work, tests) the default client. A signed-in person with no client in view
+ * (none assigned, all removed, or a session that no longer works) gets no client, never the default's.
+ */
 export async function activeSellerId(): Promise<string> {
   const { DEFAULT_SELLER_ID } = await import("@/lib/seller");
   const s = await resolveScope();
-  return s?.active ?? s?.choices[0]?.id ?? DEFAULT_SELLER_ID;
+  if (!s) return DEFAULT_SELLER_ID;
+  return s.active ?? s.choices[0]?.id ?? NO_CLIENT_ID;
 }
 
 /**

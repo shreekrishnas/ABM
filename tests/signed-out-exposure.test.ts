@@ -66,9 +66,14 @@ describe("request gate: no server action for a signed-out visitor", () => {
   });
 
   it("still sends signed-out visitors of every other page to sign in (actions there never run)", async () => {
-    const res = await proxy(req("/accounts", { method: "POST", headers: { "next-action": "abc" } }));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toMatch(/\/login\?next=%2Faccounts$/);
+    const page = await proxy(req("/accounts"));
+    expect(page.status).toBe(307);
+    expect(page.headers.get("location")).toMatch(/\/login\?next=%2Faccounts$/);
+    // A server action is refused, and the page that sent it is told to open the sign-in page.
+    const action = await proxy(req("/accounts", { method: "POST", headers: { "next-action": "abc" } }));
+    expect(action.status).toBe(401);
+    expect(action.headers.get("x-action-redirect")).toBe("/login?next=%2Faccounts;replace");
+    expect(passes(action)).toBe(false);
   });
 
   it("lets a signed-in person use server actions anywhere, and leaves the bearer-key API alone", async () => {

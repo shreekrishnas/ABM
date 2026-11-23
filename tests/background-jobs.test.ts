@@ -15,6 +15,9 @@ beforeEach(async () => {
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
   await setResearchAllowed("manch", true, "test");
   await baseDb.client.createMany({ data: [{ id: "manch", name: "Manch" }, { id: "acme", name: "Acme" }] });
+  // Jobs are started by a team member allowed to start them (it is checked again when the job runs).
+  const me = await baseDb.user.create({ data: { name: "Asha", email: ME } });
+  await baseDb.userClient.createMany({ data: [{ userId: me.id, clientId: "manch", role: "manager" }, { userId: me.id, clientId: "acme", role: "manager" }] });
 });
 
 const waitFor = async (id: string) => {

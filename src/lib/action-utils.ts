@@ -50,9 +50,21 @@ export interface ActionRef {
   detail?: string | null;
 }
 
+/** Running inside a web request (not background work, cron or a script). */
+async function inRequest(): Promise<boolean> {
+  try {
+    const { cookies } = await import("next/headers");
+    await cookies();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Record who did what (shown in Team & Access → Audit log). Never throws: an action
- * must not fail because its log entry couldn't be written.
+ * Record who did what (shown in Team & Access → Audit log), after checking the person may do it.
+ * Refuses (ActionDenied) when their role is too low, or when no one is signed in during a request;
+ * otherwise never throws: an action must not fail because its log entry couldn't be written.
  */
 export async function logAction(action: string, ref: ActionRef = {}): Promise<void> {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
@@ -60,7 +72,13 @@ export async function logAction(action: string, ref: ActionRef = {}): Promise<vo
   try {
     const [{ getMe, audit }, { baseDb }] = await Promise.all([import("@/lib/me"), import("@/lib/db-base")]);
     const me = await getMe();
-    if (!me) return;
+    if (!me) {
+      // No signed-in person. Background work (no request) and local previews (sign-in off) go ahead.
+      // Inside a request with sign-in on, the session has ended, or the person was removed: refuse.
+      const { authRequired } = await import("@/lib/auth");
+      if (authRequired() && (await inRequest())) denied = "Your session has ended. Sign in again.";
+      return;
+    }
     let accountId = ref.accountId ?? null;
     let person: string | null = null;
     let name: string | null = null;

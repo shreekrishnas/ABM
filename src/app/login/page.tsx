@@ -10,7 +10,7 @@ const LINKS: [number, number][] = [[0, 2], [2, 1], [1, 3], [2, 9], [9, 4], [9, 6
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; e?: string; m?: string; email?: string; sent?: string }> }) {
   const { next, e, m, email, sent } = await searchParams;
-  const notice = e === "used" ? "That sign-in link was already used. Ask for a new one." : e === "expired" ? "That sign-in link has expired. Ask for a new one." : undefined;
+  const notice = e === "used" ? "That sign-in link was already used. Ask for a new one." : e === "expired" ? "That sign-in link has expired. Ask for a new one." : e === "ended" ? "Your session has ended. Sign in again to continue." : undefined;
   const domains = allowedDomains();
   // The sign-in route handler sends back a short code; the words are the ones the form always showed.
   const minutes = Math.max(1, Math.min(60, Number(m) || 1));

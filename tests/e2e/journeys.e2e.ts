@@ -528,3 +528,84 @@ describe("11. Navigation", () => {
     expect(consoleErrors, "no console errors").toEqual([]);
   }, 60_000);
 });
+
+// Runs last: it ends the Rep's sessions and removes the Viewer.
+describe("12. Session security", () => {
+  async function signedIn(token: string) {
+    const c = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await c.addCookies([
+      { name: "abm_session", value: token, url: BASE },
+      { name: "abm_client", value: session.client, url: BASE },
+    ]);
+    return c;
+  }
+  /** What an old cookie gets now, straight from the server (no browser redirects followed). */
+  async function withCookie(token: string, path: string, init: RequestInit = {}) {
+    const res = await fetch(BASE + path, { ...init, redirect: "manual", headers: { ...(init.headers as Record<string, string>), cookie: `abm_session=${token}; abm_client=${session.client}` } });
+    return { status: res.status, location: res.headers.get("location") ?? "", body: await res.text(), cleared: /abm_session=;/.test(res.headers.get("set-cookie") ?? "") };
+  }
+  /** Use a row's menu on Team & Access, and wait until the change has been saved. */
+  async function menu(admin: Page, name: string, item: string) {
+    await admin.locator(`summary[aria-label="More for ${name}"]`).first().click();
+    const saved = admin.waitForResponse((r: { request: () => { method: () => string; headers: () => Record<string, string> } }) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]));
+    await admin.getByRole("menuitem", { name: item }).click();
+    await saved;
+  }
+
+  it("Sign out everywhere and Remove access end that person's open sessions at once; nobody else is affected", async () => {
+    // The Rep signs in through the sign-in page in their own browser; the Viewer is already working.
+    const repCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const rep = await repCtx.newPage();
+    await rep.goto(BASE + "/login?next=%2Faccounts", { waitUntil: "networkidle" });
+    await rep.fill("input[name=email]", "e2e-rep@trilliantdigital.com");
+    await rep.click("button[type=submit]");
+    await rep.waitForURL(/\/accounts$/);
+    expect(await rep.locator(".dir-table tbody a.dir-co").count()).toBeGreaterThan(0);
+    const repToken = (await repCtx.cookies()).find((c: { name: string; value: string }) => c.name === "abm_session")!.value;
+    const viewerCtx = await signedIn(session.roles.viewer);
+    const viewer = await viewerCtx.newPage();
+    await viewer.goto(BASE + "/work/today", { waitUntil: "networkidle" });
+    expect(new URL(viewer.url()).pathname).toBe("/work/today");
+
+    // A Super Admin signs the Rep out everywhere from Team & Access.
+    const admin = await open("/team?tab=people");
+    admin.on("dialog", (d: { accept: () => Promise<void> }) => d.accept());
+    await menu(admin, "E2E Rep", "Sign out everywhere");
+
+    // The Rep's very next click: sent to sign in, told why, and the old cookie is gone.
+    await rep.goto(BASE + "/accounts", { waitUntil: "networkidle" });
+    expect(new URL(rep.url()).pathname).toBe("/login");
+    expect(new URL(rep.url()).searchParams.get("e")).toBe("ended");
+    expect(await rep.locator(".lg-error").innerText()).toMatch(/session has ended/i);
+    expect((await repCtx.cookies()).some((c: { name: string; value: string }) => c.name === "abm_session" && c.value)).toBe(false);
+
+    // The old cookie, used directly: no page, no data, no server action.
+    const page = await withCookie(repToken, "/accounts");
+    expect(page.status).toBe(307);
+    expect(page.location).toMatch(/\/login\?next=%2Faccounts&e=ended$/);
+    expect(page.body).not.toMatch(/Brightpath/);
+    expect(page.cleared).toBe(true);
+    const data = await withCookie(repToken, "/accounts", { headers: { RSC: "1" } });
+    expect(data.status).toBe(307);
+    expect(data.body).not.toMatch(/Brightpath/);
+    const action = await withCookie(repToken, "/accounts", { method: "POST", headers: { "next-action": "0".repeat(42), "content-type": "text/plain;charset=UTF-8" }, body: "[]" });
+    expect(action.status).toBe(401);
+    expect(await (await fetch(BASE + "/api/jobs/mine", { redirect: "manual", headers: { cookie: `abm_session=${repToken}` } })).status).toBe(307);
+
+    // Remove access for the Viewer: the same, on the next click.
+    await menu(admin, "E2E Viewer", "Remove access");
+    await viewer.goto(BASE + "/work/today", { waitUntil: "networkidle" });
+    expect(new URL(viewer.url()).pathname).toBe("/login");
+    expect((await withCookie(session.roles.viewer, "/accounts")).body).not.toMatch(/Brightpath/);
+
+    // Everyone else carries on: the Super Admin and the limited Super Admin.
+    await admin.goto(BASE + "/accounts", { waitUntil: "networkidle" });
+    expect(new URL(admin.url()).pathname).toBe("/accounts");
+    expect(await admin.locator(".dir-table tbody a.dir-co").count()).toBeGreaterThan(0);
+    const limited = await withCookie(session.roles.limited, "/accounts");
+    expect(limited.status).toBe(200);
+    expect(limited.body).toMatch(/Brightpath/);
+    await repCtx.close();
+    await viewerCtx.close();
+  }, 90_000);
+});

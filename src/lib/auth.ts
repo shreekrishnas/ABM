@@ -19,6 +19,15 @@ export function domainAllowed(email: string): boolean {
   return allowedDomains().includes(domain);
 }
 
+/**
+ * Request headers only the request gate (src/proxy.ts) sets; whatever a browser sends under these names
+ * is dropped there. GATE says how the request got in ("api": the bearer-key API; "public": the sign-in
+ * pages, signed out; "session": a session checked against the database). REQUEST_ID is fresh for every
+ * request, so the data layer can work out a person's client scope once per request, never from an earlier one.
+ */
+export const GATE_HEADER = "x-abm-gate";
+export const REQUEST_ID_HEADER = "x-abm-request";
+
 /** The signing secret; null means sign-in can't be issued (the login page says so). */
 export function authSecret(): string | null {
   return process.env.AUTH_SECRET?.trim() || process.env.CRON_SECRET?.trim() || null;

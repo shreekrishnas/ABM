@@ -6,6 +6,7 @@ import { NO_CLIENT_MESSAGE, resolveScope, scopeWhere } from "@/lib/scope";
 // (Super Admin: all clients, or the one picked). The filter is added here, once, so no
 // page or helper can forget it. Background work (cron, queue, API key) is not scoped.
 
+const CREATES = new Set(["create", "createMany", "createManyAndReturn", "upsert"]);
 const READ_WRITE = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy", "update", "updateMany", "delete", "deleteMany", "upsert"]);
 
 function andWhere(where: Record<string, unknown> | undefined, extra: Record<string, unknown>) {
@@ -22,6 +23,9 @@ export const db = baseDb.$extends({
         const scope = await resolveScope();
         if (!scope) return query(args);
         const a = (args ?? {}) as Record<string, unknown>;
+        // No client in view (none assigned, all removed, or a session that no longer works): nothing of
+        // any client's may be created either. Reads, updates and deletes already match nothing.
+        if (scope.ids && !scope.ids.length && CREATES.has(operation) && scopeWhere(model as Prisma.ModelName, [])) throw new Error(NO_CLIENT_MESSAGE);
         if (model === "Account" && (operation === "create" || operation === "upsert")) {
           const data = (operation === "create" ? a.data : a.create) as Record<string, unknown>;
           const sid = (data.sellerId as string | undefined) ?? scope.active;

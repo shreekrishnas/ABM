@@ -65,22 +65,62 @@ export async function kickJob(origin: string | null, id: string) {
   await runJob(id);
 }
 
+/** The action each kind of job was started as, for checking the starter's role when it runs. */
+const JOB_ACTION: Record<JobKind, string> = {
+  run_account: "company.run",
+  research_question: "research.question",
+  profile_refresh: "profile.refresh",
+  scan_market: "discover.scan",
+  daily_run: "daily.run",
+  lookalikes: "lookalike.search",
+  discovery_draft: "discovery.start",
+  discovery_run: "discovery.run",
+  apollo_fetch: "visitors.fetch",
+  reindex: "knowledge.reindex",
+};
+
+/**
+ * A job started by a person runs only while that person may still do it for that client: on the
+ * team, and a Super Admin covering the client or assigned to it (not archived) with the role the
+ * job needs. Jobs the system started (no person) always run. Returns why not, or null.
+ */
+export async function starterRefusal(job: Pick<BackgroundJob, "kind" | "sellerId" | "createdBy">): Promise<string | null> {
+  if (!job.createdBy) return null;
+  const user = await baseDb.user.findUnique({
+    where: { email: job.createdBy },
+    select: { status: true, superAdmin: true, superAdminClients: true, clients: { where: { clientId: job.sellerId }, select: { role: true, client: { select: { status: true } } } } },
+  });
+  const gone = "Not run: the person who started it no longer has access to this client";
+  if (!user || user.status !== "active") return gone;
+  if (user.superAdmin && (!user.superAdminClients.length || user.superAdminClients.includes(job.sellerId))) return null;
+  const m = user.clients[0];
+  if (!m || m.client.status === "archived") return gone;
+  const { atLeast, minRoleFor } = await import("@/lib/roles");
+  const role = (["owner", "manager", "rep", "viewer"].includes(m.role) ? m.role : "manager") as import("@/lib/roles").Role;
+  return atLeast(role, minRoleFor(JOB_ACTION[job.kind as JobKind] ?? job.kind)) ? null : "Not run: the person who started it no longer has the role this needs";
+}
+
+/** Run a claimed job's handler for its client; never throws. */
+async function execute(job: BackgroundJob): Promise<JobOutcome> {
+  try {
+    const [{ unscoped }, { withSeller }] = await Promise.all([import("@/lib/scope"), import("@/lib/seller")]);
+    const ctx = newContext();
+    if (job.sellerId === SAMPLE_CLIENT) ctx.adapters = (await import("@/lib/adapters/mock")).createMockAdapters();
+    return await unscoped(() => withSeller(job.sellerId, () => HANDLERS[job.kind as JobKind](job, ctx)));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, message: /budget/i.test(msg) ? msg.slice(0, 200) : /403|credit|limit exceeded|paused/i.test(msg) ? "The AI reader is unavailable right now (paused or out of credits)" : `Stopped: ${msg.slice(0, 200)}` };
+  }
+}
+
 /** Claim and run one job; saves done or failed with a plain message. */
 export async function runJob(id: string): Promise<void> {
   const claimed = await baseDb.backgroundJob.updateMany({ where: { id, status: "queued" }, data: { status: "running", startedAt: new Date() } });
   if (!claimed.count) return;
   const job = (await baseDb.backgroundJob.findUnique({ where: { id } }))!;
   const started = new Date();
-  let out: JobOutcome;
-  try {
-    const [{ unscoped }, { withSeller }] = await Promise.all([import("@/lib/scope"), import("@/lib/seller")]);
-    const ctx = newContext();
-    if (job.sellerId === SAMPLE_CLIENT) ctx.adapters = (await import("@/lib/adapters/mock")).createMockAdapters();
-    out = await unscoped(() => withSeller(job.sellerId, () => HANDLERS[job.kind as JobKind](job, ctx)));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    out = { ok: false, message: /budget/i.test(msg) ? msg.slice(0, 200) : /403|credit|limit exceeded|paused/i.test(msg) ? "The AI reader is unavailable right now (paused or out of credits)" : `Stopped: ${msg.slice(0, 200)}` };
-  }
+  const refusal = await starterRefusal(job).catch(() => "Not run: could not check who started it");
+  const out: JobOutcome = refusal ? { ok: false, message: refusal } : await execute(job);
   await baseDb.backgroundJob.update({ where: { id }, data: { status: out.ok ? "done" : "failed", message: out.message.slice(0, 500), href: out.href ?? null, finishedAt: new Date() } });
   const { recordRun } = await import("@/lib/admin/ops");
   await recordRun(`Job · ${job.label}`.slice(0, 80), started, { ok: out.ok, processed: 1, note: out.message });
