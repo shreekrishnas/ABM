@@ -27,6 +27,8 @@ export function accountWhere(sp: SP): Prisma.AccountWhereInput {
   if (sp.list) and.push({ lastImportBatchId: sp.list });
   if (sp.campaign) and.push({ contacts: { some: { journeys: { some: { campaignId: sp.campaign } } } } });
   if (sp.tier === "T1" || sp.tier === "T2" || sp.tier === "T3") and.push({ tier: sp.tier });
+  // Stopped: waiting for a person's step (a decision, more research, people, or a re-run).
+  if (sp.progress === "stopped") and.push({ pipelineStatus: { in: ["blocked", "error"] } });
   if (sp.stage && (STAGES as readonly string[]).includes(sp.stage)) and.push({ stage: sp.stage as (typeof STAGES)[number] });
   if (sp.owner === "none") and.push({ ownerId: null });
   else if (sp.owner) and.push({ ownerId: sp.owner });

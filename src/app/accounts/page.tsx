@@ -70,6 +70,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     { key: "tier", label: "Priority", any: "Any priority", options: ["T1", "T2", "T3"].map((t) => ({ value: t, label: tierLabel(t) })) },
     { key: "stage", label: "Status", any: "Any status", options: STAGES.map((s) => ({ value: s, label: label(s) })) },
     { key: "list", label: "Import list", any: "Any list", options: batches.map((b) => ({ value: b.id, label: b.filename })) },
+    { key: "progress", label: "Progress", any: "Any progress", options: [{ value: "stopped", label: "Stopped: needs a step" }] },
   ];
 
   // ── The filtered list (same filter as the export) ──
@@ -90,10 +91,13 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     db.account.count({ where }),
     db.account.findMany({
       where, orderBy: [orderBy, { name: "asc" }], skip: (page - 1) * PAGE, take: PAGE,
-      select: { id: true, name: true, domain: true, industry: true, employees: true, technologies: true, intentScore: true, priorityScore: true, tier: true, stage: true, source: true, city: true, country: true, lastImportBatchId: true, updatedAt: true, _count: { select: { contacts: { where: { mergedIntoId: null } } } } },
+      select: { id: true, name: true, domain: true, industry: true, employees: true, technologies: true, intentScore: true, priorityScore: true, tier: true, stage: true, pipelineStatus: true, lastError: true, source: true, city: true, country: true, lastImportBatchId: true, updatedAt: true, _count: { select: { contacts: { where: { mergedIntoId: null } } } } },
     }),
     db.account.groupBy({ by: ["stage"], where: accountWhere({ ...sp, stage: undefined }), _count: true }),
   ]);
+  // Stopped companies on this page, with why (each one needs a person's step).
+  const { STOPPED_STATUSES, stopReasons } = await import("@/lib/accounts/stop");
+  const stopped = await stopReasons(rows.filter((r) => STOPPED_STATUSES.includes(r.pipelineStatus)));
   const stageN = new Map(stageRows.map((r) => [r.stage as string, r._count]));
   const stageAll = stageRows.reduce((a, r) => a + r._count, 0);
   const keep = { ...sp, peek: undefined };
@@ -204,6 +208,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                           <span className="min-w-0">
                             <b>{r.name}</b>
                             <small className="mono">{r.domain ?? "—"}</small>
+                            {stopped.has(r.id) && <small className="tm-warn dir-stop" title={stopped.get(r.id)}>Stopped: {(stopped.get(r.id) ?? "").slice(0, 60)}{(stopped.get(r.id) ?? "").length > 60 ? "…" : ""}</small>}
                           </span>
                         </Link>
                       </td>

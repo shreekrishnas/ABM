@@ -108,6 +108,11 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const reading = a.intentReading as unknown as { score: number; level: IntentLevel; whyNow: string | null; families: string[]; explain: string } | null;
   const drafts = a.contacts.flatMap((c) => c.drafts.map((d) => ({ ...d, contact: c })));
   const blockers = a.reviewItems.filter((r) => r.type === "possible_blocker" || r.type === "proposed_rejection");
+  // A stopped company says why and offers the one step that moves it on (never a dead end).
+  const { STOPPED_STATUSES, nextStep, stopReasons } = await import("@/lib/accounts/stop");
+  const stopReason = STOPPED_STATUSES.includes(a.pipelineStatus) ? (await stopReasons([{ id: a.id, lastError: a.lastError }])).get(a.id) ?? null : null;
+  const openDecision = a.reviewItems.find((r) => r.status === "open") ?? null;
+  const step = stopReason ? nextStep(a.id, stopReason, openDecision && { id: openDecision.id, type: openDecision.type }) : null;
 
   return (
     <div className="page-enter">
@@ -145,7 +150,16 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
           <div className="rec-blocker" role="alert">
             <ShieldAlert size={16} aria-hidden />
             <span className="min-w-0 flex-1"><b>{blockers[0].type === "proposed_rejection" ? "Rejection proposed" : "Possible blocker"}</b> · {blockers[0].reason}. Nothing is ruled out until a person decides.</span>
-            <Link href={`/review?type=${blockers[0].type}`} className="btn btn-secondary btn-sm">Decide</Link>
+            <Link href={`/review?type=${blockers[0].type}&pick=${blockers[0].id}`} className="btn btn-secondary btn-sm">Decide</Link>
+          </div>
+        )}
+        {stopReason && step && blockers.length === 0 && (
+          <div className="rec-blocker" role="status">
+            <AlertTriangle size={16} aria-hidden />
+            <span className="min-w-0 flex-1"><b>Stopped</b> · {stopReason}</span>
+            {step.kind === "research" ? <ActionButton action={reResearchAction.bind(null, a.id)} className="btn btn-secondary btn-sm"><RotateCcw size={14} /> {step.label}</ActionButton>
+              : step.kind === "run" ? <ActionButton action={runAccountAction.bind(null, a.id, undefined)} className="btn btn-secondary btn-sm"><Play size={14} /> {step.label}</ActionButton>
+              : <Link href={step.href} className="btn btn-secondary btn-sm">{step.label}</Link>}
           </div>
         )}
       </section>
