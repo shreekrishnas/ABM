@@ -4,6 +4,7 @@
 
 import { seller } from "@/lib/seller";
 import type { DataProvider, PersonQuery, ProviderPerson } from "../types";
+import { ApiError, fetchJson } from "./http";
 
 const BASE = "https://api.apollo.io/api/v1";
 
@@ -16,7 +17,8 @@ export function titlesFor(fn: string): string[] {
 }
 
 export class ApolloClient {
-  constructor(private key: string) {}
+  /** `waits`: the pauses before each retry (tests pass zeros); the shared defaults otherwise. */
+  constructor(private key: string, private waits?: number[]) {}
 
   post<T>(path: string, body: Record<string, unknown>): Promise<T> {
     return this.call<T>(path, "POST", body);
@@ -26,18 +28,23 @@ export class ApolloClient {
     return this.call<T>(path, "GET");
   }
 
+  // Through the shared helper (adapters/live/http.ts), like the other services: a timeout, retries with
+  // growing waits on rate limits (honouring Retry-After), 5xx and network errors, and a short pause for
+  // a service that keeps failing. It used to fail the whole run on the first 429 or blip.
   private async call<T>(path: string, method: "GET" | "POST", body?: Record<string, unknown>): Promise<T> {
-    const res = await fetch(`${BASE}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", "x-api-key": this.key },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!res.ok) {
-      const text = (await res.text().catch(() => "")).slice(0, 200);
-      throw new Error(`Apollo ${path} ${res.status}${res.status === 403 ? " (this API key or plan can't use this endpoint)" : res.status === 429 ? " (rate limit — try later)" : ""}: ${text}`);
+    try {
+      return await fetchJson<T>("apollo", `${BASE}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", "x-api-key": this.key },
+        body: body ? JSON.stringify(body) : undefined,
+        timeoutMs: 20_000,
+        ...(this.waits ? { waits: this.waits } : {}),
+      });
+    } catch (e) {
+      if (!(e instanceof ApiError)) throw e;
+      const detail = e.message.replace(/^apollo -?\d+: /, "").slice(0, 200);
+      throw new Error(`Apollo ${path} ${e.status}${e.status === 403 ? " (this API key or plan can't use this endpoint)" : e.status === 429 ? " (rate limit — try later)" : ""}: ${detail}`);
     }
-    return (await res.json()) as T;
   }
 }
 
@@ -164,12 +171,17 @@ export async function resolveVisitorList(key: string, list: { id?: string; name?
  * endpoint, so visitors are read from the account list they're saved to in Apollo (by hand
  * or by an Apollo workflow): the configured list, or one whose name mentions "visitor".
  */
-export async function apolloVisitorCompanies(key: string, list: { id?: string; name?: string }, maxPages = 5): Promise<ApolloVisitorCompany[]> {
-  const api = new ApolloClient(key);
+/**
+ * Every company on the visitor list, newest activity first, 100 per page up to `maxPages`. The result
+ * carries how many pages the list has, so a list longer than we read is said, never cut silently.
+ */
+export async function apolloVisitorCompanies(key: string, list: { id?: string; name?: string }, maxPages = 20, waits?: number[]): Promise<ApolloVisitorCompany[] & { totalPages?: number; truncated?: boolean }> {
+  const api = new ApolloClient(key, waits);
   const found = await resolveVisitorList(key, list);
   if (!found) throw new Error("No Apollo account list for website visitors was found: save visitors to an account list with \"visitor\" in its name, or set APOLLO_VISITOR_LIST");
   const labelId = found.id;
-  const out: ApolloVisitorCompany[] = [];
+  const out: ApolloVisitorCompany[] & { totalPages?: number; truncated?: boolean } = [];
+  let totalPages = 0;
   for (let page = 1; page <= maxPages; page++) {
     const r = await api.post<{ accounts?: ({ name?: string | null; domain?: string | null; website_url?: string | null } & Record<string, unknown>)[]; pagination?: { total_pages?: number } }>("/accounts/search", {
       account_label_ids: [labelId], page, per_page: 100, sort_by_field: "account_last_activity_date", sort_ascending: false,
@@ -180,8 +192,11 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
       const d = visitDate(a);
       out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null, lastSeenAt: d.at, dateField: d.field });
     }
+    totalPages = r.pagination?.total_pages ?? page;
     if (!r.pagination?.total_pages || page >= r.pagination.total_pages) break;
   }
+  // Not enumerable: the list itself stays a plain list of companies.
+  Object.defineProperties(out, { totalPages: { value: totalPages }, truncated: { value: totalPages > maxPages } });
   return out;
 }
 

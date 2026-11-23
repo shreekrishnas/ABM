@@ -31,6 +31,8 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   let companies: Awaited<ReturnType<typeof apolloVisitorCompanies>>;
   try {
     companies = await apolloVisitorCompanies(key, list);
+    // A list longer than we read is said in the run's record, not cut silently.
+    if ((companies as { truncated?: boolean }).truncated) await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: `Apollo's visitor list has ${(companies as { totalPages?: number }).totalPages} pages; only the newest ${companies.length} companies were read` });
   } catch (e) {
     await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: e instanceof Error ? e.message.slice(0, 300) : "Apollo request failed" });
     return { companies: 0, recorded: 0, suggested: 0, excluded: 0 };
