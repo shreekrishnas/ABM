@@ -1,6 +1,6 @@
 import { Search, Sparkles, UserPlus } from "lucide-react";
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { clientBrain } from "@/lib/scope";
 import { ActionButton } from "@/components/client";
 import { Card } from "@/components/ui";
 import { GROUP_BY_KEY, stakeholderMap, targetGroups } from "@/lib/buying-group/stakeholders";
@@ -18,7 +18,8 @@ export async function StakeholdersCard({ accountId }: { accountId: string }) {
     db.contact.findMany({ where: { accountId, mergedIntoId: null }, select: { id: true, fullName: true, title: true, titleNormalized: true, buyingRole: true, stakeholderType: true, discoveredBy: true, influenceReason: true } }),
     latestInfluencerPlan(accountId),
   ]);
-  const groups = targetGroups(seller().personas.flatMap((p) => p.functions));
+  // Buying groups from this company's own client brain (not the default seller's).
+  const groups = targetGroups((await clientBrain(account.sellerId)).pack.personas.flatMap((p) => p.functions));
   const map = stakeholderMap(people.map((p) => ({ ...p, title: p.titleNormalized ?? p.title })), groups);
   const byId = new Map(people.map((p) => [p.id, p]));
   const canSearch = account.tier === "T1" || account.tier === "T2";

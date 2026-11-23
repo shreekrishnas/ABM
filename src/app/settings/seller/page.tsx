@@ -1,8 +1,9 @@
 import { humanize } from "@/lib/labels";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
-import { ensureSellerPacks } from "@/lib/seller";
-import { activeSeller } from "@/lib/scope";
+import { builtInPack, ensureSellerPacks } from "@/lib/seller";
+import { activeSellerState } from "@/lib/scope";
+import { canEditClient } from "@/lib/client-access";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { DEFAULT_RESEARCH_WEIGHTS } from "@/lib/seller/fit";
 
@@ -12,7 +13,24 @@ const ROLE_COLOR = { decision_maker: "#0D7480", champion: "#0D9488", influencer:
 
 export default async function SellerPage() {
   await ensureSellerPacks();
-  const sp = await activeSeller();
+  const { id, pack: sp, ready, missing } = await activeSellerState();
+  const canEdit = await canEditClient(id);
+  // Built-in profiles have the full editor; every other client's profile is its Account Brain.
+  const editHref = builtInPack(id) ? "/settings/seller/edit" : `/brain?client=${encodeURIComponent(id)}`;
+  if (!ready) {
+    return (
+      <div className="page-enter">
+        <Link href="/settings" className="btn btn-ghost btn-sm mb-3 -ml-2"><ArrowLeft size={14} /> Settings</Link>
+        <PageHeader eyebrow={`${sp.name || id} · not set up yet`} title="Seller profile" sub="The seller profile comes from this client's Account Brain. Research, scoring and drafting stay off until it is complete." />
+        <Card title="Account Brain incomplete" sub={`${missing.length} thing${missing.length === 1 ? "" : "s"} to add before research can run`}>
+          <ul className="grid gap-1.5 text-sm">{missing.map((m) => <li key={m}>· {m}</li>)}</ul>
+          {canEdit
+            ? <Link href={`/brain?client=${encodeURIComponent(id)}`} className="btn btn-brand btn-sm mt-4"><Pencil size={14} /> Finish the Account Brain</Link>
+            : <p className="muted mt-4 text-sm">A Manager or Owner of this client can finish it.</p>}
+        </Card>
+      </div>
+    );
+  }
   const w = sp.icp.weights;
   return (
     <div className="page-enter">
@@ -24,7 +42,7 @@ export default async function SellerPage() {
         actions={
           <>
             <a href={sp.website} target="_blank" rel="noreferrer" className="btn btn-secondary"><ExternalLink size={15} /> Website</a>
-            <Link href="/settings/seller/edit" className="btn btn-brand"><Pencil size={15} /> Edit profile</Link>
+            {canEdit && <Link href={editHref} className="btn btn-brand"><Pencil size={15} /> Edit profile</Link>}
           </>
         }
       />

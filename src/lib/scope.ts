@@ -179,14 +179,30 @@ export async function activeSellerId(): Promise<string> {
   return s?.active ?? s?.choices[0]?.id ?? DEFAULT_SELLER_ID;
 }
 
-/** The active client's Account Brain pack (the built-in default while a new brain is incomplete). */
-export async function activeSeller() {
-  const { ensureSellerPacks, seller, sellerFor } = await import("@/lib/seller");
+/**
+ * One client's Account Brain for screens: its saved complete brain (ready), else its own draft,
+ * else a blank one under its own name (not ready, with what is missing). Never another client's
+ * brain: a client whose brain is unfinished used to be shown the built-in default seller's.
+ * Nothing is written; runs still refuse a client without a complete brain.
+ */
+export async function clientBrain(clientId: string): Promise<{ id: string; pack: import("@/lib/seller").SellerProfile; ready: boolean; missing: string[] }> {
+  const { ensureSellerPacks, sellerFor } = await import("@/lib/seller");
   await ensureSellerPacks();
-  const id = await activeSellerId();
   try {
-    return sellerFor(id);
+    return { id: clientId, pack: sellerFor(clientId), ready: true, missing: [] };
   } catch {
-    return seller();
+    const { loadBrain, readiness } = await import("@/lib/seller/brain");
+    const { pack } = await loadBrain(clientId);
+    return { id: clientId, pack: { ...pack, id: clientId }, ready: false, missing: readiness(pack).missing };
   }
+}
+
+/** The client in view and its Account Brain (see clientBrain). */
+export async function activeSellerState() {
+  return clientBrain(await activeSellerId());
+}
+
+/** The active client's Account Brain pack: its own, complete or not (see clientBrain). */
+export async function activeSeller() {
+  return (await activeSellerState()).pack;
 }

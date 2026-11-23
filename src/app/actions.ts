@@ -515,14 +515,16 @@ export async function previewMatchesAction(input: {
   // Sort companies by the seller's targeting rule, so people see what will be used before importing.
   const { mustHaveGate } = await import("@/lib/pipeline/gates");
   const { normalizeCountry } = await import("@/lib/pipeline/normalize");
-  const { activeSeller } = await import("@/lib/scope");
-  const mh = (await activeSeller()).icp.mustHave;
+  // The client in view's own rule (never another client's), and whether its brain lets research start.
+  const { activeSellerState } = await import("@/lib/scope");
+  const brain = await activeSellerState();
+  const mh = brain.pack.icp.mustHave;
   const rule = mh ? [mh.countries?.length ? mh.countries.join(" or ") : null, mh.minEmployees ? `more than ${(mh.minEmployees - 1).toLocaleString()} employees` : null].filter(Boolean).join(", ") : null;
   let fit = 0, outside = 0, missing = 0;
   const outsideReasons: Record<string, string[]> = {};
   const missingNames: string[] = [];
   for (const c of companies) {
-    const g = mustHaveGate({ country: normalizeCountry(c.country ?? null), employees: c.employees ?? null });
+    const g = mustHaveGate({ country: normalizeCountry(c.country ?? null), employees: c.employees ?? null }, mh ?? {}); // {} = no rule (undefined would fall back to the default seller)
     if (g.pass) fit++;
     else if (g.unknown) {
       missing++;
@@ -533,7 +535,7 @@ export async function previewMatchesAction(input: {
       outsideReasons[why] = [...(outsideReasons[why] ?? []), ...(c.name ? [c.name] : [])].slice(0, 6);
     }
   }
-  return { rule, fit, outside, missing, outsideReasons, missingNames, companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
+  return { rule, brainReady: brain.ready, fit, outside, missing, outsideReasons, missingNames, companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
 }
 
 export async function createCampaignAction(name: string, description?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {

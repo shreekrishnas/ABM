@@ -3,7 +3,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { Card, Empty, PageHeader, TierBadge } from "@/components/ui";
-import { seller } from "@/lib/seller";
+import { activeSeller } from "@/lib/scope";
 import { stakeholderMap, targetGroups } from "@/lib/buying-group/stakeholders";
 import { ROLES, STATUS_COLOR, STATUS_ORDER, contactStatuses, roleCoverage } from "@/lib/buying-group/coverage";
 
@@ -19,7 +19,8 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
   });
   const byAccount = await contactStatuses(accounts.map((a) => a.id));
   // Stakeholder groups covered per company (leadership, IT, finance, procurement, operations, data, risk, channel, HR).
-  const groups = targetGroups(seller().personas.flatMap((p) => p.functions));
+  // Buying groups from the client in view's own brain (not the default seller's).
+  const groups = targetGroups((await activeSeller()).personas.flatMap((p) => p.functions));
   const titles = await db.contact.findMany({ where: { accountId: { in: accounts.map((a) => a.id) }, mergedIntoId: null }, select: { id: true, accountId: true, fullName: true, title: true, titleNormalized: true, buyingRole: true, stakeholderType: true, discoveredBy: true } });
   const groupCover = new Map(accounts.map((a) => [a.id, stakeholderMap(titles.filter((t) => t.accountId === a.id).map((t) => ({ ...t, title: t.titleNormalized ?? t.title })), groups)]));
   const eligible = CONFIG.readiness.eligibleRoles as readonly string[];
