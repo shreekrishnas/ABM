@@ -151,7 +151,8 @@ const als = new AsyncLocalStorage<SellerContext>();
 /** Run fn with one seller's pack (the latest saved edit, if any) as the active identity. */
 export async function withSeller<T>(id: string | null | undefined, fn: () => Promise<T>): Promise<T> {
   await ensureSellerPacks();
-  return als.run(loadSeller(id), fn);
+  // Awaited inside, so a lazy query handed back still runs for this client.
+  return als.run(loadSeller(id), async () => await fn());
 }
 
 /** The client of the run in progress, or null outside a run (a page request, a scheduled job). */

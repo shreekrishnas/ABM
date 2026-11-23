@@ -33,12 +33,13 @@ const PER_REQUEST_MAX = 1000;
 
 /** Run fn with a fixed scope (tests), or none (null: see every client). */
 export function withScope<T>(scope: Scope | null, fn: () => Promise<T>): Promise<T> {
-  return override.run({ scope }, fn);
+  // Awaited inside: a Prisma query is lazy, and one handed back un-awaited would run after the scope ends.
+  return override.run({ scope }, async () => await fn());
 }
 
 /** Background work started from a page (pipeline runs, queue): never limited to the viewer. */
 export function unscoped<T>(fn: () => Promise<T>): Promise<T> {
-  return override.run({ scope: null }, fn);
+  return override.run({ scope: null }, async () => await fn());
 }
 
 /**
@@ -192,7 +193,10 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[], opts: { platf
       // Company costs follow the company; account-level costs (lookalike research) carry the account.
       return { OR: [{ account: acct }, { accountId: null, ...acct }] };
     case "PipelineEvent":
-      return { OR: [{ account: acct }, { accountId: null }] };
+      // A company's steps by its client. Steps with no company (scans, visitor pulls, the daily check)
+      // only when they name the client (data.sellerId), or for a full Super Admin: they used to be
+      // visible to every client, and their reasons describe other clients' work.
+      return { OR: [{ account: acct }, ...ids.map((id) => ({ accountId: null, data: { path: ["sellerId"], equals: id } })), ...(opts.platformAdmin ? [{ accountId: null }] : [])] };
     default:
       return null; // team, clients, sequences, mailboxes, suppressions, settings: shared
   }

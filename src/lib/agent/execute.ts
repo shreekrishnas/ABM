@@ -26,6 +26,14 @@ const defaultDeps = async (): Promise<PolicyDeps> => {
 };
 
 /** Read-only tools (level 0) are logged but never deduplicated: a question asked twice deserves fresh data. */
+/**
+ * What a tool may read: the client's own records. Platform-wide ones (no company, no client: the bounce
+ * pause, steps of other clients' scans) only for a Super Admin covering every client.
+ */
+export function toolScope(ctx: Pick<AgentContext, "sellerId" | "me">) {
+  return { ids: [ctx.sellerId], active: ctx.sellerId, choices: [], all: ctx.me?.superAdmin === true && ctx.me.superAdminClients === null };
+}
+
 export async function runAgentTool(name: string, rawInput: unknown, ctx: AgentContext, reason: string, deps?: PolicyDeps): Promise<ToolOutcome> {
   const tool = REGISTRY[name];
   if (!tool) return { actionId: null, tool: name, status: "refused", result: `Unknown tool ${name}`, refusal: { ok: false, code: "level", reason: `Unknown tool ${name}` } };
@@ -51,7 +59,7 @@ export async function runAgentTool(name: string, rawInput: unknown, ctx: AgentCo
   });
   try {
     const result = await Promise.race([
-      withScope({ ids: [ctx.sellerId], active: ctx.sellerId, choices: [], all: false }, () => tool.run(input, ctx)),
+      withScope(toolScope(ctx), () => tool.run(input, ctx)),
       new Promise((_, rej) => setTimeout(() => rej(new Error("took longer than 20 s")), 20_000)),
     ]);
     const evidenceIds = collectEvidenceIds(result);
