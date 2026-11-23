@@ -62,7 +62,8 @@ pg_restore --data-only --file=- "$file" | awk -v s="$SCHEMA" '
   inside && $0 == "\\." { print t, n; inside = 0; next }
   inside { n++ }' | sort > "$file.counts"
 
-if command -v sha256sum >/dev/null; then sha256sum "$file" > "$file.sha256"; else shasum -a 256 "$file" > "$file.sha256"; fi
+# The checksum names the file without its folder, so it can be checked from the folder it sits in.
+(cd "$OUT_DIR" && if command -v sha256sum >/dev/null; then sha256sum "$(basename "$file")"; else shasum -a 256 "$(basename "$file")"; fi) > "$file.sha256"
 
 tables=$(wc -l < "$file.counts" | tr -d ' ')
 rows=$(awk '{ s += $2 } END { print s + 0 }' "$file.counts")
