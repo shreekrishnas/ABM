@@ -70,7 +70,21 @@ export async function sendApproved(ctx: RunContext = newContext()) {
     for (const d of drafts) await logEvent(ctx, { accountId: d.contact.accountId, contactId: d.contactId, stage: S, step: "sequence_send.channel", outcome: "block", reason: "Approved, waiting: no mailbox connected (set SMTP_URL)" });
     return { sent: 0, held: result.held + drafts.length, reasons: [...result.reasons, "No mailbox connected"] };
   }
-  for (const d of drafts) {
+  // A client whose email setup isn't complete (no mailbox, no postal address, no sender details…): its
+  // approved emails wait, and the reason names exactly what is missing (Settings → Email readiness).
+  const { emailReadiness } = await import("@/lib/email/readiness");
+  const notReady = new Map<string, string>();
+  for (const id of new Set(drafts.map((d) => d.contact.account.sellerId))) {
+    const r = await emailReadiness(id);
+    if (!r.ready) notReady.set(id, `Not ready to send: missing ${r.missing.join(", ")}`);
+  }
+  for (const [id, why] of notReady) {
+    const held = drafts.filter((d) => d.contact.account.sellerId === id);
+    for (const d of held) await logEvent(ctx, { accountId: d.contact.accountId, contactId: d.contactId, stage: S, step: "sequence_send.readiness", outcome: "block", reason: why });
+    result.held += held.length;
+    result.reasons.push(`${id}: ${why}`);
+  }
+  for (const d of drafts.filter((x) => !notReady.has(x.contact.account.sellerId))) {
     const c = d.contact;
     // Freshness gate: the facts this email cites must still be usable right now.
     const fresh = await checkDraftEvidence(d, ctx.now);

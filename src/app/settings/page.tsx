@@ -8,6 +8,7 @@ import { ensureSellerPacks } from "@/lib/seller";
 import { activeSellerState } from "@/lib/scope";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { EmailReadinessCard } from "@/components/email/readiness-card";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
 import { createCampaignFormAction, createSenderFormAction, seedDemoAction } from "../actions";
 import { securityStatus } from "@/lib/api";
@@ -103,6 +104,7 @@ export default async function SettingsPage() {
           <p className="secondary mt-2 text-xs">2. Ask an admin to add your website address as the allowed website. Links to it in emails then carry a token, so a click identifies the person.</p>
           <p className="secondary mt-2 text-xs">Other visitor tools can post to <code className="break-all">{origin}/api/v1/visitors</code> using the API key (ask an admin).</p>
         </Card>
+        <EmailReadinessCard clientId={spId} clientName={sp.name || spId} />
         <Card id="approval" title="Approval">
           <Row k="Approval (autonomy)" v={{ review_all: "A person approves every email", auto_t3: "Broad-priority emails that pass every check go out", auto_all: "Emails that pass every check go out" }[sp.autonomy]} />
           <Row k="Guardrail attempts" v={CONFIG.guardrail.maxAttempts} />

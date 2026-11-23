@@ -27,6 +27,7 @@ import { setupSteps } from "@/lib/admin/client-setup";
 import { CLIENT_STATUS_LABEL, isClientStatus } from "@/lib/admin/client-status";
 import { queueRunState, runHistory, stoppedGroups } from "@/lib/admin/ops";
 import { selfCallSetup } from "@/lib/pipeline/handoff";
+import { EmailReadinessAll } from "@/components/email/readiness-card";
 import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { AddClient, ClientChip, RowMenu } from "./people-controls";
@@ -290,6 +291,7 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
           {aiPaused ? "Resume AI" : "Pause AI"}
         </ActionButton>
       </Card>
+      <EmailReadinessAll clients={clients} />
       <Card title="Database access" sub="Every table must be readable and writable by the app. A table created without access breaks the pages that use it.">
         {health.tables == null ? <p className="tm-warn">Couldn&apos;t check table access.</p>
           : health.tables.length ? <p className="tm-warn">The app can&apos;t use: <b>{health.tables.join(", ")}</b>. Grant access to the app&apos;s database role (see the grant_app_role migration).</p>
