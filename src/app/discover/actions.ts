@@ -95,6 +95,14 @@ export async function researchMoreAction(id: string, _: ActionState, fd: FormDat
 export async function fetchApolloVisitorsAction(): Promise<ActionState> {
   await logAction("visitors.fetch");
   const o = await jobOwner();
+  // Apollo's visitor list belongs to one client: fetched for any other, its visitors would become that client's.
+  const { apolloOwnerClient } = await import("@/lib/web/apollo-sync");
+  const owner = await apolloOwnerClient();
+  if (o.sellerId !== owner) {
+    const { baseDb } = await import("@/lib/db-base");
+    const name = (await baseDb.client.findUnique({ where: { id: owner }, select: { name: true } }))?.name ?? owner;
+    return { ok: false, message: `Website visitors from Apollo belong to ${name}. Switch to ${name} to fetch them.` };
+  }
   const { startJob } = await import("@/lib/jobs");
   return startJob("apollo_fetch", { ...o, label: "Fetch website visitors from Apollo" });
 }

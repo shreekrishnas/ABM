@@ -4,7 +4,7 @@
 
 import { db } from "@/lib/db";
 import { apolloVisitDates, apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
-import { seller } from "@/lib/seller";
+import { runSellerId, seller } from "@/lib/seller";
 import { logEvent, type RunContext } from "@/lib/pipeline/context";
 import { clientForSite, recordVisit } from "./visits";
 import { suggestFromVisitors } from "@/lib/discover/visitors";
@@ -21,7 +21,16 @@ export function apolloVisitorsConfigured() {
   return Boolean(env("APOLLO_API_KEY"));
 }
 
-export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolean } = {}): Promise<{ companies: number; recorded: number; suggested: number; excluded: number } | null> {
+export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolean } = {}): Promise<{ companies: number; recorded: number; suggested: number; excluded: number; refusedFor?: string } | null> {
+  // The list belongs to one client (apolloOwnerClient). Pulled inside any other client, its visitors would be
+  // recorded as that client's: refused before anything is fetched, with the reason recorded for that client.
+  // (Its own step name, so a refusal never counts as the owner's pull for the day.)
+  const owner = await apolloOwnerClient();
+  const runClient = runSellerId();
+  if (runClient && runClient !== owner) {
+    await logEvent(ctx, { stage: 0, step: "apollo.visitors_refused", outcome: "block", reason: `Website visitors from Apollo belong to ${owner}; not pulled for ${runClient}`, data: { sellerId: runClient, owner } });
+    return { companies: 0, recorded: 0, suggested: 0, excluded: 0, refusedFor: owner };
+  }
   const key = env("APOLLO_API_KEY");
   const list = { id: env("APOLLO_VISITOR_LABEL_ID"), name: env("APOLLO_VISITOR_LIST") };
   if (!key || process.env.ADAPTER_MODE === "mock") return null;
@@ -116,14 +125,16 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   return { companies: companies.length, recorded, ...s };
 }
 
-/** The client whose website the Apollo visitor list tracks: by the configured site, else the client that last fetched visitors, else the default. */
+/**
+ * The client whose website the Apollo visitor list tracks, set explicitly: the client whose Account Brain
+ * website is APOLLO_VISITOR_SITE, else the default client. Never whoever last pressed "Fetch website
+ * visitors": that would hand one client's website visitors to another.
+ */
 export async function apolloOwnerClient(): Promise<string> {
   const bySite = await clientForSite(env("APOLLO_VISITOR_SITE"));
   if (bySite) return bySite;
-  const { baseDb } = await import("@/lib/db-base");
-  const last = await baseDb.backgroundJob.findFirst({ where: { kind: "apollo_fetch" }, orderBy: { createdAt: "desc" }, select: { sellerId: true } });
   const { DEFAULT_SELLER_ID } = await import("@/lib/seller");
-  return last?.sellerId ?? DEFAULT_SELLER_ID;
+  return DEFAULT_SELLER_ID;
 }
 
 /**

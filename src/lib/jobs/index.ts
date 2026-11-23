@@ -241,6 +241,10 @@ const HANDLERS: Record<JobKind, Handler> = {
     const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
     const r = await syncApolloVisitors(ctx, { force: true });
     if (!r) return { ok: false, message: "Apollo isn't on: add its key in Admin → Integrations", href: "/admin/integrations" };
+    if (r.refusedFor) {
+      const owner = (await baseDb.client.findUnique({ where: { id: r.refusedFor }, select: { name: true } }))?.name ?? r.refusedFor;
+      return { ok: false, message: `Website visitors from Apollo belong to ${owner}: switch to ${owner} to fetch them` };
+    }
     if (!r.companies) return { ok: false, message: "Apollo returned no visitor companies. Press Check Apollo connection to see why.", href: "/import/apollo" };
     return { ok: true, message: `Website visitors: ${r.companies} compan${r.companies === 1 ? "y" : "ies"}, ${r.recorded} new visit${r.recorded === 1 ? "" : "s"}${r.suggested ? `, ${r.suggested} with 2+ buying signals sent for approval` : ""}${"justVisitors" in r && r.justVisitors ? `, ${r.justVisitors} kept as visitors` : ""}`, href: "/import/apollo" };
   },

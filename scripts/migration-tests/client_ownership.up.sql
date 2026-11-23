@@ -7,7 +7,7 @@ BEGIN
     SELECT format('%s=%s (want %s)', id, coalesce("sellerId", 'null'), want) FROM (
       SELECT c.id, c."sellerId", w.want FROM "Campaign" c JOIN (VALUES ('camp_m', 'manch'), ('camp_b', 'beta'), ('camp_shared', 'null'), ('camp_unused', 'null')) w(id, want) ON w.id = c.id
       UNION ALL SELECT s.id, s."sellerId", w.want FROM "SenderProfile" s JOIN (VALUES ('snd_m', 'manch'), ('snd_b', 'beta'), ('snd_shared', 'null'), ('snd_unused', 'null')) w(id, want) ON w.id = s.id
-      UNION ALL SELECT v.id, v."sellerId", w.want FROM "WebVisit" v JOIN (VALUES ('v_matched', 'beta'), ('v_apollo1', 'manch'), ('v_apollo2', 'manch'), ('v_script', 'null')) w(id, want) ON w.id = v.id
+      UNION ALL SELECT v.id, v."sellerId", w.want FROM "WebVisit" v JOIN (VALUES ('v_matched', 'beta'), ('v_apollo1', 'null'), ('v_apollo2', 'null'), ('v_script', 'null')) w(id, want) ON w.id = v.id
     ) x WHERE coalesce("sellerId", 'null') <> want
   LOOP
     RAISE EXCEPTION 'wrong owner after backfill: %', got;
