@@ -6,6 +6,7 @@ import "./design.css";
 import { AppNav } from "@/components/shell/AppNav";
 import { Shell } from "@/components/shell/Shell";
 import { getMe, signedOutOrRemoved } from "@/lib/me";
+import { authRequired } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { after } from "next/server";
 import { requestOrigin } from "@/lib/action-utils";
@@ -27,14 +28,17 @@ const themeScript = `try{if(localStorage.getItem("abm-nav")==="mini")document.do
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  await ensureSellerPacks();
-  const [reviews, handoffs, tasks, discover] = await Promise.all([
+  const me = await getMe();
+  // Signed out (the sign-in pages, or a session whose person was removed): nothing private is read,
+  // so nothing private reaches the page or its data. Local previews without sign-in stay open.
+  const open = Boolean(me) || !authRequired();
+  if (open) await ensureSellerPacks();
+  const [reviews, handoffs, tasks, discover] = !open ? [0, 0, 0, 0] : await Promise.all([
     db.reviewItem.count({ where: { status: "open" } }),
     db.handoff.count({ where: { acknowledgedAt: null, blocked: false } }),
     db.task.count({ where: { status: { in: ["todo", "in_progress"] }, dueAt: { lte: new Date() } } }),
     db.prospectSuggestion.count({ where: { status: "new" } }).catch(() => 0),
   ]);
-  const me = await getMe();
   // While people use the app, restart a background queue that has stopped (checked at most every 5 minutes).
   if (me) {
     const origin = await requestOrigin().catch(() => null);
@@ -43,12 +47,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       await watchQueue(origin);
     });
   }
-  await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
-  const scope = await resolveScope();
-  const extras = await (await import("@/lib/extras")).showExtras();
-  const activeClient = scope?.active ? await db.client.findUnique({ where: { id: scope.active }, select: { name: true, status: true } }).catch(() => null) : null;
-  const sp = await activeSeller();
-  const team = await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []);
+  if (open) await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
+  const scope = open ? await resolveScope() : null;
+  const extras = open ? await (await import("@/lib/extras")).showExtras() : false;
+  const activeClient = open && scope?.active ? await db.client.findUnique({ where: { id: scope.active }, select: { name: true, status: true } }).catch(() => null) : null;
+  const sp = open ? await activeSeller() : null;
+  const team = open ? await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []) : [];
   const access = me
     ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const), choices: scope?.choices ?? [], picked: scope?.active && scope.ids?.length === 1 ? scope.active : null, everyClient: Boolean(scope?.all) }
     : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const, choices: [], picked: null, everyClient: false } : null;
@@ -66,7 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="atmosphere" aria-hidden />
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
-          <AppNav superAdmin={me ? { can: me.canSuperAdmin, on: me.superAdmin } : undefined} extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp.name} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
+          <AppNav superAdmin={me ? { can: me.canSuperAdmin, on: me.superAdmin } : undefined} extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp?.name ?? ""} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my accounts", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
           <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>by an admin. Research and sending are stopped for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
