@@ -12,3 +12,6 @@ tests/e2e/.session.json
 # taste-skill build history and checker output
 .taste-skill/
 shots/
+
+# Worktrees of parallel agents (never part of the app)
+.claude/worktrees/
