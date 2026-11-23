@@ -33,7 +33,8 @@ this runbook with its scripts, plus the Apollo owner fix (last row). No package,
 | `ea948ae` | A stopped company says why and offers its next step; stopped companies in the list |
 | `86676ab` | Email readiness: a client without a client record is not treated as stopped |
 | `e6e2554` | This runbook and its scripts (no app code) |
-| (head) | Apollo's website visitors belong to one client, set explicitly. Migration 1 no longer guesses their owner. |
+| `308fc13` | Apollo's website visitors belong to one client, set explicitly. Migration 1 no longer guesses their owner. |
+| `f206d7a` and later | Runbook and backup scripts only (no app code) |
 
 **Database: two migrations.** Neither changes or deletes any existing value. They add columns and indexes,
 fill the new columns, and drop two old indexes and two old defaults.
