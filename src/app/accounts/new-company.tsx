@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { peopleInView } from "@/lib/people";
 import { db } from "@/lib/db";
 import { ActionForm, Modal, SubmitButton } from "@/components/client";
 import { FormField } from "@/components/kit";
@@ -6,7 +7,7 @@ import { createAccountAction } from "../actions";
 
 /** Add one company by hand; every field starts as unknown and keeps its source until verified. */
 export async function NewCompany() {
-  const users = await db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const users = await peopleInView();
   return (
     <Modal trigger={<><Plus size={15} /> Add company</>} title="Add a company" eyebrow="Companies" triggerClass="btn btn-primary btn-sm">
       <ActionForm action={createAccountAction} className="grid gap-3">

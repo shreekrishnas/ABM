@@ -9,6 +9,8 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { baseDb } from "@/lib/db-base";
+import { requireClientId } from "@/lib/scope";
 import { finishBatch, importChunk, ingestRows, startBatch, type BatchStats } from "@/lib/pipeline/ingest";
 import { analyzeMapping } from "@/lib/import/fields";
 import { prepareReResearch, runAccount, tick, processIntent, processQueue } from "@/lib/pipeline/orchestrator";
@@ -462,8 +464,10 @@ export async function startImportAction(input: { filename: string; rows: number;
   if (!p.success) return { ok: false, message: p.error.issues[0]?.message ?? "Invalid file" };
   const analysis = analyzeMapping(p.data.headers, p.data.mapping);
   if (analysis.missingRequired.length) return { ok: false, message: `Map the required field(s): ${analysis.missingRequired.map((f) => f.label).join(", ")}` };
-  const [campaign, sender] = await Promise.all([db.campaign.findUnique({ where: { id: p.data.campaignId } }), db.senderProfile.findUnique({ where: { id: p.data.senderId } })]);
-  if (!campaign || !sender) return { ok: false, message: "Campaign or sender profile not found" };
+  const clientId = await requireClientId();
+  const { claimForClient } = await import("@/lib/journey/service");
+  const [campaign, sender] = await Promise.all([claimForClient("campaign", p.data.campaignId, clientId), claimForClient("sender", p.data.senderId, clientId)]);
+  if (!campaign || !sender) return { ok: false, message: "Campaign or sender profile not found for this client" };
   const batch = await startBatch({ filename: p.data.filename, source: "csv", rows: p.data.rows, ignoredColumns: [...analysis.ignored, ...analysis.duplicates], campaignId: campaign.id, senderId: sender.id, mapping: analysis.mapping, createdBy: await whoAmI() });
   return { ok: true, batchId: batch.id };
 }
@@ -541,11 +545,29 @@ export async function previewMatchesAction(input: {
   return { rule, brainReady: brain.ready, fit, outside, missing, outsideReasons, missingNames, companiesExisting, companiesNew: companies.length - companiesExisting, peopleExisting, peopleNew: people.length - peopleExisting, journeysExisting, journeysNew: people.length - journeysExisting };
 }
 
+/**
+ * A client's campaign or sender by name: its own, else one from before owners existed (unowned) with
+ * that name, which it takes over, else a new one.
+ */
+async function ownedByName<T extends { id: string; name: string }>(kind: "campaign" | "senderProfile", clientId: string, name: string, create: () => Promise<T>): Promise<T> {
+  const model = (kind === "campaign" ? baseDb.campaign : baseDb.senderProfile) as unknown as {
+    findFirst(a: { where: Record<string, unknown> }): Promise<T | null>;
+    update(a: { where: { id: string }; data: { sellerId: string } }): Promise<T>;
+  };
+  const own = await model.findFirst({ where: { sellerId: clientId, name } });
+  if (own) return own;
+  const unowned = await model.findFirst({ where: { sellerId: null, name } });
+  if (unowned) return model.update({ where: { id: unowned.id }, data: { sellerId: clientId } });
+  return create();
+}
+
 export async function createCampaignAction(name: string, description?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {
   const p = z.object({ name: z.string().trim().min(2, "Name is too short").max(120), description: z.string().max(500).optional() }).safeParse({ name, description });
   if (!p.success) return { ok: false, message: p.error.issues[0].message };
-  const existing = await db.campaign.findUnique({ where: { name: p.data.name } });
-  const c = existing ?? (await db.campaign.create({ data: { name: p.data.name, description: p.data.description } }));
+  // A campaign belongs to the client in view: the same name in another client is a different campaign.
+  const clientId = await requireClientId();
+  await logAction("campaign.create", { detail: p.data.name });
+  const c = await ownedByName("campaign", clientId, p.data.name, () => db.campaign.create({ data: { sellerId: clientId, name: p.data.name, description: p.data.description } }));
   refresh("/import", "/people", "/settings");
   return { ok: true, id: c.id, name: c.name };
 }
@@ -553,8 +575,9 @@ export async function createCampaignAction(name: string, description?: string): 
 export async function createSenderAction(name: string, linkedinUrl?: string): Promise<{ ok: true; id: string; name: string } | { ok: false; message: string }> {
   const p = z.object({ name: z.string().trim().min(2, "Name is too short").max(120), linkedinUrl: z.string().max(300).optional() }).safeParse({ name, linkedinUrl });
   if (!p.success) return { ok: false, message: p.error.issues[0].message };
-  const existing = await db.senderProfile.findUnique({ where: { name: p.data.name } });
-  const s = existing ?? (await db.senderProfile.create({ data: { name: p.data.name, linkedinUrl: p.data.linkedinUrl || null } }));
+  const clientId = await requireClientId();
+  await logAction("sender.create", { detail: p.data.name });
+  const s = await ownedByName("senderProfile", clientId, p.data.name, () => db.senderProfile.create({ data: { sellerId: clientId, name: p.data.name, linkedinUrl: p.data.linkedinUrl || null } }));
   refresh("/import", "/people", "/settings");
   return { ok: true, id: s.id, name: s.name };
 }

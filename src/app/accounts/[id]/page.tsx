@@ -1,4 +1,5 @@
 import { humanize } from "@/lib/labels";
+import { peopleInView } from "@/lib/people";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { FieldStatus } from "@prisma/client";
@@ -86,7 +87,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     db.ledgerEntry.aggregate({ where: { accountId: id }, _sum: { amountMicros: true } }),
     tab === "pipeline" ? db.pipelineEvent.findMany({ where: { accountId: id }, orderBy: { createdAt: "desc" }, take: 300 }) : Promise.resolve([]),
     tab === "activity" || tab === "overview" ? db.signal.findMany({ where: { accountId: id }, orderBy: { occurredAt: "desc" }, take: 60, include: { contact: true } }) : Promise.resolve([]),
-    db.user.findMany({ orderBy: { name: "asc" } }),
+    peopleInView({ activeOnly: false }),
     latestBrief(id),
     db.evidence.findMany({ where: { accountId: id, flagged: true }, orderBy: { createdAt: "desc" } }),
     db.evidence.findMany({ where: { accountId: id }, select: { id: true, engine: true } }),

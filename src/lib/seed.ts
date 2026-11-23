@@ -175,12 +175,12 @@ export async function seedDemo(log: (...a: unknown[]) => void = console.log) {
   // A malformed row and an exact duplicate to exercise the gates.
   rows.push({ company: "Sahyadri Beverages", domain: "sahyadribev.in", industry: "beverages", employees: 6500, country: "IN", "Tech Stack": undefined, contactName: "Asha Mehta", title: "Head of Master Data", email: "asha.mehta@sahyadribev.in", phone: undefined, titleObservedAt: undefined });
   rows.push({ company: "", domain: "nowhere", industry: "", employees: 0, country: "", "Tech Stack": undefined, contactName: "", title: "", email: "sam@@broken", phone: undefined, titleObservedAt: undefined });
-  const campaign = await db.campaign.create({ data: { name: "Q4 Distributor Onboarding", description: "FMCG, beverages and manufacturing with large partner networks" } });
-  await db.campaign.create({ data: { name: "Vendor Master Clean-up", description: "Procurement-led vendor onboarding" } });
-  const sender1 = await db.senderProfile.create({ data: { name: "Sender 1 — Priya", linkedinUrl: "https://www.linkedin.com/in/priya-sample" } });
-  const sender2 = await db.senderProfile.create({ data: { name: "Sender 2 — Karan", linkedinUrl: "https://www.linkedin.com/in/karan-sample" } });
   // The demo data belongs to the sample client created above: always named, never assumed.
   const { DEFAULT_SELLER_ID: demoClient } = await import("@/lib/seller");
+  const campaign = await db.campaign.create({ data: { sellerId: demoClient, name: "Q4 Distributor Onboarding", description: "FMCG, beverages and manufacturing with large partner networks" } });
+  await db.campaign.create({ data: { sellerId: demoClient, name: "Vendor Master Clean-up", description: "Procurement-led vendor onboarding" } });
+  const sender1 = await db.senderProfile.create({ data: { sellerId: demoClient, name: "Sender 1 — Priya", linkedinUrl: "https://www.linkedin.com/in/priya-sample" } });
+  const sender2 = await db.senderProfile.create({ data: { sellerId: demoClient, name: "Sender 2 — Karan", linkedinUrl: "https://www.linkedin.com/in/karan-sample" } });
   const batch = await ingestRows(rows, { sellerId: demoClient, source: "csv", filename: "q4-target-accounts.csv", campaignId: campaign.id, senderId: sender1.id });
   log(`  ${batch.accepted} rows accepted, ${batch.rejected} rejected`);
   // The same list for a second sender reuses every company and person.

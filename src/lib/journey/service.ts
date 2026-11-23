@@ -14,9 +14,44 @@ export type ActivitySource = "csv" | "manual" | "bulk" | "agent" | "system";
 const toState = (j: Journey): JourneyState => ({ stage: j.stage as Stage, followUpCount: j.followUpCount, replyCount: j.replyCount, lastEngagementAt: j.lastEngagementAt, lastEngagement: j.lastEngagement });
 
 /** One journey per person + campaign + sender; created on first use. */
+/**
+ * A campaign or sender for one client: its own, or one from before owners existed (unowned), which
+ * the client then takes over. Another client's is never returned (null), whatever the id says.
+ */
+export async function claimForClient(kind: "campaign" | "sender", id: string, clientId: string): Promise<{ id: string; name: string } | null> {
+  const { baseDb } = await import("@/lib/db-base");
+  const model = (kind === "campaign" ? baseDb.campaign : baseDb.senderProfile) as unknown as {
+    findUnique(a: { where: { id: string }; select: { id: true; name: true; sellerId: true } }): Promise<{ id: string; name: string; sellerId: string | null } | null>;
+    updateMany(a: { where: { id: string; sellerId: null }; data: { sellerId: string } }): Promise<{ count: number }>;
+  };
+  const row = await model.findUnique({ where: { id }, select: { id: true, name: true, sellerId: true } });
+  if (!row) return null;
+  if (row.sellerId === clientId) return { id: row.id, name: row.name };
+  if (row.sellerId !== null) return null;
+  await model.updateMany({ where: { id, sellerId: null }, data: { sellerId: clientId } });
+  return { id: row.id, name: row.name };
+}
+
+/** Campaign + sender + client pairs already checked (see ensureJourney). */
+const checkedPairs = new Map<string, number>();
+
 export async function ensureJourney(contactId: string, campaignId: string, senderId: string, tx: Pick<typeof db, "journey" | "journeyEvent"> = db) {
   const existing = await tx.journey.findUnique({ where: { contactId_campaignId_senderId: { contactId, campaignId, senderId } } });
   if (existing) return { journey: existing, created: false };
+  // A journey joins one client's person to that client's campaign and sender, never another client's.
+  const { baseDb } = await import("@/lib/db-base");
+  const clientId = (await baseDb.contact.findUnique({ where: { id: contactId }, select: { account: { select: { sellerId: true } } } }))?.account?.sellerId;
+  if (clientId) {
+    // An import calls this for every row with the same campaign and sender: check each pair once a minute.
+    const key = `${campaignId}|${senderId}|${clientId}`;
+    const seen = checkedPairs.get(key);
+    if (!seen || Date.now() - seen > 60_000) {
+      const [c, s] = await Promise.all([claimForClient("campaign", campaignId, clientId), claimForClient("sender", senderId, clientId)]);
+      if (!c || !s) throw new Error("That campaign or sender belongs to another client");
+      if (checkedPairs.size > 500) checkedPairs.clear();
+      checkedPairs.set(key, Date.now());
+    }
+  }
   try {
     const journey = await tx.journey.create({ data: { contactId, campaignId, senderId } });
     return { journey, created: true };

@@ -8,7 +8,7 @@ import { STAGE_INFO, stageLabel } from "@/lib/journey/stages";
 import { Badge, Card, Empty, FieldBadge, ago, date } from "@/components/ui";
 import type { FieldStatus } from "@prisma/client";
 
-const label = questionLabel;
+
 
 function Source({ s }: { s: string | null }) {
   if (!s) return <span className="muted">—</span>;
@@ -25,6 +25,10 @@ function Source({ s }: { s: string | null }) {
 
 /** The import → research stream for one company: what came in, what was missing, what research asked and found. */
 export async function IntakeTab({ account }: { account: Account }) {
+  // Question names in the company's own client's words (never the default client's).
+  const { clientBrain } = await import("@/lib/scope");
+  const { pack } = await clientBrain(account.sellerId);
+  const label = (key: string) => questionLabel(key, pack);
   const [fields, ctx, plan, searches, gapEvents, importEvents, contacts] = await Promise.all([
     intakeMap(account),
     importContext(account),

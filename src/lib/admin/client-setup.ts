@@ -11,8 +11,8 @@ export async function setupSteps(clientId: string): Promise<SetupStep[]> {
     baseDb.client.findUnique({ where: { id: clientId }, select: { monthlyBudgetUsd: true } }),
     baseDb.userClient.count({ where: { clientId, user: { status: "active" } } }),
     baseDb.userClient.count({ where: { clientId, role: "owner", user: { status: "active" } } }),
-    baseDb.campaign.count(),
-    baseDb.senderProfile.count(),
+    baseDb.campaign.count({ where: { sellerId: clientId } }),
+    baseDb.senderProfile.count({ where: { sellerId: clientId } }),
     baseDb.account.count({ where: { sellerId: clientId, mergedIntoId: null } }),
   ]);
   // The newest saved brain, complete or not (a new client's brain is half filled at first).

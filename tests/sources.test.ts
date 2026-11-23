@@ -6,6 +6,7 @@ import { MANCH } from "@/lib/seller/manch";
 import { ingestRows } from "@/lib/pipeline/ingest";
 import { newContext } from "@/lib/pipeline/context";
 import { findLookalikes } from "@/lib/discover/lookalike";
+import { withSeller } from "@/lib/seller";
 import { suggestFromVisitors } from "@/lib/discover/visitors";
 import { addSuggestion } from "@/lib/discover/scan";
 import { recordVisit } from "@/lib/web/visits";
@@ -43,10 +44,10 @@ describe("source 2: companies similar to a website", () => {
 
 describe("source 3: website visitors", () => {
   it("visiting companies with 2+ buying signals become suggestions (targeting rule not applied); a single plain visit stays a visitor", async () => {
-    await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
-    await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
-    await recordVisit({ url: "https://seller.example/", companyName: "Marina Retail Group", source: "apollo" });
-    const r = await suggestFromVisitors(newContext());
+    await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo", sellerId: "manch" });
+    await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo", sellerId: "manch" });
+    await recordVisit({ url: "https://seller.example/", companyName: "Marina Retail Group", source: "apollo", sellerId: "manch" });
+    const r = await withSeller("manch", () => suggestFromVisitors(newContext()));
     // Lotus looked at pricing and a case study (two signals); Marina only opened the home page once.
     expect(r).toEqual({ suggested: 1, excluded: 0, justVisitors: 1 });
     expect(await db.prospectSuggestion.count({ where: { name: "Marina Retail Group" } })).toBe(0);
@@ -56,9 +57,9 @@ describe("source 3: website visitors", () => {
   });
 
   it("approving starts the normal flow and the earlier visits move to the new company", async () => {
-    await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
-    await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo" });
-    await suggestFromVisitors(newContext());
+    await recordVisit({ url: "https://seller.example/pricing", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo", sellerId: "manch" });
+    await recordVisit({ url: "https://seller.example/case-study", companyName: "Lotus Consumer Brands", companyDomain: "lotusconsumer.in", source: "apollo", sellerId: "manch" });
+    await withSeller("manch", () => suggestFromVisitors(newContext()));
     const s = await db.prospectSuggestion.findFirstOrThrow({ where: { name: "Lotus Consumer Brands" } });
     const id = await addSuggestion(s.id);
     const acc = await db.account.findUniqueOrThrow({ where: { id: id! } });

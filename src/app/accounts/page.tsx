@@ -1,4 +1,5 @@
 import { tierLabel } from "@/lib/tier-label";
+import { peopleInView } from "@/lib/people";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { SIZES, STAGES, accountWhere, type SP } from "@/lib/accounts/filters";
@@ -51,7 +52,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     db.account.groupBy({ by: ["source"], where: live, _count: true, orderBy: { _count: { source: "desc" } }, take: 40 }),
     db.importBatch.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, filename: true }, take: 40 }),
     db.campaign.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { status: "active" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    peopleInView(),
     db.account.findMany({ where: { ...live, technologies: { isEmpty: false } }, select: { technologies: true }, take: 5000 }),
   ]);
   const techCount = new Map<string, number>();

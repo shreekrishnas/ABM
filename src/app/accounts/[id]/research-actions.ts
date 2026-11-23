@@ -20,8 +20,9 @@ export async function researchQuestionAction(accountId: string, key: string): Pr
   if (!sample && !(await researchAllowed(account.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
   const { startJob } = await import("@/lib/jobs");
   const { decider } = await import("@/lib/action-utils");
-  const { questionLabel } = await import("@/lib/research/keys");
-  return startJob("research_question", { sellerId: account.sellerId, accountId, label: `Research ${account.name}: ${questionLabel(key)}`, params: { key }, createdBy: await decider() });
+  const [{ questionLabel }, { clientBrain }] = await Promise.all([import("@/lib/research/keys"), import("@/lib/scope")]);
+  const { pack } = await clientBrain(account.sellerId);
+  return startJob("research_question", { sellerId: account.sellerId, accountId, label: `Research ${account.name}: ${questionLabel(key, pack)}`, params: { key }, createdBy: await decider() });
 }
 
 /** Two sources disagree: a person keeps one. The others are retired (kept for the record, never used). */

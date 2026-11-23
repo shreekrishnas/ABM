@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { MANCH } from "@/lib/seller/manch";
 import { setAdapters } from "@/lib/adapters";
 import { createMockAdapters } from "@/lib/adapters/mock";
 import { ingestRows } from "@/lib/pipeline/ingest";
@@ -29,7 +30,9 @@ describe("website visits", () => {
     expect(topicOf("https://manch.example/pricing").key).toBe("pricing");
     expect(topicOf("https://manch.example/customers/hccb").key).toBe("case_study");
     expect(topicOf("https://manch.example/book-a-demo").key).toBe("demo");
-    expect(topicOf("https://manch.example/blog/sap-s4hana-migration-checklist").key).toBe("erp_migration");
+    // A client's own topics come from its own Account Brain (here Manch's), never from a default one.
+    expect(topicOf("https://manch.example/blog/sap-s4hana-migration-checklist", null, MANCH).key).toBe("erp_migration");
+    expect(topicOf("https://manch.example/blog/sap-s4hana-migration-checklist").key).toBe("general");
     expect(topicOf("https://manch.example/about").key).toBe("general");
   });
 

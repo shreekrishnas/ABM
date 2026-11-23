@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { peopleInView } from "@/lib/people";
 import { CheckCircle2, Circle, ListTodo, Phone, Plus, Timer, UserPlus as Linkedin } from "lucide-react";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
@@ -41,7 +42,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       take: 200,
     }),
     db.account.findMany({ where: { mergedIntoId: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ orderBy: { name: "asc" } }),
+    peopleInView({ activeOnly: false }),
   ]);
 
   return (

@@ -57,9 +57,9 @@ export async function sampleStep(by: string): Promise<{ done: boolean; message: 
       const { sampleRows, seedJourneys } = await import("@/lib/seed");
       const { ingestRows } = await import("@/lib/pipeline/ingest");
       const rows = sampleRows();
-      const campaign = await baseDb.campaign.create({ data: { name: `${TAG}Q4 Distributor Onboarding`, description: "Sample campaign for the Test client" } });
-      const s1 = await baseDb.senderProfile.create({ data: { name: `${TAG}Sender 1`, linkedinUrl: "https://www.linkedin.com/in/sample-sender-1" } });
-      const s2 = await baseDb.senderProfile.create({ data: { name: `${TAG}Sender 2`, linkedinUrl: "https://www.linkedin.com/in/sample-sender-2" } });
+      const campaign = await baseDb.campaign.create({ data: { sellerId: SAMPLE_ID, name: `${TAG}Q4 Distributor Onboarding`, description: "Sample campaign for the Test client" } });
+      const s1 = await baseDb.senderProfile.create({ data: { sellerId: SAMPLE_ID, name: `${TAG}Sender 1`, linkedinUrl: "https://www.linkedin.com/in/sample-sender-1" } });
+      const s2 = await baseDb.senderProfile.create({ data: { sellerId: SAMPLE_ID, name: `${TAG}Sender 2`, linkedinUrl: "https://www.linkedin.com/in/sample-sender-2" } });
       const batch = await ingestRows(rows, { source: "csv", filename: "sample-companies.csv", campaignId: campaign.id, senderId: s1.id });
       await ingestRows(rows.slice(0, 18), { source: "csv", filename: "sample-sender2.csv", campaignId: campaign.id, senderId: s2.id });
       await seedJourneys(campaign.id, s1.id, s2.id);
@@ -134,8 +134,8 @@ export async function removeSample(): Promise<number> {
     baseDb.proposal.deleteMany({ where: mine }),
     baseDb.ledgerEntry.deleteMany({ where: mine }),
     baseDb.sellerPackRevision.deleteMany({ where: mine }),
-    baseDb.campaign.deleteMany({ where: { name: { startsWith: TAG } } }),
-    baseDb.senderProfile.deleteMany({ where: { name: { startsWith: TAG } } }),
+    baseDb.campaign.deleteMany({ where: { OR: [mine, { sellerId: null, name: { startsWith: TAG } }] } }),
+    baseDb.senderProfile.deleteMany({ where: { OR: [mine, { sellerId: null, name: { startsWith: TAG } }] } }),
     baseDb.mailbox.deleteMany({ where: { address: "sample@test.invalid" } }),
     baseDb.userClient.deleteMany({ where: { clientId: SAMPLE_ID } }),
     baseDb.client.deleteMany({ where: { id: SAMPLE_ID } }),

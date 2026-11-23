@@ -485,8 +485,10 @@ describe("phase 2: new people per week", () => {
 describe("LinkedIn → email bridge", () => {
   async function journeyFor(contactId: string) {
     const { ensureJourney } = await import("@/lib/journey/service");
-    const campaign = await db.campaign.upsert({ where: { name: "LI test" }, create: { name: "LI test" }, update: {} });
-    const sender = await db.senderProfile.upsert({ where: { name: "Sender LI" }, create: { name: "Sender LI" }, update: {} });
+    // Campaigns and senders belong to the person's client.
+    const sellerId = (await db.contact.findUniqueOrThrow({ where: { id: contactId }, select: { account: { select: { sellerId: true } } } })).account.sellerId;
+    const campaign = await db.campaign.upsert({ where: { sellerId_name: { sellerId, name: "LI test" } }, create: { sellerId, name: "LI test" }, update: {} });
+    const sender = await db.senderProfile.upsert({ where: { sellerId_name: { sellerId, name: "Sender LI" } }, create: { sellerId, name: "Sender LI" }, update: {} });
     return (await ensureJourney(contactId, campaign.id, sender.id)).journey;
   }
 

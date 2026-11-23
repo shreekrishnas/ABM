@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { peopleInView } from "@/lib/people";
 import { PeekPanel, closeHref, peekHref } from "@/components/peek/panel";
 import type { OppStage } from "@prisma/client";
 import { Plus } from "lucide-react";
@@ -26,7 +27,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
   const [opps, accounts, owners] = await Promise.all([
     db.opportunity.findMany({ where: { ...(account ? { accountId: account } : {}), ...(owner === "none" ? { ownerId: null } : owner ? { ownerId: owner } : {}) }, include: { account: true, owner: true }, orderBy: { updatedAt: "desc" } }),
     db.account.findMany({ where: { mergedIntoId: null, relationship: { not: "competitor" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    db.user.findMany({ where: { status: "active", opportunities: { some: {} } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => [] as { id: string; name: string }[]),
+    peopleInView({ where: { opportunities: { some: {} } } }).catch(() => [] as { id: string; name: string }[]),
   ]);
   const open = opps.filter((o) => !["won", "lost"].includes(o.stage));
   const won = opps.filter((o) => o.stage === "won");

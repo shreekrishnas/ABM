@@ -149,7 +149,13 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[], opts: { platf
     case "AgentSetting":
     case "CareersFeed":
     case "BackgroundJob":
+    case "Campaign":
+    case "SenderProfile":
       return acct;
+    case "WebVisit":
+      // The client whose site was visited (set on every visit; older ones by the client_ownership
+      // migration). A visit with no client is seen only by a full Super Admin.
+      return opts.platformAdmin ? { OR: [acct, { sellerId: null }] } : acct;
     case "Contact":
     case "Opportunity":
     case "Evidence":

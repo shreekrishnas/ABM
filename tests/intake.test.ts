@@ -45,7 +45,7 @@ describe("intake: pure rules", () => {
   });
 
   it("deep-dive answers count as buying triggers", () => {
-    expect(["trigger", "erp_program", "expansion", "leadership"].every(isTriggerKey)).toBe(true);
+    expect(["trigger", "erp_program", "expansion", "leadership"].every((k) => isTriggerKey(k))).toBe(true);
     expect(isTriggerKey("compliance")).toBe(false);
   });
 

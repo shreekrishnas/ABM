@@ -5,7 +5,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { seller } from "@/lib/seller";
+import { runSellerId, seller, type SellerProfile } from "@/lib/seller";
 import { companyNameKey, normalizeDomain } from "@/lib/pipeline/normalize";
 import { recordSignal } from "@/lib/pipeline/stages/engagement";
 import { newContext, type RunContext } from "@/lib/pipeline/context";
@@ -46,7 +46,14 @@ export async function clientForSite(url: string | null | undefined): Promise<str
   await ensureSellerPacks();
   const clients = await baseDb.client.findMany({ where: { status: { not: "archived" } }, select: { id: true } });
   const hits = clients.filter((c) => {
-    const site = siteHost(sellerFor(c.id).website);
+    // A client without a finished Account Brain has no website on record yet: it can't be the one
+    // visited (it used to throw here, and every visit without a named client failed to record).
+    let site: string | null = null;
+    try {
+      site = siteHost(sellerFor(c.id).website);
+    } catch {
+      return false;
+    }
     return Boolean(site && (host === site || host.endsWith(`.${site}`)));
   });
   return hits.length === 1 ? hits[0].id : null;
@@ -103,8 +110,30 @@ export interface Topic {
   label: string;
 }
 
-export function topicOf(url: string, title?: string | null): Topic {
-  const p = seller();
+/** The words a client's topics are found by: its own Account Brain's use cases and triggers. */
+export type TopicWords = Pick<SellerProfile, "useCases" | "triggers">;
+
+/**
+ * The client's own topic words, or null when it has no complete Account Brain (then only the generic
+ * topics: pricing, demo, case study, website). Never another client's words.
+ */
+export async function topicWordsFor(clientId: string | null | undefined): Promise<TopicWords | null> {
+  if (!clientId) return null;
+  const { ensureSellerPacks, sellerFor } = await import("@/lib/seller");
+  await ensureSellerPacks();
+  try {
+    return sellerFor(clientId);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A visited page's topic: generic ones first, then the visited client's own use cases and triggers.
+ * Words not given: the running client's inside a run, else none (never the default client's).
+ */
+export function topicOf(url: string, title?: string | null, words?: TopicWords | null): Topic {
+  const p = (words === undefined ? (runSellerId() ? seller() : null) : words) ?? { useCases: [], triggers: [] };
   let path = url;
   try {
     path = new URL(url).pathname;
@@ -135,7 +164,6 @@ export async function recordVisit(input: VisitInput, ctx: RunContext = newContex
   try {
     path = new URL(input.url).pathname || "/";
   } catch {}
-  const topic = topicOf(input.url, input.title);
 
   // Who: a tracked link wins, then an earlier identified visit from the same browser, then the company domain.
   let contactId = contactFromToken(input.token);
@@ -158,8 +186,13 @@ export async function recordVisit(input: VisitInput, ctx: RunContext = newContex
     accountId = prior?.accountId ?? null;
   }
 
+  // The visit belongs to the client whose site was visited (else the matched company's client), and
+  // its topic is read with that client's own words.
+  const clientId = visitedClient ?? (accountId ? (await db.account.findUnique({ where: { id: accountId }, select: { sellerId: true } }))?.sellerId ?? null : null);
+  const topic = topicOf(input.url, input.title, await topicWordsFor(clientId));
   const visit = await db.webVisit.create({
     data: {
+      sellerId: clientId,
       accountId, contactId: contact?.id ?? null, visitorId: input.visitorId ?? null,
       companyName: input.companyName?.slice(0, 120) ?? null, companyDomain: domain,
       url: input.url.slice(0, 500), path: path.slice(0, 300), title: input.title?.slice(0, 200) ?? null,
@@ -204,7 +237,10 @@ export async function visitSummary(where: { accountId?: string; contactId?: stri
   const names = new Map((await db.contact.findMany({ where: { id: { in: contactIds } }, select: { id: true, fullName: true } })).map((c) => [c.id, c.fullName]));
   const counts = new Map<string, number>();
   for (const v of visits) counts.set(v.topic, (counts.get(v.topic) ?? 0) + 1);
-  const label = (k: string) => (k === "general" ? "Website" : k === "pricing" ? "Pricing" : k === "demo" ? "Demo / contact" : k === "case_study" ? "Case study" : seller().useCases.find((u) => u.key === k)?.name ?? seller().triggers.find((t) => t.key === k)?.label ?? k);
+  // Topic names in the visited client's own words.
+  const clientId = visits.find((v) => v.sellerId)?.sellerId ?? (where.accountId ? (await db.account.findUnique({ where: { id: where.accountId }, select: { sellerId: true } }))?.sellerId : null);
+  const words = await topicWordsFor(clientId);
+  const label = (k: string) => (k === "general" ? "Website" : k === "pricing" ? "Pricing" : k === "demo" ? "Demo / contact" : k === "case_study" ? "Case study" : words?.useCases.find((u) => u.key === k)?.name ?? words?.triggers.find((t) => t.key === k)?.label ?? k.replace(/_/g, " "));
   const topics = [...counts].sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, label: label(key), count }));
   const specific = topics.filter((t) => t.key !== "general");
   return {
@@ -222,12 +258,14 @@ export async function unknownVisitors(now = new Date(), days = 30) {
     where: { accountId: null, companyName: { not: null }, occurredAt: { gte: new Date(now.getTime() - days * DAY) } },
     orderBy: { occurredAt: "desc" }, take: 500,
   });
+  const cache = new Map<string, TopicWords | null>();
+  const wordsOf = async (id: string | null) => { if (!id) return null; if (!cache.has(id)) cache.set(id, await topicWordsFor(id)); return cache.get(id)!; };
   const by = new Map<string, { name: string; domain: string | null; visits: number; last: Date; topics: Set<string>; strong: boolean }>();
   for (const v of rows) {
     const k = v.companyDomain ?? companyNameKey(v.companyName!);
     const cur = by.get(k) ?? { name: v.companyName!, domain: v.companyDomain, visits: 0, last: v.occurredAt, topics: new Set<string>(), strong: false };
     cur.visits++;
-    if (v.topic !== "general") cur.topics.add(topicOf(v.url, v.title).label);
+    if (v.topic !== "general") cur.topics.add(topicOf(v.url, v.title, await wordsOf(v.sellerId)).label);
     if (STRONG.has(v.topic)) cur.strong = true;
     by.set(k, cur);
   }

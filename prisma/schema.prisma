@@ -948,18 +948,28 @@ enum JourneyStage {
 
 model Campaign {
   id          String   @id @default(cuid())
-  name        String   @unique
+  /// The client this campaign belongs to: each client sees and uses only its own. Null only for an
+  /// unused campaign from before campaigns had an owner (only a full Super Admin sees it).
+  sellerId    String?
+  /// Unique within its client (two clients may each have a "Q4 outreach").
+  name        String
   description String?
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   journeys Journey[]
   imports  ImportBatch[]
+
+  @@unique([sellerId, name])
+  @@index([sellerId])
 }
 
 model SenderProfile {
   id          String   @id @default(cuid())
-  name        String   @unique
+  /// The client this LinkedIn sender works for: each client sees and uses only its own (see Campaign).
+  sellerId    String?
+  /// Unique within its client.
+  name        String
   linkedinUrl String?
   email       String?
   notes       String?
@@ -968,6 +978,9 @@ model SenderProfile {
 
   journeys Journey[]
   imports  ImportBatch[]
+
+  @@unique([sellerId, name])
+  @@index([sellerId])
 }
 
 model Journey {
@@ -1251,6 +1264,9 @@ model KnowledgeChunk {
 /// unknown companies (from a reverse-IP tool) are kept so Discover can suggest them.
 model WebVisit {
   id            String   @id @default(cuid())
+  /// The client whose website was visited. Each client sees only its own visitors; a visit with no client
+  /// and no company is seen only by a full Super Admin.
+  sellerId      String?
   accountId     String?
   contactId     String?
   /// Anonymous browser id from the tracking script (first-party cookie).
@@ -1270,6 +1286,7 @@ model WebVisit {
   occurredAt    DateTime @default(now())
 
   @@index([accountId, occurredAt])
+  @@index([sellerId, occurredAt])
   @@index([contactId, occurredAt])
   @@index([visitorId])
   @@index([companyDomain])

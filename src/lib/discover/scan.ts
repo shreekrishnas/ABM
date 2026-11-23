@@ -255,7 +255,8 @@ export async function addSuggestion(id: string, decidedBy: string | null = null)
   const accountId = res.accountIds[0] ?? null;
   await db.prospectSuggestion.update({ where: { id }, data: { status: "added", accountId, decidedAt: new Date(), decidedBy } });
   // Earlier website visits by this company now count for it.
-  if (accountId) await db.webVisit.updateMany({ where: { accountId: null, OR: [...(s.domain ? [{ companyDomain: s.domain }] : []), { companyName: s.name }] }, data: { accountId } });
+  // (Only this client's own visitors: another client's site visits by the same company stay theirs.)
+  if (accountId) await db.webVisit.updateMany({ where: { accountId: null, sellerId: s.sellerId, OR: [...(s.domain ? [{ companyDomain: s.domain }] : []), { companyName: s.name }] }, data: { accountId } });
   return accountId;
 }
 

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { peopleInView } from "@/lib/people";
 import type { Metadata } from "next";
 import { ensureSellerPacks } from "@/lib/seller";
 import { activeSeller, resolveScope } from "@/lib/scope";
@@ -53,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const extras = open ? await (await import("@/lib/extras")).showExtras() : false;
   const activeClient = open && scope?.active ? await db.client.findUnique({ where: { id: scope.active }, select: { name: true, status: true } }).catch(() => null) : null;
   const sp = open ? await activeSeller() : null;
-  const team = open ? await db.user.findMany({ where: { status: "active", email: { contains: "@" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }).catch(() => []) : [];
+  const team = open ? await peopleInView({ where: { email: { contains: "@" } } }).catch(() => []) : [];
   const access = me
     ? { name: me.name, email: me.email, canSuperAdmin: me.canSuperAdmin, superAdmin: me.superAdmin, clients: me.clients.map((c) => c.name), state: me.clients.length || me.superAdmin ? ("ok" as const) : ("noclient" as const), choices: scope?.choices ?? [], picked: scope?.active && scope.ids?.length === 1 ? scope.active : null, everyClient: Boolean(scope?.all) }
     : (await signedOutOrRemoved()) ? { name: "", email: "", canSuperAdmin: false, superAdmin: false, clients: [], state: "removed" as const, choices: [], picked: null, everyClient: false } : null;

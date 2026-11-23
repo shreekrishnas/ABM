@@ -1,4 +1,5 @@
 import { humanize } from "@/lib/labels";
+import { peopleInView } from "@/lib/people";
 import { linkSignIn } from "@/lib/auth";
 import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
@@ -29,7 +30,7 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 export default async function SettingsPage() {
   await ensureSellerPacks();
   const [users, suppressions, campaigns, senders] = await Promise.all([
-    db.user.findMany({ orderBy: { name: "asc" } }),
+    peopleInView({ activeOnly: false }),
     db.suppression.count(),
     db.campaign.findMany({ orderBy: { createdAt: "desc" }, include: { _count: { select: { journeys: true } } } }),
     db.senderProfile.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { journeys: true } } } }),

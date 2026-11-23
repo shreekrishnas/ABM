@@ -349,7 +349,7 @@ export async function importCompanies(keys: string[], from: Date, to: Date, opts
   // Earlier website visits by these companies now count for them.
   for (const c of companies) {
     const acct = await findCompany({ domain: c.domain, companyLinkedin: null, nameKey: companyNameKey(c.name) }, sellerId);
-    if (acct) await db.webVisit.updateMany({ where: { accountId: null, OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] }, data: { accountId: acct.id } });
+    if (acct) await db.webVisit.updateMany({ where: { accountId: null, sellerId, OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] }, data: { accountId: acct.id } });
   }
   return { imported: take.length, skipped: skipped.length, prospects: rows.filter((r) => r[LABEL.firstName]).length, batchId: res.batchId, rejected: res.rejected, errors: res.errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.error}`) };
 }
