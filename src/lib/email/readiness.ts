@@ -71,8 +71,9 @@ export async function emailReadiness(clientId: string): Promise<EmailReadiness> 
       fix: "Add the registered postal address in the Account Brain → Sender", href: "/brain",
     },
     {
-      key: "client_active", label: "Client active", blocking: true, ok: client?.status === "active",
-      detail: client ? (client.status === "active" ? undefined : `The client is ${client.status}: research and sending are stopped`) : "Client not found",
+      // As the send step does: only a client that exists and is paused or archived is stopped.
+      key: "client_active", label: "Client active", blocking: true, ok: !client || client.status === "active",
+      detail: client && client.status !== "active" ? `The client is ${client.status}: research and sending are stopped` : undefined,
       fix: "A Super Admin sets the client back to active", href: "/team?tab=accounts",
     },
     {
