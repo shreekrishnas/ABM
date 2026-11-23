@@ -4,7 +4,7 @@ import { allowedDomains } from "@/lib/auth";
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
 import { ensureSellerPacks } from "@/lib/seller";
-import { activeSeller } from "@/lib/scope";
+import { activeSellerState } from "@/lib/scope";
 import { db } from "@/lib/db";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/client";
@@ -42,7 +42,9 @@ export default async function SettingsPage() {
   const apolloKey = (await (await import("@/lib/admin/needs")).needs(["apollo"])).ok;
   const ok = "var(--success)", warn = "var(--warning)", bad = "var(--danger)", muted = "var(--muted)";
     const visits30 = await db.webVisit.count({ where: { occurredAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } });
-  const sp = await activeSeller();
+  const { id: spId, pack: sp, ready: brainReady } = await activeSellerState();
+  const canEditBrain = await (await import("@/lib/client-access")).canEditClient(spId);
+  const editHref = (await import("@/lib/seller")).builtInPack(spId) ? "/settings/seller/edit" : `/brain?client=${encodeURIComponent(spId)}`;
   const accounts = await db.account.count();
   const seedAllowed = process.env.ABM_TEST_COPY === "true" || (process.env.ALLOW_SEED === "true" && process.env.NODE_ENV !== "production");
   return (
@@ -77,7 +79,7 @@ export default async function SettingsPage() {
           {sec.seedAllowed && <Row k={<span>Sample data reset<span className="muted block text-xs font-normal">Can wipe all data; test copy only</span></span>} v={<Badge color={bad}>allowed</Badge>} />}
           <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's research stops for review when it reaches its limit." : "Every paid call is still recorded per company; nothing is capped per company. Monthly caps per client are set in Super Admin."} Sample data always runs on stand-in services, so it never reaches a real email.</p>
         </Card>
-        <Card id="seller" title={`Seller: ${sp.name}`} sub="Ideal customer profile used for fit scoring" action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link><Link href="/settings/seller/edit" className="btn btn-primary btn-sm">Edit</Link><Link href="/settings/knowledge" className="btn btn-secondary btn-sm">Knowledge base</Link></span>}>
+        <Card id="seller" title={`Seller: ${sp.name || spId}`} sub={brainReady ? "Ideal customer profile used for fit scoring" : "Account Brain incomplete: research, scoring and drafting stay off until it is finished"} action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>{canEditBrain && <Link href={editHref} className="btn btn-primary btn-sm">Edit</Link>}<Link href="/settings/knowledge" className="btn btn-secondary btn-sm">Knowledge base</Link></span>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />
           <Row k="Company size" v={`${sp.icp.employees.sweetSpot.toLocaleString()}+ ideal · ${sp.icp.employees.min}+ minimum`} />
           <Row k="Markets" v={`${sp.icp.geos.primary.join(", ")} first · ${sp.icp.geos.secondary.slice(0, 6).join(", ")}…`} />

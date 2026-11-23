@@ -37,6 +37,8 @@ interface Preview {
   outsideReasons: Record<string, string[]>;
   missingNames: string[];
   rule: string | null;
+  /** False when the client's Account Brain isn't finished (research waits for it). */
+  brainReady?: boolean;
 }
 
 interface Summary {
@@ -422,7 +424,7 @@ export function ImportWizard({ campaigns: initialCampaigns, senders: initialSend
             <>
               <div className="micro">What will be used{phase.data.rule ? ` · your rule: ${phase.data.rule}` : ""}</div>
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="sort-box ok"><div className="sort-n tnum">{phase.data.fit.toLocaleString()}</div><div className="sort-t">Will be researched</div><div className="sort-s">Meet your targeting rule. Research, scoring and drafting start after import.</div></div>
+                <div className="sort-box ok"><div className="sort-n tnum">{phase.data.fit.toLocaleString()}</div><div className="sort-t">Will be researched</div><div className="sort-s">{phase.data.brainReady === false ? "Kept until this client's Account Brain is finished; research, scoring and drafting start then." : "Meet your targeting rule. Research, scoring and drafting start after import."}</div></div>
                 <div className="sort-box wait"><div className="sort-n tnum">{phase.data.missing.toLocaleString()}</div><div className="sort-t">Missing country or size</div><div className="sort-s">Imported and kept, but not researched until the missing data arrives.{phase.data.missingNames.length ? ` For example: ${phase.data.missingNames.slice(0, 3).join(", ")}.` : ""}</div></div>
                 <div className="sort-box no"><div className="sort-n tnum">{phase.data.outside.toLocaleString()}</div><div className="sort-t">Outside your rule</div><div className="sort-s">Imported for the record, never researched or contacted.</div></div>
               </div>

@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { activeSellerId } from "@/lib/scope";
+import { canEditClient } from "@/lib/client-access";
 import { DEFAULT_SELLER_ID, builtInPack, ensureSellerPacks, loadSeller, packSource } from "@/lib/seller";
 import { listRevisions, versionUsage } from "@/lib/seller/edit";
 import { PackEditor, type RevisionRow } from "./pack-editor";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 export default async function EditSellerPage({ searchParams }: { searchParams: Promise<{ seller?: string }> }) {
   const sellerId = (await searchParams).seller ?? (await activeSellerId());
   if (!builtInPack(sellerId)) notFound();
+  // Only someone who may edit that client's Account Brain sees (or saves) its profile, whatever the address says.
+  if (!(await canEditClient(sellerId))) notFound();
   await ensureSellerPacks();
   const { pack, version } = loadSeller(sellerId);
   const source = packSource(sellerId);

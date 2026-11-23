@@ -2,28 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { authRequired } from "@/lib/auth";
-import { coversClient, getMe } from "@/lib/me";
+import { requireClientEditor } from "@/lib/client-access";
 import { getAdapters } from "@/lib/adapters";
 import { addDocument, deleteDocument } from "@/lib/knowledge/rag/store";
 import { loadBrain, readSection, saveBrain, sectionByKey, writeSection, type BrainItem } from "@/lib/seller/brain";
 
 export type BrainState = { ok: boolean; message: string } | null;
 
-/** Anyone assigned to the account (or Super Admin) may change its brain. */
+/** A Super Admin covering the client, or its Manager or Owner, may change its brain (lib/client-access; refusals are audit-logged). */
 async function editor(clientId: string): Promise<string> {
-  const me = await getMe();
-  if (!me) {
-    if (authRequired()) throw new Error("Sign in first");
-    return "local";
-  }
-  if (!coversClient(me, clientId)) {
-    const c = me.clients.find((x) => x.id === clientId);
-    if (!c) throw new Error("You are not assigned to this account");
-    const { atLeast, ActionDenied, denyText } = await import("@/lib/roles");
-    if (!atLeast(c.role, "manager")) throw new ActionDenied(denyText(c.role, "manager"));
-  }
-  return me.email;
+  return requireClientEditor(clientId, "account_brain.edit");
 }
 
 const done = (clientId: string) => {
@@ -150,8 +138,9 @@ export async function estimateTargetingAction(clientId: string, item: BrainItem)
     let now = 0, next = 0;
     for (const a of rows) {
       const c = { country: normalizeCountry(a.country), employees: a.employees };
-      if (mustHaveGate(c, pack.icp.mustHave).pass) now++;
-      if (mustHaveGate(c, edited).pass) next++;
+      // {} = no rule: an undefined rule would fall back to the default seller's rule.
+      if (mustHaveGate(c, pack.icp.mustHave ?? {}).pass) now++;
+      if (mustHaveGate(c, edited ?? {}).pass) next++;
     }
     return { ok: true, now, next, total: rows.length };
   } catch (e) {

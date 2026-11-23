@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Flag, Handshake, P
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { PIPELINE_STATUS_LABEL, PROGRESS_LABEL } from "@/lib/stage-docs";
-import { ensureSellerPacks, seller, sellerFor } from "@/lib/seller";
+import { ensureSellerPacks } from "@/lib/seller";
 import type { TwinSnapshot } from "@/lib/pipeline/stages/research";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
 import { Avatar, Badge, Card, Empty, FieldBadge, Kpi, Meter, StageBadge, TabLinks, TierBadge, ago, date, money } from "@/components/ui";
@@ -94,7 +94,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const engineOf = new Map(engines.map((e) => [e.id, e.engine]));
   const flaggedIds = new Set(flagged.map((f) => f.id));
   const spent = (ledger._sum.amountMicros ?? 0) / 1_000_000;
-  const sp = (() => { try { return sellerFor(a.sellerId); } catch { return seller(); } })();
+  // This company's own client brain (its draft while unfinished), never another client's.
+  const sp = (await (await import("@/lib/scope")).clientBrain(a.sellerId)).pack;
   // Research question keys as people read them (this account's pack, then generic names).
   const GENERIC: Record<string, string> = { website: "Official website", firmographics: "Industry, size, country", negative: "Negative news", trigger: "Buying trigger", owner_function: "Who owns it", partner_network: "Partner network" };
   const label = (key: string) => sp.researchQuestions.find((q) => q.key === key)?.label ?? GENERIC[key] ?? humanize(key);

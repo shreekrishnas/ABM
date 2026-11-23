@@ -8,10 +8,21 @@ export const metadata = { title: "Sign in" };
 const NODES: [number, number, number][] = [[8, 18, 0], [22, 64, 1.2], [36, 30, 2.4], [14, 86, 0.6], [48, 78, 1.8], [62, 12, 3], [78, 40, 0.9], [90, 74, 2.1], [70, 88, 1.5], [54, 48, 2.7]];
 const LINKS: [number, number][] = [[0, 2], [2, 1], [1, 3], [2, 9], [9, 4], [9, 6], [5, 6], [6, 7], [7, 8], [4, 8], [5, 2]];
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; e?: string }> }) {
-  const { next, e } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; e?: string; m?: string; email?: string; sent?: string }> }) {
+  const { next, e, m, email, sent } = await searchParams;
   const notice = e === "used" ? "That sign-in link was already used. Ask for a new one." : e === "expired" ? "That sign-in link has expired. Ask for a new one." : undefined;
   const domains = allowedDomains();
+  // The sign-in route handler sends back a short code; the words are the ones the form always showed.
+  const minutes = Math.max(1, Math.min(60, Number(m) || 1));
+  const error = ({
+    not_setup: "Sign-in isn't set up yet: add AUTH_SECRET in Vercel.",
+    no_email: "Enter your work email address.",
+    rate: `Too many sign-in attempts. Try again in ${minutes} minutes.`,
+    domain: `Only @${domains.join(" or @")} addresses can sign in.`,
+    not_member: "You're not on the team yet. Ask a Super Admin to add you in Team & Access.",
+    email_failed: "We couldn't send the sign-in email. Try again in a minute, or ask a Super Admin.",
+  } as Record<string, string>)[e ?? ""];
+  const shownEmail = typeof email === "string" ? email.slice(0, 200) : undefined;
   return (
     <div className="lg-root">
       <div className="lg-bg" aria-hidden>
@@ -43,7 +54,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </section>
 
         <section className="lg-card" aria-label="Sign in">
-          <LoginForm next={next ?? ""} domains={domains} ready={Boolean(authSecret())} byLink={linkSignIn()} notice={notice} />
+          <LoginForm next={next ?? ""} domains={domains} ready={Boolean(authSecret())} byLink={linkSignIn()} notice={notice} error={error} email={shownEmail} sent={sent === "1"} />
         </section>
       </main>
     </div>

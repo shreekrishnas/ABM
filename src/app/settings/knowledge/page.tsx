@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { ensureSellerPacks } from "@/lib/seller";
-import { activeSeller } from "@/lib/scope";
+import { activeSellerState } from "@/lib/scope";
+import { canEditClient } from "@/lib/client-access";
 import { getAdapters } from "@/lib/adapters";
 import { ensureIndexed, knowledgeStats } from "@/lib/knowledge/rag/store";
 import { Card, PageHeader, ago } from "@/components/ui";
@@ -20,18 +21,20 @@ const ORIGIN_LABEL: Record<string, string> = { built_in: "Built in", upload: "Ad
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ origin?: string }> }) {
   const origin = (await searchParams).origin;
   await ensureSellerPacks();
-  const sp = (await activeSeller());
+  // The client in view, with its own brain: nothing is indexed (written) for a client whose brain is unfinished.
+  const { id: clientId, pack: sp, ready } = await activeSellerState();
+  const canEdit = await canEditClient(clientId);
   const embedder = getAdapters().embedder;
   let indexError: string | null = null;
   try {
-    await ensureIndexed(sp);
+    if (ready) await ensureIndexed(sp);
   } catch (e) {
     indexError = e instanceof Error ? e.message.slice(0, 200) : String(e);
   }
   const [stats, docs] = await Promise.all([
-    knowledgeStats(sp.id),
+    knowledgeStats(clientId),
     db.knowledgeDoc.findMany({
-      where: { sellerId: sp.id, ...(origin ? { origin } : {}) },
+      where: { sellerId: clientId, ...(origin ? { origin } : {}) },
       orderBy: [{ origin: "desc" }, { kind: "asc" }, { title: "asc" }],
       select: { id: true, title: true, kind: true, origin: true, approved: true, url: true, updatedAt: true, _count: { select: { chunks: true } } },
     }),
@@ -46,8 +49,9 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
         eyebrow="What the writer knows"
         title="Knowledge base"
         sub="Researched outreach studies, the writing playbook, buyer personas, objection answers, example messages and the seller's own material, split into chunks and embedded. Every draft pulls the pieces that fit the person, channel and trigger."
-        actions={<ActionButton action={reindexAction} className="btn btn-secondary"><RefreshCw size={15} /> Re-index</ActionButton>}
+        actions={canEdit && ready ? <ActionButton action={reindexAction} className="btn btn-secondary"><RefreshCw size={15} /> Re-index</ActionButton> : undefined}
       />
+      {!ready && <p className="read-surface mb-4 rounded-xl px-4 py-3 text-sm" role="status">{sp.name || clientId}&apos;s Account Brain isn&apos;t complete yet, so its built-in documents aren&apos;t added. Documents you add here are kept for this client only.{canEdit && <> <Link href={`/brain?client=${encodeURIComponent(clientId)}`} className="underline">Finish the Account Brain</Link></>}</p>}
 
       {indexError && <p className="read-surface mb-4 rounded-xl px-4 py-3 text-sm" role="alert" style={{ color: "var(--stop, #DC2626)" }}>Indexing failed: {indexError}. Drafts are still written, without the knowledge base.</p>}
 
@@ -88,7 +92,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                       <td className="text-xs">{ORIGIN_LABEL[d.origin] ?? d.origin}</td>
                       <td className="tnum">{d._count.chunks}</td>
                       <td className="muted whitespace-nowrap text-xs">{ago(d.updatedAt)}</td>
-                      <td>{d.origin !== "built_in" && <ActionButton action={deleteDocumentAction.bind(null, d.id)} className="btn btn-icon" title="Remove" confirm={`Remove "${d.title}" from the knowledge base?`}><Trash2 size={15} aria-label="Remove" /></ActionButton>}</td>
+                      <td>{canEdit && d.origin !== "built_in" && <ActionButton action={deleteDocumentAction.bind(null, d.id)} className="btn btn-icon" title="Remove" confirm={`Remove "${d.title}" from the knowledge base?`}><Trash2 size={15} aria-label="Remove" /></ActionButton>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -96,9 +100,9 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             </div>
           </Card>
         </div>
-        <Card title="Add knowledge" sub="Case studies, call notes, objection answers, emails that got replies. The more of your own, the better the drafts.">
+        {canEdit && <Card title="Add knowledge" sub="Case studies, call notes, objection answers, emails that got replies. The more of your own, the better the drafts.">
           <AddDocumentForm />
-        </Card>
+        </Card>}
       </div>
     </div>
   );
