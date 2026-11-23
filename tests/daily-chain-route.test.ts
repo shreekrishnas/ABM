@@ -13,9 +13,10 @@ vi.mock("@/lib/pipeline/orchestrator", async (orig) => ({
 }));
 
 const queueKicks: string[] = [];
+let queueAnswer: { ok: boolean; outcome: string; status: number | null; detail?: string } = { ok: true, outcome: "accepted", status: 202 };
 vi.mock("@/lib/queue/drain", async (orig) => ({
   ...(await orig<typeof import("@/lib/queue/drain")>()),
-  kickDrain: async (base: string, runId: string) => { queueKicks.push(`${base}|${runId}`); return true; },
+  startDrain: async (base: string, runId: string) => { queueKicks.push(`${base}|${runId}`); return { ...queueAnswer, host: new URL(base).host, attempts: 1, ms: 2 }; },
 }));
 
 import { GET, POST } from "@/app/api/v1/tick/route";
@@ -39,6 +40,7 @@ beforeEach(async () => {
   process.env.APP_URL = APP;
   delete process.env.CRON_SECRET;
   ran.length = 0; queueKicks.length = 0; pending.length = 0;
+  queueAnswer = { ok: true, outcome: "accepted", status: 202 };
   await baseDb.runLog.deleteMany({ where: { job: { startsWith: "Daily check" } } });
   await baseDb.jobLease.deleteMany({ where: { name: { startsWith: "tick:" } } });
   await (await import("@/lib/admin/ai-pause")).setAiPaused(false, "test");
@@ -140,4 +142,14 @@ describe("daily chain through the tick route", () => {
     expect(calls).toBe(2);
     expect((await outcomes()).find((r) => r.job === "Daily check · handoff")?.note).toMatch(/→ intel network host=abm\.test attempts=2/);
   }, 20_000);
+  it("when the platform refuses the queue hand-off (508, the production failure), the last step does a slice itself and the alert says why", async () => {
+    queueAnswer = { ok: false, outcome: "loop", status: 508, detail: "The hosting platform refused another call of the app to itself (loop protection)" };
+    await cron(); await drainAfter();
+    expect(ran).toEqual(["core", "intel", "intent", "market", "agent"]);
+    const note = (await outcomes()).find((r) => r.job === "Daily check · handoff")?.note ?? "";
+    expect(note).toMatch(/^→ queue loop 508 host=abm\.test attempts=1 run=run_[a-z0-9]+: .*loop protection\); ran one slice here instead: \d+ done, \d+ waiting/);
+    const [alert] = await chainAlerts(new Date(Date.now() + 60 * 60_000));
+    expect(alert.title).toMatch(/research queue/i);
+    expect(alert.fix).toMatch(/loop|in a row/i);
+  });
 });

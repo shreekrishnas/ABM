@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Lock, LayoutDashboard, Activity, Building2, Download, History, RotateCcw, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -24,7 +25,8 @@ import { serviceStatus } from "@/lib/adapters";
 import { sampleState } from "@/lib/sample";
 import { setupSteps } from "@/lib/admin/client-setup";
 import { CLIENT_STATUS_LABEL, isClientStatus } from "@/lib/admin/client-status";
-import { runHistory, stoppedGroups } from "@/lib/admin/ops";
+import { queueRunState, runHistory, stoppedGroups } from "@/lib/admin/ops";
+import { selfCallSetup } from "@/lib/pipeline/handoff";
 import { SampleLoader } from "./sample-loader";
 import { ROLES, ROLE_LABEL, ROLE_HELP } from "@/lib/roles";
 import { AddClient, ClientChip, RowMenu } from "./people-controls";
@@ -82,6 +84,23 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
       {tab === "data" && <DataTab clients={clients} />}
       {tab === "audit" && <AuditTab clients={clients} who={sp.who} what={sp.what} account={sp.account} from={sp.from} to={sp.to} sensitive={sp.sensitive} />}
       {tab === "security" && <SecurityTab me={me.email} result={sp.result} />}
+    </div>
+  );
+}
+
+/** How the daily check and the queue reach the app, and what the last daily check and queue slice did. */
+async function QueueSetup() {
+  const h = await headers();
+  const origin = h.get("host") ? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}` : null;
+  const setup = selfCallSetup(origin);
+  const st = await queueRunState();
+  return (
+    <div className="grid gap-1 text-sm mb-3">
+      <p className="secondary">The daily check reaches the app at <b>{setup.host || "no address"}</b> ({setup.source}) · secret {setup.secret ? "set" : <b className="tm-warn">missing (ABM_API_KEY or CRON_SECRET)</b>} · Vercel protection bypass {setup.bypass ? "set" : "not set"}.</p>
+      {st.dailyAt && (st.queueHandoff
+        ? <p className="tm-warn">Last daily check ({ago(st.dailyAt)}) couldn&apos;t start the queue on its own: {st.queueHandoff.note}</p>
+        : <p className="secondary">Last daily check ({ago(st.dailyAt)}) started the queue on its own.</p>)}
+      {st.lastSlice && <p className="secondary">Last queue slice {ago(st.lastSlice.finishedAt)}: {st.lastSlice.processed} done, {st.lastSlice.remaining ?? 0} waiting{st.lastSlice.note ? ` · ${st.lastSlice.note}` : ""}.</p>}
     </div>
   );
 }
@@ -284,6 +303,7 @@ async function SystemTab({ health, clients }: { health: Awaited<ReturnType<typeo
           <span>Last run {q.lastRunAt ? ago(q.lastRunAt) : "never"}</span>
         </div>
         {q.stuck && <p className="tm-warn">The queue has stopped: work is waiting and nothing has run for over 10 minutes.</p>}
+        <QueueSetup />
         <ActionButton action={restartQueueAction} className={q.stuck ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}><RotateCcw size={14} /> Restart queue</ActionButton>
       </Card>
       <Card title="Stopped companies" sub={stoppedTotal ? `${stoppedTotal} companies stopped, grouped by client and why. Retry puts a whole group back in the queue from the step it stopped at. Stops that wait for a person's decision link to Approvals instead.` : "Companies that stopped during research show here, grouped by why."} pad={false}>

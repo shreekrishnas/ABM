@@ -10,7 +10,7 @@ import type { Prisma } from "@prisma/client";
 import { starterPack } from "@/lib/seller/brain";
 import { logoFromInput } from "@/lib/logo";
 import { headers } from "next/headers";
-import { kickDrain } from "@/lib/queue/drain";
+import { kickDrain, startDrain } from "@/lib/queue/drain";
 import { hashPack } from "@/lib/seller";
 
 const fail = (e: unknown): ActionState => ({ ok: false, message: e instanceof Error ? e.message : "Something went wrong" });
@@ -244,10 +244,11 @@ export async function restartQueueAction(): Promise<ActionState> {
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host");
     const origin = host ? `${h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https")}://${host}` : null;
-    const started = await kickDrain(origin);
-    await audit(me.email, "queue.restart", { after: { started } });
+    const r = await startDrain(origin);
+    const started = r.ok;
+    await audit(me.email, "queue.restart", { after: { started, outcome: r.outcome, status: r.status } });
     revalidatePath("/team");
-    return { ok: started, message: started ? "Background queue restarted" : "Couldn't reach the queue. Check APP_URL and ABM_API_KEY in Vercel" };
+    return { ok: started, message: started ? "Background queue restarted" : `Couldn't start the queue: ${r.outcome}${r.status ? ` (${r.status})` : ""}${r.detail ? `, ${r.detail}` : ""}. Check APP_URL and ABM_API_KEY in Vercel.` };
   } catch (e) {
     return fail(e);
   }

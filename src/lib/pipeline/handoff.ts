@@ -35,6 +35,22 @@ export function selfBaseUrl(origin?: string | null, prefer: "production" | "orig
   return (origin ?? "").replace(/\/$/, "");
 }
 
+/**
+ * How the scheduled chain reaches the app, for System health: the host it calls and where that came
+ * from, and whether the secret and Vercel's protection bypass are set (never their values).
+ */
+export function selfCallSetup(origin?: string | null): { host: string; source: string; secret: boolean; bypass: boolean } {
+  const base = selfBaseUrl(origin);
+  const source = env("APP_URL") ? "APP_URL" : env("VERCEL_ENV") === "production" && env("VERCEL_PROJECT_PRODUCTION_URL") ? "Vercel's production address" : base ? "the address this page was opened on" : "nowhere: set APP_URL";
+  let host = "";
+  try {
+    host = base ? new URL(base).host : "";
+  } catch {
+    host = "";
+  }
+  return { host, source, secret: Boolean(selfToken()), bypass: Boolean(env("VERCEL_AUTOMATION_BYPASS_SECRET")) };
+}
+
 /** The secret the app uses to call its own routes. */
 export function selfToken(): string {
   return env("ABM_API_KEY") || env("CRON_SECRET") || "";
@@ -67,6 +83,7 @@ export type HandoffOutcome =
   | "protected" // 401/403 page from Vercel deployment protection (not our API)
   | "unauthorized" // 401/403 from our API: wrong or missing secret
   | "not_configured" // 503 api_key_not_configured from our API
+  | "loop" // 508 from the hosting platform: too many calls of the app to itself in a row
   | "server_error" // other 5xx
   | "client_error" // other 4xx
   | "timeout"
@@ -92,6 +109,9 @@ export async function classifyResponse(res: Response): Promise<{ outcome: Handof
     return vercel ? { outcome: "protected", detail: "Vercel deployment protection answered instead of the app" } : { outcome: "unauthorized", detail: "The app refused the secret" };
   }
   if (res.status === 503 && /api_key_not_configured/.test(body)) return { outcome: "not_configured", detail: "No ABM_API_KEY or CRON_SECRET in production" };
+  // Vercel refuses a request that has passed through the same deployment too many times (each step of
+  // the daily check is its own call of the app to itself). Retrying can't help.
+  if (res.status === 508 || /INFINITE_LOOP_DETECTED/i.test(body)) return { outcome: "loop", detail: "The hosting platform refused another call of the app to itself (loop protection)" };
   if (res.status >= 500) return { outcome: "server_error", detail: body.slice(0, 160) };
   return { outcome: "client_error", detail: body.slice(0, 160) };
 }

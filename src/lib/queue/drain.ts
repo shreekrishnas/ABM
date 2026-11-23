@@ -9,7 +9,7 @@
 // outlives its run (crashed function) expires and the next kick takes over. The daily
 // tick also kicks the drain, so a broken chain resumes within a day at worst.
 
-import { selfBaseUrl, selfHeaders, selfToken as handoffSelfToken } from "@/lib/pipeline/handoff";
+import { handOff, logStage, selfBaseUrl, selfToken as handoffSelfToken, type HandoffResult } from "@/lib/pipeline/handoff";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { newContext } from "@/lib/pipeline/context";
@@ -50,10 +50,12 @@ export interface DrainResult {
   status: "drained" | "busy" | "idle";
   processed: number;
   remaining: number;
+  /** Why a slice did nothing while companies wait (e.g. AI paused), for the run log and alerts. */
+  reason?: string | null;
 }
 
 /** One slice of queue work under the lease. "busy" means another worker holds it. */
-export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {}): Promise<DrainResult> {
+export async function drainOnce(opts: { budgetMs?: number; holder?: string; runId?: string } = {}): Promise<DrainResult> {
   await (await import("@/lib/integration-keys")).syncIntegrationEnv().catch(() => undefined);
   const [accounts, lookalikes] = await Promise.all([
     db.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } }),
@@ -65,23 +67,28 @@ export async function drainOnce(opts: { budgetMs?: number; holder?: string } = {
   const budgetMs = opts.budgetMs ?? sliceMs();
   if (!(await acquireLease(QUEUE_LEASE, holder, budgetMs + 60_000))) return { status: "busy", processed: 0, remaining: queued };
   let r: { processed: number; remaining: number } = { processed: 0, remaining: queued };
+  let reason: string | null = null;
   const startedAt = new Date();
   let failed: string | null = null;
   try {
     // Companies first, then lookalike investigations (they wait for a person anyway).
     const started = Date.now();
-    const a = accounts ? await processQueue({ budgetMs, ctx: newContext() }) : { processed: 0, remaining: 0 };
+    const a: { processed: number; remaining: number; paused?: boolean } = accounts ? await processQueue({ budgetMs, ctx: newContext() }) : { processed: 0, remaining: 0 };
     const left = budgetMs - (Date.now() - started);
     const l = lookalikes && left > 5_000 ? await processLookalikeQueue({ budgetMs: left }) : { processed: 0, remaining: lookalikes };
     r = { processed: a.processed + l.processed, remaining: a.remaining + l.remaining };
-    return { status: "drained", processed: r.processed, remaining: r.remaining };
+    // A slice that did nothing says why, instead of a silent "0 done".
+    if (!r.processed && r.remaining) reason = a.paused ? "AI is paused" : "nothing ready to run: waiting for a retry time, a paused client, or research switched off";
+    return { status: "drained", processed: r.processed, remaining: r.remaining, reason };
   } catch (e) {
     failed = e instanceof Error ? e.message : String(e);
     throw e;
   } finally {
     await releaseLease(QUEUE_LEASE, holder, { processed: r.processed, remaining: r.remaining });
     const { recordRun } = await import("@/lib/admin/ops");
-    await recordRun("Research queue", startedAt, { ok: !failed, processed: r.processed, remaining: r.remaining, note: failed });
+    const note = [failed, reason && `waiting: ${reason}`, opts.runId && `run=${opts.runId}`].filter(Boolean).join(" · ") || null;
+    await recordRun("Research queue", startedAt, { ok: !failed, processed: r.processed, remaining: r.remaining, note });
+    logStage({ step: "queue", state: failed ? "failed" : "slice_done", processed: r.processed, remaining: r.remaining, ...(reason ? { reason } : {}), ...(failed ? { error: failed.slice(0, 160) } : {}), ...(opts.runId ? { runId: opts.runId } : {}) });
   }
 }
 
@@ -96,24 +103,20 @@ export function selfToken() {
 }
 
 /**
- * Start (or continue) the background chain. Fire-and-forget from the caller's point
- * of view: the queue route answers 202 immediately and does the work after responding.
+ * Start (or continue) the background chain on its own request: POST /api/v1/queue, which answers 202
+ * at once and works after responding. The answer is read like any hand-off of the daily check
+ * (protected page, refused secret, platform loop limit, timeout…), so a failure says why.
  * `APP_URL` overrides the origin (e.g. when preview deployments are password-protected).
  */
-export async function kickDrain(origin: string | null | undefined, runId?: string): Promise<boolean> {
+export async function startDrain(origin: string | null | undefined, runId?: string): Promise<HandoffResult> {
   const base = selfBaseUrl(origin, "origin");
-  if (!base) return false;
-  try {
-    const res = await fetch(`${base}/api/v1/queue`, {
-      method: "POST",
-      headers: selfHeaders(runId),
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
-    });
-    return res.status === 202 || res.status === 200;
-  } catch {
-    return false;
-  }
+  if (!base) return { ok: false, outcome: "client_error", status: null, host: "", attempts: 0, ms: 0, detail: "No address to call (set APP_URL)" };
+  return handOff({ url: `${base}/api/v1/queue`, runId: runId ?? "", timeoutMs: 10_000, retryDelayMs: 2_000 });
+}
+
+/** startDrain, for callers that only need to know whether it started. */
+export async function kickDrain(origin: string | null | undefined, runId?: string): Promise<boolean> {
+  return (await startDrain(origin, runId).catch(() => null))?.ok ?? false;
 }
 
 /**

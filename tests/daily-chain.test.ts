@@ -36,6 +36,11 @@ describe("where the chain calls itself", () => {
 });
 
 describe("reading the next step's answer", () => {
+  it("recognises the platform's loop limit (508), which a retry can't fix", async () => {
+    expect(await classifyResponse(res(508, "INFINITE_LOOP_DETECTED", "text/plain"))).toMatchObject({ outcome: "loop" });
+    expect(await classifyResponse(res(500, "The page could not be loaded: INFINITE_LOOP_DETECTED", "text/plain"))).toMatchObject({ outcome: "loop" });
+    expect(retryable({ outcome: "loop", status: 508 })).toBe(false);
+  });
   it("tells Vercel's protection page apart from the app refusing the secret", async () => {
     expect((await classifyResponse(res(401, "<html>Authentication Required</html>", "text/html"))).outcome).toBe("protected");
     expect((await classifyResponse(res(401, JSON.stringify({ error: "unauthorized" })))).outcome).toBe("unauthorized");
@@ -99,7 +104,8 @@ function fakeDeps(over: Partial<ChainDeps> = {}) {
     recordError: async (s) => { errors.push(s); },
     aiPaused: async () => false,
     handOff: async () => ({ ok: true, outcome: "accepted", status: 202, host: "app.example.com", attempts: 1, ms: 5 }),
-    kickDrain: async () => true,
+    startQueue: async () => ({ ok: true, outcome: "accepted", status: 202, host: "app.example.com", attempts: 1, ms: 4 }),
+    drainHere: async () => ({ processed: 0, remaining: 0 }),
     ...over,
   };
   return { d, rows, errors, leases };
@@ -150,11 +156,37 @@ describe("stage transitions", () => {
     expect(rows.at(-1)?.note).toMatch(/→ intel protected 401 host=app\.example\.com/);
     expect(errors).toContain("daily check · handoff");
   });
-  it("starts the research queue after the last step", async () => {
-    const kickDrain = vi.fn(async () => true);
-    const { d } = fakeDeps({ kickDrain });
-    expect(await continueChain("agent", "run_abcdef", "https://app.example.com", d)).toMatchObject({ ok: true, outcome: "queue" });
-    expect(kickDrain).toHaveBeenCalledWith("https://app.example.com", "run_abcdef");
+  it("starts the research queue after the last step, on its own request", async () => {
+    const startQueue = vi.fn(async () => ({ ok: true, outcome: "accepted" as const, status: 202, host: "app.example.com", attempts: 1, ms: 4 }));
+    const drainHere = vi.fn(async () => ({ processed: 1, remaining: 0 }));
+    const { d, rows } = fakeDeps({ startQueue, drainHere });
+    expect(await continueChain("agent", "run_abcdef", "https://app.example.com", d)).toMatchObject({ ok: true, outcome: "accepted" });
+    expect(startQueue).toHaveBeenCalledWith("https://app.example.com", "run_abcdef");
+    expect(drainHere).not.toHaveBeenCalled();
+    expect(rows).toEqual([]);
+  });
+  it("when the queue can't be started on its own (platform loop limit), runs one slice here and records exactly why", async () => {
+    const drainHere = vi.fn(async () => ({ processed: 3, remaining: 408 }));
+    const { d, rows, errors } = fakeDeps({
+      startQueue: async () => ({ ok: false, outcome: "loop", status: 508, host: "app.example.com", attempts: 1, ms: 40, detail: "The hosting platform refused another call of the app to itself (loop protection)" }),
+      drainHere,
+    });
+    const r = await continueChain("agent", "run_abcdef", "https://app.example.com", d);
+    expect(r).toMatchObject({ ok: false, outcome: "loop", status: 508 });
+    expect(drainHere).toHaveBeenCalledWith("run_abcdef");
+    expect(rows.at(-1)).toMatchObject({ job: "Daily check · handoff", ok: false });
+    expect(rows.at(-1)?.note).toMatch(/^→ queue loop 508 host=app\.example\.com attempts=1 run=run_abcdef: .*loop protection.*; ran one slice here instead: 3 done, 408 waiting$/);
+    expect(errors).toContain("daily check · handoff");
+  });
+  it("says why a slice here did nothing (AI paused), and survives the slice failing too", async () => {
+    const paused = fakeDeps({ startQueue: async () => ({ ok: false, outcome: "server_error", status: 500, host: "app.example.com", attempts: 1, ms: 9, detail: "queue_failed" }), drainHere: async () => ({ processed: 0, remaining: 411, reason: "AI is paused" }) });
+    await continueChain("agent", "run_abcdef", "https://app.example.com", paused.d);
+    expect(paused.rows.at(-1)?.note).toMatch(/ran one slice here instead: 0 done, 411 waiting \(AI is paused\)$/);
+    const broken = fakeDeps({ startQueue: async () => ({ ok: false, outcome: "timeout", status: null, host: "app.example.com", attempts: 1, ms: 10_000 }), drainHere: async () => { throw new Error("database unavailable"); } });
+    await continueChain("agent", "run_abcdef", "https://app.example.com", broken.d);
+    expect(broken.rows.at(-1)?.note).toMatch(/→ queue timeout host=app\.example\.com .*; the slice here failed too: database unavailable$/);
+    const thrown = fakeDeps({ startQueue: async () => { throw new Error("fetch failed"); } });
+    expect(await continueChain("agent", "run_abcdef", "https://app.example.com", thrown.d)).toMatchObject({ ok: false, outcome: "network" });
   });
   it("labels core the way the 'daily check missed' alert expects", () => {
     expect(stepLabel("core")).toBe("Daily check");

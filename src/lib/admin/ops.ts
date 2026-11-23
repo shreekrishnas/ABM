@@ -59,3 +59,16 @@ export async function stoppedIds(clientId: string, key: string): Promise<{ id: s
     WHERE a."sellerId" = ${clientId} AND a."pipelineStatus" IN ('blocked', 'error') AND a."mergedIntoId" IS NULL AND a.stage <> 'DISQUALIFIED'`;
   return rows.filter((r) => reasonKey((r.reason ?? r.lastError ?? "Stopped without a recorded reason").trim()) === key).map((r) => ({ id: r.id, pipelineStage: r.pipelineStage }));
 }
+
+/**
+ * For System health: did the latest daily check start the research queue on its own, and what did
+ * the latest queue slice do (with its reason when it did nothing).
+ */
+export async function queueRunState() {
+  const core = await baseDb.runLog.findFirst({ where: { job: "Daily check" }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }).catch(() => null);
+  const [handoff, slice] = await Promise.all([
+    core ? baseDb.runLog.findFirst({ where: { job: "Daily check · handoff", ok: false, note: { startsWith: "→ queue" }, startedAt: { gte: core.startedAt } }, orderBy: { startedAt: "desc" }, select: { note: true, startedAt: true } }).catch(() => null) : null,
+    baseDb.runLog.findFirst({ where: { job: "Research queue" }, orderBy: { finishedAt: "desc" }, select: { processed: true, remaining: true, note: true, finishedAt: true, ok: true } }).catch(() => null),
+  ]);
+  return { dailyAt: core?.startedAt ?? null, queueHandoff: handoff, lastSlice: slice };
+}

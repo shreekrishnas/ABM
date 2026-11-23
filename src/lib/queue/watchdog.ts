@@ -2,7 +2,7 @@
 // allows a once-a-day schedule, so while people use the app it checks at most every 5 minutes
 // (one check across all servers, via a lease) and restarts a queue that has stopped.
 
-import { acquireLease, kickDrain, requeueCutOffRuns } from "./drain";
+import { acquireLease, requeueCutOffRuns, startDrain } from "./drain";
 import { queueHealth } from "@/lib/admin/health";
 import { recordError } from "@/lib/admin/errors";
 
@@ -15,11 +15,12 @@ export async function watchQueue(origin: string | null, now = new Date()): Promi
     // Holding the lease for 5 minutes means only one check per 5 minutes, whoever triggers it.
     if (!(await acquireLease(WATCHDOG_LEASE, `wd_${now.getTime()}`, EVERY_MS, now))) return false;
     await requeueCutOffRuns();
+    await (await import("@/lib/jobs")).sweepStaleJobs(now).catch(() => 0);
     const q = await queueHealth(now);
     if (!q.stuck) return false;
-    const started = await kickDrain(origin);
-    if (!started) await recordError("queue watchdog", new Error("The queue has stopped and could not be restarted (check APP_URL and ABM_API_KEY)"));
-    return started;
+    const r = await startDrain(origin);
+    if (!r.ok) await recordError("queue watchdog", new Error(`The queue has stopped and could not be restarted: ${r.outcome}${r.status ? ` (${r.status})` : ""}${r.detail ? `, ${r.detail}` : ""}. Check APP_URL and ABM_API_KEY.`));
+    return r.ok;
   } catch (e) {
     await recordError("queue watchdog", e);
     return false;

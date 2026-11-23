@@ -8,7 +8,7 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 export interface SystemAlert {
-  key: "ai_blocked" | "daily_missed" | "visitors_quiet" | "chain_broken" | "sending_stopped";
+  key: "ai_blocked" | "daily_missed" | "visitors_quiet" | "chain_broken" | "sending_stopped" | "queue_waiting";
   tone: "bad" | "warn";
   title: string;
   detail: string;
@@ -68,6 +68,7 @@ export async function systemAlerts(now = new Date()): Promise<SystemAlert[]> {
     });
   }
   out.push(...(await chainAlerts(now)));
+  out.push(...(await queueAlerts(now)));
   // The bounce pause stops sending for every client. Its review item is platform-wide (no company),
   // so only full Super Admins see it in Approvals; this keeps it in front of them everywhere.
   const pause = await baseDb.reviewItem.findFirst({ where: { type: "bounce_breaker", status: "open" }, orderBy: { createdAt: "desc" }, select: { reason: true, createdAt: true } });
@@ -90,14 +91,50 @@ export async function chainAlerts(now = new Date()): Promise<SystemAlert[]> {
   const seen = new Set(rows.map((r) => r.job));
   const missing = later.filter((s) => !seen.has(`Daily check · ${s}`));
   if (!missing.length && !handoff) return [];
-  const protectedPage = /protected/.test(handoff?.note ?? "");
+  const note = handoff?.note ?? "";
+  const outcome = /^→ \S+ ([a-z_]+)/.exec(note)?.[1] ?? "";
+  const toQueue = !missing.length && note.startsWith("→ queue ");
+  const coveredHere = /ran one slice here instead/.test(note);
+  const fix =
+    outcome === "protected" ? "Vercel deployment protection blocked the app calling itself. Set APP_URL to the public production address, or turn on Protection Bypass for Automation (Settings → Deployment Protection) and redeploy."
+    : outcome === "loop" ? "The hosting platform refuses the app calling itself again at the end of the daily check (five calls in a row). The last step now works one slice of the queue itself, and the queue carries on while people use the app. Nothing to change unless this keeps the queue from moving."
+    : outcome === "unauthorized" || outcome === "not_configured" ? "The app calls itself with ABM_API_KEY (or CRON_SECRET). Check that it is set in Vercel for production and redeploy."
+    : "Check System health → recent runs for the run id, and the APP_URL / ABM_API_KEY / CRON_SECRET settings in Vercel.";
   return [{
-    key: "chain_broken", tone: "bad",
-    title: missing.length ? `The daily check stopped before: ${missing.join(", ")}` : "A step of the daily check couldn't start the next",
-    detail: handoff?.note?.slice(0, 220) ?? "No hand-off failure was recorded; the step may have been stopped by the platform.",
-    fix: protectedPage
-      ? "Vercel deployment protection blocked the app calling itself. Set APP_URL to the public production address, or turn on Protection Bypass for Automation (Settings → Deployment Protection) and redeploy."
-      : "Check System health → recent runs for the run id, and the APP_URL / ABM_API_KEY / CRON_SECRET settings in Vercel.",
+    key: "chain_broken", tone: toQueue && coveredHere ? "warn" : "bad",
+    title: missing.length ? `The daily check stopped before: ${missing.join(", ")}` : toQueue ? "The daily check couldn't start the research queue on its own" : "A step of the daily check couldn't start the next",
+    detail: handoff?.note?.slice(0, 260) ?? "No hand-off failure was recorded; the step may have been stopped by the platform.",
+    fix,
     href: "/team?tab=system", at: handoff?.startedAt ?? core.startedAt,
+  }];
+}
+
+/**
+ * Companies waiting in the research queue with nothing researched for a day: say why. While AI is
+ * paused that is expected (and the alert says so, with how to resume); otherwise the queue is stuck.
+ */
+export async function queueAlerts(now = new Date()): Promise<SystemAlert[]> {
+  const waiting = await baseDb.account.count({ where: { pipelineStatus: "queued", mergedIntoId: null } });
+  if (!waiting) return [];
+  const last = await baseDb.account.findFirst({ where: { lastRunAt: { not: null } }, orderBy: { lastRunAt: "desc" }, select: { lastRunAt: true } });
+  if (last?.lastRunAt && now.getTime() - last.lastRunAt.getTime() < DAY) return [];
+  const { aiPause } = await import("@/lib/admin/ai-pause");
+  const paused = await aiPause();
+  const since = last?.lastRunAt ? `Nothing researched since ${last.lastRunAt.toISOString().slice(0, 16).replace("T", " ")} UTC.` : "Nothing has been researched yet.";
+  if (paused) {
+    return [{
+      key: "queue_waiting", tone: "warn",
+      title: `${waiting} ${waiting === 1 ? "company is" : "companies are"} waiting for research: AI is paused`,
+      detail: `AI was paused by ${paused.by}. ${since} The daily check and the queue run, but nothing that needs AI.`,
+      fix: "When you're ready, resume AI in System health (Super Admin). The queue then works through them on its own: in the daily check and while people use the app.",
+      href: "/team?tab=system", at: paused.since,
+    }];
+  }
+  return [{
+    key: "queue_waiting", tone: "bad",
+    title: `The research queue isn't moving: ${waiting} ${waiting === 1 ? "company" : "companies"} waiting`,
+    detail: `${since} AI is on.`,
+    fix: "Open System health → recent runs (Research queue) for the reason on the last slice: a paused or archived client, research switched off for the client, or a failing step.",
+    href: "/team?tab=system", at: last?.lastRunAt ?? now,
   }];
 }

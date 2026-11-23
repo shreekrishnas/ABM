@@ -126,6 +126,20 @@ export async function runJob(id: string): Promise<void> {
   await recordRun(`Job · ${job.label}`.slice(0, 80), started, { ok: out.ok, processed: 1, note: out.message });
 }
 
+/**
+ * Give abandoned jobs an outcome: a job still "running" past the server's time limit was cut off, and
+ * one still "queued" that long never started. Saved as failed with a plain reason, so the top bar,
+ * the job list and the run history agree. Run by the queue watchdog and the daily check.
+ */
+export async function sweepStaleJobs(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - JOB_STALE_MS);
+  const [cut, never] = await Promise.all([
+    baseDb.backgroundJob.updateMany({ where: { status: "running", OR: [{ startedAt: { lt: cutoff } }, { startedAt: null, createdAt: { lt: cutoff } }] }, data: { status: "failed", message: "Cut off: it ran past the server's time limit. Start it again.", finishedAt: now } }),
+    baseDb.backgroundJob.updateMany({ where: { status: "queued", createdAt: { lt: cutoff } }, data: { status: "failed", message: "Didn't start: the server couldn't pick it up. Start it again.", finishedAt: now } }),
+  ]);
+  return cut.count + never.count;
+}
+
 /** A person's jobs from the last day, newest first; jobs cut off by the server limit read as failed. */
 export async function jobsFor(email: string) {
   const rows = await baseDb.backgroundJob.findMany({ where: { createdBy: email, createdAt: { gte: new Date(Date.now() - 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 20 });

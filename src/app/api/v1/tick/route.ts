@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { newContext } from "@/lib/pipeline/context";
-import { kickDrain } from "@/lib/queue/drain";
+import { drainOnce, sliceMs, startDrain } from "@/lib/queue/drain";
 import { TICK_STEPS, tickStep, type TickStep } from "@/lib/pipeline/orchestrator";
 import { beginStep, continueChain, executeStep, type ChainDeps } from "@/lib/pipeline/daily-chain";
 import { handOff, runIdFrom } from "@/lib/pipeline/handoff";
@@ -19,7 +19,10 @@ import { authorize, json } from "@/lib/api";
 //   platform stopped the work; the per-day lease then expires so a re-run can pick it up.
 // - every hand-off reads the answer and records failures; one run id ties a day together.
 
-async function deps(): Promise<ChainDeps> {
+/** Leave this much of the request's time for recording and the reply. */
+const MARGIN_MS = 30_000;
+
+async function deps(startedAt = Date.now()): Promise<ChainDeps> {
   const [{ recordRun }, { recordError }, { aiPause }, lease] = await Promise.all([
     import("@/lib/admin/ops"),
     import("@/lib/admin/errors"),
@@ -34,7 +37,14 @@ async function deps(): Promise<ChainDeps> {
     recordError,
     aiPaused: async () => Boolean(await aiPause()),
     handOff,
-    kickDrain: (origin, runId) => kickDrain(origin, runId),
+    startQueue: (base, runId) => startDrain(base, runId),
+    // A slice of the queue in this request, within what is left of its time limit.
+    drainHere: async (runId) => {
+      const budgetMs = Math.min(sliceMs(), startedAt + maxDuration * 1000 - MARGIN_MS - Date.now());
+      if (budgetMs < 5_000) return { processed: 0, remaining: 0, reason: "no time left in this request" };
+      const r = await drainOnce({ budgetMs, runId });
+      return { processed: r.processed, remaining: r.remaining, reason: r.status === "busy" ? "another worker has the queue" : r.reason };
+    },
   };
 }
 
@@ -44,13 +54,14 @@ async function run(req: Request) {
   const asked = url.searchParams.get("step");
   const step: TickStep = (TICK_STEPS as readonly string[]).includes(asked ?? "") ? (asked as TickStep) : "core";
   const runId = runIdFrom(req);
-  const d = await deps();
+  const d = await deps(Date.now());
 
   const begun = await beginStep(step, runId, d);
   if (begun.status === "skipped") return json({ step, runId, status: "skipped", reason: begun.reason });
 
   if (step === "core") {
     (await import("@/lib/pipeline/step-lease")).pruneStepLeases().catch(() => undefined);
+    (await import("@/lib/jobs")).sweepStaleJobs().catch(() => 0);
     const r = await executeStep(step, runId, begun.claimedAt, d);
     after(() => continueChain(step, runId, url.origin, d).then(() => undefined));
     return json({ step, runId, status: r.ok ? "completed" : "failed", next: "intel", ...(r.result && typeof r.result === "object" ? r.result : {}) }, r.ok ? 200 : 500);
