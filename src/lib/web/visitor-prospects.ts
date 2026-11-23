@@ -11,7 +11,7 @@ import { UNKNOWN_DATE_TITLE } from "./visits";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { seller } from "@/lib/seller";
-import { activeSellerId, requireClientId } from "@/lib/scope";
+import { activeSellerId, requireClientId, resolveScope } from "@/lib/scope";
 import { companyNameKey, normalizeDomain } from "@/lib/pipeline/normalize";
 import { IMPORT_FIELDS, analyzeHeaders, rowKeys, validateRow, type FieldKey } from "@/lib/import/fields";
 import { findCompany, ingestRows } from "@/lib/pipeline/ingest";
@@ -39,14 +39,29 @@ export interface VisitorCompany {
   pages: string[];
   accountId: string | null;
   enrichment: { status: EnrichStatus; message: string | null; rows: ProspectRow[]; enrichedAt: Date; importedAt: Date | null } | null;
+  /** The same company seen by another source under its name only (merged into this one). */
+  aliases?: { key: string; name: string }[];
 }
 
 export const companyKey = (name: string, domain: string | null) => (domain ? `d:${domain}` : `n:${companyNameKey(name)}`);
 
+/** Kept beside an enrichment row, never a CSV column: removed before the Excel download and the import. */
+export const REVENUE_META = "_annualRevenueUsd";
+const withoutMeta = (r: ProspectRow): ProspectRow => Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith("_")));
+
+/**
+ * The one client whose website visitors a signed-in page shows: the client the page checks and adds for
+ * (the client picked, else the first in view). With several clients in view, visits of one client must never
+ * sit beside another client's pipeline status or figures. Outside a request (jobs, tests) nothing is added.
+ */
+async function visitorClient(): Promise<{ sellerId: string } | Record<string, never>> {
+  return (await resolveScope()) ? { sellerId: await activeSellerId() } : {};
+}
+
 /** Every company seen on the website in the range, newest visit first. Customers stay in the list. */
 export async function listVisitorCompanies(from: Date, to: Date): Promise<VisitorCompany[]> {
   const visits = await db.webVisit.findMany({
-    where: { occurredAt: { gte: from, lte: to }, AND: [{ OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }], OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
+    where: { ...(await visitorClient()), occurredAt: { gte: from, lte: to }, AND: [{ OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }], OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] },
     orderBy: { occurredAt: "desc" },
     take: 5000,
   });
@@ -65,13 +80,34 @@ export async function listVisitorCompanies(from: Date, to: Date): Promise<Visito
     if (page && c.pages.length < 5 && !c.pages.includes(page)) c.pages.push(page);
     by.set(key, c);
   }
-  const sellerId = await activeSellerId();
-  const enriched = await db.visitorEnrichment.findMany({ where: { sellerId, companyKey: { in: [...by.keys()] } } });
-  for (const e of enriched) {
-    const c = by.get(e.companyKey);
-    if (c) c.enrichment = { status: e.status as EnrichStatus, message: e.message, rows: e.rows as ProspectRow[], enrichedAt: e.enrichedAt, importedAt: e.importedAt };
+  // Two sources can report the same company, one with its website and one with only its name. A name-only
+  // entry joins the single entry with a website under the same name; if several companies share the name
+  // (different websites), it stays on its own rather than being guessed.
+  const withSite = new Map<string, string[]>();
+  for (const c of by.values()) if (c.domain) withSite.set(companyNameKey(c.name), [...(withSite.get(companyNameKey(c.name)) ?? []), c.key]);
+  for (const c of [...by.values()]) {
+    const target = c.domain ? undefined : withSite.get(companyNameKey(c.name));
+    if (target?.length !== 1) continue;
+    const t = by.get(target[0])!;
+    t.visits += c.visits;
+    if (c.lastVisit > t.lastVisit) t.lastVisit = c.lastVisit;
+    for (const p of c.pages) if (t.pages.length < 5 && !t.pages.includes(p)) t.pages.push(p);
+    t.accountId ??= c.accountId;
+    (t.aliases ??= []).push({ key: c.key, name: c.name });
+    by.delete(c.key);
   }
-  return [...by.values()];
+  const owner = new Map<string, VisitorCompany>();
+  for (const c of by.values()) for (const k of [c.key, ...(c.aliases ?? []).map((a) => a.key)]) owner.set(k, c);
+  const sellerId = await activeSellerId();
+  const enriched = await db.visitorEnrichment.findMany({ where: { sellerId, companyKey: { in: [...owner.keys()] } } });
+  // A company's own enrichment first, then one stored under a name it was also seen by.
+  const own = (k: string) => Number(owner.get(k)?.key === k);
+  enriched.sort((a, b) => own(b.companyKey) - own(a.companyKey));
+  for (const e of enriched) {
+    const c = owner.get(e.companyKey);
+    if (c && !c.enrichment) c.enrichment = { status: e.status as EnrichStatus, message: e.message, rows: e.rows as ProspectRow[], enrichedAt: e.enrichedAt, importedAt: e.importedAt };
+  }
+  return [...by.values()].sort((a, b) => b.lastVisit.getTime() - a.lastVisit.getTime());
 }
 
 /** The range from the page's ?from=&to= (YYYY-MM-DD); without one, from `defaultFrom` (or 30 days back) to today. */
@@ -87,8 +123,8 @@ export function parseRange(fromRaw: string | undefined, toRaw: string | undefine
 export async function visitorFreshness(): Promise<{ lastFetch: Date | null; lastFetchNote: string | null; newestVisit: Date | null; undated: string[] }> {
   const [ev, newest, undated] = await Promise.all([
     db.pipelineEvent.findFirst({ where: { step: "apollo.visitors" }, orderBy: { createdAt: "desc" }, select: { createdAt: true, reason: true } }),
-    db.webVisit.findFirst({ where: { source: "apollo", OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }),
-    db.webVisit.findMany({ where: { source: "apollo", title: UNKNOWN_DATE_TITLE }, select: { companyName: true, companyDomain: true }, take: 100 }),
+    visitorClient().then((own) => db.webVisit.findFirst({ where: { ...own, source: "apollo", OR: [{ title: null }, { NOT: { title: UNKNOWN_DATE_TITLE } }] }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } })),
+    visitorClient().then((own) => db.webVisit.findMany({ where: { ...own, source: "apollo", title: UNKNOWN_DATE_TITLE }, select: { companyName: true, companyDomain: true }, take: 100 })),
   ]);
   return {
     lastFetch: ev?.createdAt ?? null,
@@ -99,7 +135,7 @@ export async function visitorFreshness(): Promise<{ lastFetch: Date | null; last
 }
 
 export async function earliestVisit(now = new Date()): Promise<Date | null> {
-  const v = await db.webVisit.findFirst({ where: { occurredAt: { gte: new Date(now.getTime() - 365 * DAY) }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } });
+  const v = await db.webVisit.findFirst({ where: { ...(await visitorClient()), occurredAt: { gte: new Date(now.getTime() - 365 * DAY) }, OR: [{ companyName: { not: null } }, { companyDomain: { not: null } }, { accountId: { not: null } }] }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } });
   return v?.occurredAt ?? null;
 }
 
@@ -163,7 +199,10 @@ export function toImportRow(company: { name: string; domain: string | null }, or
     if (r.ok) break;
     if (r.error.includes(`"${row[label]}"`)) delete row[label];
   }
-  return validateRow(row, analyzeHeaders(Object.keys(row)).mapping).ok ? row : null;
+  if (!validateRow(row, analyzeHeaders(Object.keys(row)).mapping).ok) return null;
+  // Apollo's revenue figure from the same answer (no extra request), kept beside the row, never a CSV column.
+  if (org?.annualRevenueUsd) row[REVENUE_META] = String(org.annualRevenueUsd);
+  return row;
 }
 
 /** The HTTP status in an Apollo error ("Apollo /path 429 …"), if any. */
@@ -266,7 +305,7 @@ export function exportRows(companies: VisitorCompany[]): ProspectRow[] {
   const seen = new Set<string>();
   const out: ProspectRow[] = [];
   for (const c of companies) {
-    const rows = c.enrichment?.rows.length ? c.enrichment.rows : [{ [LABEL.company]: c.name, ...(c.domain ? { [LABEL.domain]: c.domain } : {}) }];
+    const rows = c.enrichment?.rows.length ? c.enrichment.rows.map(withoutMeta) : [{ [LABEL.company]: c.name, ...(c.domain ? { [LABEL.domain]: c.domain } : {}) }];
     for (const r of rows) {
       const v = validateRow(r, analyzeHeaders(Object.keys(r)).mapping);
       const k = v.ok ? (rowKeys(v.row).person ?? `c:${rowKeys(v.row).company}`) : JSON.stringify(r);
@@ -292,17 +331,76 @@ export interface ImportPreviewItem {
 }
 
 /** Customers: companies marked as customers, at the customer stage or with a won deal, and the seller's listed customers. */
-export async function customerCheck(name: string, domain: string | null): Promise<{ customer: boolean; inPipeline: boolean; why: string | null }> {
+/** The client's own company record for a visitor company (matched by normalized website, then name). */
+export type PipelineAccount = { id: string; employees: number | null; revenueUsd: bigint | null; pipelineStatus: string };
+
+export async function customerCheck(name: string, domain: string | null): Promise<{ customer: boolean; inPipeline: boolean; why: string | null; account: PipelineAccount | null }> {
   const acct = await findCompany({ domain, companyLinkedin: null, nameKey: companyNameKey(name) }, await activeSellerId());
   if (acct) {
+    const account = { id: acct.id, employees: acct.employees, revenueUsd: acct.revenueUsd, pipelineStatus: acct.pipelineStatus };
     const won = await db.opportunity.count({ where: { accountId: acct.id, stage: "won" } });
-    if (acct.relationship === "customer" || acct.stage === "CUSTOMER" || won) return { customer: true, inPipeline: true, why: acct.relationship === "customer" ? "Marked as a customer" : won ? "Has a won deal" : "At the customer stage" };
+    if (acct.relationship === "customer" || acct.stage === "CUSTOMER" || won) return { customer: true, inPipeline: true, why: acct.relationship === "customer" ? "Marked as a customer" : won ? "Has a won deal" : "At the customer stage", account };
     // The same name with no website on either side can't be verified: a person checks it.
-    return { customer: false, inPipeline: true, why: acct.domain && domain && acct.domain === domain ? "Already a company in the pipeline" : `Already in the pipeline as ${acct.name}` };
+    return { customer: false, inPipeline: true, why: acct.domain && domain && acct.domain === domain ? "Already a company in the pipeline" : `Already in the pipeline as ${acct.name}`, account };
   }
   const listed = seller().customers.find((c) => companyNameKey(c.name) === companyNameKey(name));
-  if (listed) return { customer: true, inPipeline: false, why: "Listed as a customer in the Account Brain" };
-  return { customer: false, inPipeline: false, why: null };
+  if (listed) return { customer: true, inPipeline: false, why: "Listed as a customer in the Account Brain", account: null };
+  return { customer: false, inPipeline: false, why: null, account: null };
+}
+
+// ── Revenue and employees, from the client's own records only ──
+
+export interface RevenueFact { amount: number; currency: string; period: string | null; source: string }
+export interface EmployeesFact { value: string; source: string }
+
+/** An employee figure as given: a number ("1,200"), a range ("1,001–5,000"), or the text as stated. Never a guess. */
+export function employeesText(raw: string | number | null | undefined): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  if (/^\d[\d,]*$/.test(s)) {
+    const n = Number(s.replace(/,/g, ""));
+    return n > 0 ? n.toLocaleString("en") : null;
+  }
+  const range = s.match(/^(\d[\d,]*)\s*(?:-|–|—|to)\s*(\d[\d,]*)$/i);
+  if (range) return `${Number(range[1].replace(/,/g, "")).toLocaleString("en")}–${Number(range[2].replace(/,/g, "")).toLocaleString("en")}`;
+  return s;
+}
+
+/** "USD 12.4M" and "FY2025 · Research (verified)" / "Period not stated · Apollo". */
+export function revenueText(r: RevenueFact): { text: string; note: string } {
+  const amount = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(r.amount);
+  return { text: `${r.currency} ${amount}`, note: `${r.period ?? "Period not stated"} · ${r.source}` };
+}
+
+/**
+ * Annual revenue and employees for a visitor company from this client's records only: its company record
+ * (and researched financials) when the company is in its pipeline, else the client's own Apollo enrichment.
+ * Nothing is looked up outside, nothing is estimated: what isn't recorded stays null ("Not available").
+ */
+export async function companyFacts(c: Pick<VisitorCompany, "enrichment">, account: PipelineAccount | null): Promise<{ revenue: RevenueFact | null; employees: EmployeesFact | null }> {
+  let revenue: RevenueFact | null = null;
+  let employees: EmployeesFact | null = null;
+  if (account) {
+    const fin = await db.companyFinancial.findFirst({
+      where: { accountId: account.id, OR: [{ revenue: { gt: 0 } }, { revenueUsd: { gt: 0 } }] },
+      orderBy: [{ fiscalYear: "desc" }, { periodEnd: "desc" }],
+      select: { fiscalYear: true, currency: true, revenue: true, revenueUsd: true, status: true },
+    });
+    if (fin) revenue = fin.revenue && fin.revenue > 0 ? { amount: fin.revenue, currency: fin.currency.toUpperCase(), period: fin.fiscalYear, source: `Research (${fin.status})` } : { amount: fin.revenueUsd!, currency: "USD", period: fin.fiscalYear, source: `Research (${fin.status})` };
+    else if (account.revenueUsd != null && Number(account.revenueUsd) > 0) revenue = { amount: Number(account.revenueUsd), currency: "USD", period: null, source: "Company record" };
+    const e = employeesText(account.employees);
+    if (e) employees = { value: e, source: "Company record" };
+  }
+  const rows = c.enrichment?.rows ?? [];
+  if (!revenue) {
+    const v = Number(rows.find((r) => r[REVENUE_META])?.[REVENUE_META]);
+    if (Number.isFinite(v) && v > 0) revenue = { amount: v, currency: "USD", period: null, source: "Apollo" };
+  }
+  if (!employees) {
+    const e = employeesText(rows.find((r) => r[LABEL.employees])?.[LABEL.employees]);
+    if (e) employees = { value: e, source: "Apollo" };
+  }
+  return { revenue, employees };
 }
 
 export async function previewImport(keys: string[], from: Date, to: Date): Promise<ImportPreviewItem[]> {
@@ -322,8 +420,27 @@ export async function previewImport(keys: string[], from: Date, to: Date): Promi
   return out;
 }
 
-/** Import exactly these companies (and their prospects) through the normal CSV import. */
-export async function importCompanies(keys: string[], from: Date, to: Date, opts: { excludeCustomers: boolean; by: string | null }) {
+export interface ImportResult { imported: number; skipped: number; prospects: number; batchId: string | null; rejected: number; errors: string[]; researchKept: string[]; busy?: boolean }
+
+/**
+ * Import exactly these companies (and their prospects) through the normal CSV import. One import per client
+ * at a time: two clicks, two tabs or two people adding the same company can't both create it (the second
+ * finds it already in the pipeline).
+ */
+export async function importCompanies(keys: string[], from: Date, to: Date, opts: { excludeCustomers: boolean; by: string | null }): Promise<ImportResult> {
+  const sellerId = await requireClientId();
+  const { acquireLease, releaseLease } = await import("@/lib/queue/drain");
+  const lease = `visitor-import:${sellerId}`;
+  const holder = `visitor-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (!(await acquireLease(lease, holder, 10 * 60_000))) return { imported: 0, skipped: 0, prospects: 0, batchId: null, rejected: 0, errors: [], researchKept: [], busy: true };
+  try {
+    return await importLocked(keys, from, to, opts, sellerId);
+  } finally {
+    await releaseLease(lease, holder, { by: opts.by }).catch(() => undefined);
+  }
+}
+
+async function importLocked(keys: string[], from: Date, to: Date, opts: { excludeCustomers: boolean; by: string | null }, sellerId: string): Promise<ImportResult> {
   const preview = await previewImport(keys, from, to);
   const skipped = preview.filter((p) => opts.excludeCustomers && p.check === "customer");
   const take = preview.filter((p) => !skipped.includes(p));
@@ -332,24 +449,34 @@ export async function importCompanies(keys: string[], from: Date, to: Date, opts
     const excluded = skipped.includes(p);
     await logEvent(ctx, { stage: 1, step: "visitors.import", outcome: excluded ? "block" : "info", reason: `${p.name}: ${excluded ? "excluded as an existing customer" : `selected for import (${p.check})`} — ${p.reason}`, data: { company: p.name, domain: p.domain, companyKey: p.key, check: p.check, excluded, prospects: p.prospects, by: opts.by, excludeCustomers: opts.excludeCustomers } });
   }
-  if (!take.length) return { imported: 0, skipped: skipped.length, prospects: 0, batchId: null as string | null, rejected: 0, errors: [] as string[] };
+  if (!take.length) return { imported: 0, skipped: skipped.length, prospects: 0, batchId: null, rejected: 0, errors: [], researchKept: [] };
   const companies = (await listVisitorCompanies(from, to)).filter((c) => take.some((t) => t.key === c.key));
+  // A company already in the pipeline whose research is queued or running keeps that research as it is:
+  // the import adds only what's new (people) and never queues it again or restarts it.
+  const kept = new Map<string, { name: string; queuedFromStage: number | null; lastImportBatchId: string | null }>();
+  for (const c of companies) {
+    const a = await findCompany({ domain: c.domain, companyLinkedin: null, nameKey: companyNameKey(c.name) }, sellerId);
+    if (a && (a.pipelineStatus === "queued" || a.pipelineStatus === "running")) kept.set(a.id, { name: c.name, queuedFromStage: a.queuedFromStage, lastImportBatchId: a.lastImportBatchId });
+  }
   const rows = exportRows(companies);
   let res;
   try {
-    res = await ingestRows(rows, { sellerId: await requireClientId(), source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
+    res = await ingestRows(rows, { sellerId, source: "website-visitor", filename: `Website visitors (Apollo) ${new Date().toISOString().slice(0, 10)}`, createdBy: opts.by, approvedBy: opts.by });
   } catch (e) {
     await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: "error", reason: `Import failed: ${e instanceof Error ? e.message.slice(0, 300) : "unknown error"}`, data: { companies: take.length } });
     await recordError("visitors.import", e, `run ${ctx.runId}`);
     throw e;
   }
-  await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: res.rejected ? "error" : "pass", reason: `Imported ${take.length} companies (${rows.length} rows: ${res.accepted} accepted, ${res.rejected} rejected) into batch ${res.batchId}; ${skipped.length} customers excluded`, data: { batchId: res.batchId, accepted: res.accepted, rejected: res.rejected, errors: res.errors.slice(0, 20), companies: take.map((t) => t.name), excluded: skipped.map((t) => t.name) } });
-  const sellerId = await activeSellerId();
-  await db.visitorEnrichment.updateMany({ where: { sellerId, companyKey: { in: take.map((t) => t.key) } }, data: { importedAt: new Date(), importBatchId: res.batchId, importedBy: opts.by } });
-  // Earlier website visits by these companies now count for them.
+  // The import's own queuing re-dated a waiting run; put it back exactly as it was (running ones it never touches).
+  for (const [id, k] of kept) await db.account.updateMany({ where: { id, pipelineStatus: "queued" }, data: { queuedFromStage: k.queuedFromStage, lastImportBatchId: k.lastImportBatchId } });
+  const researchKept = [...kept.values()].map((k) => k.name);
+  await logEvent(ctx, { stage: 1, step: "visitors.import_done", outcome: res.rejected ? "error" : "pass", reason: `Imported ${take.length} companies (${rows.length} rows: ${res.accepted} accepted, ${res.rejected} rejected) into batch ${res.batchId}; ${skipped.length} customers excluded${researchKept.length ? `; research already queued or running kept as it was for ${researchKept.join(", ")}` : ""}`, data: { batchId: res.batchId, accepted: res.accepted, rejected: res.rejected, errors: res.errors.slice(0, 20), companies: take.map((t) => t.name), excluded: skipped.map((t) => t.name), researchKept } });
+  await db.visitorEnrichment.updateMany({ where: { sellerId, companyKey: { in: companies.flatMap((c) => [c.key, ...(c.aliases ?? []).map((a) => a.key)]) } }, data: { importedAt: new Date(), importBatchId: res.batchId, importedBy: opts.by } });
+  // Earlier website visits by these companies (under any name they were seen by) now count for them.
   for (const c of companies) {
     const acct = await findCompany({ domain: c.domain, companyLinkedin: null, nameKey: companyNameKey(c.name) }, sellerId);
-    if (acct) await db.webVisit.updateMany({ where: { accountId: null, sellerId, OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: c.name }] }, data: { accountId: acct.id } });
+    const names = [c.name, ...(c.aliases ?? []).map((a) => a.name)];
+    if (acct) await db.webVisit.updateMany({ where: { accountId: null, sellerId, OR: [...(c.domain ? [{ companyDomain: c.domain }] : []), { companyName: { in: names } }] }, data: { accountId: acct.id } });
   }
-  return { imported: take.length, skipped: skipped.length, prospects: rows.filter((r) => r[LABEL.firstName]).length, batchId: res.batchId, rejected: res.rejected, errors: res.errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.error}`) };
+  return { imported: take.length, skipped: skipped.length, prospects: rows.filter((r) => r[LABEL.firstName]).length, batchId: res.batchId, rejected: res.rejected, errors: res.errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.error}`), researchKept };
 }

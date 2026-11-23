@@ -44,6 +44,12 @@ for (const [key, name, role, superAdminClients] of [["rep", "E2E Rep", "rep", nu
   await baseDb.userClient.upsert({ where: { userId_clientId: { userId: u2.id, clientId: DEFAULT_SELLER_ID } }, create: { userId: u2.id, clientId: DEFAULT_SELLER_ID, role }, update: { role } });
   roles[key] = await sessionToken(email, process.env.AUTH_SECRET!);
 }
+// Website visitors for the visitors journey: a company already in the pipeline and one that isn't (no figures recorded).
+const inPipeline = await baseDb.account.findFirst({ where: { sellerId: DEFAULT_SELLER_ID, domain: { not: null }, employees: { gt: 0 } }, orderBy: { createdAt: "asc" }, select: { name: true, domain: true } });
+const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
+const seen = (companyName: string, companyDomain: string, d: number) => ({ sellerId: DEFAULT_SELLER_ID, companyName, companyDomain, url: "https://apollo.io/website-visitors", path: "/website-visitors", title: "Visited the website (seen by Apollo)", topic: "general", source: "apollo", occurredAt: daysAgo(d) });
+await baseDb.webVisit.createMany({ data: [...(inPipeline?.domain ? [seen(inPipeline.name, inPipeline.domain, 3)] : []), seen("Lumen Retail", "lumen-retail.example", 2)] });
+writeFileSync(new URL("./.visitors.json", import.meta.url), JSON.stringify({ inPipeline: inPipeline?.name ?? null }));
 writeFileSync(new URL("./.session.json", import.meta.url), JSON.stringify({ token, client: DEFAULT_SELLER_ID, roles }));
 console.log(`E2E database ready: ${await baseDb.account.count()} companies, signed in as ${user.email}`);
 await baseDb.$disconnect();

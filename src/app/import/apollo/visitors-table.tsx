@@ -4,7 +4,8 @@
 // Excel or add them to the pipeline. The two actions are independent.
 
 import { Fragment, useMemo, useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Download, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ChevronDown, ChevronRight, Download, Loader2, Plus, Sparkles, Upload, X } from "lucide-react";
 import { toast } from "@/components/client";
 import { enrichVisitorsAction, importVisitorsAction, previewVisitorImportAction } from "./actions";
 import type { ImportPreviewItem } from "@/lib/web/visitor-prospects";
@@ -18,6 +19,9 @@ export interface VisitorRow {
   pages: string[];
   inPipeline: boolean;
   customer: boolean;
+  /** From the client's own records; null shows "Not available" (never estimated). */
+  revenue: { text: string; note: string } | null;
+  employees: { text: string; note: string } | null;
   status: string | null;
   message: string | null;
   enrichedAt: string | null;
@@ -40,6 +44,7 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [busy, start] = useTransition();
   const [preview, setPreview] = useState<ImportPreviewItem[] | null>(null);
+  const router = useRouter();
   const all = rows.length > 0 && selected.size === rows.length;
   const keys = useMemo(() => rows.filter((r) => selected.has(r.key)).map((r) => r.key), [rows, selected]);
 
@@ -57,6 +62,8 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
     window.location.href = `/import/apollo/export?${q}`;
   };
   const openImport = () => start(async () => setPreview(await previewVisitorImportAction(keys, range)));
+  // One company through the same confirm-and-import steps as the selection.
+  const addOne = (key: string) => start(async () => setPreview(await previewVisitorImportAction([key], range)));
 
   return (
     <>
@@ -83,8 +90,10 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
               <th>Company</th>
               <th className="text-right">Visits</th>
               <th>Last visit</th>
+              <th>Annual revenue</th>
+              <th>Employees</th>
               <th>Apollo prospects</th>
-              <th>In ABM</th>
+              <th>ABM pipeline</th>
             </tr>
           </thead>
           <tbody>
@@ -101,6 +110,8 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
                     </td>
                     <td className="text-right tnum">{r.visits}</td>
                     <td className="tnum">{r.lastVisit}</td>
+                    <td>{r.revenue ? <><div className="tnum">{r.revenue.text}</div><div className="secondary text-xs">{r.revenue.note}</div></> : <span className="secondary text-sm">Not available</span>}</td>
+                    <td>{r.employees ? <><div className="tnum">{r.employees.text}</div><div className="secondary text-xs">{r.employees.note}</div></> : <span className="secondary text-sm">Not available</span>}</td>
                     <td>
                       {st ? (
                         <button className="flex items-center gap-1 text-left text-sm" onClick={() => toggle(r.key, open, setOpen)} aria-expanded={isOpen}>
@@ -112,12 +123,21 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
                       )}
                       {r.message && r.status !== "found" && <div className="secondary text-xs">{r.message}</div>}
                     </td>
-                    <td className="text-sm">{r.importedAt ? `Added ${r.importedAt}` : r.inPipeline ? "Yes" : <span className="secondary">No</span>}</td>
+                    <td className="text-sm">
+                      {r.inPipeline ? (
+                        <>
+                          <button className="btn btn-secondary btn-sm" disabled aria-disabled="true"><Check size={14} /> Added to Pipeline</button>
+                          <div className="secondary mt-1 text-xs">{r.importedAt ? `Added ${r.importedAt}` : "In your pipeline"}</div>
+                        </>
+                      ) : (
+                        <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => addOne(r.key)} aria-label={`Add to Pipeline: ${r.name}`}><Plus size={14} /> Add to Pipeline</button>
+                      )}
+                    </td>
                   </tr>
                   {isOpen && r.prospects.length > 0 && (
                     <tr>
                       <td />
-                      <td colSpan={5}>
+                      <td colSpan={7}>
                         <ul className="grid gap-1 text-sm">
                           {r.prospects.map((p) => (
                             <li key={p.linkedin || p.name}>
@@ -138,7 +158,7 @@ export function VisitorsTable({ rows, range }: { rows: VisitorRow[]; range: { fr
         </table>
       </div>
 
-      {preview && <ImportDialog items={preview} range={range} onClose={() => setPreview(null)} onDone={() => { setPreview(null); setSelected(new Set()); }} />}
+      {preview && <ImportDialog items={preview} range={range} onClose={() => setPreview(null)} onDone={() => { setPreview(null); setSelected(new Set()); start(() => router.refresh()); }} />}
     </>
   );
 }

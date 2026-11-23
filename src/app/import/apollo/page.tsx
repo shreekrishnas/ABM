@@ -7,7 +7,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { SuggestionReview } from "@/components/import-layers";
 import { ensureSellerPacks } from "@/lib/seller";
 import { fetchApolloVisitorsAction } from "@/app/discover/actions";
-import { customerCheck, earliestVisit, listVisitorCompanies, parseRange, visitorFreshness } from "@/lib/web/visitor-prospects";
+import { companyFacts, customerCheck, earliestVisit, listVisitorCompanies, parseRange, revenueText, visitorFreshness } from "@/lib/web/visitor-prospects";
 import { VisitorsTable, type VisitorRow } from "./visitors-table";
 import { checkApolloAction } from "./actions";
 
@@ -36,10 +36,14 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   const rows: VisitorRow[] = await Promise.all(
     companies.map(async (c) => {
       const chk = await customerCheck(c.name, c.domain);
+      // From this client's own records only (its company record, research or Apollo enrichment); never looked up here.
+      const facts = await companyFacts(c, chk.account);
       const prospects = (c.enrichment?.rows ?? []).filter((r) => r["First Name"]).map((r) => ({ name: [r["First Name"], r["Last Name"]].filter(Boolean).join(" "), title: r["Job Title"] ?? "", linkedin: r["Person LinkedIn URL"] ?? "", email: r["Email"] ?? "" }));
       return {
         key: c.key, name: c.name, domain: c.domain, visits: c.visits, lastVisit: short(c.lastVisit), pages: c.pages,
         inPipeline: chk.inPipeline, customer: chk.customer,
+        revenue: facts.revenue ? revenueText(facts.revenue) : null,
+        employees: facts.employees ? { text: facts.employees.value, note: facts.employees.source } : null,
         status: c.enrichment?.status ?? null, message: c.enrichment?.message ?? null,
         enrichedAt: c.enrichment ? short(c.enrichment.enrichedAt) : null, importedAt: c.enrichment?.importedAt ? short(c.enrichment.importedAt) : null,
         prospects,

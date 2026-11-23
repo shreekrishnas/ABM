@@ -609,3 +609,34 @@ describe("12. Session security", () => {
     await viewerCtx.close();
   }, 90_000);
 });
+
+describe("13. Website visitors", () => {
+  const seeded = JSON.parse(readFileSync(new URL("./.visitors.json", import.meta.url), "utf8")) as { inPipeline: string | null };
+  const rowOf = (p: Page, name: string) => p.locator("table.data tbody tr", { hasText: name }).first();
+
+  it("shows annual revenue and employees (or Not available) and adds a company to the pipeline once; the state survives a reload", async () => {
+    const p = await open("/import/apollo");
+    for (const h of ["Annual revenue", "Employees", "ABM pipeline"]) await p.getByRole("columnheader", { name: h }).waitFor();
+    // A company already in the pipeline: its own record's figures, and no second add.
+    if (seeded.inPipeline) {
+      const known = rowOf(p, seeded.inPipeline);
+      expect(await known.getByRole("button", { name: /Added to Pipeline/ }).isDisabled()).toBe(true);
+      expect(await known.innerText()).toMatch(/Company record/);
+    }
+    // A new visitor with nothing recorded: no figures made up.
+    const lumen = rowOf(p, "Lumen Retail");
+    expect((await lumen.innerText()).match(/Not available/g)?.length).toBe(2);
+    await lumen.getByRole("button", { name: "Add to Pipeline: Lumen Retail" }).click();
+    const dialog = p.getByRole("dialog", { name: "Confirm ABM pipeline import" });
+    await dialog.waitFor();
+    await dialog.getByRole("button", { name: /Add 1 eligible company to pipeline/ }).click();
+    const added = () => rowOf(p, "Lumen Retail").getByRole("button", { name: /Added to Pipeline/ });
+    await added().waitFor({ timeout: 30_000 });
+    expect(await added().isDisabled()).toBe(true);
+    // A refresh reads the state from the records: still added, and no Add button to press twice.
+    await p.reload({ waitUntil: "networkidle" });
+    expect(await added().isDisabled()).toBe(true);
+    expect(await rowOf(p, "Lumen Retail").getByRole("button", { name: "Add to Pipeline: Lumen Retail" }).count()).toBe(0);
+    await p.close();
+  });
+});

@@ -43,12 +43,13 @@ export async function importVisitorsAction(keys: string[], range: Range, exclude
   } catch (e) {
     return { ok: false, message: `Import failed: ${e instanceof Error ? e.message.slice(0, 200) : "unknown error"} — nothing was lost; try again` };
   }
+  if (r.busy) return { ok: false, message: "Another import for this client is still running. Try again in a moment: nothing was added twice." };
   if (r.batchId) await startBackgroundQueue();
   refresh("/import/apollo", "/accounts", "/import");
   if (!r.imported) return { ok: false, message: r.skipped ? `Nothing imported: all ${r.skipped} selected companies are existing customers` : "Nothing imported" };
   return {
     ok: true,
-    message: `Added ${r.imported} compan${r.imported === 1 ? "y" : "ies"} and ${r.prospects} prospect${r.prospects === 1 ? "" : "s"} to the pipeline${r.skipped ? ` · ${r.skipped} customer${r.skipped === 1 ? "" : "s"} excluded` : ""}${r.rejected ? ` · ${r.rejected} row${r.rejected === 1 ? "" : "s"} rejected: ${r.errors.join("; ")}` : ""}`,
+    message: `Added ${r.imported} compan${r.imported === 1 ? "y" : "ies"} and ${r.prospects} prospect${r.prospects === 1 ? "" : "s"} to the pipeline${r.skipped ? ` · ${r.skipped} customer${r.skipped === 1 ? "" : "s"} excluded` : ""}${r.researchKept.length ? ` · research already queued or running kept as it was for ${r.researchKept.join(", ")}` : ""}${r.rejected ? ` · ${r.rejected} row${r.rejected === 1 ? "" : "s"} rejected: ${r.errors.join("; ")}` : ""}`,
   };
 }
 

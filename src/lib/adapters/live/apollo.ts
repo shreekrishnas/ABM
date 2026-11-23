@@ -311,6 +311,8 @@ export interface ApolloOrg {
   linkedinUrl?: string | null;
   city?: string | null;
   technologies?: string[];
+  /** Apollo's annual revenue figure (US dollars; Apollo gives no reporting period). Null when Apollo has none. */
+  annualRevenueUsd?: number | null;
 }
 
 interface RawOrg {
@@ -326,6 +328,7 @@ interface RawOrg {
   state?: string | null;
   technology_names?: string[] | null;
   current_technologies?: { name?: string | null }[] | null;
+  annual_revenue?: number | null;
 }
 
 const cleanDomain = (raw: string | null | undefined) => (raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null);
@@ -335,6 +338,7 @@ const toOrg = (o: RawOrg): ApolloOrg | null =>
         name: o.name, domain: cleanDomain(o.primary_domain ?? o.website_url), industry: o.industry ?? null, employees: o.estimated_num_employees ?? null, country: o.country ?? null, keywords: (o.keywords ?? []).slice(0, 12),
         linkedinUrl: o.linkedin_url ?? null, city: o.city ?? null,
         technologies: [...new Set([...(o.technology_names ?? []), ...(o.current_technologies ?? []).map((t) => t.name ?? "")].filter(Boolean))].slice(0, 20),
+        annualRevenueUsd: typeof o.annual_revenue === "number" && Number.isFinite(o.annual_revenue) && o.annual_revenue > 0 ? o.annual_revenue : null,
       }
     : null;
 
