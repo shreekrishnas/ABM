@@ -33,6 +33,8 @@ import { NetworkCard } from "./network-card";
 import { HeaderSignals, WhyNow } from "./header-signals";
 import { Donut, GroupedBars, KpiRow, KpiTile } from "@/components/viz/cards";
 import { ProfileCard } from "./profile-card";
+import { AtAGlance, Glossary } from "./at-a-glance";
+import { glanceForOne } from "@/lib/accounts/glance";
 import { StakeholdersCard } from "./stakeholders-card";
 
 const VIA_LABEL: Record<string, string> = { csv: "CSV upload", api: "the API", manual: "manual entry", lookalike: "Lookalikes", discovery: "a company search", website_visitor: "website visitors", market_scan: "the market scan" };
@@ -83,7 +85,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     );
   }
 
-  const [ledger, events, signals, users, brief, flagged, engines] = await Promise.all([
+  const [ledger, events, signals, users, brief, flagged, engines, glance] = await Promise.all([
     db.ledgerEntry.aggregate({ where: { accountId: id }, _sum: { amountMicros: true } }),
     tab === "pipeline" ? db.pipelineEvent.findMany({ where: { accountId: id }, orderBy: { createdAt: "desc" }, take: 300 }) : Promise.resolve([]),
     tab === "activity" || tab === "overview" ? db.signal.findMany({ where: { accountId: id }, orderBy: { occurredAt: "desc" }, take: 60, include: { contact: true } }) : Promise.resolve([]),
@@ -91,6 +93,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
     latestBrief(id),
     db.evidence.findMany({ where: { accountId: id, flagged: true }, orderBy: { createdAt: "desc" } }),
     db.evidence.findMany({ where: { accountId: id }, select: { id: true, engine: true } }),
+    tab === "overview" ? glanceForOne(a) : Promise.resolve(null),
   ]);
   const engineOf = new Map(engines.map((e) => [e.id, e.engine]));
   const flaggedIds = new Set(flagged.map((f) => f.id));
@@ -189,6 +192,8 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         />
       </div>
 
+      {tab === "overview" && glance && <AtAGlance accountId={a.id} glance={glance} />}
+
       {tab === "overview" && (
         <section className="ch ch-ov">
         <HeaderSignals
@@ -219,6 +224,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               {a.companyNotes && <p className="co-muted">{a.companyNotes}</p>}
             </div>
           </div>
+          <Glossary />
         </section>
       )}
 

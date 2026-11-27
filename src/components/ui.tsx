@@ -63,7 +63,8 @@ export const FIELD_STATUS_STYLE: Record<FieldStatus, string> = {
   unknown: "#64748B",
 };
 
-const FIELD_WORD: Record<FieldStatus, string> = { verified: "verified", probable: "likely", conflicting: "conflict", stale: "outdated", invalid: "wrong", unknown: "unchecked" };
+// Plain words (glossary on the company page): two confidence levels people act on, plus the exceptions.
+const FIELD_WORD: Record<FieldStatus, string> = { verified: "confirmed", probable: "unconfirmed", conflicting: "disputed", stale: "out of date", invalid: "wrong", unknown: "not checked" };
 
 export function FieldBadge({ status }: { status: FieldStatus | undefined | null }) {
   const s = status ?? "unknown";

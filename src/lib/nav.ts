@@ -2,7 +2,7 @@
 // Used by the top bar (trail and sibling pages), the hub pages and the command palette.
 
 import {
-  BadgeDollarSign, BarChart3, Brain, Building2, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Plug, Radar, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Upload, Users, Workflow,
+  BadgeDollarSign, BarChart3, Brain, Building2, CalendarDays, ClipboardCheck, FileSpreadsheet, Globe, Globe2, Handshake, LayoutDashboard, ListTodo, Plug, Radar, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Upload, Users, Workflow,
 } from "lucide-react";
 
 export type Counts = { review: number; handoffs: number; tasks: number };
@@ -60,6 +60,7 @@ export const SECTIONS: NavSection[] = [
     key: "insights", label: "Insights", blurb: "How the program is doing", icon: BarChart3,
     items: [
       { href: "/overview", label: "Program overview", blurb: "Coverage, pipeline and results", icon: LayoutDashboard },
+      { href: "/overview/weekly", label: "Weekly report", blurb: "This week on one page, ready to print or share", icon: CalendarDays },
       { href: "/analytics", label: "What's working", blurb: "What the team approves, where companies stop, cost per email", icon: BarChart3 },
       { href: "/pipeline", label: "Behind the scenes", blurb: "What the brain did and why", icon: Workflow, extra: true },
     ],

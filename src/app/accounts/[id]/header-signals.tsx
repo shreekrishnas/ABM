@@ -8,12 +8,12 @@ import { whyNowReasons } from "@/lib/why-now";
 
 type Tone = "ok" | "warn" | "risk" | "muted";
 const CHIP: Record<string, { label: string; tone: Tone }> = {
-  verified: { label: "verified", tone: "ok" },
-  probable: { label: "single source", tone: "warn" },
+  verified: { label: "confirmed", tone: "ok" },
+  probable: { label: "unconfirmed", tone: "warn" },
   conflicting: { label: "disputed", tone: "risk" },
-  stale: { label: "dated", tone: "muted" },
+  stale: { label: "out of date", tone: "muted" },
   invalid: { label: "wrong", tone: "risk" },
-  unknown: { label: "unchecked", tone: "muted" },
+  unknown: { label: "not checked", tone: "muted" },
 };
 
 /** Can this company receive outreach right now, and if not, why. Code decides; this only explains it. */
@@ -48,7 +48,7 @@ export async function HeaderSignals({ account: a, brief, intent, progress }: { a
     { label: "Fit", value: a.fitScore != null ? `${a.fitScore}` : "—", unit: a.fitScore != null ? "/100" : "", note: a.tier ? (({ T1: "Top priority", T2: "Mid priority", T3: "Broad" }) as Record<string, string>)[a.tier] ?? a.tier : "Scored at step 3", href: "?tab=overview#fit", ratio: a.fitScore != null ? a.fitScore / 100 : null },
     { label: "Intent", value: intent ? `${intent.score}` : "—", unit: intent?.level, note: intent ? "Signals, decayed by age" : "Read after research", tone: intent?.level === "hot" ? "hot" : undefined, ratio: intent ? Math.min(1, intent.score / 100) : null },
     { label: "Engagement", value: `${Math.round(a.engagementScore)}`, unit: `/${mqa}`, note: a.engagementScore >= mqa ? "Hand-off reached" : `${Math.max(0, Math.round(mqa - a.engagementScore))} to hand-off`, href: "?tab=activity", ratio: Math.min(1, a.engagementScore / mqa) },
-    { label: "Evidence", value: `${n("verified")}`, unit: "verified", note: `${n("probable")} single · ${n("conflicting")} disputed${latest ? ` · ${ago(latest.createdAt)}` : ""}`, ratio: total ? n("verified") / total : null },
+    { label: "Evidence", value: `${n("verified")}`, unit: "confirmed", note: `${n("probable")} unconfirmed · ${n("conflicting")} disputed${latest ? ` · ${ago(latest.createdAt)}` : ""}`, ratio: total ? n("verified") / total : null },
   ];
   return (
     <div className="ch-strip" title={`Kept separate on purpose: fit says whether they match, intent whether now is the moment, engagement whether they respond, evidence how much we can prove.${brief ? ` Research brief v${brief.version}.` : ""}`}>
