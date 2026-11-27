@@ -1,4 +1,5 @@
-import { Building2, ExternalLink, FilePlus2, RefreshCw, Trash2 } from "lucide-react";
+import type React from "react";
+import { Building2, Cpu, ExternalLink, FilePlus2, Landmark, RefreshCw, Trash2, TrendingUp, UsersRound, type LucideIcon } from "lucide-react";
 import type { FieldStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ActionButton, ActionForm, Modal, SubmitButton } from "@/components/client";
@@ -8,6 +9,21 @@ import { HEALTH_LABEL, HEALTH_TONE, bestPerYear, type HealthLabel } from "@/lib/
 import { FX_TO_USD, formatAmount, formatUsd } from "@/lib/profile/money";
 import { addFinancialRecordAction, refreshProfileAction, removeFinancialRecordAction } from "./profile-actions";
 
+/** One highlighted block of the profile: icon, title and a short summary on top, content below. */
+function Panel({ icon: Icon, title, meta, extra, children }: { icon: LucideIcon; title: string; meta?: React.ReactNode; extra?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-2xl border p-4" style={{ borderColor: "var(--border-subtle)", background: "var(--surface-card-elevated)" }}>
+      <header className="mb-3 flex flex-nowrap items-start gap-3 border-b pb-3" style={{ borderColor: "var(--border-subtle)" }}>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: "var(--accent-primary-soft)", color: "var(--accent-primary)" }}><Icon size={16} aria-hidden /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>{extra}</div>
+          {meta ? <div className="muted mt-0.5 text-xs">{meta}</div> : null}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
 const SOURCE_LABEL: Record<string, string> = { website: "Website", job_post: "Job post", case_study: "Company site", press: "Press", provider: "BuiltWith", import: "Import" };
 const STAKEHOLDER_LABEL: Record<string, string> = { board_member: "Board", independent_director: "Independent director", adviser: "Adviser", investor: "Investor", executive: "Executive director" };
 const ROUND_LABEL = (s: string) => s.replace(/^series_(\w)$/, (_, l: string) => `Series ${l.toUpperCase()}`).replace("pre_seed", "Pre-seed").replace("private_equity", "Private equity").replace(/^\w/, (c) => c.toUpperCase());
@@ -98,14 +114,9 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
         </span>
       }
     >
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="grid min-w-0 content-start gap-5">
-          <section>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Revenue and profit</h3>
-              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: HEALTH_TONE[health].fg, background: HEALTH_TONE[health].bg }}>{HEALTH_LABEL[health]}</span>
-            </div>
-            {account.financialNote && health !== "unknown" && <p className="secondary mb-2 text-xs">{account.financialNote}</p>}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid min-w-0 content-start gap-4">
+          <Panel icon={TrendingUp} title="Revenue and profit" extra={<span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: HEALTH_TONE[health].fg, background: HEALTH_TONE[health].bg }}>{HEALTH_LABEL[health]}</span>} meta={account.financialNote && health !== "unknown" ? account.financialNote : undefined}>
             {years.length === 0 ? <p className="muted text-xs">No annual figures found yet. Listed companies are found from results and filings; for private companies, add a filed record.</p> : (
               <div className="table-wrap">
                 <table className="data text-xs">
@@ -137,14 +148,13 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                 </table>
               </div>
             )}
-          </section>
+          </Panel>
 
-          <section>
-            <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Funding{rounds.length > 0 && <span className="muted font-normal"> · {rounds.length} round{rounds.length === 1 ? "" : "s"}{totalUsd ? ` · ≈ ${formatUsd(totalUsd)} disclosed` : ""}{latestRound?.announcedAt ? ` · latest ${date(latestRound.announcedAt)}` : ""}</span>}</h3>
+          <Panel icon={Landmark} title="Funding" meta={rounds.length > 0 ? `${rounds.length} round${rounds.length === 1 ? "" : "s"}${totalUsd ? ` · ≈ ${formatUsd(totalUsd)} disclosed` : ""}${latestRound?.announcedAt ? ` · latest ${date(latestRound.announcedAt)}` : ""}` : undefined}>
             {rounds.length === 0 ? <p className="muted text-xs">No funding rounds found{account.tier === "T3" ? " (funding is researched for T1 and T2 companies)" : ""}.</p> : (
               <ul className="grid gap-2">
                 {rounds.map((r) => (
-                  <li key={r.id} className="min-w-0 border-b pb-2 text-xs last:border-b-0 last:pb-0" style={{ borderColor: "var(--border-subtle)" }}>
+                  <li key={r.id} className="min-w-0 rounded-xl border-l-[3px] px-3 py-2.5 text-xs" style={{ borderColor: "var(--accent-primary)", background: "var(--surface-card-header)" }}>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <b style={{ color: "var(--text-primary)" }}>{ROUND_LABEL(r.stage)}</b>
                       <span className="tnum font-semibold" style={{ color: "var(--text-primary)" }}>{r.amount != null ? formatAmount(r.amount, r.currency) : "Amount undisclosed"}</span>
@@ -159,12 +169,11 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                 ))}
               </ul>
             )}
-          </section>
+          </Panel>
         </div>
 
-        <div className="grid min-w-0 content-start gap-5">
-          <section>
-            <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Technology stack{techs.length + imported.length > 0 && <span className="muted font-normal"> · {techs.length + imported.length}</span>}</h3>
+        <div className="grid min-w-0 content-start gap-4">
+          <Panel icon={Cpu} title="Technology stack" meta={techs.length + imported.length > 0 ? `${techs.length + imported.length} found` : undefined}>
             {cats.length === 0 ? <p className="muted text-xs">No technologies found yet. The website is checked for installed tools; job posts and case studies name back-office systems.</p> : (
               <dl className="grid gap-2">
                 {cats.map((c) => (
@@ -188,14 +197,13 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                 <p className="secondary mt-1">{plumbing.join(" · ")}</p>
               </details>
             )}
-          </section>
+          </Panel>
 
-          <section>
-            <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Board and advisers{board.length > 0 && <span className="muted font-normal"> · {board.length}</span>}</h3>
+          <Panel icon={UsersRound} title="Board and advisers" meta={board.length > 0 ? `${board.length} ${board.length === 1 ? "person" : "people"}` : undefined}>
             {board.length === 0 ? <p className="muted text-xs">No board members or advisers found{account.tier === "T3" ? " (researched for T1 and T2 companies)" : ""}.</p> : (
               <ul className="grid gap-2">
                 {board.map((p) => (
-                  <li key={p.id} className="text-xs">
+                  <li key={p.id} className="border-b pb-2 text-xs last:border-b-0 last:pb-0" style={{ borderColor: "var(--border-subtle)" }}>
                     <div className="flex flex-wrap items-center gap-2">
                       <b style={{ color: "var(--text-primary)" }}>{p.fullName}</b>
                       <span className="secondary">{p.title}</span>
@@ -207,7 +215,7 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
               </ul>
             )}
             {board.length > 0 && <p className="muted mt-2 text-xs">Directors and advisers are shown for context and account planning; they are never emailed by a sequence.</p>}
-          </section>
+          </Panel>
         </div>
       </div>
     </Card>
