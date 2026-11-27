@@ -9,6 +9,9 @@ import { specificityGate } from "@/lib/pipeline/gates";
 import { prospectTrack } from "@/lib/journey/track";
 import { replay } from "@/lib/brain/bus";
 
+// Replies count for less as they age (conversation half-life 21 days): date them from today, not a fixed day.
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+
 async function reset() {
   const tables = await db.$queryRaw<{ tablename: string }[]>`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`;
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
@@ -52,7 +55,7 @@ describe("intent engine", () => {
   it("reads real signals: research facts, a LinkedIn reply and engagement", async () => {
     const campaign = await db.campaign.create({ data: { name: "Q4" } });
     const sender = await db.senderProfile.create({ data: { name: "Sender 1 — Priya" } });
-    const r = await ingestRows([{ "Company Name": "Strong Intent Foods", "Company Website": "strong-intent.com", Industry: "fmcg", "Employee Size": "4000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "Head of Master Data", "Connection Sent": "2026-09-20", "Last Reply": "Yes, interested — can you share details?", "Last Reply Date": "2026-10-05" }], { source: "csv", campaignId: campaign.id, senderId: sender.id });
+    const r = await ingestRows([{ "Company Name": "Strong Intent Foods", "Company Website": "strong-intent.com", Industry: "fmcg", "Employee Size": "4000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "Head of Master Data", "Connection Sent": daysAgo(20), "Last Reply": "Yes, interested — can you share details?", "Last Reply Date": daysAgo(5) }], { source: "csv", campaignId: campaign.id, senderId: sender.id });
     const id = r.accountIds[0];
     await runAccount(id);
     const reading = await readIntent(id);

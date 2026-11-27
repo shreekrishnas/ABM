@@ -13,7 +13,7 @@ import type { Account, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CONFIG } from "@/lib/config";
 import { BudgetExceeded, charge, logEvent, type RunContext } from "@/lib/pipeline/context";
-import { entityGate, quoteGate } from "@/lib/pipeline/gates";
+import { entityGate, namesThisCompany, passageAround, quoteGate } from "@/lib/pipeline/gates";
 import { gapSearch } from "@/lib/pipeline/stages/research";
 import { inferFunction, inferSeniority, splitName } from "@/lib/pipeline/normalize";
 import type { ResearchPage } from "@/lib/adapters/types";
@@ -143,6 +143,12 @@ function pageGate(item: { page: number; quote: string }, pages: ResearchPage[], 
   if (strict === "live") {
     const e = entityGate(account.name, account.domain, page);
     if (!e.pass) return { reason: e.reason };
+    // The page naming the company somewhere isn't enough: the sentence (or its paragraph) must be about it,
+    // not a namesake ("Vedanta Biosciences" funding on a "Vedanta" search). Pages on its own site are about it.
+    if (!isOfficialSource(page.url, account.domain)) {
+      const n = namesThisCompany(account.name, account.domain, `${item.quote}\n${passageAround(page.text, item.quote) ?? ""}`);
+      if (!n.pass) return { reason: n.reason };
+    }
   }
   return { page };
 }

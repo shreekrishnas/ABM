@@ -7,6 +7,9 @@ import { createMockAdapters } from "@/lib/adapters/mock";
 import { mustHaveGate } from "@/lib/pipeline/gates";
 import { MANCH } from "@/lib/seller/manch";
 
+// Replies count for less as they age (conversation half-life 21 days): date them from today, not a fixed day.
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+
 // Manch's real rule, as configured in the seller pack.
 const RULE = { countries: ["IN"], minEmployees: 5001 };
 let saved: typeof MANCH.icp.mustHave;
@@ -85,7 +88,7 @@ describe("Manch targeting: India and more than 5,000 employees", () => {
   it("hot buying signals upgrade a smaller company to T1 and run the deep dive", async () => {
     const campaign = await db.campaign.create({ data: { name: "Q4" } });
     const sender = await db.senderProfile.create({ data: { name: "Sender 1" } });
-    const r = await ingestRows([{ "Company Name": "Hot Foods", "Company Website": "strong-hotfoods.com", Industry: "fmcg", "Employee Size": "7000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "Head of Master Data", "Connection Sent": "2026-09-20", "Last Reply": "Yes, interested — share details", "Last Reply Date": "2026-10-05" }], { source: "csv", campaignId: campaign.id, senderId: sender.id });
+    const r = await ingestRows([{ "Company Name": "Hot Foods", "Company Website": "strong-hotfoods.com", Industry: "fmcg", "Employee Size": "7000", Country: "IN", "First Name": "Asha", "Last Name": "Mehta", "Job Title": "Head of Master Data", "Connection Sent": daysAgo(20), "Last Reply": "Yes, interested — share details", "Last Reply Date": daysAgo(5) }], { source: "csv", campaignId: campaign.id, senderId: sender.id });
     const id = r.accountIds[0];
     await runAccount(id);
     const a = await db.account.findUniqueOrThrow({ where: { id } });

@@ -239,6 +239,38 @@ export function entityGate(name: string, domain: string | null, page: { url: str
   return marks.some((m) => hay.includes(m)) ? { pass: true, reason: "Source names the company" } : { pass: false, reason: `Source doesn't name ${name}` };
 }
 
+/** Words that may follow a company's name without making it a different company. */
+const NAME_TAIL = new Set("ltd ltd. limited pvt pvt. private inc inc. corp corp. corporation co co. plc llp llc group holdings 's".split(" "));
+/** Headline words: "Acme Raises $20M" still names Acme. */
+const HEADLINE_VERB = new Set("raises raised raise secures secured gets bags banks announces announced closes closed lands landed nets picks receives received completes appoints appointed names named reports reported posts says said has is was will to in and the board chairman director funding series round".split(" "));
+
+/**
+ * Stricter than entityGate, for facts pinned to one company (funding rounds, board seats, results):
+ * the quoted sentence or its paragraph must name this company, and not only a longer name that
+ * starts with the same word ("Vedanta Biosciences" is not "Vedanta Limited"). Its domain also counts.
+ */
+export function namesThisCompany(name: string, domain: string | null, text: string): GateResult {
+  const core = name.split(/\s+/).filter((w) => !NAME_TAIL.has(w.toLowerCase().replace(/[(),]/g, ""))).join(" ").trim();
+  const root = domain?.toLowerCase().replace(/^www\./, "");
+  if (root && text.toLowerCase().includes(root)) return { pass: true, reason: "Names the company's website" };
+  if (!core) return { pass: true, reason: "No distinctive name to check" };
+  const own = new Set(name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const esc = core.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  const re = new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])((?:'s)?)\\s*([A-Za-z][\\w.&-]*)?`, "gi");
+  const others = new Set<string>();
+  let ours = false;
+  for (const m of text.matchAll(re)) {
+    const next = m[2] ?? "";
+    const n = next.toLowerCase();
+    // A capitalised word right after the name that isn't part of it makes a different name ("Vedanta Bio").
+    if (m[1] || !next || next[0] !== next[0].toUpperCase() || NAME_TAIL.has(n) || own.has(n) || HEADLINE_VERB.has(n)) { ours = true; break; }
+    others.add(`${m[0].replace(/\s+/g, " ").trim()}`);
+  }
+  if (ours) return { pass: true, reason: "The sentence names the company" };
+  if (others.size) return { pass: false, reason: `About a different company (${[...others][0]})` };
+  return { pass: false, reason: `The sentence doesn't name ${name}` };
+}
+
 // ── Source fidelity: does the claim say what its quote says? ──
 
 const NUM = /\d[\d,.]*/g;
