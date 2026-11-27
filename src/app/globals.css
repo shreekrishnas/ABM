@@ -467,6 +467,9 @@ details.more[open] > summary::before { transform: rotate(90deg); }
 @media (max-width: 900px) {
   .app-main .flex { flex-wrap: wrap; }
   .app-main .flex.flex-nowrap, .app-main .q-row, .app-main .stepper .s { flex-wrap: nowrap; }
+  /* An icon beside a paragraph (warnings, notes, evidence) stays beside it instead of sitting alone on a line. */
+  .app-main .flex.items-start:has(> svg:first-child) { flex-wrap: nowrap; }
+  .app-main .flex.items-start:has(> svg:first-child) > :not(svg) { min-width: 0; }
 }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 /* Phones: the row's action moves under the text, so names and chips get the full width. */

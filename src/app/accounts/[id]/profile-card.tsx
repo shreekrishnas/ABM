@@ -99,7 +99,7 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
       }
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="grid content-start gap-5">
+        <div className="grid min-w-0 content-start gap-5">
           <section>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Revenue and profit</h3>
@@ -121,14 +121,14 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
                           <td className="tnum whitespace-nowrap" title={r.revenueUsd ? `≈ ${formatUsd(r.revenueUsd)}` : undefined}>{formatAmount(r.revenue, r.currency)}</td>
                           <td className="tnum whitespace-nowrap" style={{ color: r.netProfit != null && r.netProfit < 0 ? "var(--danger-strong)" : undefined }}>{formatAmount(r.netProfit, r.currency)}</td>
                           <td className="tnum">{margin == null ? "—" : `${(margin * 100).toFixed(1)}%`}</td>
-                          <td>
-                            <span className="flex flex-wrap items-center gap-1.5">
+                          <td className="min-w-[9rem]">
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               {r.source === "web" ? <FieldBadge status={r.status as FieldStatus} /> : <span className="rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: "var(--success-bg)", color: "var(--success-strong)" }}>{r.source === "filing" ? "Filed record" : "Provider"}</span>}
                               {r.source === "web" ? <Sources urls={r.sourceUrls} /> : <span className="muted" title={r.note ?? undefined}>{r.publisher}{r.addedBy ? ` · ${r.addedBy}` : ""}</span>}
                               {r.source !== "web" && <ActionButton action={removeFinancialRecordAction.bind(null, r.id)} className="btn btn-ghost btn-sm" confirm={`Remove the ${r.fiscalYear} record?`} title="Remove this record"><Trash2 size={12} /></ActionButton>}
                               {alt.length > 0 && <span className="muted" title={alt.map((a) => `${a.source}: ${formatAmount(a.revenue, a.currency)}`).join("; ")}>+{alt.length} other source{alt.length === 1 ? "" : "s"}</span>}
                             </span>
-                            {r.note && r.source === "web" && <div className="muted mt-0.5" style={{ color: /check/.test(r.note) ? "var(--warning-strong)" : undefined }}>{r.note}</div>}
+                            {r.note && r.source === "web" && <div className="muted mt-1" style={{ color: /check/.test(r.note) ? "var(--warning-strong)" : undefined }}>{r.note}</div>}
                           </td>
                         </tr>
                       );
@@ -144,15 +144,17 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
             {rounds.length === 0 ? <p className="muted text-xs">No funding rounds found{account.tier === "T3" ? " (funding is researched for T1 and T2 companies)" : ""}.</p> : (
               <ul className="grid gap-2">
                 {rounds.map((r) => (
-                  <li key={r.id} className="text-xs">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <li key={r.id} className="min-w-0 border-b pb-2 text-xs last:border-b-0 last:pb-0" style={{ borderColor: "var(--border-subtle)" }}>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <b style={{ color: "var(--text-primary)" }}>{ROUND_LABEL(r.stage)}</b>
-                      <span className="tnum">{r.amount != null ? formatAmount(r.amount, r.currency) : "Amount undisclosed"}</span>
+                      <span className="tnum font-semibold" style={{ color: "var(--text-primary)" }}>{r.amount != null ? formatAmount(r.amount, r.currency) : "Amount undisclosed"}</span>
                       {r.announcedAt && <span className="muted">{date(r.announcedAt)}</span>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                       <FieldBadge status={r.status as FieldStatus} />
                       <Sources urls={r.sourceUrls} />
                     </div>
-                    {r.investors.length > 0 && <div className="secondary mt-0.5">Investors: {r.investors.map((i, n) => <span key={i}>{n > 0 && ", "}{r.leadInvestors.includes(i) ? <b>{i} (lead)</b> : i}</span>)}</div>}
+                    {r.investors.length > 0 && <div className="secondary mt-1 break-words leading-relaxed">Investors: {r.investors.map((i, n) => <span key={i}>{n > 0 && ", "}{r.leadInvestors.includes(i) ? <b>{i} (lead)</b> : i}</span>)}</div>}
                   </li>
                 ))}
               </ul>
@@ -160,7 +162,7 @@ export async function ProfileCard({ accountId }: { accountId: string }) {
           </section>
         </div>
 
-        <div className="grid content-start gap-5">
+        <div className="grid min-w-0 content-start gap-5">
           <section>
             <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Technology stack{techs.length + imported.length > 0 && <span className="muted font-normal"> · {techs.length + imported.length}</span>}</h3>
             {cats.length === 0 ? <p className="muted text-xs">No technologies found yet. The website is checked for installed tools; job posts and case studies name back-office systems.</p> : (

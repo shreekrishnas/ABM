@@ -101,7 +101,15 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const GENERIC: Record<string, string> = { website: "Official website", firmographics: "Industry, size, country", negative: "Negative news", trigger: "Buying trigger", owner_function: "Who owns it", partner_network: "Partner network" };
   const label = (key: string) => sp.researchQuestions.find((q) => q.key === key)?.label ?? GENERIC[key] ?? humanize(key);
   // "New owner_function: …" → "New · Who owns it: …"
-  const changeText = (c: string) => c.replace(/^(\w+) ([a-z0-9_]+):/, (_, verb: string, key: string) => `${verb} · ${label(key)}:`);
+  // "New trigger: Acme opens a plant" → a small "New" tag, the field name in bold, then the change.
+  // Research writes "New <field>: <claim>" or "<field> now <status>: <claim>"; shown as a tag, the field's name and the claim.
+  const changeParts = (c: string) => {
+    const added = c.match(/^New ([a-z0-9_]+):\s*([\s\S]*)$/);
+    if (added) return { verb: "New", label: label(added[1]), text: added[2] };
+    const moved = c.match(/^([a-z0-9_]+) now ([a-z_]+):\s*([\s\S]*)$/);
+    if (moved) return { verb: moved[2].charAt(0).toUpperCase() + moved[2].slice(1).replace(/_/g, " "), label: label(moved[1]), text: moved[3] };
+    return { verb: null, label: null, text: c };
+  };
   const cap = CONFIG.budgetsUsd[a.tier ?? "T3"];
   const twin = a.twins[0]?.snapshot as unknown as TwinSnapshot | undefined;
   const stageName = PROGRESS_LABEL[a.pipelineStage] ?? "Not started";
@@ -275,12 +283,12 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
               <div className="grid gap-3 text-sm">
                 <div>
                   <div className="micro mb-1.5">Negative evidence</div>
-                  {twin?.negatives.length ? twin.negatives.map((n) => <div key={n.id} className="flex items-center gap-2 text-xs" style={{ color: "var(--warning)" }}><ShieldAlert size={14} />{n.claim} · {date(n.publishedAt)}</div>) : <span className="muted text-xs">{twin?.noNegativeNews ? "Checked — no negative news (counts as an answer)" : "Not checked yet"}</span>}
+                  {twin?.negatives.length ? <div className="grid gap-2">{twin.negatives.map((n) => <div key={n.id} className="flex flex-nowrap items-start gap-2 text-xs" style={{ color: "var(--warning)" }}><ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden /><span className="min-w-0">{n.claim}<span className="muted block">{date(n.publishedAt)}</span></span></div>)}</div> : <span className="muted text-xs">{twin?.noNegativeNews ? "Checked — no negative news (counts as an answer)" : "Not checked yet"}</span>}
                 </div>
                 {twin?.changed.length ? (
                   <div>
                     <div className="micro mb-1.5">Changed in this version</div>
-                    <ul className="grid gap-1 text-xs secondary">{twin.changed.slice(0, 6).map((c, i) => <li key={i}>· {changeText(c)}</li>)}</ul>
+                    <ul className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 text-xs secondary">{twin.changed.slice(0, 6).map((c, i) => { const p = changeParts(c); return <li key={i} className="contents"><span className="justify-self-start whitespace-nowrap rounded px-1.5 py-0.5 text-[0.68rem] font-semibold" style={{ background: "var(--surface-card-header)", color: "var(--text-secondary)" }}>{p.verb ?? "Changed"}</span><span className="min-w-0 pt-px">{p.label ? <b style={{ color: "var(--text-primary)" }}>{p.label}: </b> : null}{p.text}</span></li>; })}</ul>
                   </div>
                 ) : null}
               </div>
