@@ -90,6 +90,6 @@ export class DisconnectedResearch implements ResearchSource {
 export class DisconnectedSender implements EmailSender {
   readonly connected = false;
   async send(): Promise<{ providerId: string }> {
-    throw new Error("No mailbox connected — set SMTP_URL to send email");
+    throw new Error("Email sending is not available.");
   }
 }

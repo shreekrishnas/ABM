@@ -20,5 +20,5 @@ export async function needs(keys: NeedKey[]): Promise<{ list: Need[]; ok: boolea
     return { key: k, label: LABEL[k], state: "on", why: "On" };
   });
   const first = list.find((n) => n.state !== "on");
-  return { list, ok: !first, blocker: first ? `${first.why}. Switch it on in Admin → Integrations.` : null };
+  return { list, ok: !first, blocker: first ? "This feature is not available right now." : null };
 }

@@ -44,5 +44,5 @@ export function deniedMessage(e: unknown): string | null {
 
 const VERB: Record<Role, string> = { viewer: "Viewers", rep: "Reps", manager: "Managers", owner: "Owners" };
 export function denyText(role: Role, min: Role) {
-  return `${VERB[role]} can't do this here; it needs ${ROLE_LABEL[min]} access. Ask an Owner or a Super Admin.`;
+  return `${VERB[role]} can't do this here; it needs ${ROLE_LABEL[min]} access.`;
 }

@@ -60,7 +60,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
         { label: "Added by the team", value: count("upload"), meta: "documents you added" },
         { label: "Learned", value: count("learned"), meta: "emails that got a positive reply" },
         { label: "Chunks", value: stats.chunks.toLocaleString(), meta: stats.lastUpdated ? `updated ${ago(stats.lastUpdated)}` : "not indexed yet" },
-        { label: "Search", value: <span style={{ fontSize: "1rem" }}>{embedder.live ? "By meaning" : "By words"}</span>, meta: embedder.live ? embedder.model : "set OPENROUTER_API_KEY for meaning-based search" },
+        { label: "Search", value: <span style={{ fontSize: "1rem" }}>{embedder.live ? "By meaning" : "By words"}</span>, meta: embedder.live ? embedder.model : "meaning-based search not available" },
       ]} />
       {otherModel.length > 0 && <p className="muted mt-2 text-xs">{otherModel.reduce((a, m) => a + m.chunks, 0)} chunks were embedded with another model ({otherModel.map((m) => m.model).join(", ")}). Re-index to switch them to {embedder.model}.</p>}
 

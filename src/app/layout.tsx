@@ -78,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <a href="#main" className="skip-link">Skip to content</a>
         <Shell counts={{ review: reviews, handoffs, tasks }} access={access}>
           <AppNav superAdmin={me ? { can: me.canSuperAdmin, on: me.superAdmin } : undefined} extras={extras} counts={{ review: reviews, handoffs, tasks }} discover={discover} sellerName={sp?.name ?? ""} account={scope && scope.choices.length > 1 ? { name: scope.choices.find((c) => c.id === scope.active && scope.ids?.length === 1)?.name ?? "All my clients", many: true, choices: scope.choices, picked: scope.active && scope.ids?.length === 1 ? scope.active : null, everyClient: scope.all } : null} />
-          <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>by an admin. Research and sending are stopped for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
+          <main className="app-main" id="main">{activeClient && activeClient.status !== "active" && <div className="ad-banner cs-banner" role="status"><b>{activeClient.name} is {activeClient.status}</b> <span>Research and sending are not available for it; everything stays readable.</span></div>}<UndoProvider>{children}</UndoProvider></main>
         </Shell>
         <ToastHost />
         {/* Vega on every page: Super Admins covering the client in view (re-checked on the server for every request it makes). */}

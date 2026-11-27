@@ -4,6 +4,7 @@ import { INTEGRATION_KEYS, integrationKeyStates } from "@/lib/integration-keys";
 import { aiPause } from "@/lib/admin/ai-pause";
 import { getMe } from "@/lib/me";
 import { IntegrationCard } from "./card";
+import { notFound } from "next/navigation";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";
@@ -23,11 +24,13 @@ const CARD_KEYS: Record<string, string> = { openrouter: "openrouter", search: "s
 /** Every connection in one place: a switch to turn it on or off, and its keys typed in place. */
 export default async function IntegrationsPage() {
   const [list, keys, paused, me] = await Promise.all([integrations(), integrationKeyStates(), aiPause(), getMe()]);
+  // Super Admins only: everyone else gets "not found", as for any page that isn't theirs.
+  if (!me?.superAdmin) notFound();
   const canEdit = Boolean(me?.fullSuperAdmin);
   const live = list.filter((i) => i.state === "connected").length;
   return (
     <div className="page-enter">
-      <PageHeader eyebrow="Admin" title="Integrations" sub={`${live} of ${list.length} on. ${canEdit ? "Switch each one on or off; when a key is needed, type it in and it is saved encrypted." : "Only a Super Admin can switch these or add keys."}`} />
+      <PageHeader eyebrow="Admin" title="Integrations" sub={`${live} of ${list.length} on. ${canEdit ? "Switch each one on or off; when a key is needed, type it in and it is saved encrypted." : "Read only for your access."}`} />
       <div className="ig-grid">
         {list.map((i) => {
           const spec = INTEGRATION_KEYS.find((s) => s.key === CARD_KEYS[i.key]);

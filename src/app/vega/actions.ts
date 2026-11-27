@@ -49,7 +49,7 @@ export async function loadVegaConversation(clientId: string, id: string): Promis
 
 export async function askVega(input: { clientId: string; conversationId: string | null; accountId: string | null; question: string }): Promise<{ ok: true; conversationId: string; message: VegaMessage } | { ok: false; error: string }> {
   const me = await allowed(input.clientId);
-  if (!me) return { ok: false, error: "Vega is open to Super Admins covering this client (switch to Super Admin first)." };
+  if (!me) return { ok: false, error: "Vega is not available for your account." };
   const q = input.question.trim();
   if (!q) return { ok: false, error: "Type a question first." };
   if (q.length > 2000) return { ok: false, error: "Please keep it under 2,000 characters." };
@@ -79,7 +79,7 @@ export async function askVega(input: { clientId: string; conversationId: string 
     const { recordError } = await import("@/lib/admin/errors");
     await recordError("vega", e, `conversation ${convo.id}`);
     const aiOff = /OPENROUTER_API_KEY|paused|credit|402|insufficient|quota/i.test(msg);
-    return { ok: false, error: aiOff ? "Vega can't answer while the AI is paused, not connected or out of credits. Check Super Admin → System health." : `Vega couldn't answer right now (${msg.slice(0, 160)}). Your question is saved; try again.` };
+    return { ok: false, error: aiOff ? "Vega is not available right now." : "Vega couldn't answer right now. Your question is saved; try again." };
   }
 }
 
@@ -97,7 +97,7 @@ export async function listVegaConversations(clientId: string): Promise<{ id: str
  */
 export async function vegaThisWeek(input: { clientId: string; conversationId: string | null }): Promise<{ ok: true; conversationId: string; message: VegaMessage } | { ok: false; error: string }> {
   const me = await allowed(input.clientId);
-  if (!me) return { ok: false, error: "Vega is open to Super Admins covering this client (switch to Super Admin first)." };
+  if (!me) return { ok: false, error: "Vega is not available for your account." };
   let convo = input.conversationId ? await db.assistantConversation.findFirst({ where: { id: input.conversationId, userEmail: me.email, sellerId: input.clientId } }) : null;
   if (input.conversationId && !convo) return { ok: false, error: "Conversation not found." };
   if (!convo) convo = await db.assistantConversation.create({ data: { userEmail: me.email, title: `This week (${new Date().toISOString().slice(0, 10)})`, sellerId: input.clientId } });
@@ -121,7 +121,7 @@ export async function listVegaSavedQuestions(clientId: string): Promise<{ id: st
 
 export async function saveVegaQuestion(clientId: string, text: string): Promise<{ ok: boolean; error?: string }> {
   const me = await allowed(clientId);
-  if (!me) return { ok: false, error: "Super Admins only" };
+  if (!me) return { ok: false, error: "Not available for your account." };
   const t = text.trim().slice(0, 500);
   if (!t) return { ok: false, error: "Nothing to save" };
   if ((await db.assistantSavedQuestion.count({ where: { userEmail: me.email } })) >= 20) return { ok: false, error: "You can keep up to 20 saved questions; remove one first." };
@@ -173,7 +173,7 @@ const refresh = async () => (await import("next/cache")).revalidatePath("/vega")
 /** Level 1 controls for one client. Every change is in the audit log. */
 export async function saveVegaSettings(input: { clientId: string; enabled: boolean; paused: boolean; allowedTools: string[]; dailyCapUsd: number }): Promise<{ ok: boolean; message: string }> {
   const me = await allowed(input.clientId);
-  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  if (!me) return { ok: false, message: "Not available for your account." };
   const { L1_TOOLS } = await import("@/lib/agent/loop");
   const { L2_OPTIONAL } = await import("@/lib/agent/events");
   const tools = input.allowedTools.filter((t) => (L1_TOOLS as readonly string[]).includes(t) || (L2_OPTIONAL as readonly string[]).includes(t));
@@ -189,7 +189,7 @@ export async function saveVegaSettings(input: { clientId: string; enabled: boole
 /** Run one Level 1 pass now for this client (same rules and limits as the scheduled run). */
 export async function runVegaNow(clientId: string): Promise<{ ok: boolean; message: string }> {
   const me = await allowed(clientId);
-  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  if (!me) return { ok: false, message: "Not available for your account." };
   const { runClientLoop } = await import("@/lib/agent/loop");
   const r = await runClientLoop(clientId);
   await audit(me.email, "vega.run_now", { target: clientId, clientId });
@@ -201,7 +201,7 @@ export async function runVegaNow(clientId: string): Promise<{ ok: boolean; messa
 
 export async function undoVegaAction(clientId: string, actionId: string): Promise<{ ok: boolean; message: string }> {
   const me = await allowed(clientId);
-  if (!me) return { ok: false, message: "Super Admins covering this client only." };
+  if (!me) return { ok: false, message: "Not available for your account." };
   const row = await db.agentAction.findFirst({ where: { id: actionId, sellerId: clientId }, select: { id: true } });
   if (!row) return { ok: false, message: "Action not found." };
   const { undoAgentAction } = await import("@/lib/agent/execute");
@@ -222,7 +222,7 @@ export async function undoVegaAction(clientId: string, actionId: string): Promis
 /** The person confirms a change Vega proposed in chat. Everything is checked again now. */
 export async function confirmVegaProposal(clientId: string, proposalId: string): Promise<{ ok: boolean; message: string; status: string }> {
   const me = await allowed(clientId);
-  if (!me) return { ok: false, message: "Super Admins covering this client only.", status: "refused" };
+  if (!me) return { ok: false, message: "Not available for your account.", status: "refused" };
   const { confirmProposal } = await import("@/lib/agent/proposals");
   const { withScope } = await import("@/lib/scope");
   const r = await withScope({ ids: [clientId], active: clientId, choices: [], all: false }, () => confirmProposal(proposalId, { sellerId: clientId, actor: me.email, me }));

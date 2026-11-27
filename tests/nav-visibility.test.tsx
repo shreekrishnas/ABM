@@ -32,9 +32,9 @@ const tabsOn = (at: string, viewer: NavViewer | undefined, extras = true) => {
 };
 
 describe("module tabs by role", () => {
-  it("lists Team & Access only for Super Admins with the mode on", () => {
+  it("lists Integrations and Team & Access only for Super Admins with the mode on", () => {
     for (const [role, viewer] of Object.entries(ROLES)) {
-      const want = viewer?.on ? ["Overview", "Integrations", "Account Brain", "Settings", "Team & Access"] : ["Overview", "Integrations", "Account Brain", "Settings"];
+      const want = viewer?.on ? ["Overview", "Integrations", "Account Brain", "Settings", "Team & Access"] : ["Overview", "Account Brain", "Settings"];
       expect(labels(shown(admin.items, true, "/admin", viewer)), role).toEqual(want);
       expect(tabsOn("/admin", viewer), role).toEqual(want);
     }

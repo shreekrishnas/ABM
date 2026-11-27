@@ -180,7 +180,7 @@ const HANDLERS: Record<JobKind, Handler> = {
     const key = String(P(job).key);
     const account = await db.account.findUnique({ where: { id: job.accountId! } });
     if (!account) return { ok: false, message: "Company not found" };
-    if (ctx.adapters.research.connected === false) return { ok: false, message: "Web research isn't switched on (search and AI keys in Admin → Integrations)" };
+    if (ctx.adapters.research.connected === false) return { ok: false, message: "Web research is not available right now." };
     const before = await db.evidence.count({ where: { accountId: account.id, key, flagged: false } });
     const { s06AccountResearch, s07AccountTwin } = await import("@/lib/pipeline/stages/research");
     const a = await s06AccountResearch(account, ctx, { pass: "refresh", keys: [key] });
@@ -240,7 +240,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   async apollo_fetch(_job, ctx) {
     const { syncApolloVisitors } = await import("@/lib/web/apollo-sync");
     const r = await syncApolloVisitors(ctx, { force: true });
-    if (!r) return { ok: false, message: "Apollo isn't on: add its key in Admin → Integrations", href: "/admin/integrations" };
+    if (!r) return { ok: false, message: "Website visitors from Apollo are not available right now." };
     if (r.refusedFor) {
       const owner = (await baseDb.client.findUnique({ where: { id: r.refusedFor }, select: { name: true } }))?.name ?? r.refusedFor;
       return { ok: false, message: `Website visitors from Apollo belong to ${owner}: switch to ${owner} to fetch them` };

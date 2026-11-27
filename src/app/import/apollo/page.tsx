@@ -23,6 +23,8 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   // Without a chosen range, show every visitor company Apollo has dated (its visit dates can be months back).
   const { from, to } = parseRange(sp.from, sp.to, new Date(), sp.from ? null : await earliestVisit());
   const need = await needs(["apollo"]);
+  // Technical detail (why a pull failed, how the tracking is set up) is for Super Admins only.
+  const sup = Boolean((await (await import("@/lib/me")).getMe())?.superAdmin);
   // The visitor list is found automatically (an account list named "…visitor…") unless one is configured.
   const ready = need.ok;
   const [companies, fresh, pullError] = await Promise.all([
@@ -75,8 +77,8 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         <p className="muted mb-3 text-xs">
           {fresh.lastFetch ? <>Last fetched from Apollo {short(fresh.lastFetch)}, {fresh.lastFetch.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST · </> : <>Not fetched from Apollo yet · </>}
           {fresh.newestVisit ? <>newest visit we have: <b className={stale ? "text-[var(--warning,#B45309)]" : undefined}>{short(fresh.newestVisit)}</b></> : "no dated visits yet"}
-          {pullError && (!fresh.lastFetch || pullError.createdAt > fresh.lastFetch) && <><br /><b className="text-[var(--danger)]">The automatic pull failed {short(pullError.createdAt)}:</b> {pullError.reason}</>}
-          {stale && <> · nothing newer has come from Apollo for over a week. If people are visiting the site, check that Apollo&apos;s tracking script on the website is recording visits.</>}
+          {pullError && (!fresh.lastFetch || pullError.createdAt > fresh.lastFetch) && <><br /><b className="text-[var(--danger)]">{sup ? `The automatic pull failed ${short(pullError.createdAt)}:` : `Website visitors could not be updated on ${short(pullError.createdAt)}.`}</b>{sup ? ` ${pullError.reason}` : null}</>}
+          {stale && <> · nothing newer has come in for over a week.</>}
         </p>
         {rows.length ? (
           <VisitorsTable rows={rows} range={{ from: ymd(from), to: ymd(to) }} />

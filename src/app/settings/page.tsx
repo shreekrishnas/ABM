@@ -29,6 +29,8 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 }
 
 export default async function SettingsPage() {
+  // Connection and setup details are for Super Admins; everyone else sees what is on, not how it is set up.
+  const sup = Boolean((await (await import("@/lib/me")).getMe())?.superAdmin);
   await ensureSellerPacks();
   const [users, suppressions, campaigns, senders] = await Promise.all([
     peopleInView({ activeOnly: false }),
@@ -72,15 +74,17 @@ export default async function SettingsPage() {
           </ActionForm>
         </Card>
 
-        <Card id="access" title="Connections & access" sub="What is switched on. Keys and switches for each service are in Admin → Integrations." action={<Link href="/admin/integrations" className="btn btn-secondary btn-sm">Integrations</Link>}>
+        {sup && (
+        <Card id="access" title="Connections & access" sub="What is switched on." action={<Link href="/admin/integrations" className="btn btn-secondary btn-sm">Integrations</Link>}>
           <Row k={<span>Services on<span className="muted block text-xs font-normal">{conns.filter((i) => i.state !== "connected" && i.state !== "planned").map((i) => i.name).join(", ") || "Everything needed is on"}{conns.some((i) => i.state !== "connected" && i.state !== "planned") ? ": off" : ""}</span></span>} v={<Badge color={ok}>{conns.filter((i) => i.state === "connected").length} of {conns.filter((i) => i.state !== "planned").length}</Badge>} />
           <Row k={<span>Sign-in<span className="muted block text-xs font-normal">Work emails ending {allowedDomains().map((d) => `@${d}`).join(", ")}</span></span>} v={<Badge color={sec.signIn ? ok : bad}>{!sec.signIn ? "not set up" : linkSignIn() ? "emailed one-time link" : "email only"}</Badge>} />
           <Row k={<span>API access<span className="muted block text-xs font-normal">For webhooks and other tools that send data in</span></span>} v={<Badge color={sec.apiKey ? ok : sec.production && !sec.apiOpen ? bad : warn}>{sec.apiKey ? "protected" : sec.apiOpen ? "open (test only)" : "not set up"}</Badge>} />
           <Row k={<span>Daily schedule<span className="muted block text-xs font-normal">Weekdays 7:30 AM IST: research the queue and refresh signals</span></span>} v={<Badge color={sec.cronSecret ? ok : warn}>{sec.cronSecret ? "on" : "not set up"}</Badge>} />
           <Row k={<span>Spending limit per company<span className="muted block text-xs font-normal">Top ${CONFIG.budgetsUsd.T1} · Mid ${CONFIG.budgetsUsd.T2} · Broad ${CONFIG.budgetsUsd.T3}</span></span>} v={<Badge color={sec.budgetsEnforced ? ok : muted}>{sec.budgetsEnforced ? "on" : "off"}</Badge>} />
           {sec.seedAllowed && <Row k={<span>Sample data reset<span className="muted block text-xs font-normal">Can wipe all data; test copy only</span></span>} v={<Badge color={bad}>allowed</Badge>} />}
-          <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's research stops for review when it reaches its limit." : "Every paid call is still recorded per company; nothing is capped per company. Monthly caps per client are set in Super Admin."} Sample data always runs on stand-in services, so it never reaches a real email.</p>
+          <p className="muted mt-3 text-xs">{sec.budgetsEnforced ? "A company's research stops for review when it reaches its limit." : "Every paid call is still recorded per company; nothing is capped per company. "} Sample data always runs on stand-in services, so it never reaches a real email.</p>
         </Card>
+        )}
         <Card id="seller" title={`Seller: ${sp.name || spId}`} sub={brainReady ? "Ideal customer profile used for fit scoring" : "Account Brain incomplete: research, scoring and drafting stay off until it is finished"} action={<span className="flex gap-2"><Link href="/settings/seller" className="btn btn-secondary btn-sm">Full profile</Link>{canEditBrain && <Link href={editHref} className="btn btn-primary btn-sm">Edit</Link>}<Link href="/settings/knowledge" className="btn btn-secondary btn-sm">Knowledge base</Link></span>}>
           <Row k="Primary verticals" v={<span className="text-xs font-medium">{sp.icp.industries.filter((i) => i.tier === "primary").map((i) => i.label).join(" · ")}</span>} />
           <Row k="Company size" v={`${sp.icp.employees.sweetSpot.toLocaleString()}+ ideal · ${sp.icp.employees.min}+ minimum`} />
@@ -94,15 +98,17 @@ export default async function SettingsPage() {
           <Row k="Lost-deal cooldown" v={`${CONFIG.fit.lostDealCooldownDays} days`} />
         </Card>
         <Card id="visitors" title="Website visitors" sub="Visits feed intent, priority and the email angle">
-          <Row k={<span>Apollo<span className="muted block text-xs font-normal">Switched on in Admin → Integrations</span></span>} v={<Badge color={apolloKey ? ok : muted}>{apolloKey ? "syncing daily" : "off"}</Badge>} />
+          <Row k={"Apollo"} v={<Badge color={apolloKey ? ok : muted}>{apolloKey ? "syncing daily" : "not available"}</Badge>} />
           <Row k="Visits recorded (30 days)" v={<span className="tnum">{visits30}</span>} />
-          <p className="secondary mt-3 text-xs"><b>With Apollo (recommended):</b> in Apollo, save the companies from Website Visitors to an account list (by hand, or with an Apollo workflow). Give it a name with "visitor" in it (it is found automatically), or type its name as the visitor list in Admin → Integrations → Apollo. The app reads it every day: companies you hold get a visit signal; new ones show in Discover.</p>
+        {sup && (<>
+          <p className="secondary mt-3 text-xs"><b>With Apollo (recommended):</b> in Apollo, save the companies from Website Visitors to an account list (by hand, or with an Apollo workflow). Give it a name with "visitor" in it (it is found automatically),. The app reads it every day: companies you hold get a visit signal; new ones show in Discover.</p>
           <p className="muted mt-3 text-xs font-semibold">Optional: the app&apos;s own script (shows which pages, and who clicked from an email)</p>
-          <Row k={<span>Allowed website<span className="muted block text-xs font-normal">Your website address, set by an admin</span></span>} v={<Badge color={trackOrigins ? "#059669" : "#64748B"}>{trackOrigins ? "set" : "not set"}</Badge>} />
+          <Row k={<span>Allowed website<span className="muted block text-xs font-normal">Your website address</span></span>} v={<Badge color={trackOrigins ? "#059669" : "#64748B"}>{trackOrigins ? "set" : "not set"}</Badge>} />
           <p className="secondary mt-2 text-xs">1. Paste this before <code>&lt;/body&gt;</code> on every page of your website:</p>
           <pre className="mono mt-1 overflow-x-auto rounded-lg p-2 text-[0.7rem]" style={{ background: "var(--surface-card-header)" }}>{`<script src="${origin}/api/v1/track/script" async></script>`}</pre>
-          <p className="secondary mt-2 text-xs">2. Ask an admin to add your website address as the allowed website. Links to it in emails then carry a token, so a click identifies the person.</p>
-          <p className="secondary mt-2 text-xs">Other visitor tools can post to <code className="break-all">{origin}/api/v1/visitors</code> using the API key (ask an admin).</p>
+          <p className="secondary mt-2 text-xs">2. Once your website address is the allowed website, links to it in emails then carry a token, so a click identifies the person.</p>
+          <p className="secondary mt-2 text-xs">Other visitor tools can post to <code className="break-all">{origin}/api/v1/visitors</code>.</p>
+        </>)}
         </Card>
         <EmailReadinessCard clientId={spId} clientName={sp.name || spId} />
         <Card id="approval" title="Approval">

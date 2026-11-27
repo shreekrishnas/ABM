@@ -19,7 +19,7 @@ async function jobOwner() {
 async function liveOrSample(sellerId: string): Promise<string | null> {
   if (sellerId === "test") return null;
   const { researchAllowed } = await import("@/lib/admin/research-clients");
-  return (await researchAllowed(sellerId)) ? null : "Live research is off for this client. A Super Admin can switch it on in the client's settings.";
+  return (await researchAllowed(sellerId)) ? null : "Live research is not available for this account right now.";
 }
 
 /** Scan the market in the background; the top bar says when it's done. */

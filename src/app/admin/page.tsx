@@ -29,7 +29,7 @@ export default async function AdminHome() {
   const keysSaved = [...(await integrationKeyStates()).values()].flatMap((k) => k.fields).filter((f) => f.source === "app").length;
   const usd = (spend._sum.amountMicros ?? 0) / 1_000_000;
   const tiles = [
-    { href: "/admin/integrations", icon: Plug, title: "Integrations", text: `${live} of ${list.length} on${offNames.length ? ` · off: ${offNames.slice(0, 3).join(", ")}${offNames.length > 3 ? "…" : ""}` : ""}${keysSaved ? ` · ${keysSaved} key${keysSaved === 1 ? "" : "s"} saved` : ""}`, show: true },
+    { href: "/admin/integrations", icon: Plug, title: "Integrations", text: `${live} of ${list.length} on${offNames.length ? ` · off: ${offNames.slice(0, 3).join(", ")}${offNames.length > 3 ? "…" : ""}` : ""}${keysSaved ? ` · ${keysSaved} key${keysSaved === 1 ? "" : "s"} saved` : ""}`, show: sup },
     { href: "/brain", icon: Brain, title: "Account Brain", text: "What the client sells, to whom, and how to talk about it", show: true },
     { href: "/settings", icon: SlidersHorizontal, title: "Settings", text: "Campaigns, senders, who you target, approval", show: true },
     { href: "/team", icon: Users, title: "Team & Access", text: `${users} people · ${clients} client${clients === 1 ? "" : "s"}`, show: sup },

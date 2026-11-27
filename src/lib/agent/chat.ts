@@ -42,7 +42,7 @@ function system(today: string, client: string, focus: string, platform: boolean)
 
 async function callModel(sys: string, messages: { role: "user" | "assistant"; content: string }[], maxTokens: number): Promise<{ text: string; costUsd: number }> {
   const key = env("OPENROUTER_API_KEY");
-  if (!key) throw new Error("Vega's AI isn't connected (OPENROUTER_API_KEY is not set)");
+  if (!key) throw new Error("Vega is not available right now.");
   const { assertAiAllowed } = await import("@/lib/admin/ai-pause");
   await assertAiAllowed();
   const res = await fetchJson<{ choices?: { message?: { content?: string } }[]; usage?: { cost?: number } }>("OpenRouter", `${env("OPENROUTER_BASE_URL") ?? "https://openrouter.ai/api/v1"}/chat/completions`, {

@@ -209,7 +209,7 @@ export async function resolveVisitorList(key: string, list: { id?: string; name?
 export async function apolloVisitorCompanies(key: string, list: { id?: string; name?: string }, maxPages = 20, waits?: number[]): Promise<ApolloVisitorCompany[] & { totalPages?: number; truncated?: boolean }> {
   const api = new ApolloClient(key, waits);
   const found = await resolveVisitorList(key, list);
-  if (!found) throw new Error("No Apollo account list for website visitors was found: save visitors to an account list with \"visitor\" in its name, or set APOLLO_VISITOR_LIST");
+  if (!found) throw new Error("No Apollo visitor list was found.");
   const labelId = found.id;
   const out: ApolloVisitorCompany[] & { totalPages?: number; truncated?: boolean } = [];
   let totalPages = 0;
@@ -331,7 +331,7 @@ export async function apolloHealth(key: string, list: { id?: string; name?: stri
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (/ 403/.test(msg)) out.master = false;
-    out.problems.push(/ 403/.test(msg) ? "This key can't read account lists: it is not a master key (Apollo › Settings › Integrations › API › set as master key)." : `Reading account lists failed: ${msg.slice(0, 200)}`);
+    out.problems.push(/ 403/.test(msg) ? "Apollo website visitors are not available with the current connection." : `Reading account lists failed: ${msg.slice(0, 200)}`);
   }
   return out;
 }

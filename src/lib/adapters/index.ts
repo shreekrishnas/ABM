@@ -45,15 +45,15 @@ export function serviceStatus(): ServiceStatus[] {
   const smtp = env("SMTP_URL");
   const m = (connected: boolean): ServiceMode => (sample ? "sample" : connected ? "live" : "off");
   return [
-    { key: "research", label: "Web research", mode: m(Boolean(engines && llmKey)), via: engines ? (llmKey ? engines : `${engines} — paused until OPENROUTER_API_KEY is set (the AI that reads the pages)`) : "Set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" },
-    { key: "validator", label: "Research validator", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini"}${env("VALIDATOR_MODEL") ? "" : " (set VALIDATOR_MODEL for a different model)"}` : "Set OPENROUTER_API_KEY" },
-    { key: "writer", label: "Email writer", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("WRITER_MODEL") ?? DEFAULT_WRITER_MODEL}` : "Set OPENROUTER_API_KEY" },
-    { key: "llm", label: "LLM (extract, check, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Set OPENROUTER_API_KEY" },
-    { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching until OPENROUTER_API_KEY is set" },
-    { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used (set APOLLO_API_KEY)" },
+    { key: "research", label: "Web research", mode: m(Boolean(engines && llmKey)), via: engines ? (llmKey ? engines : `${engines} — waiting for the AI`) : "Not connected" },
+    { key: "validator", label: "Research validator", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("VALIDATOR_MODEL") ?? env("LLM_MODEL") ?? "openai/gpt-4o-mini"}${env("VALIDATOR_MODEL") ? "" : ""}` : "Not connected" },
+    { key: "writer", label: "Email writer", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("WRITER_MODEL") ?? DEFAULT_WRITER_MODEL}` : "Not connected" },
+    { key: "llm", label: "LLM (extract, check, classify)", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("LLM_MODEL") ?? "openai/gpt-4o-mini"}` : "Not connected" },
+    { key: "embedder", label: "Knowledge base embeddings", mode: m(Boolean(llmKey)), via: llmKey ? `OpenRouter · ${env("EMBED_MODEL") ?? "openai/text-embedding-3-small"}` : "Offline word matching" },
+    { key: "provider", label: "Contact data provider", mode: m(Boolean(apollo)), via: apollo ? "Apollo · people search and email lookup" : "Only imported people are used" },
     { key: "mailbox", label: "Email verification", mode: m(true), via: "Free MX check (domain accepts email)" },
-    { key: "email", label: "Email sending", mode: m(Boolean(smtp)), via: smtp ? "SMTP mailbox" : "Approved emails are held (set SMTP_URL)" },
-    { key: "intent", label: "Website visitors", mode: m(Boolean(apollo)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Apollo website visitors · list found by name (\"…visitor…\") · synced daily") : "Set APOLLO_API_KEY" },
+    { key: "email", label: "Email sending", mode: m(Boolean(smtp)), via: smtp ? "SMTP mailbox" : "Approved emails are held" },
+    { key: "intent", label: "Website visitors", mode: m(Boolean(apollo)), via: apollo ? (visitors ? "Apollo website visitors · synced daily" : "Apollo website visitors · list found by name (\"…visitor…\") · synced daily") : "Not connected" },
     { key: "notifier", label: "Alerts", mode: "planned", via: "Slack / Teams webhook" },
   ];
 }
@@ -68,7 +68,7 @@ export function createAdapters(): Adapters {
   const llmKey = env("OPENROUTER_API_KEY");
   const search = Boolean(r.exa || r.tavily || r.serp);
   // Live search with the sample extractor would turn page titles into "facts": both or neither.
-  a.research = search && llmKey ? new WebResearch(r) : new DisconnectedResearch(!search ? "set EXA_API_KEY, TAVILY_API_KEY or SERPAPI_API_KEY" : "set OPENROUTER_API_KEY (the AI that reads the pages)");
+  a.research = search && llmKey ? new WebResearch(r) : new DisconnectedResearch(!search ? "web search is not connected" : "the AI is not connected");
   // No third-party intent provider is integrated yet: never a sample score on a real company.
   a.intent = new NoIntent();
   if (llmKey) {

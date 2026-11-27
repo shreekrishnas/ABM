@@ -15,7 +15,7 @@ export async function refreshProfileAction(accountId: string): Promise<ActionSta
   if (!account) return { ok: false, message: "Company not found" };
   await logAction("profile.refresh", { accountId });
   const { researchAllowed } = await import("@/lib/admin/research-clients");
-  if (!(await researchAllowed(account.sellerId))) return { ok: false, message: account.sellerId === "test" ? "The Test client uses sample data only: no live research" : "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
+  if (!(await researchAllowed(account.sellerId))) return { ok: false, message: account.sellerId === "test" ? "The Test client uses sample data only: no live research" : "Live research is not available for this account right now." };
   const { startJob } = await import("@/lib/jobs");
   const { decider } = await import("@/lib/action-utils");
   return startJob("profile_refresh", { sellerId: account.sellerId, accountId, label: `Refresh profile: ${account.name}`, createdBy: await decider() });

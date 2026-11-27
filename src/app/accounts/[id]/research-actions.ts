@@ -17,7 +17,7 @@ export async function researchQuestionAction(accountId: string, key: string): Pr
   // The Test client runs on stand-in services (never a real search); other clients need live research switched on.
   const sample = account.sellerId === "test";
   const { researchAllowed } = await import("@/lib/admin/research-clients");
-  if (!sample && !(await researchAllowed(account.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
+  if (!sample && !(await researchAllowed(account.sellerId))) return { ok: false, message: "Live research is not available for this account right now." };
   const { startJob } = await import("@/lib/jobs");
   const { decider } = await import("@/lib/action-utils");
   const [{ questionLabel }, { clientBrain }] = await Promise.all([import("@/lib/research/keys"), import("@/lib/scope")]);

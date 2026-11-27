@@ -33,7 +33,7 @@ export function LoginForm({ next, domains, ready, byLink, notice, error, email, 
         </label>
         {!error && notice && <p className="lg-error" role="alert">{notice}</p>}
         {error && <p className="lg-error" role="alert">{error}</p>}
-        {!ready && <p className="lg-error" role="alert">Sign-in isn&apos;t set up yet: add AUTH_SECRET in Vercel.</p>}
+        {!ready && <p className="lg-error" role="alert">Sign-in is not available right now.</p>}
         <button type="submit" className="lg-btn" disabled={pending}>
           {pending ? <Loader2 size={18} className="lg-spin" /> : <>Continue <ArrowRight size={17} /></>}
         </button>

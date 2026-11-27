@@ -263,7 +263,7 @@ export async function enrichCompanies(companies: { key: string; name: string; do
     let rows: ProspectRow[] = [];
     if (!f) {
       status = "not_connected";
-      message = "Apollo isn't connected (set APOLLO_API_KEY)";
+      message = "Apollo is not available right now.";
     } else if (!c.domain) {
       status = "no_match";
       message = "No website known for this company, so Apollo can't match it reliably";

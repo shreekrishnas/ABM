@@ -9,7 +9,7 @@ let cached: { at: number; paused: { by: string; since: Date } | null } | null = 
 
 export class AiPaused extends Error {
   constructor() {
-    super("AI is paused by a Super Admin (Team & Access › System health). Resume it to continue.");
+    super("AI features are not available right now.");
   }
 }
 

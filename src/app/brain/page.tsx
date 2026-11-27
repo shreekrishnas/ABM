@@ -24,7 +24,7 @@ export default async function BrainPage({ searchParams }: { searchParams: Promis
   const { client: wanted, s: picked } = await searchParams;
   const active = (await resolveScope())?.active;
   const current = choices.find((c) => c.id === wanted) ?? choices.find((c) => c.id === active) ?? choices[0];
-  if (!current) return <div className="page-enter"><PageHeader eyebrow="Account Brain" title="No account assigned" sub="Ask a Super Admin to add you to an account in Team & Access." /></div>;
+  if (!current) return <div className="page-enter"><PageHeader eyebrow="Account Brain" title="No account assigned" sub="No account is assigned to you yet." /></div>;
 
   const [{ pack, savedAt, versions }, files] = await Promise.all([
     loadBrain(current.id),

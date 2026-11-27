@@ -16,7 +16,7 @@ export interface PolicyDeps {
 export async function authorize(tool: AgentTool, input: unknown, ctx: AgentContext, deps: PolicyDeps): Promise<Verdict> {
   if (ctx.actor !== SYSTEM_ACTOR) {
     const me = ctx.me;
-    if (!me?.superAdmin) return { ok: false, code: "not_allowed_user", reason: "Vega is open to Super Admins only for now." };
+    if (!me?.superAdmin) return { ok: false, code: "not_allowed_user", reason: "Vega is not available for your account." };
     if (me.superAdminClients !== null && !me.superAdminClients.includes(ctx.sellerId)) return { ok: false, code: "other_client", reason: "That client isn't one you cover." };
     if (tool.platformOnly && me.superAdminClients !== null) return { ok: false, code: "platform_only", reason: "Platform-wide records (errors, audit log, jobs) are for Super Admins covering every client." };
   }

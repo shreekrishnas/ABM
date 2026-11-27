@@ -38,7 +38,7 @@ export async function runAccountAction(accountId: string, fromStage?: number): P
   const a = await db.account.findUnique({ where: { id: accountId }, select: { name: true, sellerId: true } });
   if (!a) return { ok: false, message: "Company not found" };
   const { researchAllowed } = await import("@/lib/admin/research-clients");
-  if (a.sellerId !== "test" && !(await researchAllowed(a.sellerId))) return { ok: false, message: "Live research is off for this client. A Super Admin can switch it on in the client's settings." };
+  if (a.sellerId !== "test" && !(await researchAllowed(a.sellerId))) return { ok: false, message: "Live research is not available for this account right now." };
   const { startJob } = await import("@/lib/jobs");
   return startJob("run_account", { sellerId: a.sellerId, accountId, label: `Run pipeline: ${a.name}`, params: fromStage != null ? { fromStage } : {}, createdBy: await decider() });
 }

@@ -25,7 +25,7 @@ export default async function MyPage() {
       <PageHeader title="My settings" sub={me.email} />
       <Card title="Profile and notifications"><ProfileForm name={me.name} home={landingFor(prefs)} mute={prefs.mute ?? []} superAdmin={me.canSuperAdmin} /></Card>
       <Card title="Theme" sub="Kept in this browser"><ThemeChoice /></Card>
-      <Card title="Your clients" sub="What you can see and do in each. Ask a Super Admin to change it." pad={false}>
+      <Card title="Your clients" sub="What you can see and do in each." pad={false}>
         {me.clients.length === 0 ? <p className="muted so-pad text-sm">{me.canSuperAdmin ? "As a Super Admin you can open every client." : "No client assigned yet."}</p> : (
           <table className="data compact"><tbody>{me.clients.map((c) => <tr key={c.id}><td className="strong">{c.name}</td><td>{ROLE_LABEL[c.role]}</td></tr>)}</tbody></table>
         )}

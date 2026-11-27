@@ -29,7 +29,7 @@ const COPY: Record<Variant, string> = {
   partial: "Some steps failed; what's shown is what finished.",
   stale: "This was last updated more than a day ago.",
   offline: "You're offline. Showing what was loaded before.",
-  denied: "You don't have access to this. Ask a Super Admin.",
+  denied: "You don't have access to this.",
 };
 
 /** One banner for every not-quite-right state, with a retry where retrying helps. */

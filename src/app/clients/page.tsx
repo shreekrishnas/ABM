@@ -30,11 +30,11 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
       </header>
 
       {denied && (
-        <div className="ac-denied" role="alert"><ShieldAlert size={16} aria-hidden /> You don&apos;t have access to that client. Ask a Super Admin to add you to it.</div>
+        <div className="ac-denied" role="alert"><ShieldAlert size={16} aria-hidden /> You don&apos;t have access to that client.</div>
       )}
 
       {cards.length === 0 ? (
-        <EmptyState icon={<Building2 size={20} />} title="No clients yet" text="You haven't been added to a client. Ask a Super Admin to add you in Team & Access." />
+        <EmptyState icon={<Building2 size={20} />} title="No clients yet" text="No client is assigned to you yet." />
       ) : (
         <AccountSearch total={cards.length}>
           {cards.map((c) => (

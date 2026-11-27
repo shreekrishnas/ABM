@@ -154,7 +154,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <p className="muted mb-3 text-xs">{visitOnlyHidden} compan{visitOnlyHidden === 1 ? "y" : "ies"} only visited your website, with no other signal yet, so {visitOnlyHidden === 1 ? "it isn't" : "they aren't"} suggested here. {visitOnlyHidden === 1 ? "It appears" : "They appear"} once a second source agrees. <Link href="/import/apollo" style={{ color: "var(--accent-indigo)" }}>See website visitors</Link></p>
         )}
         {shown.length === 0 ? (
-          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? NO_PROSPECTS_MESSAGE : `Nothing here: ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "The next scan runs on its own. You can also scan now, find companies similar to one website on Import, or connect Apollo website visitors." : undefined} /></Card>
+          <Card><Empty icon={<Globe size={22} />} title={status === "new" ? NO_PROSPECTS_MESSAGE : `Nothing here: ${STATUS_WORD[status].toLowerCase()}`} sub={status === "new" ? "New suggestions appear here as they are found." : undefined} /></Card>
         ) : (
           <ActionForm action={approveSuggestionsAction}>
           {status === "new" && (

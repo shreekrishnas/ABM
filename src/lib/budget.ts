@@ -26,7 +26,7 @@ export async function monthSpendUsd(sellerId: string, now = new Date()): Promise
 export class MonthlyBudgetExceeded extends BudgetExceeded {
   constructor(public sellerId: string, spent: number, cap: number, accountId = "") {
     super(accountId, spent, cap);
-    this.message = `Monthly budget reached for this account: $${spent.toFixed(2)} of $${cap.toFixed(2)}. A Super Admin can raise it in Team & Access.`;
+    this.message = `Monthly budget reached for this account: $${spent.toFixed(2)} of $${cap.toFixed(2)}.`;
   }
 }
 

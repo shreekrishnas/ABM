@@ -47,13 +47,13 @@ export async function emailReadiness(clientId: string): Promise<EmailReadiness> 
   const items: ReadinessItem[] = [
     {
       key: "connection", label: "Mailbox connection (SMTP)", blocking: true, ok: sample || Boolean(env("SMTP_URL")),
-      detail: sample ? "Sample mode: emails are recorded, not sent" : env("SMTP_URL") ? undefined : "No SMTP connection is set on the server",
-      fix: "Set SMTP_URL (and SMTP_FROM) in Vercel for Production, then redeploy", href: "/admin/integrations",
+      detail: sample ? "Sample mode: emails are recorded, not sent" : env("SMTP_URL") ? undefined : "Email sending is not available yet",
+      fix: "Not available yet",
     },
     {
       key: "mailbox", label: "A sending mailbox with a daily limit", blocking: true, ok: mailboxes > 0,
       detail: mailboxes ? `${mailboxes} active` : "No active mailbox: every approved email would be held at the daily-limit check",
-      fix: "Add a mailbox (address and daily limit). There is no screen for this yet: a developer adds it to the Mailbox table",
+      fix: "Not available yet",
     },
     {
       key: "brain", label: "Account Brain finished", blocking: true, ok: Boolean(pack),
@@ -74,7 +74,7 @@ export async function emailReadiness(clientId: string): Promise<EmailReadiness> 
       // As the send step does: only a client that exists and is paused or archived is stopped.
       key: "client_active", label: "Client active", blocking: true, ok: !client || client.status === "active",
       detail: client && client.status !== "active" ? `The client is ${client.status}: research and sending are stopped` : undefined,
-      fix: "A Super Admin sets the client back to active", href: "/team?tab=accounts",
+      fix: "Not available while the client is paused",
     },
     {
       key: "bounce_breaker", label: "Sending not paused for bounces", blocking: true, ok: !breaker,

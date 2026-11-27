@@ -31,7 +31,7 @@ export function Shell({ counts, access, children }: { counts: Counts; access: Ac
   const path = usePathname();
   if (path.startsWith("/login")) return <main id="main">{children}</main>;
   if (access?.state === "removed") return <Gate title="Your access has been removed" text="Ask ShreeKrishna if you think this is a mistake." />;
-  if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text={access.canSuperAdmin ? "No client is assigned to you in User mode. Switch Super Admin on to see every client." : "You're on the team, but no client is assigned to you yet. This page opens up as soon as an admin assigns one."} superAdminSwitch={access.canSuperAdmin} />;
+  if (access?.state === "noclient") return <Gate title={`Welcome, ${access.name.split(" ")[0]}`} text={access.canSuperAdmin ? "No client is assigned to you in User mode. Switch Super Admin on to see every client." : "No client is assigned to you yet."} superAdminSwitch={access.canSuperAdmin} />;
   const at = locate(path);
   const active = isOn(path, "/clients") ? "clients" : at.area === "home" ? "home" : (at.section?.key ?? "");
   const sup = Boolean(access?.superAdmin);

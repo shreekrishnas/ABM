@@ -68,7 +68,7 @@ export const SECTIONS: NavSection[] = [
     key: "admin", label: "Admin", blurb: "Connections, brain, team and settings", icon: Settings2,
     items: [
       { href: "/admin", label: "Overview", blurb: "Workspace settings in one place", icon: Settings2 },
-      { href: "/admin/integrations", label: "Integrations", blurb: "Every connection, its status and last sync", icon: Plug },
+      { href: "/admin/integrations", label: "Integrations", blurb: "Every connection, its status and last sync", icon: Plug, superAdmin: true },
       { href: "/brain", label: "Account Brain", blurb: "What the client sells and to whom", icon: Brain },
       { href: "/settings", label: "Settings", blurb: "Seller pack, senders, knowledge", icon: SlidersHorizontal },
       { href: "/team", label: "Team & Access", blurb: "People, clients, system health (Super Admin)", icon: ShieldCheck, superAdmin: true },

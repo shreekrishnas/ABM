@@ -51,7 +51,7 @@ export async function notifications(now = new Date()): Promise<Notice[]> {
   // Budget stops are shown here (in the bell), not in "Needs attention".
   const budgetStops = await db.reviewItem.findMany({ where: { status: "open", type: "budget_exceeded" }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, reason: true, createdAt: true, accountId: true, account: { select: { name: true } } } });
   for (const b of budgetStops) out.push({ id: `b-${b.id}`, kind: "spend", tone: "warn", title: `${b.account?.name ?? "A company"}: budget reached`, detail: b.reason.slice(0, 160), href: `/review?type=budget_exceeded&pick=${b.id}`, at: b.createdAt.toISOString() });
-  if (paused) out.push({ id: `p-${paused.since.getTime()}`, kind: "system", tone: "warn", title: "AI is paused", detail: "Paused by an admin; research waits in the queue", href: "/team?tab=system", at: paused.since.toISOString() });
+  if (paused) out.push({ id: `p-${paused.since.getTime()}`, kind: "system", tone: "warn", title: "AI is paused", detail: "Research waits in the queue", href: "/team?tab=system", at: paused.since.toISOString() });
   if (month) {
     const clients = await db.client.findMany({ select: { id: true, name: true } });
     for (const [id, m] of month) if (m.state !== "ok") out.push({ id: `s-${id}-${m.state}`, kind: "spend", tone: m.state === "over" ? "bad" : "warn", title: `${clients.find((c) => c.id === id)?.name ?? id}: ${m.state === "over" ? "monthly cap reached" : `${Math.round((m.share ?? 0) * 100)}% of monthly cap`}`, detail: `$${m.spent.toFixed(2)} of $${(m.cap ?? 0).toFixed(2)}`, href: "/team?tab=system", at: now.toISOString() });

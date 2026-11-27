@@ -42,7 +42,7 @@ export async function RecommendedToday({ p, live }: { p: SellerProfile; live: bo
       </div>
 
       {!items.length ? (
-        <Empty icon={<Sparkles size={20} />} title={row ? "Nothing to recommend today" : "No list yet"} sub={row ? "No new company or fresh signal passed the checks. The next run is tomorrow morning." : live ? "The first list appears after tomorrow morning's run, or press Run now." : "Turn on live research for this client in Super Admin → client settings."} />
+        <Empty icon={<Sparkles size={20} />} title={row ? "Nothing to recommend today" : "No list yet"} sub={row ? "No new company or fresh signal passed the checks. The next run is tomorrow morning." : live ? "The first list appears after tomorrow morning's run, or press Run now." : "Recommendations are not available for this account right now."} />
       ) : (
         <ol className="rt-list">
           {items.map((i, n) => (

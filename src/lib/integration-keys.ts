@@ -42,7 +42,7 @@ function cryptoKey(): Buffer | null {
 
 export function encryptKeys(values: Record<string, string>): string {
   const key = cryptoKey();
-  if (!key) throw new Error("Saving keys needs AUTH_SECRET to be set in Vercel");
+  if (!key) throw new Error("Keys can't be saved right now.");
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", key, iv);
   const body = Buffer.concat([c.update(JSON.stringify(values), "utf8"), c.final()]);
@@ -95,7 +95,8 @@ export async function syncIntegrationEnv(force = false): Promise<void> {
 export type FieldState = KeyField & { source: "app" | "vercel" | null; hint: string | null };
 export interface IntegrationKeyState { key: string; enabled: boolean; ready: boolean; fields: FieldState[]; updatedAt: Date | null; updatedBy: string | null }
 
-const hintOf = (v: string, secret: boolean) => (secret ? `••••${v.slice(-4)}` : v.length > 40 ? `${v.slice(0, 40)}…` : v);
+// A secret never leaves the server, not even its last characters: only that one is saved.
+const hintOf = (v: string, secret: boolean) => (secret ? "••••••••" : v.length > 40 ? `${v.slice(0, 40)}…` : v);
 
 /** Per integration: switched on or off, whether its required keys are present, and where each key comes from. */
 export async function integrationKeyStates(): Promise<Map<string, IntegrationKeyState>> {

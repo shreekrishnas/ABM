@@ -15,12 +15,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   // The sign-in route handler sends back a short code; the words are the ones the form always showed.
   const minutes = Math.max(1, Math.min(60, Number(m) || 1));
   const error = ({
-    not_setup: "Sign-in isn't set up yet: add AUTH_SECRET in Vercel.",
+    not_setup: "Sign-in is not available right now.",
     no_email: "Enter your work email address.",
     rate: `Too many sign-in attempts. Try again in ${minutes} minutes.`,
     domain: `Only @${domains.join(" or @")} addresses can sign in.`,
-    not_member: "You're not on the team yet. Ask a Super Admin to add you in Team & Access.",
-    email_failed: "We couldn't send the sign-in email. Try again in a minute, or ask a Super Admin.",
+    not_member: "This email doesn't have access.",
+    email_failed: "We couldn't send the sign-in email. Try again in a minute.",
   } as Record<string, string>)[e ?? ""];
   const shownEmail = typeof email === "string" ? email.slice(0, 200) : undefined;
   return (
