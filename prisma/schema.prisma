@@ -217,22 +217,22 @@ enum UserRole {
 
 model User {
   /// Personal preferences: landing page, notification kinds, theme, dismissed hints.
-  prefs      Json?
-  id         String   @id @default(cuid())
-  name       String
-  email      String   @unique
-  role       UserRole @default(rep)
+  prefs             Json?
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  role              UserRole  @default(rep)
   /// active = may sign in; removed = access withdrawn (history kept).
-  status     String   @default("active")
+  status            String    @default("active")
   /// Entitled to switch into Super Admin (team, clients, access). Switching never removes it.
-  superAdmin Boolean  @default(false)
+  superAdmin        Boolean   @default(false)
   /// Which clients that Super Admin covers. Empty = every client (the original, full Super Admin).
-  superAdminClients String[] @default([])
-  createdAt  DateTime @default(now())
+  superAdminClients String[]  @default([])
+  createdAt         DateTime  @default(now())
   /// Last successful sign-in.
-  lastSignInAt DateTime?
+  lastSignInAt      DateTime?
   /// Bumped to sign this person out everywhere (sessions carry the version they were issued with).
-  sessionVersion Int @default(0)
+  sessionVersion    Int       @default(0)
 
   clients       UserClient[]
   ownedAccounts Account[]     @relation("AccountOwner")
@@ -348,6 +348,7 @@ model Account {
   fundingRounds FundingRound[]
   techUses      TechUse[]
 
+  @@unique([sellerId, domain])
   @@index([stage])
   @@index([createdAt])
   @@index([tier])
@@ -358,7 +359,6 @@ model Account {
   @@index([pipelineStatus])
   @@index([sellerId, pipelineStatus])
   @@index([sellerId, stage])
-  @@unique([sellerId, domain])
 }
 
 model Contact {
@@ -474,6 +474,7 @@ model Note {
   authorId  String?
   author    User?    @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
+
   @@index([accountId])
   @@index([contactId])
   @@index([authorId])
@@ -730,11 +731,11 @@ model Draft {
   createdAt         DateTime    @default(now())
 
   message Message?
+  /// Why this person, why now, why us and the ask: the brief the email was written from (lib/outreach/brief).
+  brief   Json?
 
   @@index([status])
   @@index([contactId])
-  /// Why this person, why now, why us and the ask: the brief the email was written from (lib/outreach/brief).
-  brief             Json?
 }
 
 model Message {
@@ -766,6 +767,7 @@ model Reply {
   class      ReplyClass
   route      String
   receivedAt DateTime   @default(now())
+
   @@index([messageId])
   @@index([contactId])
 }
@@ -1122,62 +1124,62 @@ model MarketEvent {
 
 /// A company the brain suggests adding, with the evidence behind it.
 model ProspectSuggestion {
-  id             String    @id @default(cuid())
-  sellerId       String
+  id              String    @id @default(cuid())
+  sellerId        String
   /// Where it came from: market (news scan) | lookalike (similar to a company you entered) | website_visitor (Apollo or tracking)
-  origin         String    @default("market")
+  origin          String    @default("market")
   /// For lookalikes: the company they resemble.
-  seed           String?
+  seed            String?
   /// For lookalikes: the seed company's profile { industry, employees, country, keywords }, to show which traits match.
-  seedProfile    Json?
-  name           String
-  nameKey        String
-  domain         String?
-  industry       String?
-  bucket         String
-  country        String?
-  employees      Int?
-  score          Int
-  level          String
-  whyNow         String
-  families       String[]  @default([])
-  sources        Json
+  seedProfile     Json?
+  name            String
+  nameKey         String
+  domain          String?
+  industry        String?
+  bucket          String
+  country         String?
+  employees       Int?
+  score           Int
+  level           String
+  whyNow          String
+  families        String[]  @default([])
+  sources         Json
   /// new | added | dismissed | excluded | needs_check (size or country unknown) | watching (fits, but fewer than two independent signals)
-  status         String    @default("new")
+  status          String    @default("new")
   /// When a person approved or ignored it; new evidence after this date can resurface an ignored company.
-  decidedAt      DateTime?
+  decidedAt       DateTime?
   /// Bumped each time a pending suggestion is revised with stronger evidence.
-  version        Int       @default(1)
+  version         Int       @default(1)
   /// Set when an ignored company came back on genuinely new evidence.
-  resurfacedAt   DateTime?
-  reason         String?
-  accountId      String?
+  resurfacedAt    DateTime?
+  reason          String?
+  accountId       String?
   /// Lookalikes: how closely it matches the company it was found from, 0–100 (AI investigation).
-  fitScore       Int?
+  fitScore        Int?
   /// Lookalikes: how ready it looks to buy: ready | emerging | early | none.
-  readiness      String?
-  readinessScore Int?
+  readiness       String?
+  readinessScore  Int?
   /// Lookalikes: plain reasons for the recommendation.
-  reasons        String[]  @default([])
+  reasons         String[]  @default([])
   /// Lookalikes: evidence [{ claim, quote, url, publisher, at, dimension, verified, sources }].
-  evidence       Json?
+  evidence        Json?
   /// Lookalikes: the investigation (profile, dimension scores, rounds of questions, stop reason).
-  research       Json?
+  research        Json?
   /// Lookalikes: queued | running | done | failed. Investigations run in the background.
-  researchStatus String?
+  researchStatus  String?
   /// What a person asked the AI to look into ("Research more").
-  researchNote   String?
-  researchedAt   DateTime?
+  researchNote    String?
+  researchedAt    DateTime?
   /// Who approved or rejected it.
-  decidedBy      String?
+  decidedBy       String?
   /// Who started the search that found it (lookalike or discovery).
-  requestedBy    String?
+  requestedBy     String?
   /// "Snooze" in Recommended today: hidden from the daily list until this date.
-  snoozedUntil   DateTime?
+  snoozedUntil    DateTime?
   /// Why a person rejected it from the daily list (wrong_industry | too_small | weak_signal | not_now | other), so ranking learns.
   rejectReasonKey String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([sellerId, nameKey])
   @@index([sellerId, researchStatus])
@@ -1361,6 +1363,26 @@ model AssistantMessage {
 /// Apollo prospects found for a company seen on the website, kept so people can review,
 /// export or import them later without asking Apollo again. Prospects are stored as rows
 /// in the CSV import's own columns (Company Name, Company Website, First Name, …).
+/// Company facts Apollo returned while the website visitors were pulled (the visitor list and its company
+/// search, no extra request): employees, annual revenue, industry. One row per client and company; refreshed
+/// on every pull. Shown on Website visitors when the company has no record or enrichment of its own.
+model VisitorCompanyFacts {
+  id          String   @id @default(cuid())
+  sellerId    String
+  /// d:<domain> or n:<normalized name> (the same key as VisitorEnrichment)
+  companyKey  String
+  companyName String
+  domain      String?
+  /// Apollo's employee estimate, as a number.
+  employees   Int?
+  /// Apollo's annual revenue, in US dollars.
+  revenueUsd  Float?
+  industry    String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sellerId, companyKey])
+}
+
 model VisitorEnrichment {
   id            String    @id @default(cuid())
   sellerId      String
@@ -1505,15 +1527,15 @@ model EvidenceLink {
 
 /// Server errors, grouped by where and what, so a Super Admin sees them after Vercel's short log retention.
 model ErrorLog {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   /// Same place + same message → one row with a count.
-  fingerprint String   @unique
+  fingerprint String    @unique
   source      String
   message     String
   detail      String?
-  count       Int      @default(1)
-  firstSeen   DateTime @default(now())
-  lastSeen    DateTime @default(now())
+  count       Int       @default(1)
+  firstSeen   DateTime  @default(now())
+  lastSeen    DateTime  @default(now())
   /// A Super Admin marked it fixed; cleared again if the error happens again.
   resolvedAt  DateTime?
 
@@ -1539,6 +1561,7 @@ model RateLimit {
   key         String   @id
   windowStart DateTime
   count       Int      @default(0)
+
   @@index([windowStart])
 }
 
@@ -1713,7 +1736,7 @@ model SignInEvent {
 /// A company's careers site: which job system it uses (Greenhouse, Lever, Ashby, Workable) and when its jobs were last read.
 /// "none" and "error" are kept too, so a site without a job feed isn't read again every day.
 model CareersFeed {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   sellerId      String
   accountId     String?
   suggestionId  String?
@@ -1724,10 +1747,10 @@ model CareersFeed {
   /// found | none | error
   status        String
   note          String?
-  lastCheckedAt DateTime  @default(now())
+  lastCheckedAt DateTime @default(now())
   /// [{ title, url, location, postedAt, matched }]
   lastJobs      Json?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
   @@unique([sellerId, domain])
   @@index([sellerId, lastCheckedAt])

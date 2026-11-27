@@ -101,7 +101,7 @@ describe("Apollo website visitors with a client whose Account Brain is incomplet
     const r = await dailyVisitorPull(newContext());
     expect(r.error).toBeUndefined();
     expect(r).toMatchObject({ client: "manch", recorded: 2 });
-    expect(apollo.dates).toHaveBeenCalledWith("test-key", ["acmesteel.example", "bharatfoods.example", "gammaretail.example"], MANCH_SITE);
+    expect(apollo.dates).toHaveBeenCalledWith("test-key", ["acmesteel.example", "bharatfoods.example", "gammaretail.example"], MANCH_SITE, expect.any(Map));
     const visits = await baseDb.webVisit.findMany({ orderBy: { companyName: "asc" } });
     expect(visits.map((v) => [v.companyName, v.sellerId, v.occurredAt.toISOString()])).toEqual([
       ["Acme Steel", "manch", "2026-11-22T09:15:00.000Z"],

@@ -144,6 +144,7 @@ export function scopeWhere(model: Prisma.ModelName, ids: string[], opts: { platf
     case "ImportBatch":
     case "DiscoverySearch":
     case "VisitorEnrichment":
+    case "VisitorCompanyFacts":
     case "DailyRecommendation":
     case "AgentAction":
     case "AgentEvent":

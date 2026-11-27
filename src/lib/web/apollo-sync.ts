@@ -3,7 +3,9 @@
 // unknown ones appear in Discover under "On your website, not in your database".
 
 import { db } from "@/lib/db";
-import { apolloVisitDates, apolloVisitorCompanies } from "@/lib/adapters/live/apollo";
+import { apolloVisitDates, apolloVisitorCompanies, type VisitorFacts } from "@/lib/adapters/live/apollo";
+import { normalizeDomain } from "@/lib/pipeline/normalize";
+import { companyKey } from "./visitor-prospects";
 import { runSellerId, seller } from "@/lib/seller";
 import { logEvent, type RunContext } from "@/lib/pipeline/context";
 import { clientForSite, recordVisit } from "./visits";
@@ -51,8 +53,10 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
   // The client whose website Apollo tracks: visits count for that client's companies only.
   const siteClient = await clientForSite(site);
   let realDates = 0, otherSite = 0, dateError: string | null = null;
+  // Employees, revenue and industry from the same company search (no extra request), by website.
+  const searched = new Map<string, VisitorFacts>();
   try {
-    const dates = await apolloVisitDates(key, companies.map((c) => c.domain ?? "").filter(Boolean), site);
+    const dates = await apolloVisitDates(key, companies.map((c) => c.domain ?? "").filter(Boolean), site, searched);
     const kept: typeof companies = [];
     for (const c of companies) {
       const v = c.domain ? dates.get(c.domain) : undefined;
@@ -118,10 +122,11 @@ export async function syncApolloVisitors(ctx: RunContext, opts: { force?: boolea
     await recordVisit({ url: "https://apollo.io/website-visitors", title: "Visited the website (seen by Apollo)", companyName: c.name, companyDomain: c.domain, source: "apollo", occurredAt: c.lastSeenAt ?? undefined, sellerId: siteClient }, ctx);
     recorded++;
   }
+  const factsSaved = siteClient ? await saveVisitorFacts(siteClient, companies, searched) : 0;
   // Visitors not in the database become suggestions (checked against the targeting rule) for approval.
   // Apollo dates visits by its own activity date, which can be months back.
   const s = await suggestFromVisitors(ctx, 180);
-  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} with 2+ buying signals sent for approval, ${s.justVisitors} kept as visitors only · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${unknownDate ? `, ${unknownDate} with no visit date (shown as date unknown)` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""}`, data: { companies: companies.length, recorded, corrected, realDates, otherSite, unknownDate, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
+  await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "info", reason: `Apollo website visitors: ${companies.length} companies in the list, ${recorded} new visits recorded${corrected ? `, ${corrected} visit dates corrected to Apollo's date` : ""}, ${s.suggested} with 2+ buying signals sent for approval, ${s.justVisitors} kept as visitors only · ${realDates} dated by their real visit to ${site ?? "the site"}${otherSite ? `, ${otherSite} visited only another site` : ""}${unknownDate ? `, ${unknownDate} with no visit date (shown as date unknown)` : ""}${dateError ? ` · visit dates unavailable: ${dateError}` : ""} · company facts (employees, revenue) saved for ${factsSaved}`, data: { factsSaved, companies: companies.length, recorded, corrected, realDates, otherSite, unknownDate, site, dateError, dateFields: [...fields], undated: companies.filter((c) => !c.lastSeenAt).length } });
   return { companies: companies.length, recorded, ...s };
 }
 
@@ -155,4 +160,27 @@ export async function dailyVisitorPull(ctx: RunContext): Promise<{ client?: stri
     await logEvent(ctx, { stage: 0, step: "apollo.visitors", outcome: "error", reason: `Daily visitor pull failed${client ? ` for ${client}` : ""}: ${msg}` }).catch(() => undefined);
     return { client, error: msg };
   }
+}
+
+/**
+ * Keeps the employees, annual revenue and industry Apollo returned with the visitor list and its company
+ * search, for the client whose website was visited: one row per company, refreshed each pull. A value Apollo
+ * didn't send this time keeps the one saved before. Returns how many companies have facts saved.
+ */
+export async function saveVisitorFacts(sellerId: string, companies: { name: string; domain: string | null; facts?: VisitorFacts | null }[], searched: Map<string, VisitorFacts>): Promise<number> {
+  let saved = 0;
+  for (const c of companies) {
+    const domain = c.domain ? normalizeDomain(c.domain) : null;
+    const a = c.facts ?? null;
+    const b = (c.domain && searched.get(c.domain)) || null;
+    const employees = a?.employees ?? b?.employees ?? null;
+    const revenueUsd = a?.revenueUsd ?? b?.revenueUsd ?? null;
+    const industry = a?.industry ?? b?.industry ?? null;
+    if (employees == null && revenueUsd == null && industry == null) continue;
+    const ck = companyKey(c.name, domain);
+    const update = { companyName: c.name, domain, ...(employees != null ? { employees } : {}), ...(revenueUsd != null ? { revenueUsd } : {}), ...(industry != null ? { industry } : {}) };
+    await db.visitorCompanyFacts.upsert({ where: { sellerId_companyKey: { sellerId, companyKey: ck } }, create: { sellerId, companyKey: ck, companyName: c.name, domain, employees, revenueUsd, industry }, update });
+    saved++;
+  }
+  return saved;
 }

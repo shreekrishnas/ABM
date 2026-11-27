@@ -41,6 +41,8 @@ export interface VisitorCompany {
   enrichment: { status: EnrichStatus; message: string | null; rows: ProspectRow[]; enrichedAt: Date; importedAt: Date | null } | null;
   /** The same company seen by another source under its name only (merged into this one). */
   aliases?: { key: string; name: string }[];
+  /** Employees, revenue and industry Apollo returned with the visitor list (saved by the daily pull). */
+  facts?: { employees: number | null; revenueUsd: number | null; industry: string | null; updatedAt: Date } | null;
 }
 
 export const companyKey = (name: string, domain: string | null) => (domain ? `d:${domain}` : `n:${companyNameKey(name)}`);
@@ -106,6 +108,13 @@ export async function listVisitorCompanies(from: Date, to: Date): Promise<Visito
   for (const e of enriched) {
     const c = owner.get(e.companyKey);
     if (c && !c.enrichment) c.enrichment = { status: e.status as EnrichStatus, message: e.message, rows: e.rows as ProspectRow[], enrichedAt: e.enrichedAt, importedAt: e.importedAt };
+  }
+  // Company facts from the visitor pull: the company's own key first, then a name it was also seen by.
+  const facts = await db.visitorCompanyFacts.findMany({ where: { sellerId, companyKey: { in: [...owner.keys()] } } });
+  facts.sort((a, b) => own(b.companyKey) - own(a.companyKey));
+  for (const f of facts) {
+    const c = owner.get(f.companyKey);
+    if (c && !c.facts) c.facts = { employees: f.employees, revenueUsd: f.revenueUsd, industry: f.industry, updatedAt: f.updatedAt };
   }
   return [...by.values()].sort((a, b) => b.lastVisit.getTime() - a.lastVisit.getTime());
 }
@@ -377,7 +386,7 @@ export function revenueText(r: RevenueFact): { text: string; note: string } {
  * (and researched financials) when the company is in its pipeline, else the client's own Apollo enrichment.
  * Nothing is looked up outside, nothing is estimated: what isn't recorded stays null ("Not available").
  */
-export async function companyFacts(c: Pick<VisitorCompany, "enrichment">, account: PipelineAccount | null): Promise<{ revenue: RevenueFact | null; employees: EmployeesFact | null }> {
+export async function companyFacts(c: Pick<VisitorCompany, "enrichment"> & Partial<Pick<VisitorCompany, "facts">>, account: PipelineAccount | null): Promise<{ revenue: RevenueFact | null; employees: EmployeesFact | null }> {
   let revenue: RevenueFact | null = null;
   let employees: EmployeesFact | null = null;
   if (account) {
@@ -399,6 +408,12 @@ export async function companyFacts(c: Pick<VisitorCompany, "enrichment">, accoun
   if (!employees) {
     const e = employeesText(rows.find((r) => r[LABEL.employees])?.[LABEL.employees]);
     if (e) employees = { value: e, source: "Apollo" };
+  }
+  // Last: what Apollo sent with the visitor list itself (no extra request).
+  if (!revenue && c.facts?.revenueUsd && c.facts.revenueUsd > 0) revenue = { amount: c.facts.revenueUsd, currency: "USD", period: null, source: "Apollo (visitor list)" };
+  if (!employees && c.facts?.employees) {
+    const e = employeesText(c.facts.employees);
+    if (e) employees = { value: e, source: "Apollo (visitor list)" };
   }
   return { revenue, employees };
 }

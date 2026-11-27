@@ -126,6 +126,37 @@ export interface ApolloVisitorCompany {
   lastSeenAt: Date | null;
   /** Which Apollo field the date came from. */
   dateField: string | null;
+  /** Employees, annual revenue (USD) and industry, when Apollo's list returns them (no extra request). */
+  facts?: VisitorFacts | null;
+}
+
+/** Company facts Apollo returns with a company: employees, annual revenue in US dollars, industry. */
+export interface VisitorFacts { employees: number | null; revenueUsd: number | null; industry: string | null }
+
+const posNum = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\s*[\d,.]+\s*$/.test(v) ? Number(v.replace(/,/g, "")) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+/**
+ * Employees, revenue and industry from an Apollo company or account. Apollo puts them on the company
+ * itself (estimated_num_employees, annual_revenue / organization_revenue, industry) or, on an account, on
+ * its nested organization. Nothing found: null (never estimated).
+ */
+export function visitorFacts(o: Record<string, unknown> | null | undefined): VisitorFacts | null {
+  if (!o) return null;
+  const org = (o.organization && typeof o.organization === "object" ? o.organization : {}) as Record<string, unknown>;
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = o[k] ?? org[k];
+      if (v != null && v !== "") return v;
+    }
+    return null;
+  };
+  const employees = posNum(pick("estimated_num_employees", "num_employees"));
+  const revenueUsd = posNum(pick("annual_revenue", "organization_revenue"));
+  const ind = pick("industry");
+  const industry = typeof ind === "string" && ind.trim() ? ind.trim() : null;
+  return employees || revenueUsd || industry ? { employees: employees ? Math.round(employees) : null, revenueUsd, industry } : null;
 }
 
 /** Apollo's date fields on an account, most specific first. */
@@ -190,7 +221,7 @@ export async function apolloVisitorCompanies(key: string, list: { id?: string; n
       if (!a.name) continue;
       const raw = a.domain ?? a.website_url ?? null;
       const d = visitDate(a);
-      out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null, lastSeenAt: d.at, dateField: d.field });
+      out.push({ name: a.name, domain: raw ? raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase() : null, lastSeenAt: d.at, dateField: d.field, facts: visitorFacts(a) });
     }
     totalPages = r.pagination?.total_pages ?? page;
     if (!r.pagination?.total_pages || page >= r.pagination.total_pages) break;
@@ -247,7 +278,7 @@ export function visitToSite(intent: IntentAccount | null | undefined, site: stri
  * Real last-visit dates for these company domains, from Apollo's company search (the list itself
  * only gives "last activity", which is when a company was saved). 100 domains per call.
  */
-export async function apolloVisitDates(key: string, domains: string[], site: string | null): Promise<Map<string, { at: Date; field: string } | "other_site">> {
+export async function apolloVisitDates(key: string, domains: string[], site: string | null, facts?: Map<string, VisitorFacts>): Promise<Map<string, { at: Date; field: string } | "other_site">> {
   const api = new ApolloClient(key);
   const out = new Map<string, { at: Date; field: string } | "other_site">();
   const unique = [...new Set(domains.map(cleanHost).filter(Boolean))];
@@ -259,6 +290,12 @@ export async function apolloVisitDates(key: string, domains: string[], site: str
     for (const o of [...(r.organizations ?? []), ...(r.accounts ?? [])]) {
       const host = cleanHost((o.primary_domain as string | undefined) ?? (o.domain as string | undefined) ?? (o.website_url as string | undefined));
       if (!host || !batch.includes(host)) continue;
+      // The same answer carries the company's employees, revenue and industry: kept, no extra request.
+      const f = facts ? visitorFacts(o) : null;
+      if (f && facts) {
+        const had = facts.get(host);
+        facts.set(host, { employees: had?.employees ?? f.employees, revenueUsd: had?.revenueUsd ?? f.revenueUsd, industry: had?.industry ?? f.industry });
+      }
       const v = visitToSite(o.intent_signal_account, site);
       if (!v) continue;
       // Keep the most useful answer if a company comes back twice (as organization and account).
