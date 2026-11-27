@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionButton } from "@/components/client";
 import { NeedsStrip } from "@/components/needs-strip";
+import { mapLimit } from "@/lib/concurrency";
 import { JobNote } from "@/components/job-note";
 import { needs } from "@/lib/admin/needs";
 import { Card, PageHeader } from "@/components/ui";
@@ -35,8 +36,9 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
   ]);
   const DAY = 86_400_000;
   const stale = fresh.newestVisit ? (Date.now() - fresh.newestVisit.getTime()) / DAY > 7 : false;
-  const rows: VisitorRow[] = await Promise.all(
-    companies.map(async (c) => {
+  // A few at a time: all at once queued hundreds of database calls on one connection and some timed out.
+  const rows: VisitorRow[] = await mapLimit(
+    companies, 4, async (c) => {
       const chk = await customerCheck(c.name, c.domain);
       // From this client's own records only (its company record, research or Apollo enrichment); never looked up here.
       const facts = await companyFacts(c, chk.account);
@@ -50,7 +52,7 @@ export default async function ApolloImportPage({ searchParams }: { searchParams:
         enrichedAt: c.enrichment ? short(c.enrichment.enrichedAt) : null, importedAt: c.enrichment?.importedAt ? short(c.enrichment.importedAt) : null,
         prospects,
       };
-    }),
+    },
   );
   return (
     <div className="page-enter">
